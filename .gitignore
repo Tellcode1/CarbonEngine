@@ -1,0 +1,12 @@
+*/build/*
+/build/
+*/CMakeFiles/*
+*.spv
+/Atlas/CMakeFiles
+/.vscode/
+/.cache/
+/backup/
+/Dynamite/
+/DEBUG/
+*.png # we don't want to include any textures currently
+Atlas/atlas.hpp
