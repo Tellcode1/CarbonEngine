@@ -8,5 +8,5 @@
 /backup/
 /Dynamite/
 /DEBUG/
-*.png # we don't want to include any textures currently
 Atlas/atlas.hpp
+Atlas/atlas.png

@@ -107,8 +107,6 @@ Renderer::Renderer(VulkanContext* ctx) {
     // FT_Done_Face(face);
     // FT_Done_FreeType(ft);
 
-    TIME_FUNCTION(turd.Init(ctx->device, ctx->physDevice, graphicsQueue, commandPool, "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"));
-
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -198,30 +196,27 @@ Renderer::Renderer(VulkanContext* ctx) {
 
         descWriteSets.push_back(writeSet0);
 
-        // {
-            VkDescriptorImageInfo fontImageInfo{};
-            fontImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            fontImageInfo.imageView = turd.FontTextureView;
-            fontImageInfo.sampler = turd.FontTextureSampler;
+        // VkDescriptorImageInfo fontImageInfo{};
+        // fontImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        // fontImageInfo.imageView = turd.FontTextureView;
+        // fontImageInfo.sampler = turd.FontTextureSampler;
 
-            VkWriteDescriptorSet writeSet{};
-            writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            writeSet.dstSet = descSet[i];
-            writeSet.dstBinding = 1;
-            writeSet.dstArrayElement = 0;
-            writeSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            writeSet.descriptorCount = 1;
-            writeSet.pImageInfo = &fontImageInfo;
-            
-            descWriteSets.push_back(writeSet);
-        // }
-
+        // VkWriteDescriptorSet writeSet{};
+        // writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        // writeSet.dstSet = descSet[i];
+        // writeSet.dstBinding = 1;
+        // writeSet.dstArrayElement = 0;
+        // writeSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        // writeSet.descriptorCount = 1;
+        // writeSet.pImageInfo = &fontImageInfo;
+        
+        // descWriteSets.push_back(writeSet);
 
 		vkUpdateDescriptorSets(ctx->device, descWriteSets.size(), descWriteSets.data(), 0, nullptr);
 	}
 
-    pipeline.vertexShader = Loader::LoadShaderModule("/home/debian/dev/Pixelworlds3.0/build/Shaders/vert.spv", ctx->device);
-    pipeline.fragmentShader = Loader::LoadShaderModule("/home/debian/dev/Pixelworlds3.0/build/Shaders/frag.spv", ctx->device);
+    pipeline.vertexShader = Loader::LoadShaderModule("./Shaders/vert.text.spv", ctx->device);
+    pipeline.fragmentShader = Loader::LoadShaderModule("./Shaders/frag.text.spv", ctx->device);
 
     VkPipelineShaderStageCreateInfo vshader{};
     vshader.module = pipeline.vertexShader;
@@ -235,7 +230,10 @@ Renderer::Renderer(VulkanContext* ctx) {
     fshader.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
     fshader.pName = "main";
 
-    const SafeArray<VkPipelineShaderStageCreateInfo> shaders = { vshader, fshader };
+    SafeArray<VkPipelineShaderStageCreateInfo> shaders = { vshader, fshader };
+
+    TIME_FUNCTION(turd.Init(ctx->device, ctx->physDevice, graphicsQueue, commandPool, imageAvailableSemaphore[0], "/usr/share/fonts/X11/Type1/c0648bt_.pfb"));
+    TIME_FUNCTION(turd.CreatePipeline());
     
     const SafeArray<VkDescriptorSetLayout> pDescriptorLayouts{
         descSetLayouts
@@ -246,7 +244,7 @@ Renderer::Renderer(VulkanContext* ctx) {
     pcio.format = format;
     pcio.pShaderCreateInfos = &shaders;
     pcio.pAttributeDescriptions = &pAttributeDescriptions;
-    pcio.pBindingDescription = &pBindingDescription;
+    pcio.pBindingDescriptions = &pBindingDescription;
     pcio.pDescriptorLayouts = &pDescriptorLayouts;
     pcio.pPushConstants = &pPushConstants;
     pcio.pShaderCreateInfos = &shaders;
@@ -595,7 +593,7 @@ void Renderer::ResizeRenderWindow(const VkExtent2D newExtent, const bool forceWi
     pcio.format = format;
     pcio.pShaderCreateInfos = &shaders;
     pcio.pAttributeDescriptions = &pAttributeDescriptions;
-    pcio.pBindingDescription = &pBindingDescription;
+    pcio.pBindingDescriptions = &pBindingDescription;
     pcio.pDescriptorLayouts = &pDescriptorLayouts;
     pcio.pPushConstants = &pPushConstants;
     pcio.pShaderCreateInfos = &shaders;

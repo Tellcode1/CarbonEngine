@@ -34,9 +34,9 @@ VkInstance bootstrap::CreateInstance(const char* windowTitle) {
 	VkLayerProperties layerProperties[layerCount];
 	vkEnumerateInstanceLayerProperties(&layerCount, layerProperties);
 
-	for (uint32_t i = 0; i < layerCount; i++)
+	for(const auto& layer : ValidationLayers)
 	{
-		for(const auto& layer : ValidationLayers)
+		for (uint32_t i = 0; i < layerCount; i++)
 		{
 			if (strcmp(layer, layerProperties[i].layerName) == 0)
 			{

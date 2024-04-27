@@ -32,6 +32,8 @@ using glm::dvec2;
 
 #include <iostream>
 #include <vulkan/vulkan.hpp>
+
+#include <unordered_map>
 #include <vector>
 #include <fstream>
 

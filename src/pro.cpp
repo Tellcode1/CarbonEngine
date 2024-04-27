@@ -25,7 +25,7 @@ void pro::CreateEntirePipeline(const VkDevice device, PipelineCreateInfo* pCreat
 	CreateGraphicsPipeline(device, pCreateInfo, dstPipeline, flags);
 }
 
-void pro::CreateGraphicsPipeline(VkDevice device, PipelineCreateInfo const* pCreateInfo, Pipeline* dstPipeline, u32 flags)
+void pro::CreateGraphicsPipeline(VkDevice device, PipelineCreateInfo const *pCreateInfo, VkPipeline *dstPipeline, u32 flags)
 {
 	REQUIRED_PTR(device);
 	REQUIRED_PTR(pCreateInfo);
@@ -56,9 +56,9 @@ void pro::CreateGraphicsPipeline(VkDevice device, PipelineCreateInfo const* pCre
 	VkPipelineVertexInputStateCreateInfo vertexInputState{};
 	vertexInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;	
 	vertexInputState.vertexAttributeDescriptionCount = FALLBACK_SIZE(pCreateInfo->pAttributeDescriptions);
-	vertexInputState.vertexBindingDescriptionCount = FALLBACK_SIZE(pCreateInfo->pBindingDescription);
+	vertexInputState.vertexBindingDescriptionCount = FALLBACK_SIZE(pCreateInfo->pBindingDescriptions);
 	vertexInputState.pVertexAttributeDescriptions = FALLBACK_PTR(pCreateInfo->pAttributeDescriptions);
-	vertexInputState.pVertexBindingDescriptions = FALLBACK_PTR(pCreateInfo->pBindingDescription);
+	vertexInputState.pVertexBindingDescriptions = FALLBACK_PTR(pCreateInfo->pBindingDescriptions);
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssemblyState{};
 	inputAssemblyState.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -91,7 +91,7 @@ void pro::CreateGraphicsPipeline(VkDevice device, PipelineCreateInfo const* pCre
 	rasterizerPipelineStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
 	
 	if(flags & PIPELINE_CREATE_FLAGS_ENABLE_CULLING)
-		rasterizerPipelineStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+		rasterizerPipelineStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT; // No one uses other culling modes. If you do, I hate you.
 	else
 		rasterizerPipelineStateCreateInfo.cullMode = VK_CULL_MODE_NONE;
 
@@ -107,9 +107,13 @@ void pro::CreateGraphicsPipeline(VkDevice device, PipelineCreateInfo const* pCre
 	multisamplerPipelineStageCreateInfo.sampleShadingEnable = VK_FALSE;
 	multisamplerPipelineStageCreateInfo.alphaToCoverageEnable = VK_FALSE;
 	multisamplerPipelineStageCreateInfo.alphaToOneEnable = VK_FALSE;
-	multisamplerPipelineStageCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 	multisamplerPipelineStageCreateInfo.minSampleShading = 1.0f;
 	multisamplerPipelineStageCreateInfo.pSampleMask = VK_NULL_HANDLE;
+	
+	if(flags & PIPELINE_CREATE_FLAGS_ENABLE_MULTISAMPLING)
+		multisamplerPipelineStageCreateInfo.rasterizationSamples = pCreateInfo->samples;
+	else
+		multisamplerPipelineStageCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
 	VkPipelineColorBlendAttachmentState colorblendAttachmentState{};
 
@@ -172,14 +176,27 @@ void pro::CreateGraphicsPipeline(VkDevice device, PipelineCreateInfo const* pCre
 
 	// if(cacheIsNull) cacheCreator.join();
 	// ResultCheck(vkCreateGraphicsPipelines(device, cache, 1, &graphicsPipelineCreateInfo, VK_NULL_HANDLE, &dstPipeline->pipeline));
-	ResultCheck(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, VK_NULL_HANDLE, &dstPipeline->pipeline));
+	ResultCheck(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, VK_NULL_HANDLE, dstPipeline));
+}
+
+void pro::CreateGraphicsPipeline(VkDevice device, PipelineCreateInfo const *pCreateInfo, Pipeline *dstPipeline, u32 flags)
+{
+	CreateGraphicsPipeline(device, pCreateInfo, &dstPipeline->pipeline, flags);
 }
 
 void pro::CreateRenderPass(VkDevice device, PipelineCreateInfo const *pCreateInfo, Pipeline *dstPipeline, u32 flags)
 {
+	RenderPassCreateInfo renderPassInfo{};
+	renderPassInfo.format = pCreateInfo->format;
+	renderPassInfo.subpass = pCreateInfo->subpass;
+	pro::CreateRenderPass(device, &renderPassInfo, &dstPipeline->renderPass, flags);
+}
+
+void pro::CreateRenderPass(VkDevice device, RenderPassCreateInfo const *pCreateInfo, VkRenderPass *dstRenderPass, u32 flags)
+{
 	REQUIRED_PTR(device);
 	REQUIRED_PTR(pCreateInfo);
-	REQUIRED_PTR(dstPipeline);
+	REQUIRED_PTR(dstRenderPass);
 	NOT_EQUAL_TO(pCreateInfo->format, VK_FORMAT_UNDEFINED);
 
 	if(flags & PIPELINE_CREATE_FLAGS_ENABLE_DEPTH_CHECK)
@@ -189,13 +206,26 @@ void pro::CreateRenderPass(VkDevice device, PipelineCreateInfo const *pCreateInf
 
     VkAttachmentDescription colorAttachmentDescription{};
 	colorAttachmentDescription.format = pCreateInfo->format;
-	colorAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
 	colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	colorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 	colorAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	colorAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 	colorAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	colorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	
+	if(flags & PIPELINE_CREATE_FLAGS_ENABLE_MULTISAMPLING)
+		colorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	else
+		colorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	
+	if(flags & PIPELINE_CREATE_FLAGS_ENABLE_MULTISAMPLING)
+	{
+		colorAttachmentDescription.samples = pCreateInfo->samples;
+		colorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	}
+	else
+	{
+		colorAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+		colorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	}
 
 	VkAttachmentReference colorAttachmentReference{};
 	colorAttachmentReference.attachment = 0;
@@ -215,13 +245,13 @@ void pro::CreateRenderPass(VkDevice device, PipelineCreateInfo const *pCreateInf
 
 	subpass.pColorAttachments = &colorAttachmentReference;
 
+	u32 attachmentCount = 1;
 	std::vector<VkAttachmentDescription> attachments { colorAttachmentDescription };
 	
 	if(flags & PIPELINE_CREATE_FLAGS_ENABLE_DEPTH_CHECK)
 	{
 		VkAttachmentDescription depthAttachment{};
 		depthAttachment.format = pCreateInfo->depthBufferFormat;
-		depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
 		depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 		depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -229,8 +259,15 @@ void pro::CreateRenderPass(VkDevice device, PipelineCreateInfo const *pCreateInf
 		depthAttachment.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 		depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 		
+		if(flags & PIPELINE_CREATE_FLAGS_ENABLE_MULTISAMPLING)
+			depthAttachment.samples = pCreateInfo->samples;
+		else
+			depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+		
 		VkAttachmentReference depthAttachmentRef{};
-		depthAttachmentRef.attachment = 1;
+		depthAttachmentRef.attachment = attachmentCount;
+		attachmentCount++;
+
 		depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
 		subpass.pDepthStencilAttachment = &depthAttachmentRef;
@@ -242,6 +279,29 @@ void pro::CreateRenderPass(VkDevice device, PipelineCreateInfo const *pCreateInf
 
 		attachments.push_back(depthAttachment);
 	}
+
+	if(flags & PIPELINE_CREATE_FLAGS_ENABLE_MULTISAMPLING)
+	{
+		VkAttachmentDescription colorAttachmentResolve{};
+		colorAttachmentResolve.format = pCreateInfo->format;
+		colorAttachmentResolve.samples = pCreateInfo->samples;
+		colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		colorAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		colorAttachmentResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		colorAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+		VkAttachmentReference colorAttachmentResolveRef{};
+    	colorAttachmentResolveRef.attachment = attachmentCount;
+		attachmentCount++;
+    	
+		colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+		attachments.push_back(colorAttachmentResolve);
+
+		subpass.pResolveAttachments = &colorAttachmentResolveRef;
+	}
 	
 	VkRenderPassCreateInfo renderPassInfo{};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -252,7 +312,7 @@ void pro::CreateRenderPass(VkDevice device, PipelineCreateInfo const *pCreateInf
 	renderPassInfo.dependencyCount = 1;
 	renderPassInfo.pDependencies = &dependency;
 
-	ResultCheck(vkCreateRenderPass(device, &renderPassInfo, VK_NULL_HANDLE, &dstPipeline->renderPass));
+	ResultCheck(vkCreateRenderPass(device, &renderPassInfo, VK_NULL_HANDLE, dstRenderPass));
 }
 
 void pro::CreatePipelineLayout(VkDevice device, PipelineCreateInfo const *pCreateInfo, Pipeline *dstPipeline)
@@ -333,24 +393,6 @@ void pro::CreateSwapChain(VkDevice device, SwapchainCreateInfo const* pCreateInf
 
 #endif
 
-void pro::CreateFramebuffer(const VkDevice device, const FramebufferCreateInfo* pCreateInfo, VkFramebuffer* dstFramebuffer)
-{
-	REQUIRED_PTR(pCreateInfo);
-	REQUIRED_PTR(pCreateInfo->pRenderPass);
-	REQUIRED_PTR(pCreateInfo->pAttachments);
-
-	VkFramebufferCreateInfo swapchainFrameBufferCreateInfo{};
-	swapchainFrameBufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-	swapchainFrameBufferCreateInfo.renderPass = pCreateInfo->pRenderPass;
-	swapchainFrameBufferCreateInfo.attachmentCount = pCreateInfo->pAttachments->size();
-	swapchainFrameBufferCreateInfo.pAttachments = *pCreateInfo->pAttachments->data();
-	swapchainFrameBufferCreateInfo.width = pCreateInfo->extent.width;
-	swapchainFrameBufferCreateInfo.height = pCreateInfo->extent.height;
-	swapchainFrameBufferCreateInfo.layers = 1;
-
-	ResultCheck(vkCreateFramebuffer(device, &swapchainFrameBufferCreateInfo, VK_NULL_HANDLE, dstFramebuffer));
-}
-
 bool pro::GetSupportedFormat(VkDevice device, VkPhysicalDevice physDevice, VkSurfaceKHR surface, VkFormat *dstFormat, VkColorSpaceKHR *dstColorSpace)
 {
 	REQUIRED_PTR(device);
@@ -424,30 +466,4 @@ u32 pro::GetMemoryType(VkPhysicalDevice physDevice, const u32 memoryTypeBits, co
 	}
 
 	return -1;
-}
-
-void pro::CreateBuffer(VkDevice device, BufferCreateInfo const *pCreateInfo, Buffer *dstBuffer)
-{
-	REQUIRED_PTR(device);
-	REQUIRED_PTR(pCreateInfo);
-	REQUIRED_PTR(dstBuffer);
-
-	VkBufferCreateInfo bufferInfo{};
-    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = pCreateInfo->size;
-    bufferInfo.usage = pCreateInfo->usage;
-    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-    ResultCheck(vkCreateBuffer(device, &bufferInfo, VK_NULL_HANDLE, &dstBuffer->buffer));
-
-    VkMemoryRequirements memRequirements;
-    vkGetBufferMemoryRequirements(device, dstBuffer->buffer, &memRequirements);
-
-    VkMemoryAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = pCreateInfo->memoryType;
-    ResultCheck(vkAllocateMemory(device, &allocInfo, VK_NULL_HANDLE, &dstBuffer->memory));
-
-    ResultCheck(vkBindBufferMemory(device, dstBuffer->buffer, dstBuffer->memory, pCreateInfo->offset));
 }

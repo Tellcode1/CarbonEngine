@@ -68,8 +68,8 @@ exec_program(
 )
 
 add_executable(${OUTPUT} ${SOURCES})
-target_link_options(${OUTPUT} PRIVATE -g -Wall)
-target_compile_options(${OUTPUT} PRIVATE -g -Wall)
+target_link_options(${OUTPUT} PRIVATE -g -Wall -fopenmp)
+target_compile_options(${OUTPUT} PRIVATE -g -Wall -fopenmp)
 target_link_libraries(${OUTPUT} ${LIBS})
 
 # add_executable(Atlas ${ATLAS_SOURCES})

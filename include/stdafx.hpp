@@ -75,7 +75,7 @@ using glm::mat4;
 #define CONCAT(x, y) CONCAT_REAL(x, y)
 #define TIME_FUNCTION_REAL(func, LINE) const auto CONCAT(__COUNTER_BEGIN__, __LINE__) = std::chrono::high_resolution_clock::now();\
 							func; /* Call the function*/ \
-							std::cout << #func << " Took " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - CONCAT(__COUNTER_BEGIN__, __LINE__)).count() << "ms\n"
+							std::cout << #func << " Took " << std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - CONCAT(__COUNTER_BEGIN__, __LINE__)).count() << "ms\n"\
 
 #define TIME_FUNCTION(func) TIME_FUNCTION_REAL(func, __LINE__)
 

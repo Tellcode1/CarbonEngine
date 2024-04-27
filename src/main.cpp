@@ -19,10 +19,12 @@ constexpr SDL_KeyCode EXIT_KEY = SDLK_q;
 //     );
 // }
 
-int main(void) {
-    // pro::__resultFunc = rescheck;
-    const auto start = std::chrono::high_resolution_clock::now();
+inline u32 clamp(u32 n, u32 min, u32 max) {
+    return (n < min) ? min : (n > max) ? max : n;
+}
 
+int main(void) {
+    const auto start = std::chrono::high_resolution_clock::now();
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER);
 
     TIME_FUNCTION(VulkanContext ctx = CreateVulkanContext("epic"));
@@ -36,18 +38,20 @@ int main(void) {
     std::chrono::high_resolution_clock::time_point lastFrameTime = currentTime;
     float deltaTime = 0.0;
 
-    const char* text = "epic";
+    std::string str;
 
     glm::vec2 normalizedMousePosition(0.0f);
     glm::vec2 rawMousePosition(0.0f);
 
+    // Input::Init();
+
     const auto& initTime = std::chrono::high_resolution_clock::now() - start;
     printf("Initialized in %ld ms || %.3f s\n", std::chrono::duration_cast<std::chrono::milliseconds>(initTime).count(), std::chrono::duration_cast<std::chrono::milliseconds>(initTime).count() / 1000.0f);
-
-    bool running = true;
+    float zoom = 1.0f;
+    // bool running = true;
     SDL_Event event;
-    while(running) {
-
+    // while(running) {
+    while(true) {
         currentTime = std::chrono::high_resolution_clock::now();
         deltaTime = std::chrono::duration<f64>(currentTime - lastFrameTime).count();
         lastFrameTime = currentTime;
@@ -68,11 +72,15 @@ int main(void) {
         // Render loop
         if (rd.BeginRender()) {
             const VkCommandBuffer cmd = rd.GetDrawBuffer();
+            // rd.turd.imageAvailableSemaphore = rd.imageAvailableSemaphore[rd.currentFrame];
+            // rd.turd.InFlightFence = rd.InFlightFence[rd.currentFrame];
+            // rd.turd.renderingFinishedSemaphore = rd.renderingFinishedSemaphore[rd.currentFrame];
 
             // PUSH CONSTANT UPLOADING
             {
                 struct {
                     glm::mat4 model = glm::mat4(1.0f);
+                    vec2 texSize;
                 } pc{};
                 
                 const glm::mat4 projection = glm::ortho(0.0f, (float)rd.renderArea.width, 0.0f, (float)rd.renderArea.height, 0.0f, 1.0f);
@@ -81,18 +89,36 @@ int main(void) {
                 glm::mat4 model = 
                     glm::rotate(
                         translation,
+                        // glm::mat4(1.0f),
                         // static_cast<float>((glm::radians(SDL_GetTicks() / 1000.0f) * 360.0f)),
                         0.0f,
                         glm::vec3(0.0f, 0.0f, 1.0f)
                     );
 
                 pc.model = projection * model * view;
-                vkCmdPushConstants(cmd, rd.pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
+                pc.texSize = glm::vec2(rd.turd.bmpWidth, rd.turd.bmpHeight);
+                vkCmdPushConstants(cmd, rd.turd.m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
             }
+
+            // if(Input::IsKeyDown(SDL_SCANCODE_RIGHTBRACKET)) {
+            //     std::cout << "pipis\n";
+            // } else if (Input::IsKeyDown(SDL_SCANCODE_RCTRL) && Input::IsKeyDown(SDL_SCANCODE_BACKSPACE)) {
+            //     size_t pos = str.find_last_of(' ');
+            //     if (pos != std::string::npos) {
+            //         str = str.substr(0, pos);
+            //     } else {
+            //         str.clear();
+            //     }
+            // }
+            // else if(Input::IsKeyDown(SDL_SCANCODE_BACKSPACE))
+            // {
+            //     if(str.length() > 0) str.pop_back();
+            // }
             
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, rd.pipeline.layout, 0, 1, &rd.descSet[rd.currentFrame], 0, nullptr);
-            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, rd.pipeline);
-            rd.turd.Render(text, cmd, rd.pipeline.layout, normalizedMousePosition);
+            // vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, rd.pipeline.layout, 0, 1, &rd.descSet[rd.currentFrame], 0, nullptr);
+            // vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, rd.pipeline);
+            // rd.turd.Render(text, rd.framebuffers[rd.currentFrame], rd.renderArea, &rd.imageIndex, &rd.swapchain, normalizedMousePosition);
+            rd.turd.Render(str.data(), cmd, zoom, 0.0f, 0.0f, TEXT_HORIZONTAL_ALIGN_CENTER);
             
             /*
             *   Draw other stuff
@@ -102,29 +128,50 @@ int main(void) {
 
         while(SDL_PollEvent(&event)) {
             if ((event.type == SDL_EVENT_QUIT) || (event.type == SDL_EVENT_KEY_DOWN && event.key.keysym.sym == EXIT_KEY)) {
-                running = false;
+                // running = false;
                 return 0;
             }
             if (event.type == SDL_EVENT_KEY_DOWN && event.key.keysym.sym == SDLK_ESCAPE) {
                 rd.ResizeRenderWindow({1280, 720}, true);
             }
 
-            if (event.type == SDL_EVENT_KEY_DOWN) {
+            if (event.type == SDL_EVENT_MOUSE_WHEEL) {
+                zoom += event.wheel.y * 0.25f;
+            } else if (event.type == SDL_EVENT_KEY_DOWN) {
                 switch (event.key.keysym.sym)
                 {
                     case SDLK_KP_ENTER:
-                        text = "your mom";
+                        str += '\n';
                         break;
-
-                    case SDLK_0:
-                        text = "i want to die";
+                    case SDLK_BACKSPACE:
+                        if(str.length() > 0) str.pop_back();
                         break;
-                
+                    case SDLK_DELETE:
+                        str.clear();
+                        break;
+                    case SDLK_TAB:
+                        str += '\t';
+                        break;
+                    case SDLK_RETURN:
+                        str += '\n';
+                        break;
+                    case SDLK_END:
+                        str += '\0';
+                    case SDLK_SPACE:
+                        str += ' ';
+                        break;
                     default:
+                        // str += event.key.keysym.sym;
                         break;
                 }
             }
+            else if (event.type == SDL_EVENT_TEXT_INPUT) {
+                str += event.text.text;
+            }
         }
+
+        // Input::ProcessEvents();
+        
     }
     
 

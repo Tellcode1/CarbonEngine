@@ -2,7 +2,9 @@
 #define __PRO__
 
 #include "stdafx.hpp"
-#include <safearray.hpp>
+
+typedef void (*ResultCheckFunc) (const VkResult);
+constexpr u64 tobit(u64 num) { return 1 << num; }
 
 __attribute__((unused)) static void __print_and_abort(const char *msg, const char *file, unsigned int line, const char *function) noexcept(true) {
 	printf("%s:%u: %s: %s\n", file, line, function, msg);
@@ -10,12 +12,19 @@ __attribute__((unused)) static void __print_and_abort(const char *msg, const cha
 	abort();
 }
 
-#define REQUIRED_PTR(ptr) if(ptr == nullptr) __print_and_abort(#ptr" :  Required parameter '"#ptr"' specified as nullptr.", __FILE__, __LINE__, __PRETTY_FUNCTION__)
-#define NOT_EQUAL_TO(val, to) if(val == to) __print_and_abort(#val" == "#to". Value "#val" must not be equal to "#to, __FILE__, __LINE__, __PRETTY_FUNCTION__)
+#ifndef PRO_DISABLE_ERROR_CHECKING
+	#define REQUIRED_PTR(ptr) if(ptr == nullptr) __print_and_abort(#ptr" :  Required parameter '"#ptr"' specified as nullptr.", __FILE__, __LINE__, __PRETTY_FUNCTION__)
+	#define NOT_EQUAL_TO(val, to) if(val == to) __print_and_abort(#val" == "#to". Value "#val" must not be equal to "#to, __FILE__, __LINE__, __PRETTY_FUNCTION__)
+#else
+	#define REQUIRED_PTR(ptr)
+	#define NOT_EQUAL_TO(val, to)
+#endif
 
-constexpr u64 tobit(u64 num) { return 1 << num; }
+#ifndef PRO_ARRAY_TYPE
+	#include <safearray.hpp>
+	#define PRO_ARRAY_TYPE SafeArray
+#endif
 
-typedef void (*ResultCheckFunc) (const VkResult);
 
 typedef u32 __Flags;
 
@@ -24,8 +33,13 @@ typedef enum PipelineCreateFlagBits
 	PIPELINE_CREATE_FLAGS_ENABLE_DEPTH_CHECK = tobit(0),
 	PIPELINE_CREATE_FLAGS_ENABLE_BLEND = tobit(1),
 	PIPELINE_CREATE_FLAGS_ENABLE_CULLING = tobit(2),
-	PIPELINE_CREATE_FLAGS_ENABLE_MULTISAMPLING = tobit(3), // TODO: Implement
+
+	// IMPLEMENT
+	PIPELINE_CREATE_FLAGS_ENABLE_MULTISAMPLING = tobit(3),
+	PIPELINE_CREATE_FLAGS_DYNAMIC_VIEWPORT = tobit(4),
+	PIPELINE_CREATE_FLAGS_DYNAMIC_SCISSOR = tobit(5),
 } PipelineCreateFlagBits;
+
 typedef __Flags PipelineCreateFlags;
 
 namespace pro
@@ -75,14 +89,19 @@ namespace pro
 		VkPipeline oldPipeline = VK_NULL_HANDLE;
 		VkPipelineCache cache = VK_NULL_HANDLE;
 		
-		VkFormat depthBufferFormat; // Ignored if flags does not contain PIPELINE_CREATE_FLAGS_ENABLE_DEPTH_CHECK
-		VkSampleCountFlags sampleCount; // Ignored if flags does not contain PIPELINE_CREATE_FLAGS_ENABLE_MULTISAMPLING
+		// Ignored if flags does not contain PIPELINE_CREATE_FLAGS_ENABLE_DEPTH_CHECK
+		// VkFormat depthBufferFormat;
+		// Ignored if flags does not contain PIPELINE_CREATE_FLAGS_ENABLE_MULTISAMPLING
+		VkSampleCountFlagBits samples;
 
-		const SafeArray<VkVertexInputAttributeDescription>* pAttributeDescriptions = nullptr;
-		const SafeArray<VkVertexInputBindingDescription>* pBindingDescription = nullptr;
-		const SafeArray<VkDescriptorSetLayout>* pDescriptorLayouts = nullptr;
-		const SafeArray<VkPushConstantRange>* pPushConstants = nullptr;
-		const SafeArray<VkPipelineShaderStageCreateInfo>* pShaderCreateInfos = nullptr;
+		/*
+		*	Array pointers are allowed to be nullptr
+		*/
+		const PRO_ARRAY_TYPE<VkVertexInputAttributeDescription>* pAttributeDescriptions = nullptr;
+		const PRO_ARRAY_TYPE<VkVertexInputBindingDescription>* pBindingDescriptions = nullptr;
+		const PRO_ARRAY_TYPE<VkDescriptorSetLayout>* pDescriptorLayouts = nullptr;
+		const PRO_ARRAY_TYPE<VkPushConstantRange>* pPushConstants = nullptr;
+		const PRO_ARRAY_TYPE<VkPipelineShaderStageCreateInfo>* pShaderCreateInfos = nullptr;
 
 		PipelineCreateInfo() = default;
 		~PipelineCreateInfo() = default;
@@ -131,33 +150,14 @@ namespace pro
 		~SwapchainCreateInfo() = default;
 	};
 
-	struct FramebufferCreateInfo
-	{
-		VkRenderPass pRenderPass;
-		VkExtent2D extent;
-		const SafeArray<VkImageView*>* pAttachments;
-
-		FramebufferCreateInfo() = default;
-		~FramebufferCreateInfo() = default;
-	};
-	
-	struct BufferCreateInfo
-	{
-		VkDeviceSize size = 0;
-		VkBufferUsageFlags usage = 0;
-		VkMemoryPropertyFlags properties = 0;
-		u64 offset = 0;
-		u64 memoryType = 0;
-
-		BufferCreateInfo() = default;
-		~BufferCreateInfo() = default;
-	};
-
 	struct RenderPassCreateInfo
 	{
 		u64 subpass = 0;
 		VkFormat format = VK_FORMAT_UNDEFINED;
 		VkFormat depthBufferFormat = VK_FORMAT_UNDEFINED;
+
+		// Ignored if flags does not contain PIPELINE_CREATE_FLAGS_ENABLE_MULTISAMPLING
+		VkSampleCountFlagBits samples;
 
 		RenderPassCreateInfo() = default;
 		~RenderPassCreateInfo() = default;
@@ -178,25 +178,18 @@ namespace pro
 		~Pipeline() = default;
 	};
 
-	struct Buffer
-	{
-		VkBuffer buffer = VK_NULL_HANDLE;
-		VkDeviceMemory memory = VK_NULL_HANDLE;
-
-		Buffer() = default;
-		~Buffer() = default;
-	};
-
 	void CreateEntirePipeline(VkDevice device, PipelineCreateInfo* pCreateInfo, Pipeline* dstPipeline, PipelineCreateFlags flags);
 
+	void CreateGraphicsPipeline(VkDevice device, PipelineCreateInfo const* pCreateInfo, VkPipeline* dstPipeline, u32 flags);
 	void CreateGraphicsPipeline(VkDevice device, PipelineCreateInfo const* pCreateInfo, Pipeline* dstPipeline, u32 flags);
-	void CreateRenderPass(VkDevice device, PipelineCreateInfo const* pCreateInfo, Pipeline* dstPipeline, u32 flags);
 	void CreatePipelineLayout(VkDevice device, PipelineCreateInfo const* pCreateInfo, Pipeline* dstPipeline);
+	void CreateRenderPass(VkDevice device, RenderPassCreateInfo const* pCreateInfo, VkRenderPass* dstRenderPass, u32 flags);
+	void CreateRenderPass(VkDevice device, PipelineCreateInfo const* pCreateInfo, Pipeline* dstPipeline, u32 flags);
 
 	void CreateSwapChain(VkDevice device, SwapchainCreateInfo const* pCreateInfo, VkSwapchainKHR* dstSwapchain);
-	void CreateFramebuffer(VkDevice device, FramebufferCreateInfo const* pCreateInfo, VkFramebuffer* dstFramebuffer);
-
-	void CreateBuffer(VkDevice device, BufferCreateInfo const* pCreateInfo, Buffer* dstBuffer);
+	
+	// void CreateFramebuffer(VkDevice device, FramebufferCreateInfo const* pCreateInfo, VkFramebuffer* dstFramebuffer);
+	// void CreateBuffer(VkDevice device, BufferCreateInfo const* pCreateInfo, Buffer* dstBuffer);
 
 	#ifdef LEGACY
 	void CreateSwapChain(const VkDevice device, SwapchainCreateInfo const* pCreateInfo, VkSwapchainKHR* dstSwapchain);
