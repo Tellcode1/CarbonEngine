@@ -31,6 +31,7 @@ set(SOURCES
     src/DynamicDescriptors.cpp
     src/AssetLoader.cpp
     src/TextRenderer.cpp
+    src/DMalloc.cpp
     # Atlas/Atlas.cpp
 )
 

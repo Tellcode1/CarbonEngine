@@ -63,7 +63,7 @@ using glm::mat4;
 #include <thread>
 #include <iomanip>
 
-#include <boost/functional/hash.hpp>
+#include <boost/algorithm/string.hpp>
 
 #include <memory_resource>
 
@@ -71,11 +71,11 @@ using glm::mat4;
 #include FT_FREETYPE_H
 
 #include <chrono>
-#define CONCAT_REAL(x, y) x##y
-#define CONCAT(x, y) CONCAT_REAL(x, y)
-#define TIME_FUNCTION_REAL(func, LINE) const auto CONCAT(__COUNTER_BEGIN__, __LINE__) = std::chrono::high_resolution_clock::now();\
+#define TIME_FUNCTION_REAL_REAL_REAL(x, y) x##y
+#define TIME_FUNCTION_REAL_REAL(x, y) TIME_FUNCTION_REAL_REAL_REAL(x, y)
+#define TIME_FUNCTION_REAL(func, LINE) const auto TIME_FUNCTION_REAL_REAL(__COUNTER_BEGIN__, __LINE__) = std::chrono::high_resolution_clock::now();\
 							func; /* Call the function*/ \
-							std::cout << #func << " Took " << std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - CONCAT(__COUNTER_BEGIN__, __LINE__)).count() << "ms\n"\
+							std::cout << #func << " Took " << std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - TIME_FUNCTION_REAL_REAL(__COUNTER_BEGIN__, __LINE__)).count() / 1000000.0f << "ms\n"\
 
 #define TIME_FUNCTION(func) TIME_FUNCTION_REAL(func, __LINE__)
 

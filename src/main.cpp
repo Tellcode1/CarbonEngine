@@ -8,7 +8,7 @@
 // #include "../Atlas/build/atlas.hpp"
 #include "TextRenderer.hpp"
 
-constexpr SDL_KeyCode EXIT_KEY = SDLK_q;
+constexpr SDL_KeyCode EXIT_KEY = SDLK_ESCAPE;
 
 // vec4 compress(mat4& mat) {
 //     return vec4(
@@ -44,6 +44,9 @@ int main(void) {
     glm::vec2 rawMousePosition(0.0f);
 
     // Input::Init();
+
+    TextRendererAlignmentVertical vertical = TEXT_VERTICAL_ALIGN_CENTER;
+    TextRendererAlignmentHorizontal horizontal = TEXT_HORIZONTAL_ALIGN_LEFT;
 
     const auto& initTime = std::chrono::high_resolution_clock::now() - start;
     printf("Initialized in %ld ms || %.3f s\n", std::chrono::duration_cast<std::chrono::milliseconds>(initTime).count(), std::chrono::duration_cast<std::chrono::milliseconds>(initTime).count() / 1000.0f);
@@ -84,6 +87,7 @@ int main(void) {
                 } pc{};
                 
                 const glm::mat4 projection = glm::ortho(0.0f, (float)rd.renderArea.width, 0.0f, (float)rd.renderArea.height, 0.0f, 1.0f);
+                // const glm::mat4 projection = glm::ortho(0.0f, 80.0f, 0.0f, 60.0f, 0.0f, 1.0f);
                 const glm::mat4 view = glm::lookAtRH(glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
                 const glm::mat4 translation = glm::translate(pc.model, glm::vec3(rawMousePosition, 0.0f));
                 glm::mat4 model = 
@@ -118,7 +122,7 @@ int main(void) {
             // vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, rd.pipeline.layout, 0, 1, &rd.descSet[rd.currentFrame], 0, nullptr);
             // vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, rd.pipeline);
             // rd.turd.Render(text, rd.framebuffers[rd.currentFrame], rd.renderArea, &rd.imageIndex, &rd.swapchain, normalizedMousePosition);
-            rd.turd.Render(str.data(), cmd, zoom, 0.0f, 0.0f, TEXT_HORIZONTAL_ALIGN_CENTER);
+            rd.turd.Render(str.c_str(), cmd, zoom, 0.0f, 0.0f, horizontal, vertical);
             
             /*
             *   Draw other stuff
@@ -128,14 +132,8 @@ int main(void) {
 
         while(SDL_PollEvent(&event)) {
             if ((event.type == SDL_EVENT_QUIT) || (event.type == SDL_EVENT_KEY_DOWN && event.key.keysym.sym == EXIT_KEY)) {
-                // running = false;
                 return 0;
-            }
-            if (event.type == SDL_EVENT_KEY_DOWN && event.key.keysym.sym == SDLK_ESCAPE) {
-                rd.ResizeRenderWindow({1280, 720}, true);
-            }
-
-            if (event.type == SDL_EVENT_MOUSE_WHEEL) {
+            } else if (event.type == SDL_EVENT_MOUSE_WHEEL) {
                 zoom += event.wheel.y * 0.25f;
             } else if (event.type == SDL_EVENT_KEY_DOWN) {
                 switch (event.key.keysym.sym)
@@ -159,6 +157,24 @@ int main(void) {
                         str += '\0';
                     case SDLK_SPACE:
                         str += ' ';
+                        break;
+                    case SDLK_F9:
+                        vertical = TEXT_VERTICAL_ALIGN_TOP;
+                        break;
+                    case SDLK_F10:
+                        vertical = TEXT_VERTICAL_ALIGN_CENTER;
+                        break;
+                    case SDLK_F11:
+                        vertical = TEXT_VERTICAL_ALIGN_BOTTOM;
+                        break;
+                    case SDLK_F5:
+                        horizontal = TEXT_HORIZONTAL_ALIGN_LEFT;
+                        break;
+                    case SDLK_F6:
+                        horizontal = TEXT_HORIZONTAL_ALIGN_CENTER;
+                        break;
+                    case SDLK_F7:
+                        horizontal = TEXT_HORIZONTAL_ALIGN_RIGHT;
                         break;
                     default:
                         // str += event.key.keysym.sym;

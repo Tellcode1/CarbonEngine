@@ -1,0 +1,26 @@
+#version 450 core
+
+layout (local_size_x = 256) in;
+
+const uint TEXT_HORIZONTAL_ALIGN_LEFT = 0;
+const uint TEXT_HORIZONTAL_ALIGN_CENTER = 1;
+const uint TEXT_HORIZONTAL_ALIGN_RIGHT = 2;
+const uint TEXT_VERTICAL_ALIGN_TOP = 3;
+const uint TEXT_VERTICAL_ALIGN_CENTER = 4;
+const uint TEXT_VERTICAL_ALIGN_BOTTOM = 5;
+
+struct InBuffer
+{
+    uint character;
+    vec2 Offset;
+};
+
+struct OutBuffer
+{
+    vec4 positionAndTextureCoords;
+};
+
+layout(std140, binding = 0) readonly buffer buff
+{
+    InBuffer[] inBuffer;
+};

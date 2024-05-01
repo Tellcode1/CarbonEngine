@@ -1,4 +1,5 @@
 #include "AssetLoader.hpp"
+#include <filesystem>
 
 Image Loader::LoadImage(const char *path)
 {
@@ -22,7 +23,6 @@ std::vector<char> Loader::LoadBinary(const char *path)
         throw std::runtime_error("Failed to open file");
     }
 
-    // std::cout << std::boolalpha << file.eof() << std::endl;
     const i64 fileSize = static_cast<i64>(file.tellg());
     assert(fileSize != -1);
 
@@ -50,6 +50,25 @@ VkShaderModule Loader::LoadShaderModule(const char *pathToShaderCode, VkDevice d
 
     return shaderModule;
 }
+
+// int Loader::LoadCache(const char *name, std::vector<char> &cache)
+// {
+//     std::ifstream file(name, std::ios::ate | std::ios::binary);
+    
+//     if (!file.is_open())
+//         return 0;
+    
+//     const i64 fileSize = static_cast<i64>(file.tellg());
+//     assert(fileSize != -1);
+
+//     cache.resize(fileSize);
+
+//     file.seekg(0);
+//     file.read(cache.data(), fileSize);
+//     file.close();
+    
+//     return 1;
+// }
 
 // std::vector<std::string> Atlas::QueryAvailableImages()
 // {

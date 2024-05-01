@@ -1,6 +1,6 @@
 #include "pro.hpp"
 
-typedef unsigned  u32;
+typedef unsigned u32;
 typedef unsigned short u16;
 typedef unsigned char u8;
 
@@ -146,7 +146,7 @@ void pro::CreateGraphicsPipeline(VkDevice device, PipelineCreateInfo const *pCre
 
 	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo{};
 	graphicsPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	graphicsPipelineCreateInfo.stageCount = static_cast<uint32_t>(pCreateInfo->pShaderCreateInfos->size());
+	graphicsPipelineCreateInfo.stageCount = static_cast<u32>(pCreateInfo->pShaderCreateInfos->size());
 	graphicsPipelineCreateInfo.pStages = pCreateInfo->pShaderCreateInfos->data();
 	graphicsPipelineCreateInfo.pVertexInputState = &vertexInputState;
 	graphicsPipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
@@ -175,7 +175,6 @@ void pro::CreateGraphicsPipeline(VkDevice device, PipelineCreateInfo const *pCre
 	}
 
 	// if(cacheIsNull) cacheCreator.join();
-	// ResultCheck(vkCreateGraphicsPipelines(device, cache, 1, &graphicsPipelineCreateInfo, VK_NULL_HANDLE, &dstPipeline->pipeline));
 	ResultCheck(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, VK_NULL_HANDLE, dstPipeline));
 }
 
@@ -305,13 +304,12 @@ void pro::CreateRenderPass(VkDevice device, RenderPassCreateInfo const *pCreateI
 	
 	VkRenderPassCreateInfo renderPassInfo{};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+	renderPassInfo.attachmentCount = static_cast<u32>(attachments.size());
 	renderPassInfo.pAttachments = attachments.data();
 	renderPassInfo.subpassCount = 1;
 	renderPassInfo.pSubpasses = &subpass;
 	renderPassInfo.dependencyCount = 1;
 	renderPassInfo.pDependencies = &dependency;
-
 	ResultCheck(vkCreateRenderPass(device, &renderPassInfo, VK_NULL_HANDLE, dstRenderPass));
 }
 
@@ -330,34 +328,6 @@ void pro::CreatePipelineLayout(VkDevice device, PipelineCreateInfo const *pCreat
 
 	ResultCheck(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, VK_NULL_HANDLE, &dstPipeline->layout));
 }
-
-#ifdef LEGACY
-void pro::CreateSwapChain(const VkDevice device, const SwapchainCreateInfo *pCreateInfo, VkSwapchainKHR *dstSwapchain)
-{
-	REQUIRED_PTR(device);
-	REQUIRED_PTR(pCreateInfo);
-	REQUIRED_PTR(pCreateInfo->surface);
-	NOT_EQUAL_TO(pCreateInfo->format, VK_FORMAT_UNDEFINED);
-
-	VkSwapchainCreateInfoKHR swapChainCreateInfo{};
-	swapChainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-	swapChainCreateInfo.surface = pCreateInfo->surface;
-	swapChainCreateInfo.imageExtent = pCreateInfo->extent;
-	swapChainCreateInfo.minImageCount = pCreateInfo->imageCount;
-	swapChainCreateInfo.imageFormat = pCreateInfo->format;
-	swapChainCreateInfo.imageColorSpace = pCreateInfo->colorSpace;
-	swapChainCreateInfo.imageArrayLayers = 1;
-	swapChainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-	swapChainCreateInfo.preTransform = pCreateInfo->preTransform;
-	swapChainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-	swapChainCreateInfo.clipped = VK_TRUE;
-	swapChainCreateInfo.presentMode = pCreateInfo->presentMode;
-	swapChainCreateInfo.oldSwapchain = pCreateInfo->pOldSwapchain;
-
-	ResultCheck(vkCreateSwapchainKHR(device, &swapChainCreateInfo, VK_NULL_HANDLE, dstSwapchain));
-}
-
-#else
 
 void pro::CreateSwapChain(VkDevice device, SwapchainCreateInfo const* pCreateInfo, VkSwapchainKHR *dstSwapchain)
 {
@@ -385,13 +355,10 @@ void pro::CreateSwapChain(VkDevice device, SwapchainCreateInfo const* pCreateInf
 	swapChainCreateInfo.clipped = VK_TRUE;
 	swapChainCreateInfo.presentMode = pCreateInfo->presentMode;
 	swapChainCreateInfo.oldSwapchain = pCreateInfo->pOldSwapchain;
-
 	if (vkCreateSwapchainKHR(device, &swapChainCreateInfo, VK_NULL_HANDLE, dstSwapchain) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to create swapchain");
 	}
 }
-
-#endif
 
 bool pro::GetSupportedFormat(VkDevice device, VkPhysicalDevice physDevice, VkSurfaceKHR surface, VkFormat *dstFormat, VkColorSpaceKHR *dstColorSpace)
 {
@@ -442,11 +409,9 @@ u32 pro::GetImageCount(VkPhysicalDevice physDevice, VkSurfaceKHR surface)
     VkSurfaceCapabilitiesKHR surfaceCapabilities;
 	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physDevice, surface, &surfaceCapabilities);
 
-	uint32_t requestedImageCount = surfaceCapabilities.minImageCount + 1;
+	u32 requestedImageCount = surfaceCapabilities.minImageCount + 1;
 	if(requestedImageCount < surfaceCapabilities.maxImageCount)
-	{
 		requestedImageCount = surfaceCapabilities.maxImageCount;
-	}
 
 	return requestedImageCount;
 }

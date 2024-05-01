@@ -28,6 +28,16 @@ namespace Loader {
     *   Helper function for creating a shader module using LoadBinary().
     */
    VkShaderModule LoadShaderModule(const char* pathToShaderCode, VkDevice device);
+
+//    /*
+//    *    Load a shader cache if exists. Returns 1 if cache does not exist, 0 if it does.
+//    */
+//   int LoadCache(const char* name, std::vector<char>& cache);
+
+//   /*
+//    *    
+//    */
+//   int CreateCache(const char* name, std::vector<char>& cache);
 }
 
 // namespace Atlas {

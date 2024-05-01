@@ -5,9 +5,6 @@ layout(location = 0) out vec4 FragColor;
 layout(location=0) 
 in vec2 FragTexCoord;
 
-layout(binding=0)
-uniform sampler2D samp;
-
 layout(binding = 1)
 uniform sampler2D fontTexture;
 

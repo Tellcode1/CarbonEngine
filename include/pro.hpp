@@ -22,11 +22,11 @@ __attribute__((unused)) static void __print_and_abort(const char *msg, const cha
 
 #ifndef PRO_ARRAY_TYPE
 	#include <safearray.hpp>
-	#define PRO_ARRAY_TYPE SafeArray
+	#define PRO_ARRAY_TYPE std::vector
 #endif
 
 
-typedef u32 __Flags;
+typedef u32 ProFlags;
 
 typedef enum PipelineCreateFlagBits
 {
@@ -40,7 +40,7 @@ typedef enum PipelineCreateFlagBits
 	PIPELINE_CREATE_FLAGS_DYNAMIC_SCISSOR = tobit(5),
 } PipelineCreateFlagBits;
 
-typedef __Flags PipelineCreateFlags;
+typedef ProFlags PipelineCreateFlags;
 
 namespace pro
 {
@@ -50,10 +50,7 @@ namespace pro
 		Used internally. Do NOT modify by yourselves! Use SetResultCheckFunc instead.
 	*/
 	static ResultCheckFunc __resultFunc = __defaultResultCheckFunc; // To not cause nullptr dereference. SetResultCheckFunc also checks for nullptr and handles it.
-	inline void ResultCheck(VkResult result)
-	{
-		__resultFunc(result);
-	}
+	inline void ResultCheck(VkResult result) { __resultFunc(result); }
 
 	/*
 		Set the result checking function for the API. This is called every time the program requests something in the order of vkCreate* that this namespace has a hold of.
@@ -187,13 +184,6 @@ namespace pro
 	void CreateRenderPass(VkDevice device, PipelineCreateInfo const* pCreateInfo, Pipeline* dstPipeline, u32 flags);
 
 	void CreateSwapChain(VkDevice device, SwapchainCreateInfo const* pCreateInfo, VkSwapchainKHR* dstSwapchain);
-	
-	// void CreateFramebuffer(VkDevice device, FramebufferCreateInfo const* pCreateInfo, VkFramebuffer* dstFramebuffer);
-	// void CreateBuffer(VkDevice device, BufferCreateInfo const* pCreateInfo, Buffer* dstBuffer);
-
-	#ifdef LEGACY
-	void CreateSwapChain(const VkDevice device, SwapchainCreateInfo const* pCreateInfo, VkSwapchainKHR* dstSwapchain);
-	#endif
 
 	// HELPER FUNCTIONS
 	bool GetSupportedFormat(VkDevice device, VkPhysicalDevice physDevice, VkSurfaceKHR surface, VkFormat* dstFormat, VkColorSpaceKHR* dstColorSpace);

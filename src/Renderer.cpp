@@ -6,20 +6,25 @@
 
 constexpr u32 PipelineFlags = PIPELINE_CREATE_FLAGS_ENABLE_BLEND;
 
-const SafeArray<VkVertexInputAttributeDescription> pAttributeDescriptions{ 
+const std::vector<VkVertexInputAttributeDescription> pAttributeDescriptions{ 
     // location, binding, format, offset,
     {  0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0 },
 };
     
-const SafeArray<VkVertexInputBindingDescription> pBindingDescription{ 
+const std::vector<VkVertexInputBindingDescription> pBindingDescription{ 
     // binding, stride, inputRate,
     { 0, sizeof(vec2) * 2 /* 2 vec2's for position and 2 for texture positions */, VK_VERTEX_INPUT_RATE_VERTEX },
 };
     
-const SafeArray<VkPushConstantRange> pPushConstants{ 
+const std::vector<VkPushConstantRange> pPushConstants{ 
     //stageFlags, offset, size,
     { VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4) },
 };
+
+template<typename T, u32 N>
+constexpr static u32 GetArraySize(T(&arr)[N]) {
+    return N;
+}
 
 Renderer::Renderer(VulkanContext* ctx) {
     this->ctx = ctx;
@@ -131,7 +136,7 @@ Renderer::Renderer(VulkanContext* ctx) {
 		fontTextureBinding.pImmutableSamplers = nullptr;
 		fontTextureBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-		SafeArray<VkDescriptorSetLayoutBinding> bindings = {samplerLayoutBinding,fontTextureBinding};
+		std::vector<VkDescriptorSetLayoutBinding> bindings = {samplerLayoutBinding,fontTextureBinding};
 
         VkDescriptorSetLayoutCreateInfo layoutInfo{};
 		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -151,7 +156,7 @@ Renderer::Renderer(VulkanContext* ctx) {
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo{};
 	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	descriptorPoolCreateInfo.maxSets = static_cast<u32>(MaxFramesInFlight);
-	descriptorPoolCreateInfo.poolSizeCount = std::size(poolSizes);
+	descriptorPoolCreateInfo.poolSizeCount = GetArraySize(poolSizes);
 	descriptorPoolCreateInfo.pPoolSizes = poolSizes;
 
 	vkCreateDescriptorPool(ctx->device, &descriptorPoolCreateInfo, nullptr, &descPool);
@@ -230,14 +235,11 @@ Renderer::Renderer(VulkanContext* ctx) {
     fshader.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
     fshader.pName = "main";
 
-    SafeArray<VkPipelineShaderStageCreateInfo> shaders = { vshader, fshader };
+    const std::vector<VkPipelineShaderStageCreateInfo> shaders = { vshader, fshader };
 
-    TIME_FUNCTION(turd.Init(ctx->device, ctx->physDevice, graphicsQueue, commandPool, imageAvailableSemaphore[0], "/usr/share/fonts/X11/Type1/c0648bt_.pfb"));
-    TIME_FUNCTION(turd.CreatePipeline());
-    
-    const SafeArray<VkDescriptorSetLayout> pDescriptorLayouts{
-        descSetLayouts
-    };
+    std::vector<VkDescriptorSetLayout> pDescriptorLayouts;
+    for(const auto& layout : descSetLayouts)
+        pDescriptorLayouts.push_back(layout);
     
     pro::PipelineCreateInfo pcio{};
     pcio.extent = renderArea;
@@ -251,6 +253,8 @@ Renderer::Renderer(VulkanContext* ctx) {
     pcio.subpass = 0;
     TIME_FUNCTION(pro::CreateEntirePipeline(ctx->device, &pcio, &pipeline, PipelineFlags));
     
+    TIME_FUNCTION(turd.Init(ctx->device, ctx->physDevice, graphicsQueue, commandPool, pipeline.renderPass, "/usr/share/fonts/X11/Type1/c0648bt_.pfb"));
+
     u32 requestedImageCount = 0;
     vkGetSwapchainImagesKHR(ctx->device, swapchain, &requestedImageCount, nullptr);
 	swapchainImages.resize(requestedImageCount);
@@ -398,7 +402,7 @@ bool Renderer::BeginRender()
 
     vkResetFences(ctx->device, 1, &InFlightFence[currentFrame]);
 
-    constexpr VkClearValue clearValues = {{0.0f, 0.0f, 0.0f, 0.0f}};
+    constexpr VkClearValue clearValues = {{ 0.0f, 0.0f, 0.0f, 0.0f} };
 
     static VkRenderPassBeginInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -582,11 +586,12 @@ void Renderer::ResizeRenderWindow(const VkExtent2D newExtent, const bool forceWi
     fshader.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
     fshader.pName = "main";
 
-    const SafeArray<VkPipelineShaderStageCreateInfo> shaders = { vshader, fshader };
+    const std::vector<VkPipelineShaderStageCreateInfo> shaders = { vshader, fshader };
 
-    const SafeArray<VkDescriptorSetLayout> pDescriptorLayouts{
-        descSetLayouts
-    };
+    std::vector<VkDescriptorSetLayout> pDescriptorLayouts;
+    for(const auto& layout : descSetLayouts)
+        pDescriptorLayouts.push_back(layout);
+    
         
     pro::PipelineCreateInfo pcio{};
     pcio.extent = renderArea;
