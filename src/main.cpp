@@ -24,11 +24,12 @@ inline u32 clamp(u32 n, u32 min, u32 max) {
 }
 
 int main(void) {
+    system("clear");
     const auto start = std::chrono::high_resolution_clock::now();
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER);
 
     TIME_FUNCTION(VulkanContext ctx = CreateVulkanContext("epic"));
-    TIME_FUNCTION(Renderer rd{&ctx});
+    TIME_FUNCTION(RD->Initialize(&ctx));
 
     constexpr float updateTime = 3.0f;
     float totalTime = 0.0f;
@@ -36,9 +37,9 @@ int main(void) {
 
     std::chrono::high_resolution_clock::time_point currentTime = std::chrono::high_resolution_clock::now();
     std::chrono::high_resolution_clock::time_point lastFrameTime = currentTime;
-    float deltaTime = 0.0;
+    float dt = 0.0;
 
-    std::string str;
+    std::string str = "gamer gamer gamer gamer gamer";
 
     glm::vec2 normalizedMousePosition(0.0f);
     glm::vec2 rawMousePosition(0.0f);
@@ -56,11 +57,11 @@ int main(void) {
     // while(running) {
     while(true) {
         currentTime = std::chrono::high_resolution_clock::now();
-        deltaTime = std::chrono::duration<f64>(currentTime - lastFrameTime).count();
+        dt = std::chrono::duration<f64>(currentTime - lastFrameTime).count();
         lastFrameTime = currentTime;
 
         // Profiling code
-        totalTime += deltaTime;
+        totalTime += dt;
         numFrames++;
         if (totalTime > updateTime) {
             printf("%ldfps : %d frames / %.2fs = ~%f ms/frame\n", static_cast<u64>(floor(numFrames / totalTime)), numFrames, updateTime, totalTime / static_cast<f32>(numFrames));
@@ -70,11 +71,11 @@ int main(void) {
         
         SDL_GetMouseState(&rawMousePosition.x, &rawMousePosition.y);
 
-        normalizedMousePosition = (rawMousePosition * 2.0f / glm::vec2(rd.renderArea.width, rd.renderArea.height)) - 1.0f;
+        normalizedMousePosition = (rawMousePosition * 2.0f / glm::vec2(RD->renderArea.width, RD->renderArea.height)) - 1.0f;
 
         // Render loop
-        if (rd.BeginRender()) {
-            const VkCommandBuffer cmd = rd.GetDrawBuffer();
+        if (RD->BeginRender()) {
+            const VkCommandBuffer cmd = RD->GetDrawBuffer();
             // rd.turd.imageAvailableSemaphore = rd.imageAvailableSemaphore[rd.currentFrame];
             // rd.turd.InFlightFence = rd.InFlightFence[rd.currentFrame];
             // rd.turd.renderingFinishedSemaphore = rd.renderingFinishedSemaphore[rd.currentFrame];
@@ -86,48 +87,31 @@ int main(void) {
                     vec2 texSize;
                 } pc{};
                 
-                const glm::mat4 projection = glm::ortho(0.0f, (float)rd.renderArea.width, 0.0f, (float)rd.renderArea.height, 0.0f, 1.0f);
+                const glm::mat4 projection = glm::ortho(0.0f, (float)RD->renderArea.width, 0.0f, (float)RD->renderArea.height, 0.0f, 1.0f);
                 // const glm::mat4 projection = glm::ortho(0.0f, 80.0f, 0.0f, 60.0f, 0.0f, 1.0f);
                 const glm::mat4 view = glm::lookAtRH(glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-                const glm::mat4 translation = glm::translate(pc.model, glm::vec3(rawMousePosition, 0.0f));
+                // const glm::mat4 translation = glm::translate(pc.model, glm::vec3(rawMousePosition + glm::vec2(sinf32(SDL_GetTicks() / 100.0f) * 25.0f, cosf32(SDL_GetTicks() / 100.0f) * 25.0f), 0.0f));
                 glm::mat4 model = 
                     glm::rotate(
-                        translation,
-                        // glm::mat4(1.0f),
+                        // translation,
+                        glm::mat4(1.0f),
                         // static_cast<float>((glm::radians(SDL_GetTicks() / 1000.0f) * 360.0f)),
                         0.0f,
                         glm::vec3(0.0f, 0.0f, 1.0f)
                     );
 
                 pc.model = projection * model * view;
-                pc.texSize = glm::vec2(rd.turd.bmpWidth, rd.turd.bmpHeight);
-                vkCmdPushConstants(cmd, rd.turd.m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
+                pc.texSize = glm::vec2(textRD->bmpWidth, textRD->bmpHeight);
+                vkCmdPushConstants(cmd, textRD->GetPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
             }
 
-            // if(Input::IsKeyDown(SDL_SCANCODE_RIGHTBRACKET)) {
-            //     std::cout << "pipis\n";
-            // } else if (Input::IsKeyDown(SDL_SCANCODE_RCTRL) && Input::IsKeyDown(SDL_SCANCODE_BACKSPACE)) {
-            //     size_t pos = str.find_last_of(' ');
-            //     if (pos != std::string::npos) {
-            //         str = str.substr(0, pos);
-            //     } else {
-            //         str.clear();
-            //     }
-            // }
-            // else if(Input::IsKeyDown(SDL_SCANCODE_BACKSPACE))
-            // {
-            //     if(str.length() > 0) str.pop_back();
-            // }
-            
-            // vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, rd.pipeline.layout, 0, 1, &rd.descSet[rd.currentFrame], 0, nullptr);
-            // vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, rd.pipeline);
-            // rd.turd.Render(text, rd.framebuffers[rd.currentFrame], rd.renderArea, &rd.imageIndex, &rd.swapchain, normalizedMousePosition);
-            rd.turd.Render(str.c_str(), cmd, zoom, 0.0f, 0.0f, horizontal, vertical);
+            textRD->AddToTextRenderQueue(str, zoom, rawMousePosition.x, rawMousePosition.y, horizontal, vertical);
+            textRD->Render(cmd);
             
             /*
             *   Draw other stuff
             */
-            rd.EndRender();
+            RD->EndRender();
         }
 
         while(SDL_PollEvent(&event)) {
@@ -138,6 +122,8 @@ int main(void) {
             } else if (event.type == SDL_EVENT_KEY_DOWN) {
                 switch (event.key.keysym.sym)
                 {
+                    std::size_t epic;
+                    std::size_t nl;
                     case SDLK_KP_ENTER:
                         str += '\n';
                         break;
@@ -146,6 +132,17 @@ int main(void) {
                         break;
                     case SDLK_DELETE:
                         str.clear();
+                        break;
+                    case SDLK_LCTRL:
+                        epic = str.find_last_of(' ');
+                        nl = str.find_last_of('\n');
+                        // space priority
+                        if (epic != std::string::npos && epic > nl)
+                            str = str.substr(0, epic - 1);
+                        else if (nl != std::string::npos)
+                            str = str.substr(0, nl);
+                        else
+                            str.clear();
                         break;
                     case SDLK_TAB:
                         str += '\t';
@@ -176,6 +173,18 @@ int main(void) {
                     case SDLK_F7:
                         horizontal = TEXT_HORIZONTAL_ALIGN_RIGHT;
                         break;
+                    case SDLK_BACKQUOTE:
+                        str += 
+                        "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\n"
+                        "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\n"
+                        "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\n"
+                        "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\n"
+                        "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\n"
+                        "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\n"
+                        "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\n"
+                        "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\n"
+                        "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\n"
+                        "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\n";
                     default:
                         // str += event.key.keysym.sym;
                         break;

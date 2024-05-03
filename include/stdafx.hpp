@@ -63,10 +63,6 @@ using glm::mat4;
 #include <thread>
 #include <iomanip>
 
-#include <boost/algorithm/string.hpp>
-
-#include <memory_resource>
-
 #include <freetype2/ft2build.h>
 #include FT_FREETYPE_H
 

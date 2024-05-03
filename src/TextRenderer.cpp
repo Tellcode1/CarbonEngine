@@ -42,23 +42,45 @@ static u32 FNV1AHash(u32 n) {
     return hash;
 }
 
+static u64 FNV1AHash(u64 n) {
+    constexpr u64 FNV1APrime = 1099511628211U;
+    constexpr u64 OffsetBasis = 14695981039346656037U;
+    
+    u64 hash = OffsetBasis;
+    for(u8 i = 0; i < 8; i++)
+        hash ^= reinterpret_cast<u8*>(&n)[i] * FNV1APrime;
+
+    return hash;
+}
+
 static inline u32 FNV1AHash(f32 f) {
     return FNV1AHash(static_cast<u32>(f * 100)); // Convert to u32
 }
 
 void* vkalloc(void *pUserData, size_t size, size_t alignment, VkSystemAllocationScope allocationScope) {
     std::cout << "alloc'd: " << size << ", " << alignment << '\n';
-    dm::arena::Arena* arena = reinterpret_cast<dm::arena::Arena*>(pUserData);
-    return dm::arena::alloc(arena, size, alignment);
+    return pUserData;
 }
 
 void* vkrealloc(void *pUserData, void *pOriginal, size_t size, size_t alignment, VkSystemAllocationScope allocationScope) {
-    std::cout << "realloc'd: " << size << ", " << alignment << '\n';
-    dm::arena::Arena* arena = reinterpret_cast<dm::arena::Arena*>(pUserData);    
-    return dm::arena::alloc(arena, size, alignment);
+    return pUserData;
 }
 
 void vkfree(void *pUserData, void *pMemory) {}
+
+static std::vector<std::string> SplitString(const std::string& text)
+{
+    std::vector<std::string> result;
+    std::istringstream iss(text);
+    std::string line;
+    while (std::getline(iss, line))
+        result.push_back(line);
+    return result;
+}
+
+constexpr static inline u32 align(u32 num, u32 align) {
+    return (num + align - 1) & ~(align - 1);
+}
 
 TextRenderer::TextRenderer() {}
 /*
@@ -166,12 +188,11 @@ constexpr static u32 FragmentShaderBinary[] = {
 	0x00010038
 };
 
-void TextRenderer::GetTextSize(const std::string& pText, f32 *width, f32 *height, f32 *maxWidth, f32 scale)
+void TextRenderer::GetTextSize(const std::string& pText, f32 *width, f32 *height, f32 scale)
 {
     const u32 len = pText.size();
     f32 x = 0;
     f32 y = 0;
-    f32 maxX = 0;
 
     for (u32 i = 0; i < len; i++)
     {
@@ -183,12 +204,10 @@ void TextRenderer::GetTextSize(const std::string& pText, f32 *width, f32 *height
 
         x += w; // Accumulate the advance (width) of each character
         y = std::max(y, h);
-        maxX = std::max(maxX, w); // Update maxX with the maximum width of a single character
     }
 
     *width = x;
     *height = y;
-    *maxWidth = maxX * len; // Multiply maxX by the number of characters to get the maximum width of the entire text string
 }
 
 void TextRenderer::Init(VkDevice device, VkPhysicalDevice physDevice, VkQueue queue, VkCommandPool commandPool, VkRenderPass renderPass, const char *fontPath)
@@ -282,9 +301,10 @@ void TextRenderer::Init(VkDevice device, VkPhysicalDevice physDevice, VkQueue qu
         assert(res == 0);
 
         Character character = {
-            uvec2(face->glyph->metrics.width / 64.0f,
-                  face->glyph->metrics.height / 64.0f),
-            ivec2(face->glyph->bitmap_left, face->glyph->bitmap_top), bmpWidth,
+            uvec2(face->glyph->metrics.width >> 6,
+                  face->glyph->metrics.height >> 6),
+            ivec2(face->glyph->bitmap_left, face->glyph->bitmap_top),
+            bmpWidth,
             static_cast<f32>(face->glyph->advance.x / 64.0f)
         };
 
@@ -377,17 +397,13 @@ void TextRenderer::Init(VkDevice device, VkPhysicalDevice physDevice, VkQueue qu
     VkBuffer stagingBuffer = VK_NULL_HANDLE;
     VkDeviceMemory stagingBufferMemory = VK_NULL_HANDLE;
 
-    const u32 alignedImageSize = (imageMemoryRequirements.size + imageMemoryRequirements.alignment - 1) & ~(imageMemoryRequirements.alignment - 1);
-    std::cout << "Expected size: " << alignedImageSize << '\n';
     uchar stagingBufferBacking[256];
-
-    dm::arena::Arena arena = dm::arena::CreateArena(stagingBufferBacking, sizeof(stagingBufferBacking));
 
     VkAllocationCallbacks test{};
     test.pfnAllocation = vkalloc;
     test.pfnFree = vkfree;
     test.pfnReallocation = vkrealloc;
-    test.pUserData = &arena;
+    test.pUserData = reinterpret_cast<void*>(stagingBufferBacking);
 
     VkBufferCreateInfo stagingBufferInfo{};
     stagingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -525,207 +541,257 @@ void TextRenderer::Init(VkDevice device, VkPhysicalDevice physDevice, VkQueue qu
     }
 }
 
-static std::vector<std::string> SplitString(const std::string& text)
+void TextRenderer::AddToTextRenderQueue(std::string& line, const float scale, const float x, float y, TextRendererAlignmentHorizontal horizontal, TextRendererAlignmentVertical vertical)
 {
-    std::vector<std::string> result;
-    std::istringstream iss(text);
-    std::string line;
-    while (std::getline(iss, line))
-        result.push_back(line);
-    return result;
+    TextRenderInfo info;
+    info.scale = scale;
+    info.x = x;
+    info.y = y;
+    info.horizontal = horizontal;
+    info.vertical = vertical;
+    info.line = line;
+    drawList.push_back(info);
 }
 
-
-void TextRenderer::Render(const char *pText, VkCommandBuffer cmd, f32 scale, const f32 x, f32 y, TextRendererAlignmentHorizontal horizontal, TextRendererAlignmentVertical vertical)
+void TextRenderer::Render(VkCommandBuffer cmd)
 {
-    const u32 len = strlen(pText);
-
-    // Required to prevent vulkan errors (bufferSize will be equal to 0)
-    if (len == 0)
-        return;
-
-    u64 thisFrameHash = FNV1AHash(pText) - FNV1AHash(len) - FNV1AHash(scale) - FNV1AHash(horizontal) - FNV1AHash(vertical);
-
-    const auto begin = SDL_GetPerformanceCounter();
+    u32 len = 0;
+    const auto begin = std::chrono::high_resolution_clock::now();
     
-    // Reallocate buffers, stream data to GPU
-    if (thisFrameHash != prevFrameHash)
+    u64 thisFrameHash = 0;
+    for(const auto& draw : drawList) {
+        len += draw.line.size();
+        thisFrameHash += FNV1AHash(draw.line.c_str()) + FNV1AHash(draw.scale) + FNV1AHash(draw.x) + FNV1AHash(draw.y) + FNV1AHash(draw.horizontal) + FNV1AHash(draw.vertical);
+    }
+    const auto end = std::chrono::high_resolution_clock::now();
+    const auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin);
+
+    if(len == 0)
+        return;
+    
+    thisFrameHash += FNV1AHash(len);
+
+    if(thisFrameHash != lastFrameHash)
     {
-        vec4 vertices[len * 4];
-        u16 indices[len * 6];
         u32 iterator = 0;
-        const std::vector<std::string> lines = SplitString(pText);
-        const f32 invBmpWidth = 1.0f / static_cast<f32>(bmpWidth);
-
-        if(vertical == TEXT_VERTICAL_ALIGN_CENTER || vertical == TEXT_VERTICAL_ALIGN_BOTTOM) {
-            // Calculate total height of text
-            f32 totalHeight = 0.0f;
-            for (const auto& line : lines)
-            {
-                f32 _, lineHeight, __;
-                GetTextSize(line.c_str(), &_, &lineHeight, &__, scale);
-                totalHeight += lineHeight;
-            }
-
-            // Calculate starting y position for centered vertical alignment
-            (vertical == TEXT_VERTICAL_ALIGN_CENTER) ? y = y - (totalHeight / 2.0f) : y = y - totalHeight;
-        }
-
-        // Reallocate buffers, stream data to GPU
-        for (u32 l = 0; l < lines.size(); l++)
+        alignas(16) vec4 vertices[len * 4];
+        alignas(2) u16 indices[len * 6];
+        for(u32 drawIndex = 0; drawIndex < drawList.size(); drawIndex++)
         {
-            const auto& line = lines[l];
-            f32 lineX = 0.0f;
-            f32 totalWidth, height, maxWidth;
-            GetTextSize(line, &totalWidth, &height, &maxWidth, scale);
+            const auto& draw = drawList[drawIndex];
 
-            switch (horizontal)
-            {
-            case TEXT_HORIZONTAL_ALIGN_LEFT:
-                // x = x;
-                break;
-            case TEXT_HORIZONTAL_ALIGN_CENTER:
-                lineX = x - totalWidth / 2.0f;
-                break;
-            case TEXT_HORIZONTAL_ALIGN_RIGHT:
-                lineX = x - totalWidth;
-                break;
-            default:
-                throw std::runtime_error("Invalid horizontal alignment. (Implement?)");
-                break;
-            }
+            const std::string& pText = draw.line;
+            const f32 scale = draw.scale;
+            const TextRendererAlignmentHorizontal horizontal = draw.horizontal;
+            const TextRendererAlignmentVertical vertical = draw.vertical;
+            const f32 x = draw.x;
+            f32 y = draw.y;
 
-            // Mesh generating for all the text
-            for (u32 i = 0; i < line.size(); i++)
-            {
-                const char& c = line[i];
-                const Character &ch = Characters[c];
+            const std::vector<std::string> splitLines = SplitString(pText);
+            const f32 invBmpWidth = 1.0f / static_cast<f32>(bmpWidth);
 
-                if(c == '\n') {
-                    y += bmpHeight * scale;
-                    lineX = 0.0f;
-                    continue;
+            if(vertical == TEXT_VERTICAL_ALIGN_CENTER || vertical == TEXT_VERTICAL_ALIGN_BOTTOM) {
+                // Calculate total height of text
+                f32 totalHeight = 0.0f;
+                for (const auto& line : splitLines)
+                {
+                    // f32 _, lineHeight, __;
+                    // GetTextSize(line.c_str(), &_, &lineHeight, &__, scale);
+
+                    f32 lineHeight = 0.0f;
+                    for (const auto& c : pText)
+                    {
+                        const Character &ch = Characters[c];
+                        const f32 h = ch.size.y * scale;
+
+                        lineHeight = std::max(lineHeight, h);
+                    }
+
+                    totalHeight += lineHeight;
                 }
 
-                const f32 xpos = lineX + ch.bearing.x * scale;
-                f32 ypos;
+                // Calculate starting y position for centered vertical alignment
+                (vertical == TEXT_VERTICAL_ALIGN_CENTER) ? y = y - (totalHeight / 2.0f) : y = y - totalHeight;
+            }
 
-                switch (vertical)
+            // Reallocate buffers, stream data to GPU
+            for (u32 l = 0; l < splitLines.size(); l++)
+            {
+                const auto& line = splitLines[l];
+                f32 lineX = 0.0f;
+                f32 totalWidth, height;
+                GetTextSize(line, &totalWidth, &height, scale);
+
+                switch (horizontal)
                 {
-                case TEXT_VERTICAL_ALIGN_TOP:
-                    ypos = y + (bmpHeight - ch.bearing.y) * scale; 
+                case TEXT_HORIZONTAL_ALIGN_LEFT:
+                    // x = x;
+                    lineX = x;
                     break;
-                case TEXT_VERTICAL_ALIGN_CENTER:
-                    ypos = y + (lineHeight - ch.bearing.y) * scale;
+                case TEXT_HORIZONTAL_ALIGN_CENTER:
+                    lineX = x - totalWidth / 2.0f;
                     break;
-                case TEXT_VERTICAL_ALIGN_BOTTOM:
-                    ypos = y + (bmpHeight - ch.bearing.y - lineHeight) * scale; 
+                case TEXT_HORIZONTAL_ALIGN_RIGHT:
+                    lineX = x - totalWidth;
                     break;
                 default:
-                    throw std::runtime_error("Invalid vertical alignment. (Implement?)");
+                    throw std::runtime_error("Invalid horizontal alignment. (Implement?)");
                     break;
                 }
 
-                const f32 scaledWidth = ch.size.x * scale;
-                const f32 rawHeight = static_cast<f32>(ch.size.y);
-                const f32 scaledHeight = rawHeight * scale;
-                const f32 u0 = ch.offset * invBmpWidth;
-                const f32 u1 = (ch.offset + ch.size.x) * invBmpWidth;
-                const f32 v = rawHeight / bmpHeight;
+                // Mesh generating for all the text
+                for (u32 i = 0; i < line.size(); i++)
+                {
+                    const char& c = line[i];
+                    const Character &ch = Characters[c];
 
-                const u32 vertexIndex = iterator << 2; // iterator * 4
-                const u32 indexOffset = vertexIndex;
+                    if(c == '\n') {
+                        y += bmpHeight * scale;
+                        lineX = 0.0f;
+                        continue;
+                    }
 
-                const vec4 newVertices[4] = {
-                    vec4(xpos,               ypos,                u0, 0.0f),
-                    vec4(xpos + scaledWidth, ypos,                u1, 0.0f),
-                    vec4(xpos + scaledWidth, ypos + scaledHeight, u1, v   ),
-                    vec4(xpos,               ypos + scaledHeight, u0, v   ),
-                };
-                
-                // Calculate indices for the current character
-                const u16 newIndices[6] = {
-                    static_cast<u16>(indexOffset + 0), static_cast<u16>(indexOffset + 1), static_cast<u16>(indexOffset + 2),
-                    static_cast<u16>(indexOffset + 2), static_cast<u16>(indexOffset + 3), static_cast<u16>(indexOffset + 0),
-                };
+                    const f32 xpos = lineX + ch.bearing.x * scale;
+                    f32 ypos;
 
-                memcpy(vertices + iterator * 4, newVertices, sizeof(newVertices));
-                memcpy(indices + iterator * 6, newIndices, sizeof(newIndices));
+                    switch (vertical)
+                    {
+                    case TEXT_VERTICAL_ALIGN_TOP:
+                        ypos = y + (bmpHeight - ch.bearing.y) * scale; 
+                        break;
+                    case TEXT_VERTICAL_ALIGN_CENTER:
+                        ypos = y + (lineHeight - ch.bearing.y) * scale;
+                        break;
+                    case TEXT_VERTICAL_ALIGN_BOTTOM:
+                        ypos = y + (bmpHeight - ch.bearing.y - lineHeight) * scale; 
+                        break;
+                    default:
+                        throw std::runtime_error("Invalid vertical alignment. (Implement?)");
+                        break;
+                    }
 
-                iterator++;
-                lineX += ch.advance * scale;
+                    const f32 scaledWidth = ch.size.x * scale;
+                    const f32 rawHeight = static_cast<f32>(ch.size.y);
+                    const f32 scaledHeight = rawHeight * scale;
+                    const f32 u0 = ch.offset * invBmpWidth;
+                    const f32 u1 = (ch.offset + ch.size.x) * invBmpWidth;
+                    const f32 v = rawHeight / bmpHeight;
+
+                    const vec4 newVertices[4] = {
+                        vec4(xpos,               ypos,                u0, 0.0f),
+                        vec4(xpos + scaledWidth, ypos,                u1, 0.0f),
+                        vec4(xpos + scaledWidth, ypos + scaledHeight, u1, v   ),
+                        vec4(xpos,               ypos + scaledHeight, u0, v   ),
+                    };
+                    
+                    const u32 indexOffset = iterator << 2;
+
+                    // Calculate indices for the current character
+                    const u16 newIndices[6] = {
+                        static_cast<u16>(indexOffset + 0), static_cast<u16>(indexOffset + 1), static_cast<u16>(indexOffset + 2),
+                        static_cast<u16>(indexOffset + 2), static_cast<u16>(indexOffset + 3), static_cast<u16>(indexOffset + 0),
+                    };
+
+                    const u32 vertexIndex = iterator * 4;
+                    const u32 indexIndex = iterator * 6;
+
+                    memcpy(vertices + vertexIndex, newVertices, sizeof(newVertices));
+                    memcpy(indices + indexIndex, newIndices, sizeof(newIndices));
+
+                    iterator++;
+                    lineX += ch.advance * scale;
+                }
+
+                y += bmpHeight * scale;
             }
-
-            y += bmpHeight * scale;
         }
-
+    
         indexCount = iterator * 6;
 
-        const VkBuffer back_unifiedBuffer = unifiedBuffer;
-        const VkDeviceMemory back_mem = mem;
+        const u32 vertexByteSize = (iterator * 4) * sizeof(vec4);
+        const u32 indexByteSize = indexCount * sizeof(u16);
 
-        std::thread bufferDestroyer([&]() {
+        const u32 bufferSize = ( iterator * 4 * sizeof(vec4) ) + ( iterator * 6 * sizeof(u16) );
+
+        // If the buffer is this much larger than needed, make it smaller.
+        constexpr u8 BufferSizeDownscale = 3;
+        // Allocate this much times more than we need to avoid further allocations. 2 is good enough.
+        constexpr u8 BufferSizeUpscale = 2;
+
+        static_assert(BufferSizeUpscale < BufferSizeDownscale && "Can cause undefined behaviour due to upscaling "
+                                                                 "the buffer one frame and immediately downscaling it in the other");
+
+        const bool needLargerBuffer = bufferSize > allocatedMemorySize;
+        const bool needSmallerBuffer = bufferSize * BufferSizeDownscale < allocatedMemorySize;
+
+        // Check if we need to resize the buffer
+        if (needLargerBuffer || needSmallerBuffer)
+        {
+            const VkBuffer back_unifiedBuffer = unifiedBuffer;
+            const VkDeviceMemory back_mem = mem;
+
+            (needLargerBuffer) ?
+                allocatedMemorySize = bufferSize * BufferSizeUpscale
+                :
+                allocatedMemorySize = std::max(bufferSize, allocatedMemorySize / BufferSizeDownscale);
+
             vkDeviceWaitIdle(m_device);
             vkDestroyBuffer(m_device, back_unifiedBuffer, nullptr);
             vkFreeMemory(m_device, back_mem, nullptr);
-        });
 
-        const u32 vertexByteSize = iterator * 4 * sizeof(vec4);
-        const u32 indexByteSize = iterator * 6 * sizeof(u16);
+            VkBufferCreateInfo VBbufferInfo = {};
+            VBbufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+            VBbufferInfo.size = allocatedMemorySize;
+            VBbufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+            VBbufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            if (vkCreateBuffer(m_device, &VBbufferInfo, nullptr, &unifiedBuffer) != VK_SUCCESS)
+            {
+                throw std::runtime_error("failed to create vertex buffer!");
+            }
 
-        VkBufferCreateInfo VBbufferInfo = {};
-        VBbufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        VBbufferInfo.size = vertexByteSize + indexByteSize;
-        VBbufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-        VBbufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        if (vkCreateBuffer(m_device, &VBbufferInfo, nullptr, &unifiedBuffer) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to create vertex buffer!");
+            VkMemoryRequirements VBmemoryRequirements;
+            vkGetBufferMemoryRequirements(m_device, unifiedBuffer, &VBmemoryRequirements);
+
+            std::cout << "but vulkan said " << VBmemoryRequirements.size << '\n';
+
+            if (alignment == 0) alignment = VBmemoryRequirements.alignment;
+
+            VkMemoryAllocateInfo allocInfo = {};
+            allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+            allocInfo.allocationSize = VBmemoryRequirements.size;
+            allocInfo.memoryTypeIndex = bootstrap::GetMemoryType(m_physDevice, VBmemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+            if (vkAllocateMemory(m_device, &allocInfo, nullptr, &mem) != VK_SUCCESS)
+            {
+                throw std::runtime_error("failed to allocate vertex buffer memory!");
+            }
+    
+            vkBindBufferMemory(m_device, unifiedBuffer, mem, 0);
         }
 
-        VkMemoryRequirements VBmemoryRequirements;
-        vkGetBufferMemoryRequirements(m_device, unifiedBuffer, &VBmemoryRequirements);
-
-        // This just rounds vertexByteSize to the nearest aligned size
-        ibOffset = (vertexByteSize + VBmemoryRequirements.alignment - 1) & ~(VBmemoryRequirements.alignment - 1);
-
-        VkMemoryAllocateInfo allocInfo = {};
-        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        allocInfo.allocationSize = VBmemoryRequirements.size;
-        allocInfo.memoryTypeIndex = bootstrap::GetMemoryType(m_physDevice, VBmemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-        if (vkAllocateMemory(m_device, &allocInfo, nullptr, &mem) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to allocate vertex buffer memory!");
-        }
-
-        vkBindBufferMemory(m_device, unifiedBuffer, mem, 0);
-
+        ibOffset = align(vertexByteSize, alignment);
+        
         // Use uchar for pointer operations instead of void ptr
         uchar *vbMap;
-        if (vkMapMemory(m_device, mem, 0, vertexByteSize + indexByteSize, 0, reinterpret_cast<void **>(&vbMap)) != VK_SUCCESS)
+        if (vkMapMemory(m_device, mem, 0, allocatedMemorySize, 0, reinterpret_cast<void **>(&vbMap)) != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to map vertex buffer memory");
         }
-
         memcpy(vbMap, vertices, vertexByteSize);
-        memcpy(vbMap + vertexByteSize, indices, indexByteSize);
+        memcpy(vbMap + ibOffset, indices, indexByteSize);
 
         // Non coherent mapped memory ranges must be flushed
         // This is also one of the things I just keep forgetting
         VkMappedMemoryRange range{};
         range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
         range.memory = mem;
-        range.size = vertexByteSize + indexByteSize;
+        range.size = allocatedMemorySize;
         range.offset = 0;
         vkFlushMappedMemoryRanges(m_device, 1, &range);
 
-        bufferDestroyer.join();
         vkUnmapMemory(m_device, mem);
-
-        std::cout << "Reallocation took "
-                  << (SDL_GetPerformanceCounter() - begin) / static_cast<double>(SDL_GetPerformanceFrequency()) * 1000.0f
-                  << " ms" << std::endl;
     }
+
+    drawList.clear();
 
     constexpr VkDeviceSize offsets = 0;
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
@@ -733,122 +799,95 @@ void TextRenderer::Render(const char *pText, VkCommandBuffer cmd, f32 scale, con
     vkCmdBindVertexBuffers(cmd, 0, 1, &unifiedBuffer, &offsets);
     vkCmdBindIndexBuffer(cmd, unifiedBuffer, ibOffset, VK_INDEX_TYPE_UINT16);
 
-    // Currently just draw, have to implement queueing draws
     vkCmdDrawIndexed(cmd, indexCount, 1, 0, 0, 0);
 
-    prevFrameHash = thisFrameHash;
+    lastFrameHash = thisFrameHash;
 }
 
-// void TextRenderer::Render(VkCommandBuffer cmd)
-// {
-//     size_t thisFrameHash = 0;
-//     for(u32 i = 0; i < drawList.size(); i++)
-//         thisFrameHash += FNV1AHash(FNV1AHash(drawList[i].text) - FNV1AHash(drawList[i].scale) - FNV1AHash(drawList[i].horizontal) - FNV1AHash(drawList[i].vertical));
-
-//     if(prevFrameHash != thisFrameHash) {
-    
-//     }
-    
-//     constexpr VkDeviceSize offsets = 0;
-//     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
-//     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &m_descriptorSet, 0, nullptr);
-//     vkCmdBindVertexBuffers(cmd, 0, 1, &unifiedBuffer, &offsets);
-//     vkCmdBindIndexBuffer(cmd, unifiedBuffer, ibOffset, VK_INDEX_TYPE_UINT16);
-
-//     prevFrameHash = thisFrameHash;
-// }
-
 void TextRenderer::CreatePipeline(VkRenderPass renderPass) {
-  VkShaderModule vertexShaderModule;
-  VkShaderModule fragmentShaderModule;
+    VkShaderModule vertexShaderModule;
+    VkShaderModule fragmentShaderModule;
 
-  VkShaderModuleCreateInfo vertexShaderModuleInfo{};
-  vertexShaderModuleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-  vertexShaderModuleInfo.codeSize = sizeof(VertexShaderBinary);
-  vertexShaderModuleInfo.pCode = VertexShaderBinary;
-  if (vkCreateShaderModule(m_device, &vertexShaderModuleInfo, nullptr, &vertexShaderModule) != VK_SUCCESS) {
+    VkShaderModuleCreateInfo vertexShaderModuleInfo{};
+    vertexShaderModuleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    vertexShaderModuleInfo.codeSize = sizeof(VertexShaderBinary);
+    vertexShaderModuleInfo.pCode = VertexShaderBinary;
+    if (vkCreateShaderModule(m_device, &vertexShaderModuleInfo, nullptr, &vertexShaderModule) != VK_SUCCESS) {
     throw std::runtime_error("Failed to create vertex shader module!");
-  }
+    }
 
-  VkShaderModuleCreateInfo fragmentShaderModuleInfo{};
-  fragmentShaderModuleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-  fragmentShaderModuleInfo.codeSize = sizeof(FragmentShaderBinary);
-  fragmentShaderModuleInfo.pCode = FragmentShaderBinary;
-  if (vkCreateShaderModule(m_device, &fragmentShaderModuleInfo, nullptr, &fragmentShaderModule) != VK_SUCCESS) {
+    VkShaderModuleCreateInfo fragmentShaderModuleInfo{};
+    fragmentShaderModuleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    fragmentShaderModuleInfo.codeSize = sizeof(FragmentShaderBinary);
+    fragmentShaderModuleInfo.pCode = FragmentShaderBinary;
+    if (vkCreateShaderModule(m_device, &fragmentShaderModuleInfo, nullptr, &fragmentShaderModule) != VK_SUCCESS) {
     throw std::runtime_error("Failed to create fragment shader module!");
-  }
+    }
 
-  const std::vector<VkPushConstantRange> pushConstants = {
-      // stageFlags; offset; size;
-      {VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4) + sizeof(glm::vec2) },
-  };
+    const std::vector<VkPushConstantRange> pushConstants = {
+        // stageFlags; offset; size;
+        {VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4) + sizeof(glm::vec2) },
+    };
 
-  VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-  pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  pipelineLayoutInfo.setLayoutCount = 1;
-  pipelineLayoutInfo.pSetLayouts = &m_descriptorSetLayout;
-  pipelineLayoutInfo.pPushConstantRanges = pushConstants.data();
-  pipelineLayoutInfo.pushConstantRangeCount = pushConstants.size();
-  if (vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_pipelineLayout) != VK_SUCCESS) {
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.setLayoutCount = 1;
+    pipelineLayoutInfo.pSetLayouts = &m_descriptorSetLayout;
+    pipelineLayoutInfo.pPushConstantRanges = pushConstants.data();
+    pipelineLayoutInfo.pushConstantRangeCount = pushConstants.size();
+    if (vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_pipelineLayout) != VK_SUCCESS) {
     throw std::runtime_error("Failed to create pipeline layout!");
-  }
+    }
 
-  const std::vector<VkVertexInputAttributeDescription> attributeDescriptions = {
-      // location; binding; format; offset;
-      {0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0},
-  };
+    const std::vector<VkVertexInputAttributeDescription> attributeDescriptions = {
+        // location; binding; format; offset;
+        {0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0},
+    };
 
-  const std::vector<VkVertexInputBindingDescription> bindingDescriptions = {
-      // binding; stride; inputRate
-      {0, sizeof(glm::vec4), VK_VERTEX_INPUT_RATE_VERTEX},
-  };
+    const std::vector<VkVertexInputBindingDescription> bindingDescriptions = {
+        // binding; stride; inputRate
+        {0, sizeof(glm::vec4), VK_VERTEX_INPUT_RATE_VERTEX},
+    };
 
-  const std::vector<VkDescriptorSetLayout> descriptorSetLayouts = {m_descriptorSetLayout};
+    const std::vector<VkDescriptorSetLayout> descriptorSetLayouts = {m_descriptorSetLayout};
 
-  VkPipelineShaderStageCreateInfo vertexShaderInfo{};
-  vertexShaderInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  vertexShaderInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-  vertexShaderInfo.module = vertexShaderModule;
-  vertexShaderInfo.pName = "main";
+    VkPipelineShaderStageCreateInfo vertexShaderInfo{};
+    vertexShaderInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    vertexShaderInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    vertexShaderInfo.module = vertexShaderModule;
+    vertexShaderInfo.pName = "main";
 
-  VkPipelineShaderStageCreateInfo fragmentShaderInfo{};
-  fragmentShaderInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  fragmentShaderInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-  fragmentShaderInfo.module = fragmentShaderModule;
-  fragmentShaderInfo.pName = "main";
+    VkPipelineShaderStageCreateInfo fragmentShaderInfo{};
+    fragmentShaderInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    fragmentShaderInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    fragmentShaderInfo.module = fragmentShaderModule;
+    fragmentShaderInfo.pName = "main";
 
-  const std::vector<VkPipelineShaderStageCreateInfo> shaders = {
-      vertexShaderInfo, fragmentShaderInfo
-  };
+    const std::vector<VkPipelineShaderStageCreateInfo> shaders = {
+        vertexShaderInfo, fragmentShaderInfo
+    };
 
-  /*
-   *   PIPELINE CREATION
-   */
+    /*
+    *   PIPELINE CREATION
+    */
 
-//   pro::RenderPassCreateInfo rc{};
-//   rc.subpass = 0;
-//   rc.format = VK_FORMAT_B8G8R8A8_SRGB;
-//   rc.samples = m_samples;
-//   pro::CreateRenderPass(m_device, &rc, &m_renderPass, PIPELINE_CREATE_FLAGS_ENABLE_BLEND);
+    pro::PipelineCreateInfo pc{};
+    pc.format = VK_FORMAT_B8G8R8A8_SRGB;
+    pc.subpass = 0;
 
-  pro::PipelineCreateInfo pc{};
-  pc.format = VK_FORMAT_B8G8R8A8_SRGB;
-  pc.subpass = 0;
-//   pc.renderPass = m_renderPass;
-  pc.renderPass = renderPass;
-  pc.pipelineLayout = m_pipelineLayout;
-  pc.pAttributeDescriptions = &attributeDescriptions;
-  pc.pBindingDescriptions = &bindingDescriptions;
-  pc.pDescriptorLayouts = &descriptorSetLayouts;
-  pc.pPushConstants = &pushConstants;
-  pc.pShaderCreateInfos = &shaders;
-  pc.extent = VkExtent2D{800, 600};
-  pc.pShaderCreateInfos = &shaders;
-  // pc.samples = m_samples;
-  pro::CreateGraphicsPipeline(m_device, &pc, &m_pipeline, PIPELINE_CREATE_FLAGS_ENABLE_BLEND);
+    pc.renderPass = renderPass;
+    pc.pipelineLayout = m_pipelineLayout;
+    pc.pAttributeDescriptions = &attributeDescriptions;
+    pc.pBindingDescriptions = &bindingDescriptions;
+    pc.pDescriptorLayouts = &descriptorSetLayouts;
+    pc.pPushConstants = &pushConstants;
+    pc.pShaderCreateInfos = &shaders;
+    pc.extent = VkExtent2D{800, 600};
+    pc.pShaderCreateInfos = &shaders;
+    pro::CreateGraphicsPipeline(m_device, &pc, &m_pipeline, PIPELINE_CREATE_FLAGS_ENABLE_BLEND);
 
-  vkDestroyShaderModule(m_device, vertexShaderModule, nullptr);
-  vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
+    vkDestroyShaderModule(m_device, vertexShaderModule, nullptr);
+    vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
 }
 
 #ifdef __GNUC__

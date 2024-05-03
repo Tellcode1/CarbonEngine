@@ -8,7 +8,7 @@
 #include "TextRenderer.hpp"
 
 static constexpr bool VSyncEnabled = false;
-static constexpr u8 MaxFramesInFlight = VSyncEnabled ? 1 : 2;
+static constexpr u8 MaxFramesInFlight = VSyncEnabled ? 1 : 3;
 
 struct VulkanContext;
 struct Texture;
@@ -35,7 +35,6 @@ extern VulkanContext CreateVulkanContext(const char* title, u32 windowWidth = 80
 struct Renderer
 {
     VulkanContext* ctx;
-    TextRenderer turd;
 
     VkExtent2D renderArea{ 800, 600 };
     VkQueue graphicsQueue;
@@ -74,22 +73,23 @@ struct Renderer
     bootstrap::Image LoadImage(const char* path);
     bootstrap::Image LoadImage(VkFormat format, u64 width, u64 height, void* data);
 
-    FT_Library ftLibrary = nullptr;
-    FT_Face ftFace = nullptr;
-
-    Renderer(VulkanContext* interface);
+    void Initialize(VulkanContext* ctx);
+    Renderer() = default;
     ~Renderer() = default;
 
     void ResizeRenderWindow(const VkExtent2D newExtent, const bool forceWindowResize = false);
 
-    // std::map<char, GlyphData> LoadFont(std::string& fontFile, i32 fontSize);
-    // std::map<char, Character> characters;
-    void RenderText(VkCommandBuffer buff, const std::string& str, float x, float y, float scale);
-
     inline VkCommandBuffer GetDrawBuffer() { return drawBuffers[currentFrame]; };
     bool BeginRender();
     void EndRender();
+
+    static Renderer* GetSingleton() {
+        static Renderer global;
+        return &global;
+    }
 };
+
+static Renderer* RD = Renderer::GetSingleton();
 // extern bool RendererInit(Interface const* interface);
 
 struct Texture {

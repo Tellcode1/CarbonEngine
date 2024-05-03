@@ -26,7 +26,7 @@ constexpr static u32 GetArraySize(T(&arr)[N]) {
     return N;
 }
 
-Renderer::Renderer(VulkanContext* ctx) {
+void Renderer::Initialize(VulkanContext* ctx) {
     this->ctx = ctx;
 
     if (!pro::GetSupportedFormat(ctx->device, ctx->physDevice, ctx->surface, &format, &colorSpace)) {
@@ -51,66 +51,6 @@ Renderer::Renderer(VulkanContext* ctx) {
     images.resize(1);
     // images[0] = LoadImage("/home/debian/Downloads/texture.jpg");
     TIME_FUNCTION(images[0] = LoadImage("/home/debian/dev/Pixelworlds3.0/Atlas/atlas.png"));
-
-    // // Initialize FreeType library
-    // FT_Library ft;
-    // if (FT_Init_FreeType(&ft)) {
-    //     std::cerr << "Failed to initialize FreeType library" << std::endl;
-    // }
-    // const std::string fontFile = "/usr/share/fonts/truetype/malayalam/Dyuthi-Regular.ttf";
-    // constexpr u32 fontSize = 16;
-
-    // // Load font face
-    // FT_Face face;
-    // if (FT_New_Face(ft, fontFile.c_str(), 0, &face)) {
-    //     std::cerr << "Failed to load font file: " << fontFile << std::endl;
-    //     FT_Done_FreeType(ft);
-    // }
-
-    // // Set font size
-    // FT_Set_Pixel_Sizes(face, 0, fontSize);
-
-    // std::vector<Image> imageDatas;
-
-    // for(uchar c = 0; c < 128; c++)
-    // {
-    //     if(FT_Load_Char(face, c, FT_LOAD_RENDER))
-    //     {
-    //         std::cerr << "ERROR::FREETYTPE: Failed to load Glyph at index " << (uint)c << std::endl;
-    //         continue;
-    //     }
- 
-    //     u8* imageData = face->glyph->bitmap.buffer;
- 
-    //     if (imageData == nullptr) {
-    //         std::cerr << "Glyph bitmap data is null for character: " << (uint)c << std::endl;
-    //         continue;;
-    //     }
-
-    //     imageDatas.push_back(
-    //         Image
-    //         {
-    //             std::to_string(c),
-    //             static_cast<i32>(face->glyph->bitmap.width), 
-    //             static_cast<i32>(face->glyph->bitmap.rows),
-    //             imageData
-    //         }
-    //     );
-    //     bootstrap::Image img = LoadImage(VK_FORMAT_R8_UNORM, face->glyph->bitmap.width, face->glyph->bitmap.rows, imageData);
-
-    //     Character character = {
-    //         .image = img, 
-    //         .size = glm::ivec2(face->glyph->bitmap.width, face->glyph->bitmap.rows),
-    //         .bearing = glm::ivec2(face->glyph->bitmap_left, face->glyph->bitmap_top),
-    //         .advance = static_cast<u32>(face->glyph->advance.x)
-    //     };
-    //     characters.insert(std::pair<char, Character>(c, character));
-    // }
-
-    // // Atlas::WriteImage(imageDatas);
-
-    // FT_Done_Face(face);
-    // FT_Done_FreeType(ft);
 
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -200,23 +140,7 @@ Renderer::Renderer(VulkanContext* ctx) {
 		writeSet0.pImageInfo = &imageInfo;
 
         descWriteSets.push_back(writeSet0);
-
-        // VkDescriptorImageInfo fontImageInfo{};
-        // fontImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        // fontImageInfo.imageView = turd.FontTextureView;
-        // fontImageInfo.sampler = turd.FontTextureSampler;
-
-        // VkWriteDescriptorSet writeSet{};
-        // writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        // writeSet.dstSet = descSet[i];
-        // writeSet.dstBinding = 1;
-        // writeSet.dstArrayElement = 0;
-        // writeSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        // writeSet.descriptorCount = 1;
-        // writeSet.pImageInfo = &fontImageInfo;
         
-        // descWriteSets.push_back(writeSet);
-
 		vkUpdateDescriptorSets(ctx->device, descWriteSets.size(), descWriteSets.data(), 0, nullptr);
 	}
 
@@ -253,7 +177,7 @@ Renderer::Renderer(VulkanContext* ctx) {
     pcio.subpass = 0;
     TIME_FUNCTION(pro::CreateEntirePipeline(ctx->device, &pcio, &pipeline, PipelineFlags));
     
-    TIME_FUNCTION(turd.Init(ctx->device, ctx->physDevice, graphicsQueue, commandPool, pipeline.renderPass, "/usr/share/fonts/X11/Type1/c0648bt_.pfb"));
+    TIME_FUNCTION(textRD->Init(ctx->device, ctx->physDevice, graphicsQueue, commandPool, pipeline.renderPass, "/usr/share/fonts/X11/Type1/c0648bt_.pfb"));
 
     u32 requestedImageCount = 0;
     vkGetSwapchainImagesKHR(ctx->device, swapchain, &requestedImageCount, nullptr);

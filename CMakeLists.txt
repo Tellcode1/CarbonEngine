@@ -43,6 +43,7 @@ include_directories(${CMAKE_SOURCE_DIR}/UIX)
 include_directories(${CMAKE_SOURCE_DIR}/build)
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/Atlas)
+add_subdirectory(${CMAKE_SOURCE_DIR}/VulkanMemoryAllocator)
 
 set(ATLAS_SOURCES
     # Atlas/Atlas.cpp

@@ -30,7 +30,6 @@ namespace dm
             u64 bufferLength;
             u64 previousOffset;
             u64 currentOffset;
-            
         };
 
         Arena CreateArena(void* backBuffer, u64 length);
