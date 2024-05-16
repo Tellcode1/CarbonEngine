@@ -1,7 +1,21 @@
 #ifndef __PCH__
 #define __PCH__
 
-// #define DEBUG
+#if defined( __clang__ )
+#   if __has_attribute( always_inline )
+#     define NANO_INLINE __attribute__( ( always_inline ) ) __inline__
+#   else
+#     define NANO_INLINE inline
+#   endif
+#elif defined( __GNUC__ )
+#   define NANO_INLINE __attribute__( ( always_inline ) ) __inline__
+#elif defined( _MSC_VER )
+#   define NANO_INLINE inline
+#else
+#   define NANO_INLINE inline
+#endif
+
+#define NANO_SINGLETON_FUNCTION static NANO_INLINE
 
 #include <cstdint>
 
@@ -58,6 +72,7 @@ using glm::mat4;
 #include <set>
 #include <map>
 #include <unordered_map>
+#include <unordered_set>
 #include <fstream>
 #include <ctime>
 #include <thread>
@@ -80,18 +95,8 @@ using glm::mat4;
 
 #define DEBUG
 
-#include "AssetLoader.hpp"
 #include "pro.hpp"
-
-const std::vector<const char*> ValidationLayers = {  
-	"VK_LAYER_KHRONOS_validation",
-};
-const std::vector<const char*> InstanceExtensions = {
-	VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-	VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
-};
-const std::vector<const char*> DeviceExtensions = {
-	VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-};
+#include "Context.hpp"
+#include "Renderer.hpp"
 
 #endif

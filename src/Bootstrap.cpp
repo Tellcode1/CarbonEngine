@@ -1,102 +1,102 @@
 #include "Bootstrap.hpp"
 
-VkInstance bootstrap::CreateInstance(const char* windowTitle) {
-    VkApplicationInfo appInfo{};
-	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-	appInfo.applicationVersion = VK_API_VERSION_1_0;
-	appInfo.apiVersion = VK_API_VERSION_1_0;
-	appInfo.engineVersion = 0;
-	appInfo.pApplicationName = windowTitle;
-	appInfo.pEngineName = "No Engine";
+// VkInstance bootstrap::CreateInstance(const char* windowTitle) {
+//     VkApplicationInfo appInfo{};
+// 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+// 	appInfo.applicationVersion = VK_API_VERSION_1_0;
+// 	appInfo.apiVersion = VK_API_VERSION_1_0;
+// 	appInfo.engineVersion = 0;
+// 	appInfo.pApplicationName = windowTitle;
+// 	appInfo.pEngineName = "No Engine";
 
-	uint32_t SDLExtensionCount = 0;
-	const char* const* SDLExtensions = SDL_Vulkan_GetInstanceExtensions(&SDLExtensionCount);
-	std::vector<const char*> Extensions;
+// 	uint32_t SDLExtensionCount = 0;
+// 	const char* const* SDLExtensions = SDL_Vulkan_GetInstanceExtensions(&SDLExtensionCount);
+// 	std::vector<const char*> Extensions;
 	
-	for (const auto& ext : InstanceExtensions)
-		Extensions.push_back(ext);
+// 	for (const auto& ext : InstanceExtensions)
+// 		Extensions.push_back(ext);
 
-	for (uint32_t i = 0; i < SDLExtensionCount; i++) 
-		Extensions.push_back(SDLExtensions[i]);
+// 	for (uint32_t i = 0; i < SDLExtensionCount; i++) 
+// 		Extensions.push_back(SDLExtensions[i]);
 
-	VkInstanceCreateInfo instanceCreateinfo{};
-	instanceCreateinfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-	instanceCreateinfo.pApplicationInfo = &appInfo;
-	instanceCreateinfo.enabledExtensionCount = static_cast<uint32_t>(Extensions.size());
-	instanceCreateinfo.ppEnabledExtensionNames = Extensions.data();
+// 	VkInstanceCreateInfo instanceCreateinfo{};
+// 	instanceCreateinfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+// 	instanceCreateinfo.pApplicationInfo = &appInfo;
+// 	instanceCreateinfo.enabledExtensionCount = static_cast<uint32_t>(Extensions.size());
+// 	instanceCreateinfo.ppEnabledExtensionNames = Extensions.data();
 
-	#ifdef DEBUG
+// 	#ifdef DEBUG
 
-	bool validationLayersAvailable = false;
-	uint32_t layerCount = 0;
+// 	bool validationLayersAvailable = false;
+// 	uint32_t layerCount = 0;
 
-	vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
-	VkLayerProperties layerProperties[layerCount];
-	vkEnumerateInstanceLayerProperties(&layerCount, layerProperties);
+// 	vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+// 	VkLayerProperties layerProperties[layerCount];
+// 	vkEnumerateInstanceLayerProperties(&layerCount, layerProperties);
 
-	for(const auto& layer : ValidationLayers)
-	{
-		for (uint32_t i = 0; i < layerCount; i++)
-		{
-			if (strcmp(layer, layerProperties[i].layerName) == 0)
-			{
-				validationLayersAvailable = true;
-			}
-		}
-	}
+// 	for(const auto& layer : ValidationLayers)
+// 	{
+// 		for (uint32_t i = 0; i < layerCount; i++)
+// 		{
+// 			if (strcmp(layer, layerProperties[i].layerName) == 0)
+// 			{
+// 				validationLayersAvailable = true;
+// 			}
+// 		}
+// 	}
 
-	if (!validationLayersAvailable)
-	{
-		printf("VALIDTATION LAYERS COULD NOT BE LOADED\nRequested layers:\n");
-		for(const char* layer : ValidationLayers)
-		{
-			printf("\t%s\n", layer);
-		}
-		printf("Instance provided these layers (i.e. These layers are available):\n");
-		for(uint32_t i = 0; i < layerCount; i++)
-		{
-			printf("\t%s\n", layerProperties[i].layerName);
-		}
-		printf("But instance asked for (i.e. are not available):\n");
+// 	if (!validationLayersAvailable)
+// 	{
+// 		printf("VALIDTATION LAYERS COULD NOT BE LOADED\nRequested layers:\n");
+// 		for(const char* layer : ValidationLayers)
+// 		{
+// 			printf("\t%s\n", layer);
+// 		}
+// 		printf("Instance provided these layers (i.e. These layers are available):\n");
+// 		for(uint32_t i = 0; i < layerCount; i++)
+// 		{
+// 			printf("\t%s\n", layerProperties[i].layerName);
+// 		}
+// 		printf("But instance asked for (i.e. are not available):\n");
 
-		std::vector<const char*> missingLayers;
+// 		std::vector<const char*> missingLayers;
 	
-		for(const auto& layer : ValidationLayers)
-		{
-			bool layerAvailable = false;
-			for (uint32_t i = 0; i < layerCount; i++)
-			{
-				if (strcmp(layer, layerProperties[i].layerName) == 0)
-				{
-					layerAvailable = true;
-					break;
-				}
-			}
-			if(!layerAvailable) missingLayers.push_back(layer);
-		}
-		for(const auto& layer : missingLayers)
-		{
-			printf("\t%s\n", layer);
-		}
+// 		for(const auto& layer : ValidationLayers)
+// 		{
+// 			bool layerAvailable = false;
+// 			for (uint32_t i = 0; i < layerCount; i++)
+// 			{
+// 				if (strcmp(layer, layerProperties[i].layerName) == 0)
+// 				{
+// 					layerAvailable = true;
+// 					break;
+// 				}
+// 			}
+// 			if(!layerAvailable) missingLayers.push_back(layer);
+// 		}
+// 		for(const auto& layer : missingLayers)
+// 		{
+// 			printf("\t%s\n", layer);
+// 		}
 		
-		exit(VK_ERROR_LAYER_NOT_PRESENT);
-	}
+// 		exit(VK_ERROR_LAYER_NOT_PRESENT);
+// 	}
 
-	instanceCreateinfo.enabledLayerCount = ValidationLayers.size();
-	instanceCreateinfo.ppEnabledLayerNames = ValidationLayers.data();
+// 	instanceCreateinfo.enabledLayerCount = ValidationLayers.size();
+// 	instanceCreateinfo.ppEnabledLayerNames = ValidationLayers.data();
 
-	#else
+// 	#else
 
-	instanceCreateinfo.enabledLayerCount = 0;
-	instanceCreateinfo.ppEnabledLayerNames = nullptr;
+// 	instanceCreateinfo.enabledLayerCount = 0;
+// 	instanceCreateinfo.ppEnabledLayerNames = nullptr;
 
-	#endif
+// 	#endif
 
-    VkInstance instance;
-	vkCreateInstance(&instanceCreateinfo, nullptr, &instance);
+//     VkInstance instance;
+// 	vkCreateInstance(&instanceCreateinfo, nullptr, &instance);
 
-    return instance;
-}
+//     return instance;
+// }
 
 VkPhysicalDevice bootstrap::GetSelectedPhysicalDevice(const VkInstance& instance, const VkSurfaceKHR& surface) {
 
@@ -140,7 +140,7 @@ VkPhysicalDevice bootstrap::GetSelectedPhysicalDevice(const VkInstance& instance
 		VkExtensionProperties availableExtensions[extensionCount];
 		vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions);
 
-		for (const auto& extension : DeviceExtensions) {
+		for (const auto& extension : RequiredDeviceExtensions) {
 			bool validated = false;
 			for(const auto& availableExt : availableExtensions) {
 				if (strcmp(extension, availableExt.extensionName) == 0) {
@@ -487,6 +487,28 @@ VkBuffer bootstrap::CreateBuffer(VkPhysicalDevice &physicalDevice, VkDevice &dev
 
 void bootstrap::StageBufferTransfer(VkPhysicalDevice physicalDevice, VkDevice device, VkCommandPool commandPool, VkQueue queue, VkBuffer dstBuffer, void *data, size_t size)
 {
+	VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+    stagingBuffer = bootstrap::CreateBuffer(
+        ctx->physDevice, ctx->device, stagingBufferMemory, size,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+    );
+
+	void* mapped;
+	vkMapMemory(ctx->device, stagingBufferMemory, 0, size, 0, &mapped);
+	memcpy(mapped, data, size);
+	vkUnmapMemory(ctx->device, stagingBufferMemory);
+
+	VkCommandBuffer cmd = BeginSingleTimeCommands(device, commandPool);
+
+	VkBufferCopy copyRegion{};
+	copyRegion.srcOffset = 0;
+	copyRegion.dstOffset = 0;
+	copyRegion.size = size;
+	vkCmdCopyBuffer(cmd, stagingBuffer, dstBuffer, 1, &copyRegion);
+	
+	EndSingleTimeCommands(device, cmd, queue, commandPool);
 }
 
 VkImageView bootstrap::CreateImageView(VkDevice device, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags)

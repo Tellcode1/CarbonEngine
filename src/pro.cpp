@@ -419,16 +419,14 @@ u32 pro::GetImageCount(VkPhysicalDevice physDevice, VkSurfaceKHR surface)
 u32 pro::GetMemoryType(VkPhysicalDevice physDevice, const u32 memoryTypeBits, const VkMemoryPropertyFlags properties)
 {
 	REQUIRED_PTR(physDevice);
+	NOT_EQUAL_TO(properties, 0);
 
     VkPhysicalDeviceMemoryProperties memoryProperties;
 	vkGetPhysicalDeviceMemoryProperties(physDevice, &memoryProperties);
 
 	for (u32 i = 0; i < memoryProperties.memoryTypeCount; i++) 
-	{
-    	if ((memoryTypeBits & (1 << i)) && (memoryProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+    	if ((memoryTypeBits & (1 << i)) && (memoryProperties.memoryTypes[i].propertyFlags & properties) == properties)
         	return i;
-    	}
-	}
 
 	return -1;
 }

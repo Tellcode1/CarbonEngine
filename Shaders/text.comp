@@ -1,26 +1,161 @@
-#version 450 core
+#version 450
+layout(local_size_x = 4, local_size_y = 1, local_size_z = 1) in;
 
-layout (local_size_x = 256) in;
+// #ifdef GL_EXT_shader_16bit_storage
+//     #extension GL_EXT_shader_16bit_storage : require
+//     #define u16 uint16_t
+// #else
+//     #define u16 uint
+// #endif
+
+struct Character {
+    vec2 offsetAndAdvance;
+    vec4 bearingAndSize;
+};
+
+const uint MaxFontTextureCount = 8;
+
+layout(binding = 0) uniform RenderData
+{
+    Character characters[ 128 ];
+} datas[ MaxFontTextureCount ];
+
+layout(binding = 1) buffer OutBuffer
+{
+    vec4 outVertex[ ];
+} outBuffers[ MaxFontTextureCount ];
+
+// "Hello!
+const int string[] = { 72, 101, 108, 108, 111, 33 };
+const uint strlen = 6;
+
+layout(binding = 2) uniform FontData
+{
+    uint fontIndex;
+    uint bmpWidth;
+    uint bmpHeight;
+};
 
 const uint TEXT_HORIZONTAL_ALIGN_LEFT = 0;
 const uint TEXT_HORIZONTAL_ALIGN_CENTER = 1;
 const uint TEXT_HORIZONTAL_ALIGN_RIGHT = 2;
+
 const uint TEXT_VERTICAL_ALIGN_TOP = 3;
 const uint TEXT_VERTICAL_ALIGN_CENTER = 4;
 const uint TEXT_VERTICAL_ALIGN_BOTTOM = 5;
 
-struct InBuffer
+void main()
 {
-    uint character;
-    vec2 Offset;
-};
+    uint renderableCharCount = 0;
 
-struct OutBuffer
-{
-    vec4 positionAndTextureCoords;
-};
+    uint iterator = 0;
+    const float invBmpWidth = 1.0f / float(bmpWidth);
 
-layout(std140, binding = 0) readonly buffer buff
-{
-    InBuffer[] inBuffer;
-};
+    const float scale = scale;
+    const NanoTextAlignmentHorizontal horizontal = draw.horizontal;
+    const NanoTextAlignmentVertical vertical = draw.vertical;
+    const float x = draw.x;
+    float y = draw.y;
+
+    const std::vector<std::string> splitLines = SplitString(text);
+
+    switch(vertical)
+    {
+    case TEXT_VERTICAL_ALIGN_CENTER:
+        y = y - ((font->bmpHeight * scale) * splitLines.size()) / 2.0f;
+        break;
+    case TEXT_VERTICAL_ALIGN_BOTTOM:
+        y = y - (font->bmpHeight * splitLines.size()) * scale;
+        break;
+    case TEXT_VERTICAL_ALIGN_TOP:
+        y = y - font->lineHeight * scale;
+        break;
+    default:
+        printf("Invalid vertical alignment. Specified (int)%u. (Implement?)\n", vertical);
+        break;
+    }
+
+    // Reallocate buffers, stream data to GPU
+    for (uint l = 0; l < splitLines.size(); l++)
+    {
+        const auto& line = splitLines[l];
+        float lineX = 0.0f;
+        float totalWidth, height;
+        GetTextSize(font, line, &totalWidth, &height, scale);
+
+        switch (horizontal)
+        {
+        case TEXT_HORIZONTAL_ALIGN_LEFT:
+            // x = x;
+            lineX = x;
+            break;
+        case TEXT_HORIZONTAL_ALIGN_CENTER:
+            lineX = x - totalWidth / 2.0f;
+            break;
+        case TEXT_HORIZONTAL_ALIGN_RIGHT:
+            lineX = x - totalWidth;
+            break;
+        default:
+            printf("Invalid horizontal alignment. Specified (int)%u. (Implement?)\n", horizontal);
+            break;
+        }
+
+        // Mesh generating for all the text
+        for (uint i = 0; i < line.size(); i++)
+        {
+            const char& c = line[i];
+            const Character &ch = font->characters[c];
+
+            const glm::vec2 chOffsetAndAdvance = glm::unpackHalf2x16(ch.offsetAndAdvance);
+            
+            const float chOffset = chOffsetAndAdvance.x;
+            const float chAdvance = chOffsetAndAdvance.y;
+
+            if(c == '\n') {
+                // Newline, pushes the character to the next line
+                y += font->bmpHeight * scale;
+                lineX = 0.0f;
+                continue;
+            }
+
+            const vec2 chBearing = glm::unpackHalf2x16(ch.bearing);
+            const vec2 chSize = glm::unpackHalf2x16(ch.size);
+
+            const float xpos = lineX + chBearing.x * scale;
+            const float ypos = y + (font->bmpHeight - chBearing.y - font->lineHeight) * scale;
+
+            const float scaledWidth = chSize.x * scale;
+            const float scaledHeight = chSize.y * scale;
+
+            const float u0 = chOffset * invBmpWidth;
+            const float u1 = (chOffset + chSize.x) * invBmpWidth;
+            const float v = chSize.y / font->bmpHeight;
+
+            vec4 newVertices[4];
+            newVertices[0] = vec4(xpos,               ypos               ,  u0, 0.0f);
+            newVertices[1] = vec4(xpos + scaledWidth, ypos               ,  u1, 0.0f);
+            newVertices[2] = vec4(xpos + scaledWidth, ypos + scaledHeight,  u1, v   );
+            newVertices[3] = vec4(xpos,               ypos + scaledHeight,  u0, v   );
+            
+            const uint indexOffset = charsDrawn * 4;
+
+            // Calculate indices for the current character
+            const u16 newIndices[6] = {
+                static_cast<u16>(indexOffset + 0), static_cast<u16>(indexOffset + 1), static_cast<u16>(indexOffset + 2),
+                static_cast<u16>(indexOffset + 2), static_cast<u16>(indexOffset + 3), static_cast<u16>(indexOffset + 0),
+            };
+            
+            vertices.insert(vertices.end(), newVertices, newVertices + 4);
+            indices.insert(indices.end(), newIndices, newIndices + 6);
+
+            // memcpy(vertices.data() + vertexIndex, newVertices, sizeof(newVertices));
+            // memcpy(indices.data() + indexIndex, newIndices, sizeof(newIndices));
+
+            iterator++;
+            charsDrawn++;
+            lineX += chAdvance * scale;
+        }
+
+        y += font->bmpHeight * scale;
+    }
+}

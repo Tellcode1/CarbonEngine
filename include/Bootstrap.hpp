@@ -19,7 +19,7 @@ namespace bootstrap {
     //     }
     // };
 
-    VkInstance CreateInstance(const char* windowTitle);
+    // VkInstance CreateInstance(const char* windowTitle);
     VkPhysicalDevice GetSelectedPhysicalDevice(const VkInstance& instance, const VkSurfaceKHR& surface);
     VkSurfaceKHR CreateSurface(SDL_Window* window, const VkInstance& instance);
     VkDevice CreateDevice();

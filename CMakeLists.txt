@@ -11,6 +11,10 @@ include_directories(${SDL3_INCLUDE_DIRS})
 find_package(Freetype REQUIRED)
 include_directories(${FREETYPE_INCLUDE_DIRS})
 
+find_package(Boost REQUIRED COMPONENTS filesystem) 
+include_directories(${Boost_INCLUDE_DIRS}) 
+
+
 # find_package(STB REQUIRED)
 # include_directories(${STB_INCLUDE_DIRS})
 
@@ -29,9 +33,10 @@ set(SOURCES
     src/Bootstrap.cpp
     src/Renderer.cpp
     src/DynamicDescriptors.cpp
-    src/AssetLoader.cpp
     src/TextRenderer.cpp
     src/DMalloc.cpp
+    src/Image.cpp
+    src/epichelperlib.cpp
     # Atlas/Atlas.cpp
 )
 
@@ -42,29 +47,16 @@ include_directories(${CMAKE_SOURCE_DIR}/Atlas)
 include_directories(${CMAKE_SOURCE_DIR}/UIX)
 include_directories(${CMAKE_SOURCE_DIR}/build)
 
-add_subdirectory(${CMAKE_SOURCE_DIR}/Atlas)
-add_subdirectory(${CMAKE_SOURCE_DIR}/VulkanMemoryAllocator)
-
-set(ATLAS_SOURCES
-    # Atlas/Atlas.cpp
-    Atlas/main.cpp
-    src/AssetLoader.cpp
-)
-
-set(ATLAS_LIBS
-    stb
-    vulkan
-)
-
 set(LIBS
     vulkan
     SDL3
     stb
     freetype
+    ${Boost_LIBRARIES}
 )
 
 exec_program(
-    ${CMAKE_SOURCE_DIR}/Shaders/compile.sh
+    ${CMAKE_SOURCE_DIR}/Shaders/ShaderCompiler
     ${CMAKE_SOURCE_DIR}/Shaders
     ARGS ${CMAKE_BINARY_DIR}/ # Provide binary directory to app for placing output
 )

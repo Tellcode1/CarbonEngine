@@ -1,16 +1,23 @@
 #version 450 core
 
 layout(location=0) in
-vec4 verticesAndUV; // <vec2 vertices, vec2 uv>
+vec4 verticesAndUV;
 
 layout(location=0) out
 vec2 FragTexCoord;
 
-layout(push_constant) uniform PushConstantData {
-    mat4 model;
+layout(location=1) flat out
+vec2 outTextureIndexAndScale;
+
+layout(push_constant)
+uniform PC {
+    mat2 mvp;
+    uint textureIndex;
+    float scale;
 };
 
 void main() {
-    gl_Position = model * vec4(verticesAndUV.xy, 0.0, 1.0);
+    gl_Position = vec4(mvp * verticesAndUV.xy, 0.0, 1.0);
     FragTexCoord = verticesAndUV.zw;
+    outTextureIndexAndScale = vec2(textureIndex, scale);
 }

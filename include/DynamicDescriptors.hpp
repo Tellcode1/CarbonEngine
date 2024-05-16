@@ -36,13 +36,13 @@ struct VertexBuffer {
     VkBuffer buffer;
     VkDeviceMemory memory;
     void* mappedMemory;
-    VulkanContext* ctx;
+    VulkanContextSingleton* ctx;
 
     inline operator VkBuffer() {
         return buffer;
     }
 
-    VertexBuffer(VulkanContext* ctx, const T& vertices);
+    VertexBuffer(VulkanContextSingleton* ctx, const T& vertices);
 
     inline void Update(const T& vertices) {
         memcpy(mappedMemory, vertices.data(), static_cast<u64>(sizeof(vertices[0]) * vertices.size()));
@@ -57,13 +57,13 @@ struct IndexBuffer {
     VkBuffer buffer;
     VkDeviceMemory memory;
     void* mappedMemory;
-    VulkanContext* ctx;
+    VulkanContextSingleton* ctx;
 
     inline operator VkBuffer() {
         return buffer;
     }
 
-    IndexBuffer(VulkanContext* ctx, const std::vector<u16>& indices);
+    IndexBuffer(VulkanContextSingleton* ctx, const std::vector<u16>& indices);
 
     inline void Update(const std::vector<u16>& indices) {
         memcpy(mappedMemory, indices.data(), static_cast<u64>(sizeof(indices[0]) * indices.size()));
@@ -73,7 +73,7 @@ struct IndexBuffer {
 };
 
 struct DynamicDescriptor {
-    VulkanContext* ctx;
+    VulkanContextSingleton* ctx;
     VkDescriptorPool pool;
     VkDescriptorSet set[MaxFramesInFlight];
     VkDescriptorSetLayout setLayout[MaxFramesInFlight];
@@ -85,7 +85,7 @@ struct DynamicDescriptor {
 #endif
 
 template <typename T>
-VertexBuffer<T>::VertexBuffer(VulkanContext *ctx, const T &vertices)
+VertexBuffer<T>::VertexBuffer(VulkanContextSingleton *ctx, const T &vertices)
 {
     VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 

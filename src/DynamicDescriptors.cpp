@@ -40,7 +40,7 @@
 //     Update(vertices);
 // }
 
-IndexBuffer::IndexBuffer(VulkanContext *ctx, const std::vector<u16> &indices)
+IndexBuffer::IndexBuffer(VulkanContextSingleton *ctx, const std::vector<u16> &indices)
 {
     const VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
     const VkDevice device = ctx->device;

@@ -4,13 +4,7 @@
 #include "stdafx.hpp"
 
 typedef void (*ResultCheckFunc) (const VkResult);
-constexpr u64 tobit(u64 num) { return 1 << num; }
-
-__attribute__((unused)) static void __print_and_abort(const char *msg, const char *file, unsigned int line, const char *function) noexcept(true) {
-	printf("%s:%u: %s: %s\n", file, line, function, msg);
-	printf("Fatal error. Aborting.\n");
-	abort();
-}
+typedef u32 ProFlags;
 
 #ifndef PRO_DISABLE_ERROR_CHECKING
 	#define REQUIRED_PTR(ptr) if(ptr == nullptr) __print_and_abort(#ptr" :  Required parameter '"#ptr"' specified as nullptr.", __FILE__, __LINE__, __PRETTY_FUNCTION__)
@@ -25,10 +19,14 @@ __attribute__((unused)) static void __print_and_abort(const char *msg, const cha
 	#define PRO_ARRAY_TYPE std::vector
 #endif
 
+__attribute__((unused)) static void __print_and_abort(const char *msg, const char *file, unsigned int line, const char *function) noexcept(true) {
+	printf("%s:%u: %s: %s\n", file, line, function, msg);
+	printf("Fatal error. Aborting.\n");
+	abort();
+}
+constexpr u64 tobit(u64 num) { return 1 << num; }
 
-typedef u32 ProFlags;
-
-typedef enum PipelineCreateFlagBits
+enum PipelineCreateFlagBits
 {
 	PIPELINE_CREATE_FLAGS_ENABLE_DEPTH_CHECK = tobit(0),
 	PIPELINE_CREATE_FLAGS_ENABLE_BLEND = tobit(1),
@@ -38,8 +36,7 @@ typedef enum PipelineCreateFlagBits
 	PIPELINE_CREATE_FLAGS_ENABLE_MULTISAMPLING = tobit(3),
 	PIPELINE_CREATE_FLAGS_DYNAMIC_VIEWPORT = tobit(4),
 	PIPELINE_CREATE_FLAGS_DYNAMIC_SCISSOR = tobit(5),
-} PipelineCreateFlagBits;
-
+};
 typedef ProFlags PipelineCreateFlags;
 
 namespace pro
@@ -66,15 +63,8 @@ namespace pro
 	*/
 	struct PipelineCreateInfo;
 	struct SwapchainCreateInfo;
-	struct FramebufferCreateInfo;
-	struct BufferCreateInfo;
 	struct RenderPassCreateInfo;
 	struct Pipeline;
-	struct Buffer;
-
-	#ifdef LEGACY
-	struct PipelineLayoutCreateInfo;
-	#endif
 
 	struct PipelineCreateInfo
 	{
@@ -86,8 +76,6 @@ namespace pro
 		VkPipeline oldPipeline = VK_NULL_HANDLE;
 		VkPipelineCache cache = VK_NULL_HANDLE;
 		
-		// Ignored if flags does not contain PIPELINE_CREATE_FLAGS_ENABLE_DEPTH_CHECK
-		// VkFormat depthBufferFormat;
 		// Ignored if flags does not contain PIPELINE_CREATE_FLAGS_ENABLE_MULTISAMPLING
 		VkSampleCountFlagBits samples;
 
@@ -103,34 +91,6 @@ namespace pro
 		PipelineCreateInfo() = default;
 		~PipelineCreateInfo() = default;
 	};
-
-	#ifdef LEGACY
-	struct PipelineLayoutCreateInfo
-	{
-		const SafeArray<VkVertexInputAttributeDescription>* pAttributeDescriptions = VK_NULL_HANDLE;
-		const SafeArray<VkVertexInputBindingDescription>* pBindingDescription = VK_NULL_HANDLE;
-		const SafeArray<VkDescriptorSetLayout>* pDescriptorLayouts = VK_NULL_HANDLE;
-		const SafeArray<VkPushConstantRange>* pPushConstants = VK_NULL_HANDLE;
-
-		PipelineLayoutCreateInfo() = default;
-		~PipelineLayoutCreateInfo() = default;
-	};
-
-	struct SwapchainCreateInfo
-	{
-		VkSurfaceKHR surface;
-		VkFormat format = VK_FORMAT_UNDEFINED;
-		VkColorSpaceKHR colorSpace = VK_COLOR_SPACE_MAX_ENUM_KHR;
-		VkExtent2D extent = {0, 0};
-		uint32_t imageCount = 0;
-		VkPresentModeKHR presentMode = VK_PRESENT_MODE_FIFO_KHR;
-		VkSurfaceTransformFlagBitsKHR preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-		VkSwapchainKHR pOldSwapchain = VK_NULL_HANDLE;
-
-		SwapchainCreateInfo() = default;
-		~SwapchainCreateInfo() = default;
-	};
-	#endif
 
 	struct SwapchainCreateInfo
 	{
