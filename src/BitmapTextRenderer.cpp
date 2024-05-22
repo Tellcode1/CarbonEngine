@@ -4,27 +4,13 @@
 #include "Image.hpp"
 #include "epichelperlib.hpp"
 #include <boost/filesystem.hpp>
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wchar-subscripts"
 #endif
-
-// struct ComputeCharacter
-// {
-//     vec2 offsetAndAdvance; // < x = offset, y = advance >
-//     vec4 bearingAndSize;// < xy = bearing, zw = size >
-// };
-
-// struct UBOData
-// {
-//     ComputeCharacter characters[ 128 ];
-// };
-
-// struct OutBufferData
-// {
-//     vec2 texturePositions[ 128 * 4 ];
-// };
 
 static std::vector<std::string> SplitString(const std::string& text) {
     std::vector<std::string> result;
@@ -172,35 +158,14 @@ void TextRendererSingleton::GetTextSize(const NanoFont* font, const std::string_
 
 void TextRendererSingleton::Initialize()
 {
-    VkSamplerCreateInfo samplerInfo{};
-    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    samplerInfo.magFilter = VK_FILTER_NEAREST;
-    samplerInfo.minFilter = VK_FILTER_NEAREST;
-    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.mipLodBias = 0.0f;
-    samplerInfo.compareOp = VK_COMPARE_OP_NEVER;
-    samplerInfo.minLod = 0.0f;
-    samplerInfo.maxLod = 1.0f;
-
-    VkSampler fontTextureSampler;
-    if(vkCreateSampler(device, &samplerInfo, nullptr, &fontTextureSampler) != VK_SUCCESS) {
-        printf("Failed to create font texture sampler!");
-    }
-
-    // Partial descriptor set setup to satisfy pipeline creation
     const VkDescriptorSetLayoutBinding bindings[] = {
         // binding; descriptorType; descriptorCount; stageFlags; pImmutableSamplers;
-        { 0, VK_DESCRIPTOR_TYPE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &fontTextureSampler },
-        { 1, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, MaxFontCount, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr },
+        { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MaxFontCount, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr },
     };
 
     constexpr VkDescriptorPoolSize poolSizes[] = {
         // type; descriptorCount;
-        {VK_DESCRIPTOR_TYPE_SAMPLER, 1},
-        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, MaxFontCount},
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MaxFontCount},
         {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MaxFontCount + 1},
         {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, MaxFontCount},
     };
@@ -262,37 +227,49 @@ void TextRendererSingleton::Initialize()
 
     VkDescriptorImageInfo imageInfo{};
 
-    if(!EnabledFeatures::NullDescriptor)
+    VkSamplerCreateInfo samplerInfo{};
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.mipLodBias = 0.0f;
+    samplerInfo.compareOp = VK_COMPARE_OP_NEVER;
+    samplerInfo.minLod = 0.0f;
+    samplerInfo.maxLod = 0.0f;
+    samplerInfo.maxAnisotropy = 1.0f;
+    samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+    if (vkCreateSampler(device, &samplerInfo, nullptr, &dummySampler) != VK_SUCCESS)
     {
-        /* Binding 0 == Sampler, Binding 1-MaxFontTextures == Font Texture */
-        ImageLoadInfo loadInfo{};
-        loadInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
-        loadInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-        loadInfo.pPath = "../Assets/error.jpeg";
-        Image fallbackImage;
-        Images->LoadImage(&loadInfo, &fallbackImage, IMAGE_LOAD_TYPE_FROM_DISK);
-
-        errorImage = fallbackImage.image;
-        errorImageView = fallbackImage.view;
-        errorImageMemory = fallbackImage.memory;
-        
-        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        imageInfo.imageView = errorImageView;
-        imageInfo.sampler = VK_NULL_HANDLE;
-    } else {
-        imageInfo.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        imageInfo.imageView = VK_NULL_HANDLE;
-        imageInfo.sampler = VK_NULL_HANDLE;
+        printf("Failed to create sampler!");
     }
+
+        /* Binding 0 == Sampler, Binding 1-MaxFontTextures == Font Texture */
+    ImageLoadInfo loadInfo{};
+    loadInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+    loadInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    loadInfo.pPath = "../Assets/error.jpeg";
+    Image fallbackImage;
+    Images->LoadImage(&loadInfo, &fallbackImage, IMAGE_LOAD_TYPE_FROM_DISK);
+
+    dummyImage = fallbackImage.image;
+    dummyImageView = fallbackImage.view;
+    dummyImageMemory = fallbackImage.memory;
+    
+    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageInfo.imageView = dummyImageView;
+    imageInfo.sampler = dummySampler;
 
     VkWriteDescriptorSet writeSets[MaxFontCount] = {};
     for(u32 i = 0; i < MaxFontCount; i++)
     {
         writeSets[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         writeSets[i].dstSet = m_descriptorSet;
-        writeSets[i].dstBinding = 1;
+        writeSets[i].dstBinding = 0;
         writeSets[i].dstArrayElement = i;
-        writeSets[i].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        writeSets[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         writeSets[i].descriptorCount = 1;
         writeSets[i].pImageInfo = &imageInfo;
     }
@@ -337,21 +314,24 @@ void TextRendererSingleton::Initialize()
             {
                 vertexShaderLastWriteTime = vertexShaderWriteTime;
                 fragmentShaderLastWriteTime = fragmentShaderWriteTime;
-                CreatePipeline(Graphics->GlobalRenderPass);
+                CreatePipeline();
             }
         }
     }).detach();
     
-    TIME_FUNCTION(CreatePipeline(Graphics->GlobalRenderPass));
+    TIME_FUNCTION(CreatePipeline());
+
+    Graphics->OnWindowResized.connect([&]() {
+        std::cout << "resized pipeline\n";
+        RecreatePipeline();
+    });
 }
 
 void TextRendererSingleton::BeginRender()
 {
-    const f32 windowWidth = (f32)Graphics->RenderArea.x;
-    const f32 windowHeight = (f32)Graphics->RenderArea.y;
-    const f32 halfWidth = windowWidth / 2.0f;
-    const f32 halfHeight = windowHeight / 2.0f;
-
+    const f32 halfWidth = (f32)Graphics->RenderArea.x / 2.0f;
+    const f32 halfHeight = (f32)Graphics->RenderArea.y / 2.0f;
+    
     projection = glm::ortho(-halfWidth,halfWidth, -halfHeight, halfHeight, 0.0f, 1.0f);
 }
 
@@ -366,8 +346,6 @@ void TextRendererSingleton::Render(TextRenderInfo& info, const NanoFont *font)
         if(c != '\n')
             renderableCharCount++;
 
-    const u32 prevCharsDrawn = charsDrawn;
-
     const std::string& text = draw.line;
     const f32 scale = draw.scale;
     const NanoTextAlignmentHorizontal horizontal = draw.horizontal;
@@ -379,34 +357,38 @@ void TextRendererSingleton::Render(TextRenderInfo& info, const NanoFont *font)
 
     switch(vertical)
     {
-    case TEXT_VERTICAL_ALIGN_CENTER:
-        y = y - ((font->bmpHeight * scale) * splitLines.size()) / 2.0f;
-        break;
-    case TEXT_VERTICAL_ALIGN_BOTTOM:
-        y = y - (font->bmpHeight * splitLines.size()) * scale;
-        break;
-    case TEXT_VERTICAL_ALIGN_TOP:
-        y = y - font->lineHeight * scale;
-        break;
-    default:
-        printf("Invalid vertical alignment. Specified (int)%u. (Implement?)\n", vertical);
-        break;
+        case TEXT_VERTICAL_ALIGN_CENTER:
+            y = y - ((font->bmpHeight * scale) * splitLines.size()) / 2.0f;
+            break;
+
+        case TEXT_VERTICAL_ALIGN_BOTTOM:
+            y = y - (font->bmpHeight * scale) * splitLines.size();
+            break;
+
+        case TEXT_VERTICAL_ALIGN_TOP:
+            break;
+
+        case TEXT_VERTICAL_ALIGN_BASELINE:
+            y = y - (font->bmpHeight * scale) * splitLines.size();
+            break;
+
+        default:
+            printf("Invalid vertical alignment. Specified (int)%u. (Implement?)\n", vertical);
+            break;
     }
 
-    // Reallocate buffers, stream data to GPU
     for (const auto& line : splitLines)
         RenderLine(x, &y, line, horizontal, scale, font);
 
+    // Coalesce draw commands.
     if(!drawList.empty() && drawList.back().font->fontIndex == font->fontIndex)
-    {
         drawList.back().indexCount += renderableCharCount * 6;
-    }
     else
     {
         Draw drawCmd{};
         drawCmd.font = font;
         drawCmd.indexCount = renderableCharCount * 6;
-        drawCmd.vertexOffset = prevCharsDrawn * 4;
+        drawCmd.vertexOffset = std::max((int)(vertices.size() - renderableCharCount * 4), 0);
         drawCmd.scale = scale;
         drawList.push_back(drawCmd);
     }
@@ -438,7 +420,6 @@ void TextRendererSingleton::RenderLine(const f32 x, f32 *y, const std::string_vi
     vec4 vv[line.size() * 4];
     u16 ii[line.size() * 6];
 
-    // #pragma omp parallel for
     for (u32 i = 0; i < line.size(); i++)
     {
         const char& c = line[i];
@@ -461,11 +442,11 @@ void TextRendererSingleton::RenderLine(const f32 x, f32 *y, const std::string_vi
         const f32 scaledHeight = chSize.y * scale;
 
         const u32 vertexIndex = i * 4;
-        vv[vertexIndex + 0] = vec4(xpos,               ypos               , font->texturePositions[(c * 4) + 0]);
+        vv[vertexIndex + 0] = vec4(xpos              , ypos               , font->texturePositions[(c * 4) + 0]);
         vv[vertexIndex + 1] = vec4(xpos + scaledWidth, ypos               , font->texturePositions[(c * 4) + 1]);
         vv[vertexIndex + 2] = vec4(xpos + scaledWidth, ypos + scaledHeight, font->texturePositions[(c * 4) + 2]);
-        vv[vertexIndex + 3] = vec4(xpos,               ypos + scaledHeight, font->texturePositions[(c * 4) + 3]);
-        
+        vv[vertexIndex + 3] = vec4(xpos              , ypos + scaledHeight, font->texturePositions[(c * 4) + 3]);
+
         const u32 indexOffset = charsDrawn * 4;
         const u32 indexIndex = i * 6;
 
@@ -486,58 +467,104 @@ void TextRendererSingleton::RenderLine(const f32 x, f32 *y, const std::string_vi
     *y += font->bmpHeight * scale;
 }
 
-void TextRendererSingleton::EndRender(VkCommandBuffer cmd, const glm::mat2 &matrix)
+// void TextRendererSingleton::RenderLine(const f32 x, f32 *y, const std::string_view line, const NanoTextAlignmentHorizontal horizontal, const f32 scale, const NanoSDFFont *font)
+// {
+//         f32 lineX = 0.0f;
+//     f32 totalWidth, height;
+//     GetTextSize(font, std::string(line), &totalWidth, &height, scale);
+
+//     switch (horizontal)
+//     {
+//     case TEXT_HORIZONTAL_ALIGN_LEFT:
+//         // x = x;
+//         lineX = x;
+//         break;
+//     case TEXT_HORIZONTAL_ALIGN_CENTER:
+//         lineX = x - totalWidth / 2.0f;
+//         break;
+//     case TEXT_HORIZONTAL_ALIGN_RIGHT:
+//         lineX = x - totalWidth;
+//         break;
+//     default:
+//         printf("Invalid horizontal alignment. Specified (int)%u. (Implement?)\n", horizontal);
+//         break;
+//     }
+    
+//     vec4 vv[line.size() * 4];
+//     u16 ii[line.size() * 6];
+
+//     for (u32 i = 0; i < line.size(); i++)
+//     {
+//         const char& c = line[i];
+//         const bmchar &ch = font->characters[c];
+
+//         if(c == '\n') {
+//             // Newline, pushes the character to the next line
+//             *y += font->bmpHeight * scale;
+//             lineX = 0.0f;
+//             continue;
+//         }
+
+//         const vec2 chBearing = glm::unpackHalf2x16(ch.bearing);
+//         const vec2 chSize = glm::unpackHalf2x16(ch.size);
+
+//         const f32 xpos = lineX + chBearing.x * scale;
+//         const f32 ypos = *y + (font->bmpHeight - chBearing.y - font->lineHeight) * scale;
+
+//         const f32 scaledWidth = chSize.x * scale;
+//         const f32 scaledHeight = chSize.y * scale;
+
+//         const u32 vertexIndex = i * 4;
+//         vv[vertexIndex + 0] = vec4(xpos              , ypos               , font->texturePositions[(c * 4) + 0]);
+//         vv[vertexIndex + 1] = vec4(xpos + scaledWidth, ypos               , font->texturePositions[(c * 4) + 1]);
+//         vv[vertexIndex + 2] = vec4(xpos + scaledWidth, ypos + scaledHeight, font->texturePositions[(c * 4) + 2]);
+//         vv[vertexIndex + 3] = vec4(xpos              , ypos + scaledHeight, font->texturePositions[(c * 4) + 3]);
+
+//         const u32 indexOffset = charsDrawn * 4;
+//         const u32 indexIndex = i * 6;
+
+//         // Calculate indices for the current character
+//         ii[indexIndex + 0] = static_cast<u16>(indexOffset + 0);
+//         ii[indexIndex + 1] = static_cast<u16>(indexOffset + 1);
+//         ii[indexIndex + 2] = static_cast<u16>(indexOffset + 2);
+//         ii[indexIndex + 3] = static_cast<u16>(indexOffset + 2);
+//         ii[indexIndex + 4] = static_cast<u16>(indexOffset + 3);
+//         ii[indexIndex + 5] = static_cast<u16>(indexOffset + 0);
+        
+//         charsDrawn++;
+//         lineX += ch.advance * scale;
+//     }
+//     vertices.insert(vertices.end(), vv, vv + (line.size() * 4));
+//     indices.insert(indices.end(), ii, ii + (line.size() * 6));
+
+//     *y += font->bmpHeight * scale;
+// }
+
+void TextRendererSingleton::EndRender(VkCommandBuffer cmd, const glm::mat4 &matrix)
 {
-    const u32 vertexByteSize = vertices.size() * sizeof(vec4);
-    const u32 indexByteSize = indices.size() * sizeof(u16);
-    const u32 bufferSize = vertexByteSize + indexByteSize;
-
-    // If the buffer is this much larger than needed, make it smaller.
-    constexpr u8 BufferSizeDownscale = 3;
-    // Allocate this much times more than we need to avoid further allocations. 2 is good enough.
-    constexpr u8 BufferSizeUpscale = 2;
-
-    static_assert(BufferSizeUpscale < BufferSizeDownscale && "Can cause undefined behaviour due to upscaling "
-                                                             "the buffer one frame and immediately downscaling it in the other");
-
-    const bool needLargerBuffer = bufferSize > allocatedMemorySize;
-    const bool needSmallerBuffer = bufferSize * BufferSizeDownscale < allocatedMemorySize;
-
-    if (bufferSize == 0)
+    if(vertices.size() == 0)
         return;
 
-    if (needLargerBuffer || needSmallerBuffer)
-    {
-        const VkBuffer back_unifiedBuffer = unifiedBuffer;
-        const VkDeviceMemory back_mem = mem;
+    // for(auto& vertex : vertices) {
+    //     f32& x = vertex.x;
+    //     f32& y = vertex.y;
 
-        (needLargerBuffer) ?
-            allocatedMemorySize = bufferSize * BufferSizeUpscale
-            :
-            allocatedMemorySize = std::max(bufferSize, allocatedMemorySize / BufferSizeDownscale);
+    //     x /= Graphics->RenderArea.x;
+    //     y /= Graphics->RenderArea.y;
 
-        vkDeviceWaitIdle(device);
+    //     x *= 2.0f;
+    //     y *= 2.0f;
+    // }
 
-        vkDestroyBuffer(device, back_unifiedBuffer, nullptr);
-        vkFreeMemory(device, back_mem, nullptr);
-
-        help::Buffers::CreateBuffer(
-            allocatedMemorySize,
-            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            &unifiedBuffer, &mem,
-            false
-        );
-
-        VkMemoryRequirements UBmemoryRequirements;
-        vkGetBufferMemoryRequirements(device, unifiedBuffer, &UBmemoryRequirements);
-        alignment = UBmemoryRequirements.alignment;
-    }
+    const u32 vertexByteSize = vertices.size() * sizeof(vec4);
+    const u32 indexByteSize = indices.size() * sizeof(u16);
+    
+    ReallocateBuffers(false);
 
     ibOffset = align(vertexByteSize, alignment);
 
     uchar *vbMap;
-    if (vkMapMemory(device, mem, 0, allocatedMemorySize, 0, reinterpret_cast<void **>(&vbMap)) != VK_SUCCESS)
+    if (vkMapMemory(device, unifiedBufferMemory, 0, allocatedMemorySize, 0, reinterpret_cast<void **>(&vbMap)) != VK_SUCCESS)
     {
         printf("TextRenderer::Failed to map vertex buffer memory");
     }
@@ -545,7 +572,7 @@ void TextRendererSingleton::EndRender(VkCommandBuffer cmd, const glm::mat2 &matr
     memcpy(vbMap, vertices.data(), vertexByteSize);
     memcpy(vbMap + ibOffset, indices.data(), indexByteSize);
 
-    vkUnmapMemory(device, mem);
+    vkUnmapMemory(device, unifiedBufferMemory);
 
     // if(bufferCopyThread.joinable())
     //     bufferCopyThread.join();
@@ -557,18 +584,13 @@ void TextRendererSingleton::EndRender(VkCommandBuffer cmd, const glm::mat2 &matr
     vkCmdBindVertexBuffers(cmd, 0, 1, &unifiedBuffer, &VBOffset);
     vkCmdBindIndexBuffer(cmd, unifiedBuffer, ibOffset, VK_INDEX_TYPE_UINT16);
 
-    const glm::mat2 mvp = projection * matrix;
-    vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat2), &mvp);
+    const glm::mat4 mvp = projection * matrix;
+    vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &mvp);
 
     for(const auto& draw : drawList) {
-        struct {
-            uint textureIndex;
-            float scale;
-        } pc;
-        pc.textureIndex = draw.font->fontIndex;
-        pc.scale = draw.scale;
+        const u32 textureIndex = draw.font->fontIndex;
 
-        vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(mat2), sizeof(pc), &pc);
+        vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(glm::mat4), sizeof(u32), (void*)&textureIndex);
         vkCmdDrawIndexed(cmd, draw.indexCount, 1, 0, draw.vertexOffset, 0);
     }
 
@@ -604,7 +626,7 @@ void TextRendererSingleton::DispatchCompute()
     // vkQueueSubmit(Graphics->ComputeQueue, 1, &submitInfo, fence);
 }
 
-void TextRendererSingleton::CreatePipeline(VkRenderPass renderPass) {
+void TextRendererSingleton::CreatePipeline() {
     VkShaderModule vertexShaderModule;
     VkShaderModule fragmentShaderModule;
     VkShaderModule computeShaderModule;
@@ -636,7 +658,7 @@ void TextRendererSingleton::CreatePipeline(VkRenderPass renderPass) {
 
     const std::vector<VkPushConstantRange> pushConstantRanges = {
         // stageFlags; offset; size;
-        {VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat2) + sizeof(u32) + sizeof(float)},
+        {VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4) + sizeof(u32)},
     };
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
@@ -668,11 +690,25 @@ void TextRendererSingleton::CreatePipeline(VkRenderPass renderPass) {
     vertexShaderInfo.module = vertexShaderModule;
     vertexShaderInfo.pName = "main";
 
+    VkSpecializationMapEntry mapEntry{};
+    mapEntry.constantID = 0;
+    mapEntry.offset = 0;
+    mapEntry.size = sizeof(u32);
+
+    const u32 specData = MaxFontCount;
+
+    VkSpecializationInfo specInfo{};
+    specInfo.dataSize = sizeof(u32);
+    specInfo.mapEntryCount = 1;
+    specInfo.pMapEntries = &mapEntry;
+    specInfo.pData = &specData;
+
     VkPipelineShaderStageCreateInfo fragmentShaderInfo{};
     fragmentShaderInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     fragmentShaderInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
     fragmentShaderInfo.module = fragmentShaderModule;
     fragmentShaderInfo.pName = "main";
+    fragmentShaderInfo.pSpecializationInfo = &specInfo;
 
     const std::vector<VkPipelineShaderStageCreateInfo> shaders = {
         vertexShaderInfo, fragmentShaderInfo
@@ -682,18 +718,20 @@ void TextRendererSingleton::CreatePipeline(VkRenderPass renderPass) {
     *   PIPELINE CREATION
     */
 
+    pro::PipelineBlendState blendState(pro::BlendPreset::PRO_BLEND_PRESET_ALPHA);
+
     pro::PipelineCreateInfo pc{};
     pc.format = Graphics->SwapChainImageFormat;
     pc.subpass = 0;
-
-    pc.renderPass = renderPass;
+    pc.renderPass = Graphics->GlobalRenderPass;
     pc.pipelineLayout = m_pipelineLayout;
     pc.pAttributeDescriptions = &attributeDescriptions;
     pc.pBindingDescriptions = &bindingDescriptions;
     pc.pDescriptorLayouts = &descriptorSetLayouts;
     pc.pShaderCreateInfos = &shaders;
     pc.pPushConstants = &pushConstantRanges;
-    pc.extent = VkExtent2D({Graphics->RenderArea.x, Graphics->RenderArea.y});
+    pc.pBlendState = &blendState;
+    pc.extent = Graphics->RenderArea;
     pc.pShaderCreateInfos = &shaders;
     pro::CreateGraphicsPipeline(device, &pc, &m_pipeline, PIPELINE_CREATE_FLAGS_ENABLE_BLEND);
 
@@ -739,17 +777,73 @@ void TextRendererSingleton::CreatePipeline(VkRenderPass renderPass) {
 
 void TextRendererSingleton::RecreatePipeline()
 {
+    vkDeviceWaitIdle(device);
+
     vkDestroyPipeline(device, m_pipeline, nullptr);
     vkDestroyPipeline(device, m_computePipeline, nullptr);
 
     vkDestroyPipelineLayout(device, m_pipelineLayout, nullptr);
     vkDestroyPipelineLayout(device, m_computePipelineLayout, nullptr);
+
+    std::cout << "resized pipeline\n";
     
-    CreatePipeline(Graphics->GlobalRenderPass);
+    CreatePipeline();
+}
+
+void TextRendererSingleton::ReallocateBuffers(bool shrinkToFit)
+{
+    const u32 vertexByteSize = vertices.size() * sizeof(vec4);
+    const u32 indexByteSize = indices.size() * sizeof(u16);
+    
+    const u32 bufferSize = vertexByteSize + indexByteSize;
+
+    // If the buffer is this much larger than needed, make it smaller.
+    constexpr f32 BufferSizeDownscale = 2;
+    // Allocate this much times more than we need to avoid further allocations. 2 is good enough.
+    constexpr f32 BufferSizeUpscale = 1.5;
+
+    static_assert(BufferSizeUpscale < BufferSizeDownscale && "Can cause undefined behaviour due to upscaling "
+                                                             "the buffer one frame and immediately downscaling it in the other");
+
+    const bool needLargerBuffer = bufferSize > allocatedMemorySize;
+    const bool needSmallerBuffer = bufferSize < allocatedMemorySize / BufferSizeDownscale;
+
+    if (bufferSize == 0)
+        return;
+
+    if (needLargerBuffer || needSmallerBuffer || (shrinkToFit && allocatedMemorySize != bufferSize))
+    {
+        if (shrinkToFit)
+            allocatedMemorySize = bufferSize;
+
+        else if (needLargerBuffer)
+            allocatedMemorySize = bufferSize * BufferSizeUpscale;
+
+        else if (needSmallerBuffer)
+            allocatedMemorySize = std::max(static_cast<f32>(bufferSize), allocatedMemorySize / BufferSizeDownscale);
+
+        vkDeviceWaitIdle(device);
+
+        vkDestroyBuffer(device, unifiedBuffer, nullptr);
+        vkFreeMemory(device, unifiedBufferMemory, nullptr);
+
+        help::Buffers::CreateBuffer(
+            allocatedMemorySize,
+            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            &unifiedBuffer, &unifiedBufferMemory
+        );
+
+        VkMemoryRequirements UBmemoryRequirements;
+        vkGetBufferMemoryRequirements(device, unifiedBuffer, &UBmemoryRequirements);
+        alignment = UBmemoryRequirements.alignment;
+    }
 }
 
 void TextRendererSingleton::LoadFont(const char* path, u32 pixelSizes, NanoFont* dstFont)
 {
+    constexpr u32 Padding = 16;
+
     FT_Library lib;
     FT_Face face;
 
@@ -770,83 +864,52 @@ void TextRendererSingleton::LoadFont(const char* path, u32 pixelSizes, NanoFont*
     auto& bmpHeight = dstFont->bmpHeight;
     bmpWidth = 0, bmpHeight = 0;
 
-    uvec2 chSizes[ 128 ];
-    u32 chOffsets[ 128 ];
+    vec2 chSizes[ 128 ];
+    f32 chOffsets[ 128 ];
 
-    for (uchar c = 0; c < 128; c++)
-    {
+    for (uchar c = 0; c < 128; ++c) {
         auto res = FT_Load_Char(face, c, FT_LOAD_BITMAP_METRICS_ONLY);
         assert(res == 0);
 
-        chSizes[c] = 
-            glm::uvec2(
-                face->glyph->metrics.width >> 6,
-                face->glyph->metrics.height >> 6
-            );
-        chOffsets[c] = bmpWidth;
+        chSizes[c] = glm::vec2(
+            face->glyph->metrics.width / 64.0f + 2 * Padding,
+            face->glyph->metrics.height / 64.0f + 2 * Padding
+        );
 
         Character character = {
             .size = glm::packHalf2x16(
-                glm::uvec2(
-                    face->glyph->metrics.width >> 6,
-                    face->glyph->metrics.height >> 6
+                glm::vec2(
+                    face->glyph->metrics.width / 64.0f + 2 * Padding,
+                    face->glyph->metrics.height / 64.0f + 2 * Padding
                 )
             ),
             .bearing = glm::packHalf2x16(glm::vec2(face->glyph->bitmap_left, face->glyph->bitmap_top)),
-            // .offsetAndAdvance = glm::packHalf2x16(
-                // glm::vec2(
-                    // static_cast<f32>(bmpWidth),
-                    // static_cast<f32>(face->glyph->advance.x >> 6)
-                // )
-            // )
-            .advance = static_cast<f32>(face->glyph->advance.x >> 6)
+            .advance = face->glyph->advance.x / 64.0f,
         };
-
         dstFont->characters[c] = character;
 
-        bmpHeight = std::max(bmpHeight, face->glyph->bitmap.rows);
-        bmpWidth += face->glyph->bitmap.width;
-    };
-
-    const f32 invBmpWidth = 1.0f / static_cast<f32>(bmpWidth);
-    
-    #pragma omp parallel for
-    for(uchar i = 0; i < 128; i++)
-    {
-        const f32 chOffset = chOffsets[i];
-        const vec2 chSize = chSizes[i];
-        
-        if(chSize.x == 0 || chSize.y == 0)
-            continue;
-
-        const f32 u0 = chOffset * invBmpWidth;
-        const f32 u1 = (chOffset + chSize.x) * invBmpWidth;
-        const f32 v = chSize.y / bmpHeight;
-
-        dstFont->texturePositions[(i * 4) + 0] = vec2(u0, 0.0f);
-        dstFont->texturePositions[(i * 4) + 1] = vec2(u1, 0.0f);
-        dstFont->texturePositions[(i * 4) + 2] = vec2(u1, v   );
-        dstFont->texturePositions[(i * 4) + 3] = vec2(u0, v   );
+        bmpHeight = std::max(bmpHeight, face->glyph->bitmap.rows + 2 * Padding);
+        bmpWidth += face->glyph->bitmap.width + 2 * Padding;
     }
 
-    assert(bmpWidth != 0 && bmpHeight != 0);
-
-    u8 buffer[bmpWidth * bmpHeight];
+    u8* buffer = new u8[bmpWidth * bmpHeight];
+    memset(buffer, 0, bmpWidth * bmpHeight);
 
     u32 xpos = 0;
     for (uchar c = 0; c < 128; c++)
     {
-        Character &ch = dstFont->characters[c];
-        const vec2 chSize = glm::unpackHalf2x16(ch.size);
+        const vec2 chSize = chSizes[c];
 
-        const u32 width = chSize.x;
-        const u32 height = chSize.y;
+        chOffsets[c] = xpos;
+
+        const u32 width = chSize.x - 2 * Padding;
+        const u32 height = chSize.y - 2 * Padding;
 
         if (width > 0)
         {
             if (FT_Load_Char(face, c, FT_LOAD_RENDER))
             {
-                printf("TextRenderer::Failed to load glyph:\n");
+                printf("TextRenderer::Failed to load glyph: %c\n", c);
                 continue;
             }
 
@@ -863,83 +926,255 @@ void TextRendererSingleton::LoadFont(const char* path, u32 pixelSizes, NanoFont*
                     X X X X X X X X X X ; row = 1
                     X X X X X X X X X X ; row = 2
 
-                    To fetch all the data from row 0, you would do buffer offset by row
-                    + the width of each row (bmpWidth).
+                    To fetch all the data from row 0, you would do buffer offset by row * the width of each row (bmpWidth).
                 */
                 memcpy(
-                    buffer + xpos + row * bmpWidth,
+                    buffer + xpos + Padding + (row + Padding) * bmpWidth,
                     charDataBuffer + row * width,
                     width
                 );
             }
         }
 
-        xpos += width;
+        xpos += width + 2 * Padding;
     };
+
+    const f32 invBmpWidth = 1.0f / static_cast<f32>(bmpWidth);
+    const f32 invBmpHeight = 1.0f / static_cast<f32>(bmpHeight);
+    
+    #pragma omp parallel for
+    for(uchar i = 0; i < 128; i++)
+    {
+        const f32 chOffset = chOffsets[i];
+        const vec2 chSize = chSizes[i];
+
+        if(chSize.x == 0 || chSize.y == 0)
+            continue;
+
+        const f32 u0 = chOffset * invBmpWidth;
+        const f32 u1 = (chOffset + chSize.x) * invBmpWidth;
+        const f32 v0 = 0.0f;
+        const f32 v1 = chSize.y * invBmpHeight;
+
+        const u32 index = i * 4;
+        dstFont->texturePositions[index + 0] = glm::vec2(u0, v0);
+        dstFont->texturePositions[index + 1] = glm::vec2(u1, v0);
+        dstFont->texturePositions[index + 2] = glm::vec2(u1, v1);
+        dstFont->texturePositions[index + 3] = glm::vec2(u0, v1);
+    }
+
+    assert(bmpWidth != 0 && bmpHeight != 0);
 
     dstFont->lineHeight = face->height / 64.0f;
 
     const i32 ftres = FT_Done_Face(face) && FT_Done_FreeType(lib);
     assert(ftres == 0);
 
-    ImageLoadInfo fontImgLoadInfo{};
-    fontImgLoadInfo.width = bmpWidth;
-    fontImgLoadInfo.height = bmpHeight;
-    fontImgLoadInfo.data = buffer;
-    fontImgLoadInfo.format = VK_FORMAT_R8_UNORM;
-    fontImgLoadInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    dstFont->mipLevels = static_cast<u8>(floorf(log2f(bmpWidth) / 2.0f) + 1);
+    printf("%u\n", (u32)dstFont->mipLevels);
 
-    Image fontImg{};
-    Images->LoadImage(&fontImgLoadInfo, &fontImg, IMAGE_LOAD_TYPE_FROM_MEMORY);
+    help::Images::LoadFromMemory(
+        buffer, bmpWidth, bmpHeight,
+        VK_FORMAT_R8_UNORM, VK_IMAGE_TILING_OPTIMAL,
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        VK_SAMPLE_COUNT_1_BIT, dstFont->mipLevels,
+        &dstFont->fontTexture, &dstFont->fontTextureMemory
+    );
 
-    dstFont->fontTextureView = fontImg.view;
-    dstFont->fontTexture = fontImg.image;
-    dstFont->fontTextureMemory = fontImg.memory;
+    stbi_write_png("font_texture.png1", bmpWidth, bmpHeight, 1, buffer, bmpWidth);
+    delete[] buffer;
 
-    if(currFontIndex >= MaxFontCount)
-        printf("TextRenderer::unsupported. can't handle more than %u fonts.", MaxFontCount);
+    VkImageViewCreateInfo viewInfo{};
+    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewInfo.image = dstFont->fontTexture;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.format = VK_FORMAT_R8_UNORM;
+    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    viewInfo.subresourceRange.baseMipLevel = 0;
+    viewInfo.subresourceRange.levelCount = dstFont->mipLevels;
+    viewInfo.subresourceRange.baseArrayLayer = 0;
+    viewInfo.subresourceRange.layerCount = 1;
+    vkCreateImageView(device, &viewInfo, nullptr, &dstFont->fontTextureView);
+
+    // VkFormatProperties formatProperties;
+    // vkGetPhysicalDeviceFormatProperties(physDevice, VK_FORMAT_R8_UNORM, &formatProperties);
+
+    // assert(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT);
+
+    const VkCommandBuffer cmd = help::Commands::BeginSingleTimeCommands();
+
+    VkImageMemoryBarrier barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.image = dstFont->fontTexture;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = 1;
+    barrier.subresourceRange.levelCount = 1;
+
+    i32 mipWidth = bmpWidth;
+    i32 mipHeight = bmpHeight;
+
+    for(u32 i = 1; i < dstFont->mipLevels; i++)
+    {
+        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        barrier.subresourceRange.baseMipLevel = i - 1;
+
+        vkCmdPipelineBarrier(
+            cmd,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            0,
+            0, nullptr,
+            0, nullptr,
+            1, &barrier
+        );
+
+        VkImageBlit blit{};
+        blit.srcOffsets[0] = { 0, 0, 0 };
+        blit.srcOffsets[1] = { mipWidth, mipHeight, 1 };
+        blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit.srcSubresource.mipLevel = i - 1;
+        blit.srcSubresource.baseArrayLayer = 0;
+        blit.srcSubresource.layerCount = 1;
+        blit.dstOffsets[0] = { 0, 0, 0 };
+        blit.dstOffsets[1] = { mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1 };
+        blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit.dstSubresource.mipLevel = i;
+        blit.dstSubresource.baseArrayLayer = 0;
+        blit.dstSubresource.layerCount = 1;
+
+        vkCmdBlitImage(
+            cmd,
+            dstFont->fontTexture, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            dstFont->fontTexture, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1, &blit,
+            VK_FILTER_LINEAR
+        );
+
+        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        vkCmdPipelineBarrier(
+            cmd,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            0,
+            0, nullptr,
+            0, nullptr,
+            1, &barrier
+        );
+
+        if (mipWidth > 1) mipWidth /= 2;
+        if (mipHeight > 1) mipHeight /= 2;
+    }
+
+    barrier.subresourceRange.baseMipLevel = dstFont->mipLevels - 1;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+    vkCmdPipelineBarrier(cmd,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1, &barrier
+    );
+
+    help::Commands::EndSingleTimeCommands(cmd);
+
+    VkSamplerCreateInfo samplerInfo = {};
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.anisotropyEnable = VK_FALSE;
+    samplerInfo.maxAnisotropy = 1.0f;
+    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    samplerInfo.unnormalizedCoordinates = VK_FALSE;
+    samplerInfo.compareEnable = VK_FALSE;
+    samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+    samplerInfo.minLod = 0.0f;
+    samplerInfo.maxLod = static_cast<f32>(dstFont->mipLevels);
+    samplerInfo.mipLodBias = 0.0f;
+
+    if(vkCreateSampler(device, &samplerInfo, nullptr, &dstFont->sampler) != VK_SUCCESS) {
+        printf("Failed to create font texture sampler!\n");
+    }
+
+    if(currFontIndex >= MaxFontCount) {
+        printf("TextRenderer::unsupported. can't handle more than %u fonts.\n", MaxFontCount);
+        abort();
+    }
     dstFont->fontIndex = currFontIndex;
 
     VkDescriptorImageInfo fontImageInfo{};
     fontImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     fontImageInfo.imageView = dstFont->fontTextureView;
-    fontImageInfo.sampler = VK_NULL_HANDLE;
+    fontImageInfo.sampler = dstFont->sampler;
 
     VkWriteDescriptorSet writeSet{};
     writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     writeSet.dstSet = m_descriptorSet;
-    writeSet.dstBinding = 1;
+    writeSet.dstBinding = 0;
     writeSet.dstArrayElement = dstFont->fontIndex;
-    writeSet.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    writeSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     writeSet.descriptorCount = 1;
     writeSet.pImageInfo = &fontImageInfo;
     vkUpdateDescriptorSets(device, 1, &writeSet, 0, nullptr);
+
+    currFontIndex++;
 }
+
+// std::future<NanoFont> TextRendererSingleton::LoadFont(const char *path, u32 pixelSizes)
+// {
+//     std::promise<NanoFont> promise;
+//     std::future<NanoFont> future = promise.get_future();
+//     std::thread(
+//         [&]() {
+//             NanoFont font{};
+//             LoadFont(path, pixelSizes, &font);
+//             promise.set_value(font);
+//         }, path, pixelSizes
+//     ).detach();
+//     return future;
+// }
 
 void TextRendererSingleton::Destroy(NanoFont *obj)
 {
     vkDeviceWaitIdle(device);
+    
     vkDestroyImage(device, obj->fontTexture, nullptr);
     vkDestroyImageView(device, obj->fontTextureView, nullptr);
     vkFreeMemory(device, obj->fontTextureMemory, nullptr);
 
-    if(!EnabledFeatures::NullDescriptor)
-    {
-        VkDescriptorImageInfo fontImageInfo{};
-        fontImageInfo.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        fontImageInfo.sampler = VK_NULL_HANDLE;
-        fontImageInfo.imageView = VK_NULL_HANDLE;
+    VkDescriptorImageInfo fontImageInfo{};
+    fontImageInfo.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    fontImageInfo.sampler = VK_NULL_HANDLE;
+    fontImageInfo.imageView = VK_NULL_HANDLE;
 
-        VkWriteDescriptorSet writeSet{};
-        writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writeSet.dstSet = m_descriptorSet;
-        writeSet.dstBinding = 1;
-        writeSet.dstArrayElement = obj->fontIndex;
-        writeSet.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        writeSet.descriptorCount = 1;
-        writeSet.pImageInfo = &fontImageInfo;
-        vkUpdateDescriptorSets(device, 1, &writeSet, 0, nullptr);
-    }
+    VkWriteDescriptorSet writeSet{};
+    writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeSet.dstSet = m_descriptorSet;
+    writeSet.dstBinding = 0;
+    writeSet.dstArrayElement = obj->fontIndex;
+    writeSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writeSet.descriptorCount = 1;
+    writeSet.pImageInfo = &fontImageInfo;
+    vkUpdateDescriptorSets(device, 1, &writeSet, 0, nullptr);
 
     currFontIndex--;
 }

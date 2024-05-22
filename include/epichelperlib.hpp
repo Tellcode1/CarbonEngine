@@ -32,7 +32,7 @@ namespace help
         VkCommandBuffer BeginSingleTimeCommands();
         
         /* WARNING: waitForExecution = false implies you take responsibility of freeing the commandBuffer! */
-        VkResult EndSingleTimeCommands(VkCommandBuffer cmd, bool waitForExecution = true);
+        VkResult EndSingleTimeCommands(VkCommandBuffer cmd, VkQueue queue = Graphics->GraphicsAndComputeQueue, bool waitForExecution = true);
     }
     namespace Images
     {
@@ -42,6 +42,21 @@ namespace help
         );
         /* No allocation needed */
         void LoadFromDisk(const char* path, u8** dst, u32* dstSize);
+
+        void LoadFromMemory(
+            u8* buffer, u32 width, u32 height,
+            VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
+            VkMemoryPropertyFlags properties, VkSampleCountFlagBits samples, u32 mipMapLevels,
+            VkImage* dstImage, VkDeviceMemory* dstMemory, bool externallyAllocated = false
+        );
+
+        // incomplete = true = the command will be recorded to the active command buffer
+        void TransitionImageLayout(
+            VkCommandBuffer cmd, VkImage image, u32 mipLevels,
+            VkImageLayout oldLayout, VkImageLayout newLayout,
+            VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
+            VkPipelineStageFlags sourceStage, VkPipelineStageFlags destinationStage
+        );
     }
     namespace Files
     {

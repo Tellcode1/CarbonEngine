@@ -60,12 +60,12 @@ void RendererSingleton::Initialize() {
     }
 
     pro::SwapchainCreateInfo scio{};
-    scio.extent = VkExtent2D({Graphics->RenderArea.x, Graphics->RenderArea.y});
-    scio.presentMode = PresentMode;
+    scio.extent = Graphics->RenderArea;
+    scio.ePresentMode = PresentMode;
     scio.physDevice = physDevice;
     scio.surface = surface;
     scio.format = Graphics->SwapChainImageFormat;
-    scio.colorSpace = Graphics->SwapChainColorSpace;
+    scio.eColorSpace = Graphics->SwapChainColorSpace;
     scio.requestedImageCount = Graphics->SwapChainImageCount;
     pro::CreateSwapChain(device, &scio, &swapchain);
 
@@ -205,7 +205,7 @@ void RendererSingleton::Initialize() {
         pDescriptorLayouts.push_back(layout);
     
     pro::PipelineCreateInfo pcio{};
-    pcio.extent = VkExtent2D({Graphics->RenderArea.x, Graphics->RenderArea.y});
+    pcio.extent = Graphics->RenderArea;
     pcio.format = Graphics->SwapChainImageFormat;
     pcio.pShaderCreateInfos = &shaders;
     pcio.pAttributeDescriptions = &pAttributeDescriptions;
@@ -260,6 +260,14 @@ void RendererSingleton::Initialize() {
     }
 }
 
+void RendererSingleton::ProcessEvent(SDL_Event *event)
+{
+    if ((event->type == SDL_EVENT_QUIT) || (event->type == SDL_EVENT_KEY_DOWN && event->key.keysym.sym == EXIT_KEY))
+        exit(0);
+
+    
+}
+
 bool RendererSingleton::BeginRender()
 {
     const auto& drawBuffer = GetDrawBuffer();
@@ -275,6 +283,7 @@ bool RendererSingleton::BeginRender()
         vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physDevice, surface, &surfaceCapabilities);
 
         ResizeRenderWindow(surfaceCapabilities.currentExtent);
+        Graphics->OnWindowResized();
 		return false;
 	}
 	else if (imageAcquireResult != VK_SUCCESS && imageAcquireResult != VK_SUBOPTIMAL_KHR) 
@@ -383,7 +392,7 @@ VkShaderModule RendererSingleton::LoadShaderModule(const char *path)
 
 void RendererSingleton::ResizeRenderWindow(const VkExtent2D newExtent, const bool forceWindowResize)
 {
-    Graphics->RenderArea = {newExtent.width, newExtent.height};
+    Graphics->RenderArea = WindowSizeType{newExtent.width, newExtent.height};
     if (forceWindowResize) SDL_SetWindowSize(window, newExtent.width, newExtent.height);
 
     vkDeviceWaitIdle(device);
@@ -409,13 +418,13 @@ void RendererSingleton::ResizeRenderWindow(const VkExtent2D newExtent, const boo
     Graphics->RenderArea.y = surfaceCapabilities.currentExtent.height;
 
     pro::SwapchainCreateInfo scio{};
-    scio.extent = VkExtent2D({Graphics->RenderArea.x, Graphics->RenderArea.y});
-    scio.presentMode = PresentMode;
+    scio.extent = Graphics->RenderArea;
+    scio.ePresentMode = PresentMode;
     scio.physDevice = physDevice;
     scio.surface = surface;
     scio.format = Graphics->SwapChainImageFormat;
     scio.requestedImageCount = Graphics->SwapChainImageCount;
-    scio.colorSpace = Graphics->SwapChainColorSpace;
+    scio.eColorSpace = Graphics->SwapChainColorSpace;
     pro::CreateSwapChain(device, &scio, &swapchain);
 
     VkPipelineShaderStageCreateInfo vshader{};

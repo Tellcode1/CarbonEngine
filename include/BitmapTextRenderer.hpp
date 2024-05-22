@@ -5,6 +5,7 @@
 #include "Bootstrap.hpp"
 #include "pro.hpp"
 #include <glm/packing.hpp>
+#include <future>
 
 constexpr u8 MaxFontCount = 8;
 
@@ -28,13 +29,15 @@ enum NanoTextAlignmentHorizontal : u8
 
 enum NanoTextAlignmentVertical : u8
 {
-    NANO_TEXT_VERTICAL_ALIGN_TOP = 3,
-    NANO_TEXT_VERTICAL_ALIGN_CENTER = 4,
-    NANO_TEXT_VERTICAL_ALIGN_BOTTOM = 5,
+    NANO_TEXT_VERTICAL_ALIGN_BASELINE = 0,
+    NANO_TEXT_VERTICAL_ALIGN_TOP      = 1,
+    NANO_TEXT_VERTICAL_ALIGN_CENTER   = 2,
+    NANO_TEXT_VERTICAL_ALIGN_BOTTOM   = 3,
     
-    TEXT_VERTICAL_ALIGN_TOP    = NANO_TEXT_VERTICAL_ALIGN_TOP,
-    TEXT_VERTICAL_ALIGN_CENTER = NANO_TEXT_VERTICAL_ALIGN_CENTER,
-    TEXT_VERTICAL_ALIGN_BOTTOM = NANO_TEXT_VERTICAL_ALIGN_BOTTOM,
+    TEXT_VERTICAL_ALIGN_TOP      = NANO_TEXT_VERTICAL_ALIGN_TOP,
+    TEXT_VERTICAL_ALIGN_CENTER   = NANO_TEXT_VERTICAL_ALIGN_CENTER,
+    TEXT_VERTICAL_ALIGN_BOTTOM   = NANO_TEXT_VERTICAL_ALIGN_BOTTOM,
+    TEXT_VERTICAL_ALIGN_BASELINE = NANO_TEXT_VERTICAL_ALIGN_BASELINE,
 };
 
 enum NanoTextUpdateFrequency
@@ -50,23 +53,16 @@ enum NanoTextUpdateFrequency
     TEXT_UPDATE_DYNAMIC = NANO_TEXT_UPDATE_DYNAMIC,
 };
 
-enum NanoTextRenderMode
-{
-    NANO_TEXT_RENDER_MODE_RASTERIZED = 0,
-    NANO_TEXT_RENDER_MODE_BITMAP = NANO_TEXT_RENDER_MODE_RASTERIZED,
-
-    NANO_TEXT_RENDER_MODE_SDF = 1,
-    NANO_TEXT_RENDER_MODE_SIGNED_DISTANCE_FIELD = NANO_TEXT_RENDER_MODE_SDF,
-};
-
 struct NanoFont
 {
     VkImage fontTexture;
     VkImageView fontTextureView;
     VkDeviceMemory fontTextureMemory;
+    VkSampler sampler;
 
     u32 bmpWidth = 0;
     u32 bmpHeight = 0;
+    u8 mipLevels;
     u8 fontIndex;
     f32 lineHeight = 0.0f;
 
@@ -87,22 +83,27 @@ struct TextRendererSingleton
 {
     TextRendererSingleton() = default;
     ~TextRendererSingleton() = default;
-    
+
+    // Singleton specification    
     void Initialize();
 
-    void GetTextSize(const NanoFont* font, const std::string_view& pText, f32* width, f32* height, f32 scale);
+    static TextRendererSingleton* GetSingleton() {
+        static TextRendererSingleton global{};
+        return &global;
+    }
     
     void BeginRender();
     void Render(TextRenderInfo& info, const NanoFont* font);
-    void EndRender(VkCommandBuffer cmd, const mat2& matrix = mat2(1.0f));
+    void EndRender(VkCommandBuffer cmd, const glm::mat4& matrix = glm::mat4(1.0f));
 
     void LoadFont(const char* path, u32 pixelSizes, NanoFont* dstFont);
+    std::future<NanoFont> LoadFont(const char* path, u32 pixelSizes);
     void Destroy(NanoFont* obj);
 
-    void CreatePipeline(VkRenderPass renderPass);
     void RecreatePipeline();
+    void ReallocateBuffers(bool shrinkToFit);
 
-    glm::mat2 projection;
+    glm::mat4 projection;
 
     u32 charsDrawn = 0;
     u8 currFontIndex = 0;
@@ -120,15 +121,10 @@ struct TextRendererSingleton
     std::vector<u16> indices;
 
     VkBuffer unifiedBuffer = VK_NULL_HANDLE;
-    VkDeviceMemory mem = VK_NULL_HANDLE;
+    VkDeviceMemory unifiedBufferMemory = VK_NULL_HANDLE;
     u32 allocatedMemorySize = 0;
     u32 alignment = 0;
     u32 ibOffset = 0;
-
-    static TextRendererSingleton* GetSingleton() {
-        static TextRendererSingleton global{};
-        return &global;
-    }
 
     VkFence fence;
     bool dispatchedCompute = false;
@@ -143,8 +139,8 @@ struct TextRendererSingleton
     private:
     void DispatchCompute();
     void RenderLine(const f32 x, f32* y, const std::string_view line, const NanoTextAlignmentHorizontal horizontal, const f32 scale, const NanoFont* font);
-
-    // ! Not currently async, implement.
+    void GetTextSize(const NanoFont* font, const std::string_view& pText, f32* width, f32* height, f32 scale);
+    void CreatePipeline();
 
     VkPipeline m_pipeline = VK_NULL_HANDLE;
     VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;;
@@ -158,9 +154,10 @@ struct TextRendererSingleton
     VkDescriptorSet m_computeDescriptorSet = VK_NULL_HANDLE;
     VkDescriptorSetLayout m_computeDescriptorSetLayout = VK_NULL_HANDLE;
 
-    VkImage errorImage = VK_NULL_HANDLE;
-    VkDeviceMemory errorImageMemory = VK_NULL_HANDLE;
-    VkImageView errorImageView = VK_NULL_HANDLE;
+    VkImage dummyImage = VK_NULL_HANDLE;
+    VkDeviceMemory dummyImageMemory = VK_NULL_HANDLE;
+    VkImageView dummyImageView = VK_NULL_HANDLE;
+    VkSampler dummySampler;
 };
 
 static TextRendererSingleton* TextRenderer = TextRendererSingleton::GetSingleton();

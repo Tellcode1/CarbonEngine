@@ -3,8 +3,33 @@
 
 #include "stdafx.hpp"
 
-static constexpr u8 MaxFramesInFlight = 2;
-static constexpr glm::vec<2, u16> DefaultExtent = { 800, 600 };
+struct WindowSizeType {
+    u32 width, height;
+    u32& x = width, y = height;
+
+    constexpr inline operator VkExtent2D() {
+        return VkExtent2D{ width, height };
+    }
+
+    constexpr inline operator glm::uvec2() {
+        return glm::uvec2{ width, height };
+    }
+
+    WindowSizeType() = default;
+    ~WindowSizeType() = default;
+    constexpr WindowSizeType(const WindowSizeType& rhs) : width(rhs.width), height(rhs.height) { }
+    constexpr WindowSizeType(u32 w, u32 h) : width(w), height(h) {}
+
+    constexpr WindowSizeType& operator =(WindowSizeType&& rhs) {
+        width = rhs.width;
+        height = rhs.height;
+        return *this;
+    }
+};
+
+constexpr static SDL_Scancode EXIT_KEY = SDL_SCANCODE_ESCAPE;
+constexpr static u8 MaxFramesInFlight = 2;
+constexpr static WindowSizeType DefaultExtent = { 800, 600 };
 
 // struct FrameRenderData
 // {
@@ -23,7 +48,7 @@ struct GraphicsSingleton
 
     VkRenderPass GlobalRenderPass;
 
-    glm::vec<2, u16> RenderArea = DefaultExtent;
+    WindowSizeType RenderArea = DefaultExtent;
 
     u32 GraphicsFamilyIndex;
     u32 PresentFamilyIndex;
@@ -35,6 +60,8 @@ struct GraphicsSingleton
     VkQueue& PresentQueue = GraphicsQueue;
     VkQueue ComputeQueue;
     VkQueue TransferQueue;
+
+    boost::signals2::signal<void(void)> OnWindowResized;
 
     NANO_SINGLETON_FUNCTION GraphicsSingleton* GetSingleton() {
         static GraphicsSingleton global;
@@ -74,6 +101,7 @@ struct RendererSingleton
     void ResizeRenderWindow(const VkExtent2D newExtent, const bool forceWindowResize = false);
 
     void Initialize();
+    void ProcessEvent(SDL_Event* event);
 
     inline VkCommandBuffer GetDrawBuffer() { return drawBuffers[currentFrame]; };
     bool BeginRender();

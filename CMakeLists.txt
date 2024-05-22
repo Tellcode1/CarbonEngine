@@ -11,7 +11,7 @@ include_directories(${SDL3_INCLUDE_DIRS})
 find_package(Freetype REQUIRED)
 include_directories(${FREETYPE_INCLUDE_DIRS})
 
-find_package(Boost REQUIRED COMPONENTS filesystem) 
+find_package(Boost REQUIRED COMPONENTS filesystem)
 include_directories(${Boost_INCLUDE_DIRS}) 
 
 
@@ -56,7 +56,7 @@ set(LIBS
 )
 
 exec_program(
-    ${CMAKE_SOURCE_DIR}/Shaders/ShaderCompiler
+    ${CMAKE_SOURCE_DIR}/Shaders/compile.sh
     ${CMAKE_SOURCE_DIR}/Shaders
     ARGS ${CMAKE_BINARY_DIR}/ # Provide binary directory to app for placing output
 )

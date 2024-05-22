@@ -65,19 +65,52 @@ namespace pro
 	struct SwapchainCreateInfo;
 	struct RenderPassCreateInfo;
 	struct Pipeline;
+	struct PipelineBlendState;
+
+	enum BlendPreset
+	{
+		PRO_BLEND_PRESET_NONE                  = 0,
+		PRO_BLEND_PRESET_ALPHA                 = 1,
+		PRO_BLEND_PRESET_ADDITIVE              = 2,
+		PRO_BLEND_PRESET_MULTIPLICATIVE        = 3,
+		PRO_BLEND_PRESET_PREMULTIPLIED_ALPHA   = 4,
+		PRO_BLEND_PRESET_SUBTRACTIVE           = 5,
+		PRO_BLEND_PRESET_SCREEN                = 6,
+	};
+
+	struct PipelineBlendState
+	{
+		VkBlendFactor            srcColorBlendFactor;
+		VkBlendFactor            dstColorBlendFactor;
+		VkBlendOp                colorBlendOp;
+		VkBlendFactor            srcAlphaBlendFactor;
+		VkBlendFactor            dstAlphaBlendFactor;
+		VkBlendOp                alphaBlendOp;
+		VkColorComponentFlags    colorWriteMask;
+
+		PipelineBlendState(BlendPreset ePreset);
+		PipelineBlendState() = default;
+		~PipelineBlendState() = default;
+	};
 
 	struct PipelineCreateInfo
 	{
-		VkRenderPass renderPass = VK_NULL_HANDLE;
-		VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
-		VkExtent2D extent = {0, 0};
-		VkFormat format = VK_FORMAT_UNDEFINED;
-		u64 subpass = 0;
-		VkPipeline oldPipeline = VK_NULL_HANDLE;
-		VkPipelineCache cache = VK_NULL_HANDLE;
-		
+		VkRenderPass 	 	renderPass = VK_NULL_HANDLE;
+		VkPipelineLayout 	pipelineLayout = VK_NULL_HANDLE;
+		VkExtent2D 		 	extent = {0, 0};
+		VkFormat 		 	format = VK_FORMAT_UNDEFINED;
+		u64 			 	subpass = 0;
+		VkPipeline 		 	oldPipeline = VK_NULL_HANDLE;
+		VkPipelineCache  	cache = VK_NULL_HANDLE;
+		VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+		/* EXTENSIONS */
+
 		// Ignored if flags does not contain PIPELINE_CREATE_FLAGS_ENABLE_MULTISAMPLING
-		VkSampleCountFlagBits samples;
+		VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT;
+
+		// Ignored if flags does not contain PIPELINE_CREATE_FLAGS_ENABLE_BLEND
+		PipelineBlendState* pBlendState = nullptr;
 
 		/*
 		*	Array pointers are allowed to be nullptr
@@ -97,10 +130,10 @@ namespace pro
 		VkPhysicalDevice physDevice = VK_NULL_HANDLE;
 		VkSurfaceKHR surface = VK_NULL_HANDLE;
 		VkExtent2D extent = {0, 0};
-		VkPresentModeKHR presentMode = VK_PRESENT_MODE_FIFO_KHR;
+		VkPresentModeKHR ePresentMode = VK_PRESENT_MODE_FIFO_KHR;
 		u64 requestedImageCount = 0;
 		VkFormat format = VK_FORMAT_UNDEFINED;
-		VkColorSpaceKHR colorSpace = VK_COLOR_SPACE_MAX_ENUM_KHR;
+		VkColorSpaceKHR eColorSpace = VK_COLOR_SPACE_MAX_ENUM_KHR;
 		VkSwapchainKHR pOldSwapchain = VK_NULL_HANDLE;
 
 		SwapchainCreateInfo() = default;

@@ -38,6 +38,7 @@ namespace EnabledFeatures
 constexpr static VkPhysicalDeviceFeatures WantedFeatures = {
 	.robustBufferAccess = VK_TRUE,
 	.multiDrawIndirect = VK_TRUE,
+	.samplerAnisotropy = VK_TRUE,
 };
 
 struct VulkanContextSingleton;

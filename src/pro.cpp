@@ -36,6 +36,11 @@ void pro::CreateGraphicsPipeline(VkDevice device, PipelineCreateInfo const *pCre
 	NOT_EQUAL_TO(pCreateInfo->extent.width, 0);
 	NOT_EQUAL_TO(pCreateInfo->extent.height, 0);
 
+	if(flags & PIPELINE_CREATE_FLAGS_ENABLE_BLEND)
+		REQUIRED_PTR(pCreateInfo->pBlendState);
+	if(flags & PIPELINE_CREATE_FLAGS_ENABLE_MULTISAMPLING)
+		NOT_EQUAL_TO(pCreateInfo->samples, VK_SAMPLE_COUNT_1_BIT);
+
 	// const bool cacheIsNull = pCreateInfo->cache == VK_NULL_HANDLE;
 
 	// VkPipelineCache cache = pCreateInfo->cache;
@@ -63,7 +68,7 @@ void pro::CreateGraphicsPipeline(VkDevice device, PipelineCreateInfo const *pCre
 	VkPipelineInputAssemblyStateCreateInfo inputAssemblyState{};
 	inputAssemblyState.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 	inputAssemblyState.primitiveRestartEnable = VK_FALSE;
-	inputAssemblyState.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	inputAssemblyState.topology = pCreateInfo->topology;
 
 	VkViewport viewportState{};
 	viewportState.x = 0;
@@ -119,15 +124,16 @@ void pro::CreateGraphicsPipeline(VkDevice device, PipelineCreateInfo const *pCre
 
 	if(flags & PIPELINE_CREATE_FLAGS_ENABLE_BLEND)
 	{
+		const auto& blendState = pCreateInfo->pBlendState;
+
 		colorblendAttachmentState.blendEnable = VK_TRUE;
-		colorblendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-		
-		colorblendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-		colorblendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-		colorblendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
-		colorblendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-		colorblendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-		colorblendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+		colorblendAttachmentState.srcColorBlendFactor = blendState->srcColorBlendFactor;
+		colorblendAttachmentState.dstColorBlendFactor = blendState->dstColorBlendFactor;
+		colorblendAttachmentState.colorBlendOp = blendState->colorBlendOp;
+		colorblendAttachmentState.srcAlphaBlendFactor = blendState->srcAlphaBlendFactor;
+		colorblendAttachmentState.dstAlphaBlendFactor = blendState->dstAlphaBlendFactor;
+		colorblendAttachmentState.alphaBlendOp = blendState->alphaBlendOp;
+		colorblendAttachmentState.colorWriteMask = blendState->colorWriteMask;
 	} else
 	{
 		colorblendAttachmentState.blendEnable = VK_FALSE;
@@ -338,7 +344,7 @@ void pro::CreateSwapChain(VkDevice device, SwapchainCreateInfo const* pCreateInf
 	NOT_EQUAL_TO(pCreateInfo->extent.width, 0);
 	NOT_EQUAL_TO(pCreateInfo->extent.height, 0);
 	NOT_EQUAL_TO(pCreateInfo->format, VK_FORMAT_UNDEFINED);
-	NOT_EQUAL_TO(pCreateInfo->presentMode, VK_PRESENT_MODE_MAX_ENUM_KHR);
+	NOT_EQUAL_TO(pCreateInfo->ePresentMode, VK_PRESENT_MODE_MAX_ENUM_KHR);
 	NOT_EQUAL_TO(pCreateInfo->requestedImageCount, 0);
 
 	VkSwapchainCreateInfoKHR swapChainCreateInfo{};
@@ -347,13 +353,13 @@ void pro::CreateSwapChain(VkDevice device, SwapchainCreateInfo const* pCreateInf
 	swapChainCreateInfo.imageExtent = pCreateInfo->extent;
 	swapChainCreateInfo.minImageCount = pCreateInfo->requestedImageCount;
 	swapChainCreateInfo.imageFormat = pCreateInfo->format;
-	swapChainCreateInfo.imageColorSpace = pCreateInfo->colorSpace;
+	swapChainCreateInfo.imageColorSpace = pCreateInfo->eColorSpace;
 	swapChainCreateInfo.imageArrayLayers = 1;
 	swapChainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 	swapChainCreateInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 	swapChainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 	swapChainCreateInfo.clipped = VK_TRUE;
-	swapChainCreateInfo.presentMode = pCreateInfo->presentMode;
+	swapChainCreateInfo.presentMode = pCreateInfo->ePresentMode;
 	swapChainCreateInfo.oldSwapchain = pCreateInfo->pOldSwapchain;
 	if (vkCreateSwapchainKHR(device, &swapChainCreateInfo, VK_NULL_HANDLE, dstSwapchain) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to create swapchain");
@@ -429,4 +435,69 @@ u32 pro::GetMemoryType(VkPhysicalDevice physDevice, const u32 memoryTypeBits, co
         	return i;
 
 	return -1;
+}
+
+pro::PipelineBlendState::PipelineBlendState(BlendPreset preset)
+{
+	colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+	switch(preset)
+	{
+		case PRO_BLEND_PRESET_NONE:
+			srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+			dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+			colorBlendOp = VK_BLEND_OP_ADD;
+			srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+			dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+			alphaBlendOp = VK_BLEND_OP_ADD;
+			break;
+		case PRO_BLEND_PRESET_ALPHA:
+			srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+			dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+			colorBlendOp = VK_BLEND_OP_ADD;
+			srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+			dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+			alphaBlendOp = VK_BLEND_OP_ADD;
+			break;
+		case PRO_BLEND_PRESET_ADDITIVE:
+			srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+			dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+			colorBlendOp = VK_BLEND_OP_ADD;
+			srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+			dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+			alphaBlendOp = VK_BLEND_OP_ADD;
+			break;
+		case PRO_BLEND_PRESET_MULTIPLICATIVE:
+			srcColorBlendFactor = VK_BLEND_FACTOR_DST_COLOR;
+			dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+			colorBlendOp = VK_BLEND_OP_ADD;
+			srcAlphaBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;
+			dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+			alphaBlendOp = VK_BLEND_OP_ADD;
+			break;
+		case PRO_BLEND_PRESET_PREMULTIPLIED_ALPHA:
+			srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+			dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+			colorBlendOp = VK_BLEND_OP_ADD;
+			srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+			dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+			alphaBlendOp = VK_BLEND_OP_ADD;
+			break;
+		case PRO_BLEND_PRESET_SUBTRACTIVE:
+			srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+			dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+			colorBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;
+			srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+			dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+			alphaBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;
+			break;
+		default:
+			srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+			dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+			colorBlendOp = VK_BLEND_OP_ADD;
+			srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+			dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+			alphaBlendOp = VK_BLEND_OP_ADD;
+			break;
+	}
 }

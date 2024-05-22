@@ -93,6 +93,8 @@ using glm::mat4;
 #include <stb/stb_image.h>
 #include <stb/stb_image_write.h>
 
+#include <boost/signals2.hpp>
+
 #define DEBUG
 
 #include "pro.hpp"
