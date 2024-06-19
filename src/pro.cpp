@@ -344,7 +344,6 @@ void pro::CreateSwapChain(VkDevice device, SwapchainCreateInfo const* pCreateInf
 	NOT_EQUAL_TO(pCreateInfo->extent.width, 0);
 	NOT_EQUAL_TO(pCreateInfo->extent.height, 0);
 	NOT_EQUAL_TO(pCreateInfo->format, VK_FORMAT_UNDEFINED);
-	NOT_EQUAL_TO(pCreateInfo->ePresentMode, VK_PRESENT_MODE_MAX_ENUM_KHR);
 	NOT_EQUAL_TO(pCreateInfo->requestedImageCount, 0);
 
 	VkSwapchainCreateInfoKHR swapChainCreateInfo{};
@@ -361,9 +360,8 @@ void pro::CreateSwapChain(VkDevice device, SwapchainCreateInfo const* pCreateInf
 	swapChainCreateInfo.clipped = VK_TRUE;
 	swapChainCreateInfo.presentMode = pCreateInfo->ePresentMode;
 	swapChainCreateInfo.oldSwapchain = pCreateInfo->pOldSwapchain;
-	if (vkCreateSwapchainKHR(device, &swapChainCreateInfo, VK_NULL_HANDLE, dstSwapchain) != VK_SUCCESS) {
-		throw std::runtime_error("Failed to create swapchain");
-	}
+	swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	ResultCheck(vkCreateSwapchainKHR(device, &swapChainCreateInfo, VK_NULL_HANDLE, dstSwapchain));
 }
 
 bool pro::GetSupportedFormat(VkDevice device, VkPhysicalDevice physDevice, VkSurfaceKHR surface, VkFormat *dstFormat, VkColorSpaceKHR *dstColorSpace)
@@ -376,17 +374,18 @@ bool pro::GetSupportedFormat(VkDevice device, VkPhysicalDevice physDevice, VkSur
 
     u32 formatCount = 0;
 	vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, VK_NULL_HANDLE);
-	VkSurfaceFormatKHR surfaceFormats[formatCount];
+	VkSurfaceFormatKHR *surfaceFormats = new VkSurfaceFormatKHR[formatCount];
 	vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, surfaceFormats);
 
-	VkSurfaceFormatKHR selectedFormat;
+	VkSurfaceFormatKHR selectedFormat = { VK_FORMAT_MAX_ENUM, VK_COLOR_SPACE_MAX_ENUM_KHR };
 	std::unordered_map<VkFormat, VkColorSpaceKHR> desiredFormats = {
 		{ VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR },
 		{ VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR }
 	};
 
-	for (const auto& surfaceFormat : surfaceFormats)
+	for (u32 i = 0; i < formatCount; i++)
 	{
+		const auto& surfaceFormat = surfaceFormats[i];
 		const auto formatIter = desiredFormats.find(surfaceFormat.format);
 		if (formatIter != desiredFormats.end() &&
 			formatIter->second == surfaceFormat.colorSpace)
@@ -397,7 +396,7 @@ bool pro::GetSupportedFormat(VkDevice device, VkPhysicalDevice physDevice, VkSur
 		}
 	}
 
-	if (selectedFormat.format == VK_FORMAT_UNDEFINED) {
+	if (selectedFormat.format == VK_FORMAT_MAX_ENUM || selectedFormat.colorSpace == VK_COLOR_SPACE_MAX_ENUM_KHR) {
 		return VK_FALSE;
 	} else {
 		*dstFormat = selectedFormat.format;

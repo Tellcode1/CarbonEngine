@@ -1,12 +1,11 @@
+# VSCode generated directories
+/.vscode/
+/.cache/
+
+# Cmake/build files
 */build/*
 /build/
 */CMakeFiles/*
-*.spv
-/Atlas/CMakeFiles
-/.vscode/
-/.cache/
-/backup/
-/Dynamite/
-/DEBUG/
-Atlas/atlas.hpp
-Atlas/atlas.png
+
+external
+external/**

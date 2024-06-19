@@ -40,10 +40,14 @@ namespace help
             const char* path, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
             VkMemoryPropertyFlags properties, VkImage* dstImage, VkDeviceMemory* dstMemory, bool externallyAllocated = false
         );
-        /* No allocation needed */
-        void LoadFromDisk(const char* path, u8** dst, u32* dstSize);
 
-        void LoadFromMemory(
+        /*
+            No allocation needed
+            dst may be nullptr
+        */
+        void LoadFromDisk(const char* path, u8 channels, u8** dst, u32* dstWidth, u32* dstHeight);
+
+        void LoadVulkanImage(
             u8* buffer, u32 width, u32 height,
             VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
             VkMemoryPropertyFlags properties, VkSampleCountFlagBits samples, u32 mipMapLevels,

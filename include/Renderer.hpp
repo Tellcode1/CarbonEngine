@@ -3,42 +3,9 @@
 
 #include "stdafx.hpp"
 
-struct WindowSizeType {
-    u32 width, height;
-    u32& x = width, y = height;
-
-    constexpr inline operator VkExtent2D() {
-        return VkExtent2D{ width, height };
-    }
-
-    constexpr inline operator glm::uvec2() {
-        return glm::uvec2{ width, height };
-    }
-
-    WindowSizeType() = default;
-    ~WindowSizeType() = default;
-    constexpr WindowSizeType(const WindowSizeType& rhs) : width(rhs.width), height(rhs.height) { }
-    constexpr WindowSizeType(u32 w, u32 h) : width(w), height(h) {}
-
-    constexpr WindowSizeType& operator =(WindowSizeType&& rhs) {
-        width = rhs.width;
-        height = rhs.height;
-        return *this;
-    }
-};
-
 constexpr static SDL_Scancode EXIT_KEY = SDL_SCANCODE_ESCAPE;
 constexpr static u8 MaxFramesInFlight = 2;
-constexpr static WindowSizeType DefaultExtent = { 800, 600 };
-
-// struct FrameRenderData
-// {
-//     VkSemaphore imageAvailableSemaphore;
-//     VkSemaphore renderingFinishedSemaphore;
-//     VkFence InFlightFence;
-//     VkDescriptorSet descriptorSet;
-//     VkDescriptorSetLayout descriptorSetLayout;
-// };
+constexpr static VkExtent2D DefaultExtent = { 800, 600 };
 
 struct GraphicsSingleton
 {
@@ -48,16 +15,17 @@ struct GraphicsSingleton
 
     VkRenderPass GlobalRenderPass;
 
-    WindowSizeType RenderArea = DefaultExtent;
+    VkExtent2D RenderExtent = DefaultExtent;
 
     u32 GraphicsFamilyIndex;
     u32 PresentFamilyIndex;
     u32 ComputeFamilyIndex;
+    u32 TransferQueueIndex;
     u32 GraphicsAndComputeFamilyIndex;
 
     VkQueue GraphicsQueue;
     VkQueue GraphicsAndComputeQueue;
-    VkQueue& PresentQueue = GraphicsQueue;
+    VkQueue PresentQueue;
     VkQueue ComputeQueue;
     VkQueue TransferQueue;
 
@@ -75,32 +43,27 @@ struct RendererSingleton
 {
     RendererSingleton() = default;
     ~RendererSingleton() = default;
-    
-    pro::Pipeline pipeline;
+
     VkSwapchainKHR swapchain;
     
     std::vector<VkImage> swapchainImages;
     std::vector<VkImageView> swapchainImageViews;
     std::vector<VkFramebuffer> framebuffers;
 
-    VkCommandPool commandPool;
-    VkDescriptorPool descPool;
-
     u8 currentFrame = 0;
     u32 imageIndex = 0;
-    bool framebufferResized = false;
+    bool resizeRequested = false;
+    bool running = true;
 
+    VkCommandPool commandPool;
     VkSemaphore imageAvailableSemaphore[MaxFramesInFlight];
     VkSemaphore renderingFinishedSemaphore[MaxFramesInFlight];
     VkFence InFlightFence[MaxFramesInFlight];
-    VkDescriptorSet descSet[MaxFramesInFlight];
-    VkDescriptorSetLayout descSetLayouts[MaxFramesInFlight];
     VkCommandBuffer drawBuffers[MaxFramesInFlight];
 
-    VkShaderModule LoadShaderModule(const char* path);
-    void ResizeRenderWindow(const VkExtent2D newExtent, const bool forceWindowResize = false);
-
     void Initialize();
+
+    void Update();
     void ProcessEvent(SDL_Event* event);
 
     inline VkCommandBuffer GetDrawBuffer() { return drawBuffers[currentFrame]; };
@@ -111,6 +74,9 @@ struct RendererSingleton
         static RendererSingleton global;
         return &global;
     }
+
+    private:
+    void _SignalResize(VkExtent2D newSize);
 };
 static RendererSingleton* Renderer = RendererSingleton::GetSingleton();
 

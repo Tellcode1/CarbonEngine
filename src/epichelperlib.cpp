@@ -1,6 +1,12 @@
 #include "epichelperlib.hpp"
 #include <boost/filesystem.hpp>
 
+// stb loves to kick compilers in the liver so it shouldn't be put in the precompiled header
+#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb/stb_image.h"
+#include "stb/stb_image_write.h"
+
 static void* tempAlloc(void *pUserData, size_t size, size_t alignment, VkSystemAllocationScope allocationScope) {
     return pUserData;
 }
@@ -91,16 +97,6 @@ void help::Buffers::StageBufferTransfer(VkBuffer dst, void *data, u64 size)
 
     vkDestroyBuffer(device, stagingBuffer, nullptr);
     vkFreeMemory(device, stagingBufferMemory, nullptr);
-}
-
-void help::Memory::MapMemory(VkDeviceMemory bufferMemory, u64 size, u64 offset, void **dstPtr)
-{
-    vkMapMemory(device, bufferMemory, offset, size, 0, dstPtr);
-}
-
-void help::Memory::UnmapMemory(VkDeviceMemory bufferMemory)
-{
-    vkUnmapMemory(device, bufferMemory);
 }
 
 void help::Memory::FlushMappedMemory(VkDeviceMemory memory, u64 size,u64 offset)
@@ -205,7 +201,7 @@ void help::Files::LoadBinary(const char* path, u8* dst, u32* dstSize) {
     instream.close();
 }
 
-void help::Images::LoadFromMemory(u8 *buffer,
+void help::Images::LoadVulkanImage(u8 *buffer,
                                   u32 width, u32 height,
                                   VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
                                   VkMemoryPropertyFlags properties, VkSampleCountFlagBits samples, u32 mipLevels,
@@ -241,7 +237,6 @@ void help::Images::LoadFromMemory(u8 *buffer,
         if(vkAllocateMemory(device, &allocInfo, nullptr, &retMem) != VK_SUCCESS) {
             printf("Failed to allocate memory");
         }
-        std::cout << "kys " << imageMemoryRequirements.size << '\n';
         vkBindImageMemory(device, retval, retMem, 0);
     }
     
@@ -346,4 +341,13 @@ void help::Images::TransitionImageLayout(VkCommandBuffer cmd, VkImage image,
     barrier.srcAccessMask = srcAccessMask;
     barrier.dstAccessMask = dstAccessMask;
     vkCmdPipelineBarrier(cmd, sourceStage, dstAccessMask, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+}
+
+void help::Images::LoadFromDisk(const char* path, u8 channels, u8** dst, u32* dstWidth, u32* dstHeight)
+{
+    i32 width, height;
+    u8* buffer = stbi_load(path, &width, &height, nullptr, channels);
+    if (dst) *dst = buffer;
+    *dstWidth = width;
+    *dstHeight = height;
 }

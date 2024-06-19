@@ -1,10 +1,25 @@
 #ifndef __PRO__
 #define __PRO__
 
+/*
+
+	pro.hpp
+
+	This library does NOT intend to remove the use of vulkan calls. If something does not work, call the functions yourselves.
+	It exists only to help vulkan, not to replace it!
+
+*/
+
 #include "stdafx.hpp"
 
 typedef void (*ResultCheckFunc) (const VkResult);
 typedef u32 ProFlags;
+
+__attribute__((unused)) static void __print_and_abort(const char *msg, const char *file, unsigned int line, const char *function) noexcept(true) {
+	printf("%s:%u: %s: %s\n", file, line, function, msg);
+	printf("Fatal error. Aborting.\n");
+	abort();
+}
 
 #ifndef PRO_DISABLE_ERROR_CHECKING
 	#define REQUIRED_PTR(ptr) if(ptr == nullptr) __print_and_abort(#ptr" :  Required parameter '"#ptr"' specified as nullptr.", __FILE__, __LINE__, __PRETTY_FUNCTION__)
@@ -15,15 +30,9 @@ typedef u32 ProFlags;
 #endif
 
 #ifndef PRO_ARRAY_TYPE
-	#include <safearray.hpp>
 	#define PRO_ARRAY_TYPE std::vector
 #endif
 
-__attribute__((unused)) static void __print_and_abort(const char *msg, const char *file, unsigned int line, const char *function) noexcept(true) {
-	printf("%s:%u: %s: %s\n", file, line, function, msg);
-	printf("Fatal error. Aborting.\n");
-	abort();
-}
 constexpr u64 tobit(u64 num) { return 1 << num; }
 
 enum PipelineCreateFlagBits

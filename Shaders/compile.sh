@@ -1,3 +1,5 @@
+#!/bin/sh
+
 if [ $# -ne 1 ]; then
     echo "Usage: ./compile.sh <path>"
     echo "Please provide the CMAKE_BINARY_DIR as the only argument to this script."
@@ -12,5 +14,3 @@ glslangValidator -V ./frag.glsl -S frag -o $1/Shaders/frag.spv
 glslangValidator -V ./vert.text.glsl -S vert -o $1/Shaders/vert.text.spv
 glslangValidator -V ./frag.text.glsl -S frag -o $1/Shaders/frag.text.spv
 glslangValidator -V ./text.comp -S comp -o $1/Shaders/comp.text.spv
-
-# spirv

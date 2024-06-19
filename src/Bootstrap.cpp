@@ -414,7 +414,7 @@ VkCommandBuffer bootstrap::BeginSingleTimeCommands(VkDevice device, VkCommandPoo
 
 void bootstrap::EndSingleTimeCommands(VkDevice device, VkCommandBuffer buffer, VkQueue queue, VkCommandPool commandPool)
 {
-	VkResult res = vkEndCommandBuffer(buffer);
+	vkEndCommandBuffer(buffer);
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -425,10 +425,10 @@ void bootstrap::EndSingleTimeCommands(VkDevice device, VkCommandBuffer buffer, V
 	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 	fenceInfo.flags = 0;
 	VkFence fence;
-	assert(vkCreateFence(device, &fenceInfo, nullptr, &fence) == VK_SUCCESS);
+	vkCreateFence(device, &fenceInfo, nullptr, &fence);
 
-    if((res = vkQueueSubmit(queue, 1, &submitInfo, fence)) != VK_SUCCESS) {
-		throw std::runtime_error("Single time command failed to submit");
+    if(vkQueueSubmit(queue, 1, &submitInfo, fence) != VK_SUCCESS) {
+		std::cerr << "Single time command failed to submit. Program should not continue.\n";
 	}
 	vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX);
 

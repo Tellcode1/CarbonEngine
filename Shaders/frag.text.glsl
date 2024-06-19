@@ -17,5 +17,7 @@ sampler2D fontSampler[ MAX_FONT_COUNT ];
 
 void main() {
     const float dist = texture(fontSampler[textureIndex], FragTexCoord).r;
-    FragColor = vec4(vec3(1.0, 1.0, 1.0), dist);
+    const float distance = fwidth(dist);
+    const float alpha = smoothstep(0.5 - distance, 0.5 + distance, dist);
+    FragColor = vec4(vec3(1.0, 1.0, 1.0), alpha);
 }

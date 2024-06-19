@@ -60,23 +60,66 @@ using glm::ivec4;
 using glm::uvec4;
 using glm::dvec4;
 
+typedef glm::vec<2, i16> i16vec2;
+typedef glm::vec<3, i16> i16vec3;
+typedef glm::vec<4, i16> i16vec4;
+
+typedef glm::vec<2, i8> i8vec2;
+typedef glm::vec<3, i8> i8vec3;
+typedef glm::vec<4, i8> i8vec4;
+
+// A vec2 of u16's, etc.
+typedef glm::vec<2, u16> u16vec2;
+typedef glm::vec<3, u16> u16vec3;
+typedef glm::vec<4, u16> u16vec4;
+
+typedef glm::vec<2, u8> u8vec2;
+typedef glm::vec<3, u8> u8vec3;
+typedef glm::vec<4, u8> u8vec4;
+
 using glm::mat2;
 using glm::mat3;
 using glm::mat4;
 
+#define BLK "\e[0;30m"
+#define RED "\e[0;31m"
+#define GRN "\e[0;32m"
+#define YEL "\e[0;33m"
+#define BLU "\e[0;34m"
+#define MAG "\e[0;35m"
+#define CYN "\e[0;36m"
+#define WHT "\e[0;37m"
+
+constexpr const char* ANSI_FORMAT_BLACK = "\033[30m";
+constexpr const char* ANSI_FORMAT_RED = "\033[31m";
+constexpr const char* ANSI_FORMAT_GREEN = "\033[32m";
+constexpr const char* ANSI_FORMAT_YELLOW = "\033[33m";
+constexpr const char* ANSI_FORMAT_BLUE = "\033[34m";
+constexpr const char* ANSI_FORMAT_MAGENTA = "\033[35m";
+constexpr const char* ANSI_FORMAT_CYAN = "\033[36m";
+constexpr const char* ANSI_FORMAT_WHITE = "\033[37m";
+constexpr const char* ANSI_FORMAT_RESET = "\033[0m";
+constexpr const char* ANSI_FORMAT_DEFAULT = ANSI_FORMAT_RESET;
+
 #include <iostream>
-#include <vulkan/vulkan.hpp>
-#include <SDL3/SDL.h>
-#include <SDL3/SDL_vulkan.h>
+#include <iomanip>
+#include <fstream>
+
+#include <ctime>
+#include <thread>
+#include <atomic>
+#include <mutex>
+
 #include <vector>
 #include <set>
 #include <map>
 #include <unordered_map>
 #include <unordered_set>
-#include <fstream>
-#include <ctime>
-#include <thread>
-#include <iomanip>
+
+#include <vulkan/vulkan.hpp>
+
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_vulkan.h>
 
 #include <freetype2/ft2build.h>
 #include FT_FREETYPE_H
@@ -86,16 +129,31 @@ using glm::mat4;
 #define TIME_FUNCTION_REAL_REAL(x, y) TIME_FUNCTION_REAL_REAL_REAL(x, y)
 #define TIME_FUNCTION_REAL(func, LINE) const auto TIME_FUNCTION_REAL_REAL(__COUNTER_BEGIN__, __LINE__) = std::chrono::high_resolution_clock::now();\
 							func; /* Call the function*/ \
-							std::cout << #func << " Took " << std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - TIME_FUNCTION_REAL_REAL(__COUNTER_BEGIN__, __LINE__)).count() / 1000000.0f << "ms\n"\
+							std::cout << #func << " Took " << std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - TIME_FUNCTION_REAL_REAL(__COUNTER_BEGIN__, __LINE__)).count() / 1000000.0f << "ms\n"
 
 #define TIME_FUNCTION(func) TIME_FUNCTION_REAL(func, __LINE__)
-
-#include <stb/stb_image.h>
-#include <stb/stb_image_write.h>
 
 #include <boost/signals2.hpp>
 
 #define DEBUG
+
+inline void LOG_ERROR(const char* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    SDL_LogError(SDL_LOG_CATEGORY_CUSTOM, fmt, args);
+    va_end(args);
+
+}
+
+inline void LOG_AND_ABORT(const char* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    SDL_LogError(SDL_LOG_CATEGORY_CUSTOM, fmt, args);
+    abort();
+    va_end(args);
+}
+
+#define array_len(arr) (sizeof(arr) / sizeof(arr[0]))
 
 #include "pro.hpp"
 #include "Context.hpp"

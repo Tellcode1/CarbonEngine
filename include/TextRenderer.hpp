@@ -79,6 +79,16 @@ struct TextRenderInfo {
     NanoTextAlignmentVertical vertical;
 };
 
+// struct amongus {
+//     NanoFont *font;
+//     float scale;
+//     float x;
+//     float y;
+//     std::string line;
+//     NanoTextAlignmentHorizontal horizontal;
+//     NanoTextAlignmentVertical vertical;
+// };
+
 struct TextRendererSingleton
 {
     TextRendererSingleton() = default;
@@ -94,7 +104,7 @@ struct TextRendererSingleton
     
     void BeginRender();
     void Render(TextRenderInfo& info, const NanoFont* font);
-    void EndRender(VkCommandBuffer cmd, const glm::mat4& matrix = glm::mat4(1.0f));
+    void EndRender(VkCommandBuffer cmd, const glm::mat4 &projection, const glm::mat4& matrix = glm::mat4(1.0f));
 
     void LoadFont(const char* path, u32 pixelSizes, NanoFont* dstFont);
     std::future<NanoFont> LoadFont(const char* path, u32 pixelSizes);
@@ -102,8 +112,6 @@ struct TextRendererSingleton
 
     void RecreatePipeline();
     void ReallocateBuffers(bool shrinkToFit);
-
-    glm::mat4 projection;
 
     u32 charsDrawn = 0;
     u8 currFontIndex = 0;
@@ -117,6 +125,7 @@ struct TextRendererSingleton
     };
 
     std::vector<Draw> drawList;
+    // std::vector<amongus> textList;
     std::vector<vec4> vertices;
     std::vector<u16> indices;
 
@@ -130,15 +139,17 @@ struct TextRendererSingleton
     bool dispatchedCompute = false;
 
     // void LoadFontAsync(const char* path, u32 pixelSizes, std::function<void(NanoFont)> callback, NanoFont* dstFont = nullptr);
-    VkCommandBuffer computeCmdBuffers[MaxFramesInFlight];
+    VkCommandBuffer renderCmd[MaxFramesInFlight];
     VkBuffer stagingBuffer = VK_NULL_HANDLE;
     VkDeviceMemory stagingBufferMemory = VK_NULL_HANDLE;
     VkCommandPool m_cmdPool = VK_NULL_HANDLE;
     VkCommandBuffer m_cmdBuffer = VK_NULL_HANDLE;
+    VkCommandBuffer m_copyBuffer = VK_NULL_HANDLE;
 
     private:
     void DispatchCompute();
-    void RenderLine(const f32 x, f32* y, const std::string_view line, const NanoTextAlignmentHorizontal horizontal, const f32 scale, const NanoFont* font);
+    // void RenderString(const amogus &amog);
+    void RenderLine(const f32 x, f32 y, const std::string_view line, const NanoTextAlignmentHorizontal horizontal, const f32 scale, const NanoFont* font);
     void GetTextSize(const NanoFont* font, const std::string_view& pText, f32* width, f32* height, f32 scale);
     void CreatePipeline();
 

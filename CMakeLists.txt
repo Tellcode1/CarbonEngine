@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
 project(main)
-# project(Atlas)
 
 find_package(Vulkan REQUIRED)
 include_directories(${Vulkan_INCLUDE_DIRS})
@@ -12,11 +11,10 @@ find_package(Freetype REQUIRED)
 include_directories(${FREETYPE_INCLUDE_DIRS})
 
 find_package(Boost REQUIRED COMPONENTS filesystem)
-include_directories(${Boost_INCLUDE_DIRS}) 
+include_directories(${Boost_INCLUDE_DIRS})
 
-
-# find_package(STB REQUIRED)
-# include_directories(${STB_INCLUDE_DIRS})
+# find_package(stb REQUIRED)
+# include_directories(${stb_INCLUDE_DIRS})
 
 include_directories(${CMAKE_SOURCE_DIR}/src)
 include_directories(${CMAKE_SOURCE_DIR}/include)
@@ -32,27 +30,31 @@ set(SOURCES
     src/main.cpp
     src/Bootstrap.cpp
     src/Renderer.cpp
-    src/DynamicDescriptors.cpp
     src/TextRenderer.cpp
-    src/DMalloc.cpp
-    src/Image.cpp
     src/epichelperlib.cpp
-    # Atlas/Atlas.cpp
 )
 
 include_directories(${CMAKE_SOURCE_DIR})
 include_directories(${CMAKE_SOURCE_DIR}/src)
 include_directories(${CMAKE_SOURCE_DIR}/include)
+include_directories(${CMAKE_SOURCE_DIR}/external)
 include_directories(${CMAKE_SOURCE_DIR}/Atlas)
 include_directories(${CMAKE_SOURCE_DIR}/UIX)
 include_directories(${CMAKE_SOURCE_DIR}/build)
 
+# option(MSDFGEN_USE_VCPKG OFF)
+# option(MSDFGEN_USE_SKIA OFF)
+
+add_subdirectory(${CMAKE_SOURCE_DIR}/external/tinyxml2)
+# add_subdirectory(${CMAKE_SOURCE_DIR}/external/msdfgen)
+
 set(LIBS
     vulkan
     SDL3
-    stb
     freetype
     ${Boost_LIBRARIES}
+    # msdfgen
+    # stb
 )
 
 exec_program(

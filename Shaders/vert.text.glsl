@@ -17,7 +17,7 @@ uniform PC
 };
 
 void main() {
-    gl_Position = mvp * vec4(verticesAndUV.xy - 1.0, 0.0, 1.0);
+    gl_Position = mvp * vec4(verticesAndUV.xy, 0.0, 1.0);
     FragTexCoord = verticesAndUV.zw;
     textureIndex = inTextureIndex;
 }
