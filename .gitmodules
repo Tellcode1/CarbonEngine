@@ -1,0 +1,12 @@
+[submodule "external/stb"]
+	path = external/stb
+	url = https://github.com/nothings/stb.git
+[submodule "external/harfbuzz"]
+	path = external/harfbuzz
+	url = https://github.com/harfbuzz/harfbuzz.git
+[submodule "external/tinyxml2"]
+	path = external/tinyxml2
+	url = https://github.com/leethomason/tinyxml2.git
+[submodule "external/msdf-atlas-gen"]
+	path = external/msdf-atlas-gen
+	url = https://github.com/Chlumsky/msdf-atlas-gen.git
