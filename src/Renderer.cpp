@@ -1,6 +1,7 @@
 #include "Renderer.hpp"
 #include "pro.hpp"
-#include "TextRenderer.hpp"
+#include "Bootstrap.hpp"
+// #include "TextRenderer.hpp"
 
 constexpr u32 PipelineFlags = 0;
 
@@ -292,14 +293,14 @@ void RendererSingleton::EndRender()
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = &swapchain;
 
-    if(TextRenderer->dispatchedCompute)
-    {
-        vkWaitForFences(device, 1, &TextRenderer->fence, VK_TRUE, UINT64_MAX);
-        vkResetFences(device, 1, &TextRenderer->fence);
-        vkResetCommandBuffer(TextRenderer->renderCmd[currentFrame], 0);
+    // if(TextRenderer->dispatchedCompute)
+    // {
+    //     vkWaitForFences(device, 1, &TextRenderer->fence, VK_TRUE, UINT64_MAX);
+    //     vkResetFences(device, 1, &TextRenderer->fence);
+    //     vkResetCommandBuffer(TextRenderer->renderCmd[currentFrame], 0);
 
-        TextRenderer->dispatchedCompute = false;
-    }
+    //     TextRenderer->dispatchedCompute = false;
+    // }
     
     VkResult result = vkQueuePresentKHR(Graphics->GraphicsQueue, &presentInfo);
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {

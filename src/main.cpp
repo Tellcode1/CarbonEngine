@@ -4,7 +4,7 @@
 #include "Bootstrap.hpp"
 #include "pro.hpp"
 #include "Renderer.hpp"
-#include "TextRenderer.hpp"
+#include "CFont.hpp"
 
 void GetMousePositionNDC(SDL_Window* window, float* ndcX, float* ndcY) {
     f32 mouseX, mouseY;
@@ -21,12 +21,10 @@ int main(void) {
     const auto start = std::chrono::high_resolution_clock::now();
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER);
 
-    const auto& textRD = TextRenderer;
     const auto& RD = Renderer;
 
     TIME_FUNCTION(Context->Initialize("epic", 800, 600));
     TIME_FUNCTION(Renderer->Initialize());
-    TIME_FUNCTION(TextRenderer->Initialize());
 
     constexpr float updateTime = 3.0f;
     float totalTime = 0.0f;
@@ -41,16 +39,14 @@ int main(void) {
 
     glm::vec2 mousePosition(0.0f);
 
-    NanoFont defaultFont;
-
-    TIME_FUNCTION(textRD->LoadFont("../Assets/roboto.ttf", 200, &defaultFont));
-
-    NanoTextAlignmentVertical vertical = TEXT_VERTICAL_ALIGN_TOP;
-    NanoTextAlignmentHorizontal horizontal = TEXT_HORIZONTAL_ALIGN_LEFT;
-
     const auto& initTime = std::chrono::high_resolution_clock::now() - start;
     printf("Initialized in %ld ms || %.3f s\n", std::chrono::duration_cast<std::chrono::milliseconds>(initTime).count(), std::chrono::duration_cast<std::chrono::milliseconds>(initTime).count() / 1000.0f);
     float zoom = 0.05f;
+
+    cf::CFont amongus;
+    cf::CFontLoadInfo infoo{};
+    infoo.fontPath = "../Assets/roboto.ttf";
+    cf::CFLoad(&infoo, &amongus);
 
     SDL_Event event;
 
@@ -85,66 +81,6 @@ int main(void) {
             // const f32 aspectRatio = (f32)Graphics->RenderExtent.width / Graphics->RenderExtent.height;
             // const glm::mat4 projection = glm::perspective(glm::radians(45.0f), aspectRatio, 0.0f, 1.0f);
             // std::cout << "Window size : " << halfWidth << 'x' << halfHeight << '\n';
-
-            TextRenderInfo info;
-            info.scale = zoom;
-            info.x = rawMousePosition.x;
-            info.y = rawMousePosition.y;
-            info.horizontal = horizontal;
-            info.vertical = vertical;
-            info.line = str;
-
-            TextRenderInfo info2;
-            info2.scale = zoom;
-            info2.x = -halfWidth;
-            info2.y = -halfHeight;
-            info2.horizontal = TEXT_HORIZONTAL_ALIGN_LEFT;
-            info2.vertical = TEXT_VERTICAL_ALIGN_TOP;
-            info2.line = "(" + std::to_string(-halfWidth) + ", " + std::to_string(-halfHeight) + ")";
-            
-            TextRenderInfo info3;
-            info3.scale = zoom;
-            info3.x = halfWidth;
-            info3.y = -halfHeight;
-            info3.horizontal = TEXT_HORIZONTAL_ALIGN_RIGHT;
-            info3.vertical = TEXT_VERTICAL_ALIGN_TOP;
-            info3.line = "(" + std::to_string(halfWidth) + ", " + std::to_string(-halfHeight) + ")";
-
-            TextRenderInfo info4;
-            info4.scale = zoom;
-            info4.x = -halfWidth;
-            info4.y = halfHeight;
-            info4.horizontal = TEXT_HORIZONTAL_ALIGN_LEFT;
-            info4.vertical = TEXT_VERTICAL_ALIGN_BOTTOM;
-            info4.line = "(" + std::to_string(-halfWidth) + ", " + std::to_string(halfHeight) + ")";
-            
-            TextRenderInfo info5;
-            info5.scale = zoom;
-            info5.x =  halfWidth;
-            info5.y =  halfHeight;
-            info5.horizontal = TEXT_HORIZONTAL_ALIGN_RIGHT;
-            info5.vertical = TEXT_VERTICAL_ALIGN_BOTTOM;
-            info5.line = "(" + std::to_string(halfWidth) + ", " + std::to_string(halfHeight) + ")";
-
-            TextRenderInfo info6;
-            info6.scale = (sinf(SDL_GetTicks() / 1000.0f * (2 * M_PI / 5.0f)) + 1.5f) / 5.0f;
-            info6.x =  0.0f;
-            info6.y =  0.0f;
-            info6.horizontal = TEXT_HORIZONTAL_ALIGN_CENTER;
-            info6.vertical = TEXT_VERTICAL_ALIGN_CENTER;
-            info6.line = "amongus???";
-
-            textRD->BeginRender();
-
-            // textRD->AddToTextRenderQueue("gamering", zoom, -400.0f, -300.0f, horizontal, vertical);
-            textRD->Render(info, &defaultFont);
-            textRD->Render(info3, &defaultFont);
-            textRD->Render(info5, &defaultFont);
-            textRD->Render(info2, &defaultFont);
-            textRD->Render(info6, &defaultFont);
-            textRD->Render(info4, &defaultFont);
-
-            textRD->EndRender(cmd, projection);
 
             /*
             *   Draw other stuff
@@ -188,27 +124,6 @@ int main(void) {
                     break;
                 case SDLK_END:
                     str += '\0';
-                    break;
-                case SDLK_F9:
-                    vertical = TEXT_VERTICAL_ALIGN_TOP;
-                    break;
-                case SDLK_F10:
-                    vertical = TEXT_VERTICAL_ALIGN_CENTER;
-                    break;
-                case SDLK_F11:
-                    vertical = TEXT_VERTICAL_ALIGN_BOTTOM;
-                    break;
-                case SDLK_F12:
-                    vertical = TEXT_VERTICAL_ALIGN_BASELINE;
-                    break;
-                case SDLK_F5:
-                    horizontal = TEXT_HORIZONTAL_ALIGN_LEFT;
-                    break;
-                case SDLK_F6:
-                    horizontal = TEXT_HORIZONTAL_ALIGN_CENTER;
-                    break;
-                case SDLK_F7:
-                    horizontal = TEXT_HORIZONTAL_ALIGN_RIGHT;
                     break;
                 case SDLK_GRAVE:
                     str += 

@@ -81,14 +81,14 @@ using glm::mat2;
 using glm::mat3;
 using glm::mat4;
 
-#define BLK "\e[0;30m"
-#define RED "\e[0;31m"
-#define GRN "\e[0;32m"
-#define YEL "\e[0;33m"
-#define BLU "\e[0;34m"
-#define MAG "\e[0;35m"
-#define CYN "\e[0;36m"
-#define WHT "\e[0;37m"
+// #define BLK "\e[0;30m"
+// #define RED "\e[0;31m"
+// #define GRN "\e[0;32m"
+// #define YEL "\e[0;33m"
+// #define BLU "\e[0;34m"
+// #define MAG "\e[0;35m"
+// #define CYN "\e[0;36m"
+// #define WHT "\e[0;37m"
 
 constexpr const char* ANSI_FORMAT_BLACK = "\033[30m";
 constexpr const char* ANSI_FORMAT_RED = "\033[31m";

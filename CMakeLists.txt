@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.25)
 project(main)
 
 find_package(Vulkan REQUIRED)
@@ -30,8 +30,9 @@ set(SOURCES
     src/main.cpp
     src/Bootstrap.cpp
     src/Renderer.cpp
-    src/TextRenderer.cpp
+    src/CFTextRenderer.cpp
     src/epichelperlib.cpp
+    src/CFont.cpp
 )
 
 include_directories(${CMAKE_SOURCE_DIR})
@@ -42,18 +43,28 @@ include_directories(${CMAKE_SOURCE_DIR}/Atlas)
 include_directories(${CMAKE_SOURCE_DIR}/UIX)
 include_directories(${CMAKE_SOURCE_DIR}/build)
 
-# option(MSDFGEN_USE_VCPKG OFF)
-# option(MSDFGEN_USE_SKIA OFF)
+set(HAS_MSDF 1)
+
+set(MSDFGEN_CORE_ONLY OFF)
+set(MSDFGEN_BUILD_STANDALONE OFF)
+set(MSDFGEN_USE_SKIA OFF)
+set(MSDFGEN_USE_VCPKG OFF)
+
+set(MSDF_ATLAS_USE_VCPKG OFF)
+set(MSDF_ATLAS_USE_SKIA OFF)
+set(MSDF_ATLAS_DYNAMIC_RUNTIME ON)
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/external/tinyxml2)
-# add_subdirectory(${CMAKE_SOURCE_DIR}/external/msdfgen)
+include_directories(${CMAKE_SOURCE_DIR}/external/msdf-atlas-gen/msdfgen)
+include_directories(${CMAKE_SOURCE_DIR}/external/msdf-atlas-gen/msdf-atlas-gen)
+add_subdirectory(${CMAKE_SOURCE_DIR}/external/msdf-atlas-gen)
 
 set(LIBS
     vulkan
     SDL3
     freetype
     ${Boost_LIBRARIES}
-    # msdfgen
+    msdf-atlas-gen
     # stb
 )
 

@@ -2,7 +2,7 @@
 #define __C_FONT_HPP__
 
 #include "stdafx.hpp"
-
+#include "external/msdf-atlas-gen/msdf-atlas-gen/msdf-atlas-gen.h"
 
 namespace cf
 {
@@ -11,7 +11,15 @@ namespace cf
 	/* Internal CFont struct. Do not modify yourselves! */
 	struct _CFont
 	{
-		// Fill
+		u32 atlasWidth, atlasHeight;
+		u8 *atlasData;
+
+		// Font registry data
+		u32 fontIndex;
+		VkImage texture;
+		VkImageView textureView;
+		VkDeviceMemory textureMemory;
+		VkSampler sampler;
 	};
 
 	typedef _CFont *CFont;
@@ -30,7 +38,7 @@ namespace cf
 	};
 
 	static void CFInit(void);
-	static void CFLoad(const CFontLoadInfo* pInfo, CFont* dst);
+	extern void CFLoad(const CFontLoadInfo* pInfo, CFont* dst);
 }
 
 #endif
