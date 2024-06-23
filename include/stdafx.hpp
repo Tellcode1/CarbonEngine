@@ -121,15 +121,16 @@ constexpr const char* ANSI_FORMAT_DEFAULT = ANSI_FORMAT_RESET;
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
 
-#include <freetype2/ft2build.h>
-#include FT_FREETYPE_H
+#include <codecvt>
+#include <locale>
 
 #include <chrono>
-#define TIME_FUNCTION_REAL_REAL_REAL(x, y) x##y
-#define TIME_FUNCTION_REAL_REAL(x, y) TIME_FUNCTION_REAL_REAL_REAL(x, y)
-#define TIME_FUNCTION_REAL(func, LINE) const auto TIME_FUNCTION_REAL_REAL(__COUNTER_BEGIN__, __LINE__) = std::chrono::high_resolution_clock::now();\
+#define CONCAT(x, y) x##y
+
+#define __WRAPPER1(x, y) CONCAT(x, y)
+#define TIME_FUNCTION_REAL(func, LINE) const auto __WRAPPER1(__COUNTER_BEGIN__, __LINE__) = std::chrono::high_resolution_clock::now();\
 							func; /* Call the function*/ \
-							std::cout << #func << " Took " << std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - TIME_FUNCTION_REAL_REAL(__COUNTER_BEGIN__, __LINE__)).count() / 1000000.0f << "ms\n"
+							std::cout << #func << " Took " << std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - __WRAPPER1(__COUNTER_BEGIN__, __LINE__)).count() / 1000000.0f << "ms\n"
 
 #define TIME_FUNCTION(func) TIME_FUNCTION_REAL(func, __LINE__)
 
@@ -137,20 +138,21 @@ constexpr const char* ANSI_FORMAT_DEFAULT = ANSI_FORMAT_RESET;
 
 #define DEBUG
 
-inline void LOG_ERROR(const char* fmt, ...) {
+inline void LOG_ERROR(const char *fmt, ...) {
+    printf("ERROR!\n");
     va_list args;
     va_start(args, fmt);
-    SDL_LogError(SDL_LOG_CATEGORY_CUSTOM, fmt, args);
+    vfprintf(stderr, fmt, args);
     va_end(args);
-
 }
 
-inline void LOG_AND_ABORT(const char* fmt, ...) {
+inline void LOG_AND_ABORT(const char *fmt, ...) {
+    printf("FATAL ERROR!\n");
     va_list args;
     va_start(args, fmt);
-    SDL_LogError(SDL_LOG_CATEGORY_CUSTOM, fmt, args);
-    abort();
+    vfprintf(stderr, fmt, args);
     va_end(args);
+    abort();
 }
 
 #define array_len(arr) (sizeof(arr) / sizeof(arr[0]))

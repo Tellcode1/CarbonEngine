@@ -43,8 +43,6 @@ include_directories(${CMAKE_SOURCE_DIR}/Atlas)
 include_directories(${CMAKE_SOURCE_DIR}/UIX)
 include_directories(${CMAKE_SOURCE_DIR}/build)
 
-set(HAS_MSDF 1)
-
 set(MSDFGEN_CORE_ONLY OFF)
 set(MSDFGEN_BUILD_STANDALONE OFF)
 set(MSDFGEN_USE_SKIA OFF)
@@ -65,7 +63,6 @@ set(LIBS
     freetype
     ${Boost_LIBRARIES}
     msdf-atlas-gen
-    # stb
 )
 
 exec_program(

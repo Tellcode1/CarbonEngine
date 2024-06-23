@@ -5,15 +5,7 @@
 #include "pro.hpp"
 #include "Renderer.hpp"
 #include "CFont.hpp"
-
-void GetMousePositionNDC(SDL_Window* window, float* ndcX, float* ndcY) {
-    f32 mouseX, mouseY;
-    SDL_GetGlobalMouseState(&mouseX, &mouseY);
-
-    // Convert to NDC
-    *ndcX = 2.0f * (mouseX / static_cast<float>(Graphics->RenderExtent.width)) - 1.0f;
-    *ndcY = 1.0f - 2.0f * (mouseY / static_cast<float>(Graphics->RenderExtent.height));
-}
+#include "CFTextRenderer.hpp"
 
 int main(void) {
     system("clear");
@@ -25,6 +17,7 @@ int main(void) {
 
     TIME_FUNCTION(Context->Initialize("epic", 800, 600));
     TIME_FUNCTION(Renderer->Initialize());
+    ctext::Init();
 
     constexpr float updateTime = 3.0f;
     float totalTime = 0.0f;
@@ -66,11 +59,7 @@ int main(void) {
 
         vec2 rawMousePosition;
         SDL_GetMouseState(&rawMousePosition.x, &rawMousePosition.y);
-        // GetMousePositionNDC(window, &mousePosition.x, &mousePosition.y);
 
-        // std::cout << rawMousePosition.x << ", " << rawMousePosition.y << '\n';
-        // std::cout << mousePosition.x << ", " << mousePosition.y << '\n';
-        // std::cout << '\n';
 
         if (RD->BeginRender()) {
             const VkCommandBuffer cmd = RD->GetDrawBuffer();
@@ -78,10 +67,8 @@ int main(void) {
             const f32 halfWidth = (f32)Graphics->RenderExtent.width / 2.0f;
             const f32 halfHeight = (f32)Graphics->RenderExtent.height / 2.0f;
             const glm::mat4 projection = glm::ortho(-halfWidth, halfWidth, -halfHeight, halfHeight, 0.0f, 1.0f);
-            // const f32 aspectRatio = (f32)Graphics->RenderExtent.width / Graphics->RenderExtent.height;
-            // const glm::mat4 projection = glm::perspective(glm::radians(45.0f), aspectRatio, 0.0f, 1.0f);
-            // std::cout << "Window size : " << halfWidth << 'x' << halfHeight << '\n';
 
+            ctext::Render(amongus, cmd, U"gamer", 0.0f, 1.0f, zoom);
             /*
             *   Draw other stuff
             */

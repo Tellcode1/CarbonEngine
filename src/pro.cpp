@@ -319,11 +319,11 @@ void pro::CreateRenderPass(VkDevice device, RenderPassCreateInfo const *pCreateI
 	ResultCheck(vkCreateRenderPass(device, &renderPassInfo, VK_NULL_HANDLE, dstRenderPass));
 }
 
-void pro::CreatePipelineLayout(VkDevice device, PipelineCreateInfo const *pCreateInfo, Pipeline *dstPipeline)
+void pro::CreatePipelineLayout(VkDevice device, PipelineCreateInfo const *pCreateInfo, VkPipelineLayout *dstLayout)
 {
 	REQUIRED_PTR(device);
 	REQUIRED_PTR(pCreateInfo);
-	REQUIRED_PTR(dstPipeline);
+	REQUIRED_PTR(dstLayout);
 
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
 	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -332,7 +332,12 @@ void pro::CreatePipelineLayout(VkDevice device, PipelineCreateInfo const *pCreat
 	pipelineLayoutCreateInfo.pushConstantRangeCount = FALLBACK_SIZE(pCreateInfo->pPushConstants);
 	pipelineLayoutCreateInfo.pPushConstantRanges = FALLBACK_PTR(pCreateInfo->pPushConstants);
 
-	ResultCheck(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, VK_NULL_HANDLE, &dstPipeline->layout));
+	ResultCheck(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, VK_NULL_HANDLE, dstLayout));
+}
+
+void pro::CreatePipelineLayout(VkDevice device, PipelineCreateInfo const *pCreateInfo, Pipeline *dstPipeline)
+{
+	pro::CreatePipelineLayout(device, pCreateInfo, &dstPipeline->layout);
 }
 
 void pro::CreateSwapChain(VkDevice device, SwapchainCreateInfo const* pCreateInfo, VkSwapchainKHR *dstSwapchain)
