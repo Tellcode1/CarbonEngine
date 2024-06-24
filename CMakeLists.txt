@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.16)
 project(main)
 
 find_package(Vulkan REQUIRED)
@@ -19,6 +19,7 @@ include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${CMAKE_SOURCE_DIR}/src)
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
+# The name of the output
 set(OUTPUT
     main
 )
@@ -65,10 +66,9 @@ set(LIBS
     msdf-atlas-gen
 )
 
-exec_program(
-    ${CMAKE_SOURCE_DIR}/Shaders/compile.sh
-    ${CMAKE_SOURCE_DIR}/Shaders
-    ARGS ${CMAKE_BINARY_DIR}/ # Provide binary directory to app for placing output
+execute_process(
+    COMMAND ${CMAKE_SOURCE_DIR}/Shaders/compile.sh ${CMAKE_BINARY_DIR}/
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/Shaders
 )
 
 add_executable(${OUTPUT} ${SOURCES})

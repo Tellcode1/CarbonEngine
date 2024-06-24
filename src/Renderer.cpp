@@ -1,24 +1,6 @@
 #include "Renderer.hpp"
 #include "pro.hpp"
 #include "Bootstrap.hpp"
-// #include "TextRenderer.hpp"
-
-constexpr u32 PipelineFlags = 0;
-
-const std::vector<VkVertexInputAttributeDescription> pAttributeDescriptions{ 
-    // location, binding, format, offset,
-    {  0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0 },
-};
-    
-const std::vector<VkVertexInputBindingDescription> pBindingDescription{ 
-    // binding, stride, inputRate,
-    { 0, sizeof(vec2) * 2 /* 2 vec2's for position and 2 for texture positions */, VK_VERTEX_INPUT_RATE_VERTEX },
-};
-    
-const std::vector<VkPushConstantRange> pPushConstants{ 
-    //stageFlags, offset, size,
-    { VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4) },
-};
 
 constexpr VkPresentModeKHR PresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
 
@@ -26,7 +8,7 @@ void RendererSingleton::Initialize() {
     /* Initialize graphics singleton */
     {
         if (!pro::GetSupportedFormat(device, physDevice, surface, &Graphics->SwapChainImageFormat, &Graphics->SwapChainColorSpace)) {
-            LOG_AND_ABORT("Failed to find a supported format!");
+            LOG_AND_ABORT("Failed to find a supported format!\n");
         }
         Graphics->SwapChainImageCount = pro::GetImageCount(physDevice, surface);
 
@@ -63,7 +45,7 @@ void RendererSingleton::Initialize() {
                 presentFamily = i;
                 foundPresentFamily = true;
             }
-            if (foundGraphicsFamily && foundComputeFamily && foundPresentFamily && foundTransferFamily)
+            if (foundGraphicsFamily && foundGraphicsAndComputeFamily && foundPresentFamily && foundComputeFamily && foundTransferFamily)
                 break;
         
             i++;
@@ -101,7 +83,7 @@ void RendererSingleton::Initialize() {
     pro::RenderPassCreateInfo rpi{};
     rpi.format = Graphics->SwapChainImageFormat;
     rpi.subpass = 0;
-    pro::CreateRenderPass(device, &rpi, &Graphics->GlobalRenderPass, PipelineFlags);
+    pro::CreateRenderPass(device, &rpi, &Graphics->GlobalRenderPass, 0);
 
     commandPool = bootstrap::CreateCommandPool(device, physDevice, bootstrap::QueueType::GRAPHICS);
 
@@ -111,24 +93,6 @@ void RendererSingleton::Initialize() {
     allocInfo.commandBufferCount = MaxFramesInFlight;
     allocInfo.commandPool = commandPool;
     vkAllocateCommandBuffers(device, &allocInfo, drawBuffers);
-
-    VkSamplerCreateInfo samplerInfo{};
-    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    samplerInfo.magFilter = VK_FILTER_LINEAR;
-    samplerInfo.minFilter = VK_FILTER_LINEAR;
-    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.mipLodBias = 0.0f;
-    samplerInfo.compareOp = VK_COMPARE_OP_NEVER;
-    samplerInfo.minLod = 0.0f;
-    samplerInfo.maxLod = 1.0f;
-    samplerInfo.maxAnisotropy = 1.0f;
-
-    VkSampler sampler;
-    if(vkCreateSampler(device, &samplerInfo, nullptr, &sampler) != VK_SUCCESS)
-        LOG_ERROR("Failed to create font texture sampler!");
 
     for(u32 i = 0; i < MaxFramesInFlight; i++)
 	{
@@ -170,7 +134,7 @@ void RendererSingleton::Initialize() {
         imageViewCreateInfo.subresourceRange.layerCount = 1;
         
         if (vkCreateImageView(device, &imageViewCreateInfo, nullptr, &swapchainImageViews[i]) != VK_SUCCESS) {
-            LOG_ERROR("Failed to create view for swapchain image %d\n", i);
+            LOG_ERROR("Failed to create view for swapchain image %d", i);
         }
 
         VkFramebufferCreateInfo framebufferInfo{};
@@ -183,7 +147,7 @@ void RendererSingleton::Initialize() {
         framebufferInfo.layers = 1;
 
         if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &framebuffers[i]) != VK_SUCCESS)
-            LOG_ERROR("Failed to create framebuffer for swapchain image %d\n", i);
+            LOG_ERROR("Failed to create framebuffer for swapchain image %d", i);
     }
 }
 
@@ -234,7 +198,7 @@ bool RendererSingleton::BeginRender()
 
     vkResetFences(device, 1, &InFlightFence[currentFrame]);
 
-    constexpr VkClearValue clearValues = { { 0.0f, 0.0f, 0.0f, 0.0f} };
+    constexpr VkClearValue clearValues = { { 0.0f, 0.0f, 0.0f, 1.0f} };
 
     static VkRenderPassBeginInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -250,7 +214,7 @@ bool RendererSingleton::BeginRender()
     };
 
     vkBeginCommandBuffer(drawBuffer, &beginInfo);
-    vkCmdBeginRenderPass(drawBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);        
+    vkCmdBeginRenderPass(drawBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
     return true;
 }
@@ -281,10 +245,8 @@ void RendererSingleton::EndRender()
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
     
-    // Submit command buffer
     vkQueueSubmit(Graphics->GraphicsQueue, 1, &submitInfo, InFlightFence[currentFrame]);
 
-	// Present the image
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.waitSemaphoreCount = 1;
@@ -302,7 +264,7 @@ void RendererSingleton::EndRender()
     //     TextRenderer->dispatchedCompute = false;
     // }
     
-    VkResult result = vkQueuePresentKHR(Graphics->GraphicsQueue, &presentInfo);
+    VkResult result = vkQueuePresentKHR(Graphics->PresentQueue, &presentInfo);
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
         resizeRequested = true;
     }
@@ -310,35 +272,12 @@ void RendererSingleton::EndRender()
     currentFrame = ((currentFrame + 1) % MaxFramesInFlight);
 }
 
-// VkShaderModule RendererSingleton::LoadShaderModule(const char *path)
-// {
-//     std::ifstream file(path, std::ios::ate | std::ios::binary);
-//     if(!file.is_open()) {
-//         throw std::runtime_error("Failed to open shader file at path " + std::string(path));
-//     }
-
-//     size_t fileSize = (size_t)file.tellg();
-//     char buffer[fileSize];
-//     file.seekg(0);
-//     file.read(buffer, fileSize);
-//     file.close();
-
-//     VkShaderModuleCreateInfo createInfo{};
-//     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-//     createInfo.codeSize = fileSize;
-//     createInfo.pCode = reinterpret_cast<const uint32_t*>(buffer);
-//     VkShaderModule shaderModule;
-//     if(vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
-//         throw std::runtime_error("Failed to create shader module");
-//     }
-//     return shaderModule;
-// }
-
 void RendererSingleton::_SignalResize(VkExtent2D newExtent)
 {
     std::cout << "resize\n";
     vkDeviceWaitIdle(device);
 
+    // adhoc method of resetting them
     for(u32 i = 0; i < MaxFramesInFlight; i++) {
         vkDestroySemaphore(device, imageAvailableSemaphore[i], nullptr);
         vkDestroySemaphore(device, renderingFinishedSemaphore[i], nullptr);
@@ -358,41 +297,6 @@ void RendererSingleton::_SignalResize(VkExtent2D newExtent)
         vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &imageAvailableSemaphore[i]);
         vkCreateFence(device, &fenceCreateInfo, nullptr, &InFlightFence[i]);
     }
-    // i32 w, h;
-    // if (SDL_GetWindowSizeInPixels(window, &w, &h) != 0) {
-    //     Graphics->WindowSize = WindowSizeType((u32)w, (u32)h);
-    //     Graphics->FramebufferSize = WindowSizeType((u32)w, (u32)h);
-    //     std::cout << w << 'x' << h << '\n';
-    // }
-    // else {
-    //     LOG_ERROR("Invalid window size! (Failed to acquire)\nSDL Reports : %s\n", SDL_GetError());
-    //     return;
-    // };
-
-    // SDL_GetWindowSizeInPixels(window, &w, &h);
-    // if (w > 0 && h > 0)
-    //     Graphics->FramebufferSize = WindowSizeType((u32)w, (u32)h);
-    // else {
-    //     LOG_ERROR("Invalid window (framebuffer) size! (Failed to acquire)\nSDL Reports : %s\n", SDL_GetError());
-    //     return;
-    // };
-    // Graphics->FramebufferSize = WindowSizeType((u32)w, (u32)h);
-
-    // VkSurfaceCapabilitiesKHR surfaceCapabilities;
-    // vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physDevice, surface, &surfaceCapabilities);
-
-    // VkExtent2D extent;
-    // if (surfaceCapabilities.currentExtent.width == (u32)-1 || surfaceCapabilities.currentExtent.height == (u32)-1) {
-    //     i32 width, height;
-    //     SDL_GetWindowSizeInPixels(window, &width, &height);
-    //     extent.width = static_cast<u32>(width);
-    //     extent.height = static_cast<u32>(height);
-    // } else {
-    //     extent = surfaceCapabilities.currentExtent;
-    //     std::cout << "Using vulkan extent\n";
-    // }
-    // extent.width = std::max(surfaceCapabilities.minImageExtent.width, std::min(surfaceCapabilities.maxImageExtent.width, extent.width));
-    // extent.height = std::max(surfaceCapabilities.minImageExtent.height, std::min(surfaceCapabilities.maxImageExtent.height, extent.height));
 
     vkDestroySwapchainKHR(device, swapchain, nullptr);
 
@@ -418,6 +322,8 @@ void RendererSingleton::_SignalResize(VkExtent2D newExtent)
     framebuffers.resize(requestedImageCount);
 	vkGetSwapchainImagesKHR(device, swapchain, &requestedImageCount, swapchainImages.data());
 
+    Graphics->SwapChainImageCount = requestedImageCount;
+
     std::cout << newExtent.width << 'x' << newExtent.height << '\n';
 
     for (u32 i = 0; i < requestedImageCount; i++)
@@ -437,7 +343,7 @@ void RendererSingleton::_SignalResize(VkExtent2D newExtent)
         imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
         imageViewCreateInfo.subresourceRange.layerCount = 1;
         if (vkCreateImageView(device, &imageViewCreateInfo, nullptr, &swapchainImageViews[i]) != VK_SUCCESS) {
-            std::cerr << "Failed to create view for swapchain image " << i << std::endl;
+            LOG_ERROR("Failed to create view for swapchain image %u", i);
         }
 
         VkFramebufferCreateInfo framebufferInfo{};
@@ -450,7 +356,7 @@ void RendererSingleton::_SignalResize(VkExtent2D newExtent)
         framebufferInfo.layers = 1;
 
         if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &framebuffers[i]) != VK_SUCCESS) {
-            std::cerr << "Failed to create framebuffer for swapchain image " << i << std::endl;
+           LOG_ERROR("Failed to create framebuffer for swapchain image %u", i);
         }
     }
 }

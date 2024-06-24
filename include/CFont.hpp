@@ -6,20 +6,10 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"
 
-#define MSDFGEN_PUBLIC
+#define MSDFGEN_PUBLIC // ?
 #include "external/msdf-atlas-gen/msdf-atlas-gen/msdf-atlas-gen.h"
 
 #pragma GCC diagnostic pop
-
-static std::u32string to_u32string(const std::string& str) {
-	std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> convert;
-	std::cout << "Input " << str << '\n' << "Output ";
-	for(const auto &c : convert.from_bytes(str)) {
-		std::cout << std::hex << "0x" << c << " ";
-	}
-	std::cout << std::endl;
-    return convert.from_bytes(str);
-}
 
 namespace cf
 {
@@ -51,7 +41,7 @@ namespace cf
 
 		inline CFGlyph GetGlyph(u32 codepoint) {
 			if (m_glyphGeometry.find(codepoint) != m_glyphGeometry.end()) return m_glyphGeometry[codepoint];
-			LOG_ERROR("No Glyph for codepoint %u\n", codepoint);
+			LOG_ERROR("No Glyph for codepoint %u", codepoint);
 
 			return CFGlyph();
 		}

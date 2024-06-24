@@ -38,6 +38,39 @@ static VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR s
 static bool __compare_VkPhysicalDeviceFeatures(VkPhysicalDeviceFeatures want, VkPhysicalDeviceFeatures have);
 static inline bool IsExtensionAvailable(std::string name);
 
+static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessengerCallback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+    VkDebugUtilsMessageTypeFlagsEXT messageType,
+    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+    void* pUserData) {
+
+	std::string preceder = "Debug Messenger : \n\t";
+	std::string succeeder = "\n";
+
+	switch(messageSeverity)
+	{
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
+			preceder += "SEVERITY : WARNING\n\t";
+			break;
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
+			preceder += "SEVERITY : INFO\n\t";
+			break;
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
+			preceder += "SEVERITY : ERROR\n\t";
+			break;
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
+			preceder += "SEVERITY : VERBOSE\n\t";
+			break;
+		default:
+			preceder += "UNKNOWN SEVERITY\n\t";
+			break;
+	}
+
+	printf("%s%s%s", preceder.c_str(), pCallbackData->pMessage, succeeder.c_str());
+
+    return VK_FALSE;
+}
+
 // struct AvailableExtensionArray
 // {
 // 	const char** availables;
@@ -54,6 +87,8 @@ struct VulkanContextSingleton {
     VkPhysicalDevice physDevice;
     VkSurfaceKHR surface;
     SDL_Window* window;
+
+	VkDebugUtilsMessengerEXT debugMessenger;
 
 	std::unordered_set<std::string_view> availableDeviceExtensions;
 	std::unordered_set<std::string_view> availableInstanceExtensions;
@@ -318,6 +353,30 @@ static VkInstance CreateInstance(const char* title, std::unordered_set<std::stri
 
     VkInstance instance;
 	vkCreateInstance(&instanceCreateinfo, nullptr, &instance);
+
+	if (validationLayersAvailable)
+	{
+		VkDebugUtilsMessengerCreateInfoEXT createInfo = {};
+		createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+		createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+									VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+									VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+		createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+								VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+								VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+		createInfo.pfnUserCallback = DebugMessengerCallback;
+
+		auto _CreateDebugUtilsMessenger = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
+
+		if (_CreateDebugUtilsMessenger) {
+			if (_CreateDebugUtilsMessenger(instance, &createInfo, nullptr, &Context->debugMessenger) != VK_SUCCESS)
+				LOG_ERROR("Debug messenger failed to initialize");
+			else
+				printf("Debug messenger successfully set up.\n");
+		}
+		else if (!_CreateDebugUtilsMessenger)
+			LOG_ERROR("vkCreateDebugUtilsMessengerEXT proc address not found");
+	}
 
     return instance;
 }

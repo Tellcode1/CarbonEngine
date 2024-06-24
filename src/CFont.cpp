@@ -5,18 +5,19 @@
 
 /* I have no idea what any of this is */
 
-constexpr u32 channels = 1;
+constexpr u32 channels = 3;
 
-void SaveImage(const msdfgen::BitmapConstRef<f32, channels>& bitmap, u8* dstData, const char* filename) {
+void SaveImage(const msdfgen::BitmapConstRef<f32, channels> &bitmap, u8* dstData, const char* filename) {
     const u32 width = bitmap.width;
     const u32 height = bitmap.height;
 
-	#pragma omp parallel for	
+	stbi_flip_vertically_on_write(true);
+
     for (u32 y = 0; y < height; y++) {
         for (u32 x = 0; x < width; x++) {
-			// stb or something has reverse pixel data idk
-            const f32 *pixel = bitmap(x, height - 1 - y);
+            const f32 *pixel = bitmap(x, y);
 			for(u32 channel = 0; channel < channels; channel++) {
+				
 				uchar _pixel = static_cast<uchar>(std::max(0.0f, std::min(255.0f, (pixel[channel] + 0.5f) * 255.0f)));
 				dstData[channels * (y * width + x) + channel] = _pixel;
 			}
@@ -30,7 +31,7 @@ void cf::CFLoad(const CFontLoadInfo* pInfo, CFont* dst)
 {
 	if (!pInfo || !dst)
 	{
-		LOG_ERROR("pInfo or dst is nullptr!\n");
+		LOG_ERROR("pInfo or dst is nullptr!");
 	}
 
 	if (msdfgen::FreetypeHandle *ft = msdfgen::initializeFreetype())
@@ -66,7 +67,7 @@ void cf::CFLoad(const CFontLoadInfo* pInfo, CFont* dst)
 			msdf_atlas::ImmediateAtlasGenerator<
 				f32,
 				channels,
-				&msdf_atlas::sdfGenerator,
+				&msdf_atlas::msdfGenerator,
 				msdf_atlas::BitmapAtlasStorage<f32, channels>
 			> generator(width, height);
 
@@ -75,16 +76,14 @@ void cf::CFLoad(const CFontLoadInfo* pInfo, CFont* dst)
 			generator.setThreadCount(std::thread::hardware_concurrency());
 			generator.generate(glyphs.data(), glyphs.size());
 
-			sleep(1);
+			msdfgen::savePng(generator.atlasStorage(), "amongus.png");
 
 			const msdfgen::BitmapConstRef<f32, channels> ref = generator.atlasStorage();
 			
-			std::thread(
-				[&]() {
-					const auto bitmapref = ref;
-					SaveImage(bitmapref, pixelBuffer, "amongus.png");
-				}
-			).detach();
+			// std::thread(
+				// [&]() {
+				// }
+			// ).detach();
 
 			for (msdf_atlas::GlyphGeometry& glyph : glyphs)
 				(*dst)->m_glyphGeometry[glyph.getCodepoint()] = CFGlyph(glyph);
@@ -115,6 +114,8 @@ void cf::CFLoad(const CFontLoadInfo* pInfo, CFont* dst)
 			dstRef.atlasWidth = width;
 			dstRef.atlasHeight = height;
 			dstRef.atlasData = pixelBuffer;
+		} else {
+			LOG_ERROR("Failed to open font at path \"%s\". Is the path correct?", pInfo->fontPath);
 		}
 	}
 }

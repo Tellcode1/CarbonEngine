@@ -15,19 +15,8 @@
 typedef void (*ResultCheckFunc) (const VkResult);
 typedef u32 ProFlags;
 
-__attribute__((unused)) static void __print_and_abort(const char *msg, const char *file, unsigned int line, const char *function) noexcept(true) {
-	printf("%s:%u: %s: %s\n", file, line, function, msg);
-	printf("Fatal error. Aborting.\n");
-	abort();
-}
-
-#ifndef PRO_DISABLE_ERROR_CHECKING
-	#define REQUIRED_PTR(ptr) if(ptr == nullptr) __print_and_abort(#ptr" :  Required parameter '"#ptr"' specified as nullptr.", __FILE__, __LINE__, __PRETTY_FUNCTION__)
-	#define NOT_EQUAL_TO(val, to) if(val == to) __print_and_abort(#val" == "#to". Value "#val" must not be equal to "#to, __FILE__, __LINE__, __PRETTY_FUNCTION__)
-#else
-	#define REQUIRED_PTR(ptr)
-	#define NOT_EQUAL_TO(val, to)
-#endif
+#define REQUIRED_PTR(ptr) if(ptr == nullptr) LOG_AND_ABORT(#ptr" :  Required parameter '"#ptr"' specified as nullptr.\n", __FILE__, __LINE__, __PRETTY_FUNCTION__)
+#define NOT_EQUAL_TO(val, to) if(val == to) LOG_AND_ABORT(#val" == "#to". Value "#val" must not be equal to "#to".\n", __FILE__, __LINE__, __PRETTY_FUNCTION__)
 
 #ifndef PRO_ARRAY_TYPE
 	#define PRO_ARRAY_TYPE std::vector
@@ -119,7 +108,7 @@ namespace pro
 		VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT;
 
 		// Ignored if flags does not contain PIPELINE_CREATE_FLAGS_ENABLE_BLEND
-		PipelineBlendState* pBlendState = nullptr;
+		const PipelineBlendState* pBlendState = nullptr;
 
 		/*
 		*	Array pointers are allowed to be nullptr
@@ -176,8 +165,6 @@ namespace pro
 		Pipeline() = default;
 		~Pipeline() = default;
 	};
-
-	void CreateEntirePipeline(VkDevice device, PipelineCreateInfo* pCreateInfo, Pipeline* dstPipeline, PipelineCreateFlags flags);
 
 	void CreateGraphicsPipeline(VkDevice device, PipelineCreateInfo const* pCreateInfo, VkPipeline* dstPipeline, u32 flags);
 	void CreateGraphicsPipeline(VkDevice device, PipelineCreateInfo const* pCreateInfo, Pipeline* dstPipeline, u32 flags);

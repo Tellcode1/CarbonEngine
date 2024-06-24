@@ -11,13 +11,13 @@
 //     u16 indices[6];
 // };
 
-namespace ctext
+struct ctext
 {
-	extern void Render(cf::CFont font, VkCommandBuffer cmd, std::u32string text, f32 x, f32 y, f32 scale);
-    extern void Init();
+	static void Render(cf::CFont font, VkCommandBuffer cmd, std::u32string text, f32 x, f32 y, f32 scale);
+    static void Init();
 
     static VkPipeline pipeline;
-    static VkPipelineLayout layout;
+    static VkPipelineLayout pipelineLayout;
     static VkShaderModule vertex;
     static VkShaderModule fragment;
 };

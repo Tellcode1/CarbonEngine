@@ -139,18 +139,20 @@ constexpr const char* ANSI_FORMAT_DEFAULT = ANSI_FORMAT_RESET;
 #define DEBUG
 
 inline void LOG_ERROR(const char *fmt, ...) {
-    printf("ERROR!\n");
+    const std::string preceder = "ERROR : ";
+    const std::string succeeder = "\n";
     va_list args;
     va_start(args, fmt);
-    vfprintf(stderr, fmt, args);
+    vfprintf(stderr, (preceder + fmt + succeeder).c_str(), args);
     va_end(args);
 }
 
 inline void LOG_AND_ABORT(const char *fmt, ...) {
-    printf("FATAL ERROR!\n");
+    const std::string preceder = "FATAL ERROR : ";
+    const std::string succeeder = "\nThe program can not continue\n";
     va_list args;
     va_start(args, fmt);
-    vfprintf(stderr, fmt, args);
+    vfprintf(stderr, (preceder + fmt + succeeder).c_str(), args);
     va_end(args);
     abort();
 }

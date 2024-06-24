@@ -12,18 +12,18 @@ typedef double f64;
 #define FALLBACK_SIZE(arrptr) (arrptr != VK_NULL_HANDLE) ? arrptr->size() : 0
 #define FALLBACK_PTR(arrptr) (arrptr != VK_NULL_HANDLE) ? arrptr->data() : VK_NULL_HANDLE
 
-void pro::CreateEntirePipeline(const VkDevice device, PipelineCreateInfo* pCreateInfo, Pipeline* dstPipeline, u32 flags)
-{
-	// Error checking is already done by the individual functions so no need to do it here.
+// void pro::CreateEntirePipeline(const VkDevice device, PipelineCreateInfo* pCreateInfo, Pipeline* dstPipeline, u32 flags)
+// {
+// 	// Error checking is already done by the individual functions so no need to do it here.
 
-	CreateRenderPass(device, pCreateInfo, dstPipeline, flags);
-	pCreateInfo->renderPass = dstPipeline->renderPass;
+// 	CreateRenderPass(device, pCreateInfo, dstPipeline, flags);
+// 	pCreateInfo->renderPass = dstPipeline->renderPass;
 
-	CreatePipelineLayout(device, pCreateInfo, dstPipeline);
-	pCreateInfo->pipelineLayout = dstPipeline->layout;
+// 	CreatePipelineLayout(device, pCreateInfo, dstPipeline);
+// 	pCreateInfo->pipelineLayout = dstPipeline->layout;
 
-	CreateGraphicsPipeline(device, pCreateInfo, dstPipeline, flags);
-}
+// 	CreateGraphicsPipeline(device, pCreateInfo, dstPipeline, flags);
+// }
 
 void pro::CreateGraphicsPipeline(VkDevice device, PipelineCreateInfo const *pCreateInfo, VkPipeline *dstPipeline, u32 flags)
 {
@@ -181,7 +181,7 @@ void pro::CreateGraphicsPipeline(VkDevice device, PipelineCreateInfo const *pCre
 	}
 
 	// if(cacheIsNull) cacheCreator.join();
-	ResultCheck(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, VK_NULL_HANDLE, dstPipeline));
+	ResultCheck(vkCreateGraphicsPipelines(device, pCreateInfo->cache, 1, &graphicsPipelineCreateInfo, VK_NULL_HANDLE, dstPipeline));
 }
 
 void pro::CreateGraphicsPipeline(VkDevice device, PipelineCreateInfo const *pCreateInfo, Pipeline *dstPipeline, u32 flags)
@@ -409,6 +409,8 @@ bool pro::GetSupportedFormat(VkDevice device, VkPhysicalDevice physDevice, VkSur
 		
 		return VK_TRUE;
 	}
+
+	delete[] surfaceFormats;
 }
 
 u32 pro::GetImageCount(VkPhysicalDevice physDevice, VkSurfaceKHR surface)
