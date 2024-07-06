@@ -12,11 +12,11 @@ const std::vector<const char*> RequiredInstanceExtensions = {
 };
 
 const std::vector<const char*> WantedInstanceExtensions = {
-	VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
+	// VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
 };
 
 constexpr static const char* WantedDeviceExtensions[] = {
-	VK_EXT_ROBUSTNESS_2_EXTENSION_NAME,
+	// VK_EXT_ROBUSTNESS_2_EXTENSION_NAME,
 };
 
 const std::vector<const char*> RequiredDeviceExtensions = {
@@ -30,8 +30,8 @@ constexpr static VkPhysicalDeviceFeatures WantedFeatures = {
 	.samplerAnisotropy = VK_TRUE,
 };
 
-struct VulkanContextSingleton;
-static VulkanContextSingleton CreateVulkanContext(const char* title, u32 windowWidth = 800, u32 windowHeight = 600);
+struct ContextSingleton;
+static ContextSingleton CreateContext(const char* title, u32 windowWidth = 800, u32 windowHeight = 600);
 static VkInstance CreateInstance(const char* title, std::unordered_set<std::string_view>& availableExtensions);
 static VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR surface);
 
@@ -81,7 +81,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessengerCallback(
 // 	}
 // };
 
-struct VulkanContextSingleton {
+struct ContextSingleton {
     VkInstance instance;
     VkDevice device;
     VkPhysicalDevice physDevice;
@@ -94,17 +94,17 @@ struct VulkanContextSingleton {
 	std::unordered_set<std::string_view> availableInstanceExtensions;
 	VkPhysicalDeviceFeatures availableFeatures;
 
-    NANO_SINGLETON_FUNCTION VulkanContextSingleton* GetSingleton() {
-        static VulkanContextSingleton global{};
+    NANO_SINGLETON_FUNCTION ContextSingleton* GetSingleton() {
+        static ContextSingleton global{};
         return &global;
     }
 
 	inline void Initialize(const char* title, u32 windowWidth, u32 windowHeight) {
-		*GetSingleton() = CreateVulkanContext(title, windowWidth, windowHeight);
+		*GetSingleton() = CreateContext(title, windowWidth, windowHeight);
 	}
 };
-static VulkanContextSingleton* Context = VulkanContextSingleton::GetSingleton();
-static VulkanContextSingleton* ctx = Context; // ctx is much easier to use
+static ContextSingleton* Context = ContextSingleton::GetSingleton();
+static ContextSingleton* ctx = Context; // ctx is much easier to use
 
 static VkInstance& instance = ctx->instance;
 static VkDevice& device = ctx->device;
@@ -114,9 +114,9 @@ static SDL_Window*& window = ctx->window;
 
 /* FUNCTION DEFINITIONS*/
 
-static VulkanContextSingleton CreateVulkanContext(const char* title, u32 windowWidth, u32 windowHeight)
+static ContextSingleton CreateContext(const char* title, u32 windowWidth, u32 windowHeight)
 {
-    VulkanContextSingleton retval{};
+    ContextSingleton retval{};
 
     retval.window = SDL_CreateWindow(title, windowWidth, windowHeight, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
     if(retval.window == nullptr) {
@@ -127,7 +127,7 @@ static VulkanContextSingleton CreateVulkanContext(const char* title, u32 windowW
     retval.instance = CreateInstance(title, retval.availableInstanceExtensions);
     assert(retval.instance != nullptr);
     
-    if(SDL_Vulkan_CreateSurface(retval.window, retval.instance, nullptr, &retval.surface) != SDL_TRUE) {
+	if(SDL_Vulkan_CreateSurface(retval.window, retval.instance, nullptr, &retval.surface) != 0) {
 		std::cout << ANSI_FORMAT_RED << "Surface creation failed.\nSDL reports: " << ANSI_FORMAT_RESET << SDL_GetError() << "\n";
 		exit(-1);
 	}
@@ -140,8 +140,10 @@ static VulkanContextSingleton CreateVulkanContext(const char* title, u32 windowW
 	vkGetPhysicalDeviceQueueFamilyProperties(retval.physDevice, &queueCount, queueFamilies);
 
     // Clang loves complaining about these.
-	__attribute__((unused)) u32 graphicsFamily, presentFamily, computeFamily, transferFamily;
-	__attribute__((unused)) bool foundGraphicsFamily = false, foundPresentFamily = false, foundComputeFamily = false, foundTransferFamily = false;
+	u32 graphicsFamily, presentFamily, computeFamily, transferFamily;
+	graphicsFamily, presentFamily, computeFamily, transferFamily;
+
+	bool foundGraphicsFamily = false, foundPresentFamily = false, foundComputeFamily = false, foundTransferFamily = false;
 		
 	u32 i = 0;
 	for (const auto& queueFamily : queueFamilies) {
@@ -203,7 +205,6 @@ static VulkanContextSingleton CreateVulkanContext(const char* title, u32 windowW
 		for(u32 i = 0; i < extensionCount; i++)
 			if(strcmp(wanted, extensions[i].extensionName) == 0) {
 				const char* extName = extensions[i].extensionName;
-				std::cout << extName << '\n';
 				enabledExtensions[enabledIterator] = extensions[i].extensionName;
 				enabledIterator++;
 			}
@@ -240,7 +241,7 @@ static VulkanContextSingleton CreateVulkanContext(const char* title, u32 windowW
 
 	if (vkCreateDevice(retval.physDevice, &deviceCreateInfo, nullptr, &retval.device) != VK_SUCCESS) {
 		printf("Failed to create device\n");
-		abort();
+		exit(-1);
 	}
 
 	delete[] queueCreateInfos;
@@ -254,9 +255,9 @@ static VkInstance CreateInstance(const char* title, std::unordered_set<std::stri
 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	appInfo.applicationVersion = VK_API_VERSION_1_0;
 	appInfo.apiVersion = VK_API_VERSION_1_0;
-	appInfo.engineVersion = 0;
 	appInfo.pApplicationName = title;
-	appInfo.pEngineName = "No Engine";
+	appInfo.pEngineName = "Carbon Engine";
+	appInfo.engineVersion = 0;
 
 	uint32_t SDLExtensionCount = 0;
 	const char* const* SDLExtensions = SDL_Vulkan_GetInstanceExtensions(&SDLExtensionCount);
@@ -351,9 +352,13 @@ static VkInstance CreateInstance(const char* title, std::unordered_set<std::stri
 
 	#endif
 
+	delete[] layerProperties;
+	delete[] extensions;
+
     VkInstance instance;
 	vkCreateInstance(&instanceCreateinfo, nullptr, &instance);
 
+	#ifdef DEBUG
 	if (validationLayersAvailable)
 	{
 		VkDebugUtilsMessengerCreateInfoEXT createInfo = {};
@@ -377,6 +382,7 @@ static VkInstance CreateInstance(const char* title, std::unordered_set<std::stri
 		else if (!_CreateDebugUtilsMessenger)
 			LOG_ERROR("vkCreateDebugUtilsMessengerEXT proc address not found");
 	}
+	#endif
 
     return instance;
 }
@@ -403,7 +409,7 @@ static void PrintDeviceInfo(VkPhysicalDevice device)
 	}
 
 	printf(
-		"Selected device => (%s) %s Vulkan API Version %d.%d\n",
+		"Selected device : (%s) %s Vulkan API Version %d.%d\n",
 		deviceTypeStr, properties.deviceName,
 		properties.apiVersion >> 22, (properties.apiVersion >> 12) & 0x3FF
 	);
@@ -411,7 +417,6 @@ static void PrintDeviceInfo(VkPhysicalDevice device)
 
 static VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR surface) {
 
-    VkPhysicalDevice chosenDevice = VK_NULL_HANDLE;
 	uint32_t physDeviceCount = 0;
 	vkEnumeratePhysicalDevices(instance, &physDeviceCount, nullptr);
 	
@@ -431,12 +436,6 @@ static VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR s
 
 		uint32_t presentModeCount = 0;
 		vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr);
-
-		uint32_t queueCount = 0;
-
-		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueCount, nullptr);
-		VkQueueFamilyProperties *queueFamilies = new VkQueueFamilyProperties[queueCount];
-		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueCount, queueFamilies);
 		
 		bool extensionsAvailable = true;
 
@@ -452,47 +451,34 @@ static VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR s
 					validated = true;
 			}
 			if (!validated) {
-				printf("Failed to validate extension with name: %s\n", extension);
+				LOG_ERROR("Failed to validate extension with name: %s\n", extension);
 				extensionsAvailable = false;
 			}
 		}
-		
-		bool foundGraphicsFamily = false, foundPresentFamily = false, foundComputeFamily = false;
-		
-		for (u32 j = 0; j < queueCount; j++) {
-			const auto& queueFamily = queueFamilies[j];
-			VkBool32 presentSupport = false;
-			vkGetPhysicalDeviceSurfaceSupportKHR(device, j, surface, &presentSupport);
 
-			if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
-				foundGraphicsFamily = true;
-			if (queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT)
-				foundComputeFamily = true;
-			if (presentSupport)
-				foundPresentFamily = true;
-			if (foundGraphicsFamily && foundComputeFamily && foundPresentFamily)
-				break;
+		if (extensionsAvailable && formatCount > 0 && presentModeCount > 0) {
+			VkPhysicalDevice selected = device; // Need to do this because the physical devices array will be deleted.
+
+			delete[] availableExtensions;
+			delete[] physicalDevices;
+
+			std::cout << ANSI_FORMAT_GREEN << "Found device!\n" << ANSI_FORMAT_RESET;
+			PrintDeviceInfo(selected);
+			return selected;
 		}
 
-		if (((foundGraphicsFamily && foundComputeFamily && foundPresentFamily)) && extensionsAvailable && (formatCount > 0 && presentModeCount > 0)) { // Not sure how the last checks are supposed to be helpful.
-			chosenDevice = device;
-			break;
-		}
+		delete[] availableExtensions;
 	}
 
-	if(chosenDevice == VK_NULL_HANDLE) {
-		VkPhysicalDeviceProperties properties;
-		vkGetPhysicalDeviceProperties(physicalDevices[0], &properties);
+	VkPhysicalDeviceProperties properties;
+	vkGetPhysicalDeviceProperties(physicalDevices[0], &properties);
 
-		printf("Could not find an appropriate device. Falling back to device 0: %s\n", properties.deviceName);
-		PrintDeviceInfo(physicalDevices[0]);
-		return physicalDevices[0];
-	}
+	printf("Could not find an appropriate device. Falling back to device 0: %s\n", properties.deviceName);
+	delete[] physicalDevices;
 
-	std::cout << ANSI_FORMAT_GREEN << "Found device!\n" << ANSI_FORMAT_RESET;
-	PrintDeviceInfo(chosenDevice);
-
-	return chosenDevice;
+	VkPhysicalDevice fallback = physicalDevices[0];
+	PrintDeviceInfo(fallback);
+	return fallback;
 }
 
 static inline bool IsExtensionAvailable(std::string name)

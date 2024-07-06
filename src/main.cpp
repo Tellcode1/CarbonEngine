@@ -5,10 +5,9 @@
 #include "pro.hpp"
 #include "Renderer.hpp"
 #include "CFont.hpp"
-#include "CFTextRenderer.hpp"
+#include "CTextRenderer.hpp"
 
 int main(void) {
-    const auto start = std::chrono::high_resolution_clock::now();
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER);
 
     const auto& RD = Renderer;
@@ -17,15 +16,13 @@ int main(void) {
     TIME_FUNCTION(Renderer->Initialize());
     ctext::Init();
 
-    constexpr float updateTime = 3.0f;
-    float totalTime = 0.0f;
+    constexpr f32 updateTime = 3.0f; // seconds. 1.5f = 1.5 seconds
+    f32 totalTime = 0.0f;
     u16 numFrames = 0;
 
     u64 currentTime = SDL_GetTicksNS();
     u64 lastFrameTime = currentTime;
-    float dt = 0.0;
-
-    const auto& initTime = std::chrono::high_resolution_clock::now() - start;
+    f32 dt = 0.0;
 
     // What in the unholy f%$ where you doing
     printf("Initialized in %ld ms || %.3f s\n", SDL_GetTicks(), SDL_GetTicks() / 1000.0f);
@@ -46,7 +43,7 @@ int main(void) {
         totalTime += dt;
         numFrames++;
         if (totalTime > updateTime) {
-            printf("%ldfps : %d frames / %.2fs = ~%fs/frame\n", static_cast<u64>(floor(numFrames / totalTime)), numFrames, updateTime, totalTime / static_cast<f32>(numFrames));
+            printf("%ldfps : %d frames / %.2fs = ~%fs/frame\n", static_cast<u64>(floorf(numFrames / totalTime)), numFrames, updateTime, totalTime / static_cast<f32>(numFrames));
             numFrames = 0;
             totalTime = 0.0;
         }

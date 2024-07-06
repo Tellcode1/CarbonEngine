@@ -189,7 +189,7 @@ void TextRendererSingleton::Initialize()
 
     // VkCommandPoolCreateInfo commandPoolInfo{};
     // commandPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    // commandPoolInfo.queueFamilyIndex = Graphics->GraphicsFamilyIndex;
+    // commandPoolInfo.queueFamilyIndex = vctx::GraphicsFamilyIndex;
     // commandPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     // vkCreateCommandPool(device, &commandPoolInfo, nullptr, &m_cmdPool);
 
@@ -209,7 +209,7 @@ void TextRendererSingleton::Initialize()
     
     TIME_FUNCTION(CreatePipeline());
 
-    Graphics->OnWindowResized.connect([&]() {
+    vctx::OnWindowResized.connect([&]() {
         std::cout << "resized pipeline\n";
         RecreatePipeline();
     });
@@ -217,8 +217,8 @@ void TextRendererSingleton::Initialize()
 
 void TextRendererSingleton::BeginRender()
 {
-    // const f32 halfWidth = (f32)Graphics->RenderArea.x / 2.0f;
-    // const f32 halfHeight = (f32)Graphics->RenderArea.y / 2.0f;
+    // const f32 halfWidth = (f32)vctx::RenderArea.x / 2.0f;
+    // const f32 halfHeight = (f32)vctx::RenderArea.y / 2.0f;
     
     // projection = glm::ortho(-halfWidth,halfWidth, -halfHeight, halfHeight, 0.0f, 1.0f);
 }
@@ -359,8 +359,8 @@ void TextRendererSingleton::RenderLine(const f32 x, f32 y, const std::string_vie
         const f32 scaledWidth = chSize.x * scale;
         const f32 scaledHeight = chSize.y * scale;
 
-        const f32 halfWidth = (f32)Graphics->RenderExtent.width / 2.0f;
-        const f32 halfHeight = (f32)Graphics->RenderExtent.height / 2.0f;
+        const f32 halfWidth = (f32)vctx::RenderExtent.width / 2.0f;
+        const f32 halfHeight = (f32)vctx::RenderExtent.height / 2.0f;
         const glm::mat4 projection = glm::ortho(-halfWidth, halfWidth, -halfHeight, halfHeight, 0.0f, 1.0f);
 
         u32 vertexIndex = i * 4;
@@ -538,7 +538,7 @@ void TextRendererSingleton::DispatchCompute()
     // submitInfo.pCommandBuffers = &cmd;
 
     // // Submit command buffer
-    // vkQueueSubmit(Graphics->ComputeQueue, 1, &submitInfo, fence);
+    // vkQueueSubmit(vctx::ComputeQueue, 1, &submitInfo, fence);
 }
 
 void TextRendererSingleton::CreatePipeline() {
@@ -643,9 +643,9 @@ void TextRendererSingleton::CreatePipeline() {
     pro::PipelineBlendState blendState(pro::BlendPreset::PRO_BLEND_PRESET_ALPHA);
 
     pro::PipelineCreateInfo pc{};
-    pc.format = Graphics->SwapChainImageFormat;
+    pc.format = vctx::SwapChainImageFormat;
     pc.subpass = 0;
-    pc.renderPass = Graphics->GlobalRenderPass;
+    pc.renderPass = vctx::GlobalRenderPass;
     pc.pipelineLayout = m_pipelineLayout;
     pc.pAttributeDescriptions = &attributeDescriptions;
     pc.pBindingDescriptions = &bindingDescriptions;
@@ -653,8 +653,8 @@ void TextRendererSingleton::CreatePipeline() {
     pc.pShaderCreateInfos = &shaders;
     pc.pPushConstants = &pushConstantRanges;
     pc.pBlendState = &blendState;
-    pc.extent.width = Graphics->RenderExtent.width;
-    pc.extent.height = Graphics->RenderExtent.height;
+    pc.extent.width = vctx::RenderExtent.width;
+    pc.extent.height = vctx::RenderExtent.height;
     pc.pShaderCreateInfos = &shaders;
     pro::CreateGraphicsPipeline(device, &pc, &m_pipeline, PIPELINE_CREATE_FLAGS_ENABLE_BLEND);
 

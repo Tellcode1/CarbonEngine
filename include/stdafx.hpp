@@ -131,31 +131,43 @@ constexpr const char* ANSI_FORMAT_DEFAULT = ANSI_FORMAT_RESET;
 #define TIME_FUNCTION_REAL(func, LINE) const auto __WRAPPER1(__COUNTER_BEGIN__, __LINE__) = std::chrono::high_resolution_clock::now();\
 							func; /* Call the function*/ \
 							std::cout << #func << " Took " << std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - __WRAPPER1(__COUNTER_BEGIN__, __LINE__)).count() / 1000000.0f << "ms\n"
-
 #define TIME_FUNCTION(func) TIME_FUNCTION_REAL(func, __LINE__)
 
 #include <boost/signals2.hpp>
 
 #define DEBUG
 
+#define __LOG()     va_list args; \
+                    va_start(args, fmt); \
+                    vfprintf(stderr, (preceder + fmt + succeeder).c_str(), args); \
+                    va_end(args)
+
 inline void LOG_ERROR(const char *fmt, ...) {
     const std::string preceder = "ERROR : ";
     const std::string succeeder = "\n";
-    va_list args;
-    va_start(args, fmt);
-    vfprintf(stderr, (preceder + fmt + succeeder).c_str(), args);
-    va_end(args);
+    __LOG();
 }
 
 inline void LOG_AND_ABORT(const char *fmt, ...) {
     const std::string preceder = "FATAL ERROR : ";
     const std::string succeeder = "\nThe program can not continue\n";
-    va_list args;
-    va_start(args, fmt);
-    vfprintf(stderr, (preceder + fmt + succeeder).c_str(), args);
-    va_end(args);
+    __LOG();
     abort();
 }
+
+inline void LOG_WARNING(const char *fmt, ...) {
+    const std::string preceder = "Warning : ";
+    const std::string succeeder = "\n";
+    __LOG();
+}
+
+inline void LOG_INFO(const char *fmt, ...) {
+    const std::string preceder = "Info : ";
+    const std::string succeeder = "\n";
+    __LOG();
+}
+
+#undef __LOG
 
 #define array_len(arr) (sizeof(arr) / sizeof(arr[0]))
 

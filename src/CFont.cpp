@@ -50,11 +50,7 @@ void cf::CFLoad(const CFontLoadInfo* pInfo, CFont* dst)
 			}
 
 			msdf_atlas::TightAtlasPacker packer;
-			packer.setDimensionsConstraint(msdf_atlas::DimensionsConstraint::SQUARE);
-			packer.setMinimumScale(24.0);
 			packer.setPixelRange(2.0);
-			packer.setSpacing(1);
-			packer.setMiterLimit(1.0);
 			packer.pack(glyphs.data(), glyphs.size());
 
 			int width = 0, height = 0;
@@ -76,18 +72,11 @@ void cf::CFLoad(const CFontLoadInfo* pInfo, CFont* dst)
 			generator.setThreadCount(std::thread::hardware_concurrency());
 			generator.generate(glyphs.data(), glyphs.size());
 
-			msdfgen::savePng(generator.atlasStorage(), "amongus.png");
 
-			const msdfgen::BitmapConstRef<f32, channels> ref = generator.atlasStorage();
-			
-			// std::thread(
-				// [&]() {
-				// }
-			// ).detach();
+			msdfgen::savePng(generator.atlasStorage(), "amongus.png");
 
 			for (msdf_atlas::GlyphGeometry& glyph : glyphs)
 				(*dst)->m_glyphGeometry[glyph.getCodepoint()] = CFGlyph(glyph);
-				// (*dst)->m_glyphGeometry[glyph.getCodepoint()] = CFGlyph(glyph);
 
 			std::ofstream among("amongus.md");
 			for (const msdf_atlas::GlyphGeometry& glyph : glyphs) {

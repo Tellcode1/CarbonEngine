@@ -31,7 +31,7 @@ set(SOURCES
     src/main.cpp
     src/Bootstrap.cpp
     src/Renderer.cpp
-    src/CFTextRenderer.cpp
+    src/CTextRenderer.cpp
     src/epichelperlib.cpp
     src/CFont.cpp
 )
@@ -40,9 +40,7 @@ include_directories(${CMAKE_SOURCE_DIR})
 include_directories(${CMAKE_SOURCE_DIR}/src)
 include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(${CMAKE_SOURCE_DIR}/external)
-include_directories(${CMAKE_SOURCE_DIR}/Atlas)
 include_directories(${CMAKE_SOURCE_DIR}/UIX)
-include_directories(${CMAKE_SOURCE_DIR}/build)
 
 set(MSDFGEN_CORE_ONLY OFF)
 set(MSDFGEN_BUILD_STANDALONE OFF)

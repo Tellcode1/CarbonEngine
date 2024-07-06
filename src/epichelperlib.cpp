@@ -342,12 +342,21 @@ void help::Images::TransitionImageLayout(VkCommandBuffer cmd, VkImage image,
     barrier.dstAccessMask = dstAccessMask;
     vkCmdPipelineBarrier(cmd, sourceStage, dstAccessMask, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 }
+void help::Images::LoadFromDisk(const char *path, u32 channels, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkSampleCountFlagBits samples, u32 mipMapLevels, VkImage *dstImage, VkDeviceMemory *dstMemory, bool externallyAllocated)
+{
+    stbi_set_flip_vertically_on_load(false);
+    i32 width, height, gotchannels;
+    u8* buffer = stbi_load(path, &width, &height, &gotchannels, channels);
+    if ((u32)gotchannels != channels)
+        LOG_WARNING("Requested %u channels but got %i for image on path %s", channels, gotchannels, path);
+    LoadVulkanImage(buffer, width, height, format, tiling, usage, properties, samples, mipMapLevels, dstImage, dstMemory, externallyAllocated);
+}
 
-void help::Images::LoadFromDisk(const char* path, u8 channels, u8** dst, u32* dstWidth, u32* dstHeight)
+void help::Images::LoadFromDisk(const char *path, u8 channels, u8 **dst, u32 *dstWidth, u32 *dstHeight)
 {
     i32 width, height;
     u8* buffer = stbi_load(path, &width, &height, nullptr, channels);
-    if (dst) *dst = buffer;
+    *dst = buffer;
     *dstWidth = width;
     *dstHeight = height;
 }

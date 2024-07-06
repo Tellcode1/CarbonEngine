@@ -12,7 +12,7 @@
 
 #include "stdafx.hpp"
 
-typedef void (*ResultCheckFunc) (const VkResult);
+typedef void (*ResultCheckFunc) (const VkResult result, const char *FILE, const char *FUNC, size_t LINE);
 typedef u32 ProFlags;
 
 #define REQUIRED_PTR(ptr) if(ptr == nullptr) LOG_AND_ABORT(#ptr" :  Required parameter '"#ptr"' specified as nullptr.\n", __FILE__, __LINE__, __PRETTY_FUNCTION__)
@@ -31,21 +31,22 @@ enum PipelineCreateFlagBits
 	PIPELINE_CREATE_FLAGS_ENABLE_CULLING = tobit(2),
 
 	// IMPLEMENT
-	PIPELINE_CREATE_FLAGS_ENABLE_MULTISAMPLING = tobit(3),
-	PIPELINE_CREATE_FLAGS_DYNAMIC_VIEWPORT = tobit(4),
-	PIPELINE_CREATE_FLAGS_DYNAMIC_SCISSOR = tobit(5),
+	PIPELINE_CREATE_FLAGS_ENABLE_MULTISAMPLING = tobit(4),
 };
 typedef ProFlags PipelineCreateFlags;
 
+#define ResultCheck(func) pro::__resultFunc(func, __ASSERT_FILE, __ASSERT_FUNCTION, __LINE__)
+
 namespace pro
 {
-	inline void __defaultResultCheckFunc(const VkResult _) { return; }
+	inline void __defaultResultCheckFunc(const VkResult result, const char *FILE, const char *FUNC, size_t LINE) {
+		result != VK_SUCCESS ? LOG_ERROR("In file %s:\n        In function %s at line %lu:\n        Function returned error code %u", FILE, FUNC, LINE, result) : void(0);
+	}
 	
 	/*
 		Used internally. Do NOT modify by yourselves! Use SetResultCheckFunc instead.
 	*/
 	static ResultCheckFunc __resultFunc = __defaultResultCheckFunc; // To not cause nullptr dereference. SetResultCheckFunc also checks for nullptr and handles it.
-	inline void ResultCheck(VkResult result) { __resultFunc(result); }
 
 	/*
 		Set the result checking function for the API. This is called every time the program requests something in the order of vkCreate* that this namespace has a hold of.

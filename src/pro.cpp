@@ -137,6 +137,7 @@ void pro::CreateGraphicsPipeline(VkDevice device, PipelineCreateInfo const *pCre
 	} else
 	{
 		colorblendAttachmentState.blendEnable = VK_FALSE;
+		colorblendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 	}
 
 	VkPipelineColorBlendStateCreateInfo colorblendState{};
@@ -411,6 +412,7 @@ bool pro::GetSupportedFormat(VkDevice device, VkPhysicalDevice physDevice, VkSur
 	}
 
 	delete[] surfaceFormats;
+	return VK_FALSE;
 }
 
 u32 pro::GetImageCount(VkPhysicalDevice physDevice, VkSurfaceKHR surface)

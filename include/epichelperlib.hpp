@@ -32,13 +32,14 @@ namespace help
         VkCommandBuffer BeginSingleTimeCommands();
         
         /* WARNING: waitForExecution = false implies you take responsibility of freeing the commandBuffer! */
-        VkResult EndSingleTimeCommands(VkCommandBuffer cmd, VkQueue queue = Graphics->GraphicsAndComputeQueue, bool waitForExecution = true);
+        VkResult EndSingleTimeCommands(VkCommandBuffer cmd, VkQueue queue = vctx::GraphicsAndComputeQueue, bool waitForExecution = true);
     }
     namespace Images
     {
         void LoadFromDisk(
-            const char* path, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
-            VkMemoryPropertyFlags properties, VkImage* dstImage, VkDeviceMemory* dstMemory, bool externallyAllocated = false
+            const char* path, u32 channels, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
+            VkMemoryPropertyFlags properties, VkSampleCountFlagBits samples, u32 mipMapLevels,
+            VkImage* dstImage, VkDeviceMemory* dstMemory, bool externallyAllocated = false
         );
 
         /*

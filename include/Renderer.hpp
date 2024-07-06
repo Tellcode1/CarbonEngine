@@ -5,39 +5,46 @@
 
 constexpr static SDL_Scancode EXIT_KEY = SDL_SCANCODE_ESCAPE;
 constexpr static u8 MaxFramesInFlight = 2;
-constexpr static VkExtent2D DefaultExtent = { 800, 600 };
+constexpr static VkExtent2D DefaultExtent = { 800, 600 }; // Starting window size
 
-struct GraphicsSingleton
+struct VulkanContextSingleton
 {
-    VkFormat SwapChainImageFormat;
-    VkColorSpaceKHR SwapChainColorSpace;
-    u32 SwapChainImageCount;
+    static VkFormat SwapChainImageFormat;
+    static VkColorSpaceKHR SwapChainColorSpace;
+    static u32 SwapChainImageCount;
 
-    VkRenderPass GlobalRenderPass;
+    static VkRenderPass GlobalRenderPass;
 
-    VkExtent2D RenderExtent = DefaultExtent;
+    static VkExtent2D RenderExtent;
 
-    u32 GraphicsFamilyIndex;
-    u32 PresentFamilyIndex;
-    u32 ComputeFamilyIndex;
-    u32 TransferQueueIndex;
-    u32 GraphicsAndComputeFamilyIndex;
+    static u32 GraphicsFamilyIndex;
+    static u32 PresentFamilyIndex;
+    static u32 ComputeFamilyIndex;
+    static u32 TransferQueueIndex;
+    static u32 GraphicsAndComputeFamilyIndex;
 
-    VkQueue GraphicsQueue;
-    VkQueue GraphicsAndComputeQueue;
-    VkQueue PresentQueue;
-    VkQueue ComputeQueue;
-    VkQueue TransferQueue;
+    static VkQueue GraphicsQueue;
+    static VkQueue GraphicsAndComputeQueue;
+    static VkQueue PresentQueue;
+    static VkQueue ComputeQueue;
+    static VkQueue TransferQueue;
 
-    boost::signals2::signal<void(void)> OnWindowResized;
-
-    NANO_SINGLETON_FUNCTION GraphicsSingleton* GetSingleton() {
-        static GraphicsSingleton global;
-        return &global;
-    }
+    static boost::signals2::signal<void(void)> OnWindowResized;
 };
 
-static GraphicsSingleton* Graphics = GraphicsSingleton::GetSingleton();
+using vctx = VulkanContextSingleton;
+
+struct RendererSingleton;
+
+struct FrameRenderData
+{
+    VkImage         swapchainImage;
+    VkImageView     swapchainImageView;
+    VkFramebuffer   framebuffer;
+    VkSemaphore     imageAvailableSemaphore;
+    VkSemaphore     renderingFinishedSemaphore;
+    VkFence         inFlightFence;
+};
 
 struct RendererSingleton
 {
@@ -45,10 +52,6 @@ struct RendererSingleton
     ~RendererSingleton() = default;
 
     VkSwapchainKHR swapchain;
-    
-    std::vector<VkImage> swapchainImages;
-    std::vector<VkImageView> swapchainImageViews;
-    std::vector<VkFramebuffer> framebuffers;
 
     u8 currentFrame = 0;
     u32 imageIndex = 0;
@@ -56,9 +59,7 @@ struct RendererSingleton
     bool running = true;
 
     VkCommandPool commandPool;
-    VkSemaphore imageAvailableSemaphore[MaxFramesInFlight];
-    VkSemaphore renderingFinishedSemaphore[MaxFramesInFlight];
-    VkFence InFlightFence[MaxFramesInFlight];
+    std::vector<FrameRenderData> renderData;
     VkCommandBuffer drawBuffers[MaxFramesInFlight];
 
     void Initialize();
@@ -76,7 +77,7 @@ struct RendererSingleton
     }
 
     private:
-    void _SignalResize(VkExtent2D newSize);
+    void _SignalResize();
 };
 static RendererSingleton* Renderer = RendererSingleton::GetSingleton();
 
