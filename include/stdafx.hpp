@@ -142,27 +142,27 @@ constexpr const char* ANSI_FORMAT_DEFAULT = ANSI_FORMAT_RESET;
                     vfprintf(stderr, (preceder + fmt + succeeder).c_str(), args); \
                     va_end(args)
 
-inline void LOG_ERROR(const char *fmt, ...) {
-    const std::string preceder = "ERROR : ";
+inline void LOG_ERROR(std::string fmt, ...) {
+    const std::string preceder = "[ERROR] ";
     const std::string succeeder = "\n";
     __LOG();
 }
 
-inline void LOG_AND_ABORT(const char *fmt, ...) {
-    const std::string preceder = "FATAL ERROR : ";
+inline void LOG_AND_ABORT(std::string fmt, ...) {
+    const std::string preceder = "[FATAL ERROR] ";
     const std::string succeeder = "\nThe program can not continue\n";
     __LOG();
     abort();
 }
 
-inline void LOG_WARNING(const char *fmt, ...) {
-    const std::string preceder = "Warning : ";
+inline void LOG_WARNING(std::string fmt, ...) {
+    const std::string preceder = "[Warning] ";
     const std::string succeeder = "\n";
     __LOG();
 }
 
-inline void LOG_INFO(const char *fmt, ...) {
-    const std::string preceder = "Info : ";
+inline void LOG_INFO(std::string fmt, ...) {
+    const std::string preceder = "[Info] ";
     const std::string succeeder = "\n";
     __LOG();
 }

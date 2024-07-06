@@ -128,7 +128,7 @@ VkCommandBuffer help::Commands::BeginSingleTimeCommands()
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandPool = Renderer->commandPool;
+    allocInfo.commandPool = Renderer::commandPool;
     allocInfo.commandBufferCount = 1;
 
     VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
@@ -176,7 +176,7 @@ VkResult help::Commands::EndSingleTimeCommands(VkCommandBuffer cmd, VkQueue queu
 	if (waitForExecution) {
         vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX);
 	    vkDestroyFence(device, fence, nullptr);
-        vkFreeCommandBuffers(device, Renderer->commandPool, 1, &cmd);
+        vkFreeCommandBuffers(device, Renderer::commandPool, 1, &cmd);
     }
 
     return VK_SUCCESS;
@@ -190,7 +190,7 @@ void help::Files::LoadBinary(const char* path, u8* dst, u32* dstSize) {
     std::ifstream instream(path, std::ios::ate | std::ios::binary);
     if (!instream.is_open()) {
         printf("Failed to open file at path %s\n", path);
-        *dstSize = 0; // Signal error by setting size to 0
+        *dstSize = 0;
         return;
     }
 
@@ -201,121 +201,121 @@ void help::Files::LoadBinary(const char* path, u8* dst, u32* dstSize) {
     instream.close();
 }
 
-void help::Images::LoadVulkanImage(u8 *buffer,
-                                  u32 width, u32 height,
-                                  VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
-                                  VkMemoryPropertyFlags properties, VkSampleCountFlagBits samples, u32 mipLevels,
-                                  VkImage *dstImage, VkDeviceMemory *dstMemory, bool externallyAllocated)
-{
-    VkImage retval;
-    VkDeviceMemory retMem = *dstMemory;
+// void help::Images::LoadVulkanImage(u8 *buffer,
+//                                   u32 width, u32 height,
+//                                   VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
+//                                   VkMemoryPropertyFlags properties, VkSampleCountFlagBits samples, u32 mipLevels,
+//                                   VkImage *dstImage, VkDeviceMemory *dstMemory, bool externallyAllocated)
+// {
+//     VkImage retval;
+//     VkDeviceMemory retMem = *dstMemory;
 
-    VkImageCreateInfo imageCreateInfo{};
-    imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-    imageCreateInfo.extent = VkExtent3D{ width, height, 1 };
-    imageCreateInfo.mipLevels = mipLevels;
-    imageCreateInfo.arrayLayers = 1;
-    imageCreateInfo.format = format;
-    imageCreateInfo.tiling = tiling;
-    imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    imageCreateInfo.usage = usage;
-    imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    imageCreateInfo.samples = samples;
-    if (vkCreateImage(device, &imageCreateInfo, nullptr, &retval) != VK_SUCCESS)
-        printf("Failed to create image");
+//     VkImageCreateInfo imageCreateInfo{};
+//     imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+//     imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+//     imageCreateInfo.extent = VkExtent3D{ width, height, 1 };
+//     imageCreateInfo.mipLevels = mipLevels;
+//     imageCreateInfo.arrayLayers = 1;
+//     imageCreateInfo.format = format;
+//     imageCreateInfo.tiling = tiling;
+//     imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+//     imageCreateInfo.usage = usage;
+//     imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+//     imageCreateInfo.samples = samples;
+//     if (vkCreateImage(device, &imageCreateInfo, nullptr, &retval) != VK_SUCCESS)
+//         printf("Failed to create image");
 
-    VkMemoryRequirements imageMemoryRequirements;
-    vkGetImageMemoryRequirements(device, retval, &imageMemoryRequirements);
+//     VkMemoryRequirements imageMemoryRequirements;
+//     vkGetImageMemoryRequirements(device, retval, &imageMemoryRequirements);
 
-    if (!externallyAllocated)
-    {
-        VkMemoryAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        allocInfo.allocationSize = imageMemoryRequirements.size;
-        allocInfo.memoryTypeIndex = pro::GetMemoryType(physDevice, imageMemoryRequirements.memoryTypeBits, properties);
-        if(vkAllocateMemory(device, &allocInfo, nullptr, &retMem) != VK_SUCCESS) {
-            printf("Failed to allocate memory");
-        }
-        vkBindImageMemory(device, retval, retMem, 0);
-    }
+//     if (!externallyAllocated)
+//     {
+//         VkMemoryAllocateInfo allocInfo{};
+//         allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+//         allocInfo.allocationSize = imageMemoryRequirements.size;
+//         allocInfo.memoryTypeIndex = pro::GetMemoryType(physDevice, imageMemoryRequirements.memoryTypeBits, properties);
+//         if(vkAllocateMemory(device, &allocInfo, nullptr, &retMem) != VK_SUCCESS) {
+//             printf("Failed to allocate memory");
+//         }
+//         vkBindImageMemory(device, retval, retMem, 0);
+//     }
     
-    VkBuffer stagingBuffer = VK_NULL_HANDLE;
-    VkDeviceMemory stagingBufferMemory = VK_NULL_HANDLE;
+//     VkBuffer stagingBuffer = VK_NULL_HANDLE;
+//     VkDeviceMemory stagingBufferMemory = VK_NULL_HANDLE;
 
-    uchar stagingBufferBacking[512];
+//     uchar stagingBufferBacking[512];
 
-    VkAllocationCallbacks temporaryAllocator{};
-    temporaryAllocator.pfnAllocation = tempAlloc;
-    temporaryAllocator.pfnReallocation = tempRealloc;
-    temporaryAllocator.pfnFree = tempFree;
-    temporaryAllocator.pUserData = reinterpret_cast<void*>(stagingBufferBacking);
+//     VkAllocationCallbacks temporaryAllocator{};
+//     temporaryAllocator.pfnAllocation = tempAlloc;
+//     temporaryAllocator.pfnReallocation = tempRealloc;
+//     temporaryAllocator.pfnFree = tempFree;
+//     temporaryAllocator.pUserData = reinterpret_cast<void*>(stagingBufferBacking);
 
-    VkBufferCreateInfo stagingBufferInfo{};
-    stagingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    stagingBufferInfo.size = imageMemoryRequirements.size;
-    stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    stagingBufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    vkCreateBuffer(device, &stagingBufferInfo, &temporaryAllocator, &stagingBuffer);
+//     VkBufferCreateInfo stagingBufferInfo{};
+//     stagingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+//     stagingBufferInfo.size = imageMemoryRequirements.size;
+//     stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+//     stagingBufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+//     vkCreateBuffer(device, &stagingBufferInfo, &temporaryAllocator, &stagingBuffer);
 
-    VkMemoryRequirements stagingBufferRequirements;
-    vkGetBufferMemoryRequirements(device, stagingBuffer, &stagingBufferRequirements);
+//     VkMemoryRequirements stagingBufferRequirements;
+//     vkGetBufferMemoryRequirements(device, stagingBuffer, &stagingBufferRequirements);
 
-    VkMemoryAllocateInfo stagingBufferAllocInfo{};
-    stagingBufferAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    stagingBufferAllocInfo.allocationSize = stagingBufferRequirements.size;
-    stagingBufferAllocInfo.memoryTypeIndex = pro::GetMemoryType(physDevice, stagingBufferRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+//     VkMemoryAllocateInfo stagingBufferAllocInfo{};
+//     stagingBufferAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+//     stagingBufferAllocInfo.allocationSize = stagingBufferRequirements.size;
+//     stagingBufferAllocInfo.memoryTypeIndex = pro::GetMemoryType(physDevice, stagingBufferRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-    if(vkAllocateMemory(device, &stagingBufferAllocInfo, &temporaryAllocator, &stagingBufferMemory) != VK_SUCCESS) {
-        printf("Failed to allocate memory");
-    }
+//     if(vkAllocateMemory(device, &stagingBufferAllocInfo, &temporaryAllocator, &stagingBufferMemory) != VK_SUCCESS) {
+//         printf("Failed to allocate memory");
+//     }
 
-    vkBindBufferMemory(device, stagingBuffer, stagingBufferMemory, 0);
+//     vkBindBufferMemory(device, stagingBuffer, stagingBufferMemory, 0);
 
-    void *stagingBufferMapped;
-    if (vkMapMemory(device, stagingBufferMemory, 0, width * height, 0, &stagingBufferMapped) != VK_SUCCESS)
-    {
-        printf("failed to map staging buffer memory!");
-    }
-    memcpy(stagingBufferMapped, buffer, width * height);
-    vkUnmapMemory(device, stagingBufferMemory);                                                
+//     void *stagingBufferMapped;
+//     if (vkMapMemory(device, stagingBufferMemory, 0, width * height, 0, &stagingBufferMapped) != VK_SUCCESS)
+//     {
+//         printf("failed to map staging buffer memory!");
+//     }
+//     memcpy(stagingBufferMapped, buffer, width * height);
+//     vkUnmapMemory(device, stagingBufferMemory);                                                
     
-    // Image layout transition : UNDEFINED -> TRANSFER_DST_OPTIMAL
-    const VkCommandBuffer cmd = help::Commands::BeginSingleTimeCommands();
+//     // Image layout transition : UNDEFINED -> TRANSFER_DST_OPTIMAL
+//     const VkCommandBuffer cmd = help::Commands::BeginSingleTimeCommands();
 
-    TransitionImageLayout(
-        cmd, retval, mipLevels,
-        VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        0, VK_ACCESS_TRANSFER_WRITE_BIT,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT
-    );
+//     TransitionImageLayout(
+//         cmd, retval, mipLevels,
+//         VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+//         0, VK_ACCESS_TRANSFER_WRITE_BIT,
+//         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT
+//     );
 
-    VkBufferImageCopy region{};
-    region.imageExtent = { width, height, 1 };
-    region.imageOffset = { 0, 0, 0 };
-    region.bufferOffset = 0;
-    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    region.imageSubresource.layerCount = 1;
-    region.imageSubresource.baseArrayLayer = 0;
-    region.imageSubresource.mipLevel = 0;
-    vkCmdCopyBufferToImage(cmd, stagingBuffer, retval, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+//     VkBufferImageCopy region{};
+//     region.imageExtent = { width, height, 1 };
+//     region.imageOffset = { 0, 0, 0 };
+//     region.bufferOffset = 0;
+//     region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+//     region.imageSubresource.layerCount = 1;
+//     region.imageSubresource.baseArrayLayer = 0;
+//     region.imageSubresource.mipLevel = 0;
+//     vkCmdCopyBufferToImage(cmd, stagingBuffer, retval, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-    if(mipLevels == 1) {
-        TransitionImageLayout(
-            cmd, retval, mipLevels,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            0, VK_ACCESS_TRANSFER_WRITE_BIT,
-            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT
-        );
-    }
+//     if(mipLevels == 1) {
+//         TransitionImageLayout(
+//             cmd, retval, mipLevels,
+//             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+//             0, VK_ACCESS_TRANSFER_WRITE_BIT,
+//             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT
+//         );
+//     }
 
-    help::Commands::EndSingleTimeCommands(cmd);
+//     help::Commands::EndSingleTimeCommands(cmd);
 
-    vkDestroyBuffer(device, stagingBuffer, &temporaryAllocator);
-    vkFreeMemory(device, stagingBufferMemory, &temporaryAllocator);
+//     vkDestroyBuffer(device, stagingBuffer, &temporaryAllocator);
+//     vkFreeMemory(device, stagingBufferMemory, &temporaryAllocator);
 
-    *dstImage = retval;
-}
+//     *dstImage = retval;
+// }
 
 void help::Images::TransitionImageLayout(VkCommandBuffer cmd, VkImage image,
                                          u32 mipLevels,
@@ -342,15 +342,15 @@ void help::Images::TransitionImageLayout(VkCommandBuffer cmd, VkImage image,
     barrier.dstAccessMask = dstAccessMask;
     vkCmdPipelineBarrier(cmd, sourceStage, dstAccessMask, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 }
-void help::Images::LoadFromDisk(const char *path, u32 channels, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkSampleCountFlagBits samples, u32 mipMapLevels, VkImage *dstImage, VkDeviceMemory *dstMemory, bool externallyAllocated)
-{
-    stbi_set_flip_vertically_on_load(false);
-    i32 width, height, gotchannels;
-    u8* buffer = stbi_load(path, &width, &height, &gotchannels, channels);
-    if ((u32)gotchannels != channels)
-        LOG_WARNING("Requested %u channels but got %i for image on path %s", channels, gotchannels, path);
-    LoadVulkanImage(buffer, width, height, format, tiling, usage, properties, samples, mipMapLevels, dstImage, dstMemory, externallyAllocated);
-}
+// void help::Images::LoadFromDisk(const char *path, u32 channels, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkSampleCountFlagBits samples, u32 mipMapLevels, VkImage *dstImage, VkDeviceMemory *dstMemory, bool externallyAllocated)
+// {
+//     stbi_set_flip_vertically_on_load(false);
+//     i32 width, height, gotchannels;
+//     u8* buffer = stbi_load(path, &width, &height, &gotchannels, channels);
+//     if ((u32)gotchannels != channels)
+//         LOG_WARNING("Requested %u channels but got %i for image on path %s", channels, gotchannels, path);
+//     LoadVulkanImage(buffer, width, height, format, tiling, usage, properties, samples, mipMapLevels, dstImage, dstMemory, externallyAllocated);
+// }
 
 void help::Images::LoadFromDisk(const char *path, u8 channels, u8 **dst, u32 *dstWidth, u32 *dstHeight)
 {

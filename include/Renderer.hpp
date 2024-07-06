@@ -34,8 +34,6 @@ struct VulkanContextSingleton
 
 using vctx = VulkanContextSingleton;
 
-struct RendererSingleton;
-
 struct FrameRenderData
 {
     VkImage         swapchainImage;
@@ -46,39 +44,31 @@ struct FrameRenderData
     VkFence         inFlightFence;
 };
 
-struct RendererSingleton
+struct Renderer
 {
-    RendererSingleton() = default;
-    ~RendererSingleton() = default;
+    Renderer() = default;
+    ~Renderer() = default;
 
-    VkSwapchainKHR swapchain;
+    static VkSwapchainKHR swapchain;
+    static VkCommandPool commandPool;
 
-    u8 currentFrame = 0;
-    u32 imageIndex = 0;
-    bool resizeRequested = false;
-    bool running = true;
+    static u8 currentFrame;
+    static u32 imageIndex;
+    static bool resizeRequested;
+    static bool running;
 
-    VkCommandPool commandPool;
-    std::vector<FrameRenderData> renderData;
-    VkCommandBuffer drawBuffers[MaxFramesInFlight];
+    static std::vector<FrameRenderData> renderData;
+    static VkCommandBuffer drawBuffers[MaxFramesInFlight];
 
-    void Initialize();
+    static void Initialize();
+    static void ProcessEvent(SDL_Event* event);
 
-    void Update();
-    void ProcessEvent(SDL_Event* event);
-
-    inline VkCommandBuffer GetDrawBuffer() { return drawBuffers[currentFrame]; };
-    bool BeginRender();
-    void EndRender();
-
-    NANO_SINGLETON_FUNCTION RendererSingleton* GetSingleton() {
-        static RendererSingleton global;
-        return &global;
-    }
+    static inline VkCommandBuffer GetDrawBuffer() { return drawBuffers[currentFrame]; };
+    static bool BeginRender();
+    static void EndRender();
 
     private:
-    void _SignalResize();
+    static void _SignalResize();
 };
-static RendererSingleton* Renderer = RendererSingleton::GetSingleton();
 
 #endif

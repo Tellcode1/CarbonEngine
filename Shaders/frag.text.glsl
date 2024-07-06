@@ -15,6 +15,7 @@ layout(set=0,binding=0) uniform
 sampler2D bitmaps[ MAX_FONT_COUNT ];
 
 void main() {
-    // outColor = texture(bitmaps[0], texCoords);
-    outColor = vec4(1.0, 1.0, 1.0, 1.0);
+    outColor = texture(bitmaps[0], texCoords);
+    // const vec2 uv = gl_FragCoord.xy / vec2(660.0, 730.0);
+    // outColor = vec4(uv.x, 1.0 - uv.y, 0.0, 1.0);
 }

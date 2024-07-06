@@ -19,9 +19,18 @@ VkQueue VulkanContextSingleton::ComputeQueue = VK_NULL_HANDLE;
 VkQueue VulkanContextSingleton::TransferQueue = VK_NULL_HANDLE;
 boost::signals2::signal<void(void)> VulkanContextSingleton::OnWindowResized;
 
+VkSwapchainKHR Renderer::swapchain = VK_NULL_HANDLE;
+u8 Renderer::currentFrame = 0;
+u32 Renderer::imageIndex = 0;
+bool Renderer::resizeRequested = false;
+bool Renderer::running = true;
+VkCommandPool Renderer::commandPool = VK_NULL_HANDLE;
+std::vector<FrameRenderData> Renderer::renderData;
+VkCommandBuffer Renderer::drawBuffers[MaxFramesInFlight];
+
 constexpr VkPresentModeKHR PresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
 
-void RendererSingleton::Initialize() {
+void Renderer::Initialize() {
     /* Initialize graphics singleton */
     {
         if (!pro::GetSupportedFormat(device, physDevice, surface, &vctx::SwapChainImageFormat, &vctx::SwapChainColorSpace)) {
@@ -176,7 +185,7 @@ void RendererSingleton::Initialize() {
     }
 }
 
-void RendererSingleton::ProcessEvent(SDL_Event *event)
+void Renderer::ProcessEvent(SDL_Event *event)
 {
     if ((event->type == SDL_EVENT_QUIT) || (event->type == SDL_EVENT_KEY_DOWN && event->key.scancode == EXIT_KEY))
         running = false;
@@ -191,7 +200,7 @@ void RendererSingleton::ProcessEvent(SDL_Event *event)
     }
 }
 
-bool RendererSingleton::BeginRender()
+bool Renderer::BeginRender()
 {
     const VkCommandBuffer& drawBuffer = GetDrawBuffer();
 
@@ -233,7 +242,7 @@ bool RendererSingleton::BeginRender()
     return true;
 }
 
-void RendererSingleton::EndRender()
+void Renderer::EndRender()
 {
     const auto& drawBuffer = drawBuffers[currentFrame];
 	
@@ -277,7 +286,7 @@ void RendererSingleton::EndRender()
     currentFrame = ((currentFrame + 1) % MaxFramesInFlight);
 }
 
-void RendererSingleton::_SignalResize()
+void Renderer::_SignalResize()
 {
     vkDeviceWaitIdle(device);
 

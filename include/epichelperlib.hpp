@@ -36,11 +36,7 @@ namespace help
     }
     namespace Images
     {
-        void LoadFromDisk(
-            const char* path, u32 channels, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
-            VkMemoryPropertyFlags properties, VkSampleCountFlagBits samples, u32 mipMapLevels,
-            VkImage* dstImage, VkDeviceMemory* dstMemory, bool externallyAllocated = false
-        );
+        // Making a library for loading vulkan images is so goddamn hard. I don't even want to anymore.
 
         /*
             No allocation needed
@@ -48,12 +44,14 @@ namespace help
         */
         void LoadFromDisk(const char* path, u8 channels, u8** dst, u32* dstWidth, u32* dstHeight);
 
-        void LoadVulkanImage(
-            u8* buffer, u32 width, u32 height,
-            VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
-            VkMemoryPropertyFlags properties, VkSampleCountFlagBits samples, u32 mipMapLevels,
-            VkImage* dstImage, VkDeviceMemory* dstMemory, bool externallyAllocated = false
-        );
+        // There were so many things wrong with this function. I don't want to look at this function again
+
+        // void LoadVulkanImage(
+        //     u8* buffer, u32 width, u32 height,
+        //     VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
+        //     VkMemoryPropertyFlags properties, VkSampleCountFlagBits samples, u32 mipMapLevels,
+        //     VkImage* dstImage, VkDeviceMemory* dstMemory, bool externallyAllocated = false
+        // );
 
         // incomplete = true = the command will be recorded to the active command buffer
         void TransitionImageLayout(

@@ -517,7 +517,7 @@ void TextRendererSingleton::EndRender(VkCommandBuffer cmd, const glm::mat4 &proj
 
 void TextRendererSingleton::DispatchCompute()
 {
-    // const auto& cmd = this->computeCmdBuffers[Renderer->currentFrame];
+    // const auto& cmd = this->computeCmdBuffers[Renderer::currentFrame];
     // dispatchedCompute = true;
     
     // VkCommandBufferBeginInfo beginInfo{};
