@@ -3,19 +3,17 @@
 
 #if defined( __clang__ )
 #   if __has_attribute( always_inline )
-#     define NANO_INLINE __attribute__( ( always_inline ) ) __inline__
+#     define CARBON_FORCE_INLINE __attribute__( ( always_inline ) ) __inline__
 #   else
-#     define NANO_INLINE inline
+#     define CARBON_FORCE_INLINE inline
 #   endif
 #elif defined( __GNUC__ )
-#   define NANO_INLINE __attribute__( ( always_inline ) ) __inline__
+#   define CARBON_FORCE_INLINE __attribute__( ( always_inline ) ) __inline__
 #elif defined( _MSC_VER )
-#   define NANO_INLINE inline
+#   define CARBON_FORCE_INLINE inline
 #else
-#   define NANO_INLINE inline
+#   define CARBON_FORCE_INLINE inline
 #endif
-
-#define NANO_SINGLETON_FUNCTION static NANO_INLINE
 
 #include <cstdint>
 
@@ -128,9 +126,11 @@ constexpr const char* ANSI_FORMAT_DEFAULT = ANSI_FORMAT_RESET;
 #define CONCAT(x, y) x##y
 
 #define __WRAPPER1(x, y) CONCAT(x, y)
+
+// May god never have a look at this define. I will not be spared.
 #define TIME_FUNCTION_REAL(func, LINE) const auto __WRAPPER1(__COUNTER_BEGIN__, __LINE__) = std::chrono::high_resolution_clock::now();\
 							func; /* Call the function*/ \
-							std::cout << #func << " Took " << std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - __WRAPPER1(__COUNTER_BEGIN__, __LINE__)).count() / 1000000.0f << "ms\n"
+                            LOG_DEBUG("[Line %d] Function %s took %ldms", LINE, #func, (std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - __WRAPPER1(__COUNTER_BEGIN__, __LINE__)).count()) / 1000000.0, LINE);
 #define TIME_FUNCTION(func) TIME_FUNCTION_REAL(func, __LINE__)
 
 #include <boost/signals2.hpp>
@@ -163,6 +163,12 @@ inline void LOG_WARNING(std::string fmt, ...) {
 
 inline void LOG_INFO(std::string fmt, ...) {
     const std::string preceder = "[Info] ";
+    const std::string succeeder = "\n";
+    __LOG();
+}
+
+inline void LOG_DEBUG(std::string fmt, ...) {
+    const std::string preceder = "[Debug] ";
     const std::string succeeder = "\n";
     __LOG();
 }

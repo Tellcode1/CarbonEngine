@@ -32,6 +32,7 @@ void cf::CFLoad(const CFontLoadInfo* pInfo, CFont* dst)
 	if (!pInfo || !dst)
 	{
 		LOG_ERROR("pInfo or dst is nullptr!");
+		return;
 	}
 
 	if (msdfgen::FreetypeHandle *ft = msdfgen::initializeFreetype())

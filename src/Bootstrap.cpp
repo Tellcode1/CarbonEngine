@@ -490,15 +490,15 @@ void bootstrap::StageBufferTransfer(VkPhysicalDevice physicalDevice, VkDevice de
 	VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
     stagingBuffer = bootstrap::CreateBuffer(
-        ctx->physDevice, ctx->device, stagingBufferMemory, size,
+        ctx::physDevice, ctx::device, stagingBufferMemory, size,
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
     );
 
 	void* mapped;
-	vkMapMemory(ctx->device, stagingBufferMemory, 0, size, 0, &mapped);
+	vkMapMemory(ctx::device, stagingBufferMemory, 0, size, 0, &mapped);
 	memcpy(mapped, data, size);
-	vkUnmapMemory(ctx->device, stagingBufferMemory);
+	vkUnmapMemory(ctx::device, stagingBufferMemory);
 
 	VkCommandBuffer cmd = BeginSingleTimeCommands(device, commandPool);
 

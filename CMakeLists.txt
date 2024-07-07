@@ -29,6 +29,7 @@ include_directories(${CMAKE_SOURCE_DIR}/Atlas)
 set(SOURCES
     src/pro.cpp
     src/main.cpp
+    src/Context.cpp
     src/Bootstrap.cpp
     src/Renderer.cpp
     src/CTextRenderer.cpp

@@ -12,7 +12,7 @@ int main(void) {
 
     using RD = Renderer;
 
-    TIME_FUNCTION(Context->Initialize("epic", 800, 600));
+    TIME_FUNCTION(ctx::Initialize("epic", 800, 600));
     TIME_FUNCTION(Renderer::Initialize());
     ctext::Init();
 
@@ -22,10 +22,10 @@ int main(void) {
 
     u64 currentTime = SDL_GetTicksNS();
     u64 lastFrameTime = currentTime;
-    f32 dt = 0.0;
+    f64 dt = 0.0;
 
     // What in the unholy f%$ where you doing
-    printf("Initialized in %ld ms || %.3f s\n", SDL_GetTicks(), SDL_GetTicks() / 1000.0f);
+    LOG_DEBUG("Initialized in %ld ms || %.3f s", SDL_GetTicks(), SDL_GetTicks() / 1000.0f);
 
     cf::CFont amongus;
     cf::CFontLoadInfo infoo{};
@@ -35,8 +35,13 @@ int main(void) {
     SDL_Event event;
 
     while(RD::running) {
+        SDL_PumpEvents();
+        while(SDL_PollEvent(&event)) {
+            RD::ProcessEvent(&event);
+        }
+
         currentTime = SDL_GetTicksNS();
-        dt = (currentTime - lastFrameTime) / 1000000000.0f;
+        dt = (currentTime - lastFrameTime) / 1000000000.0;
         lastFrameTime = currentTime;
 
         // Profiling code
@@ -54,11 +59,6 @@ int main(void) {
             
             RD::EndRender();
         }
-
-        SDL_PumpEvents();
-
-        while(SDL_PollEvent(&event))
-            RD::ProcessEvent(&event);
 
         // Input::ProcessEvents();
         

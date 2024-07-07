@@ -222,7 +222,7 @@ void ctext::Init()
     region.imageSubresource.mipLevel = 0;
     vkCmdCopyBufferToImage(cmd, stagingBuffer, dummyImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-    help::Commands::EndSingleTimeCommands(cmd);
+    help::Commands::EndSingleTimeCommands(cmd, vctx::TransferQueue);
 
     vkDestroyBuffer(device, stagingBuffer, nullptr);
     vkFreeMemory(device, stagingBufferMemory, nullptr);
@@ -243,7 +243,7 @@ void ctext::Init()
     viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
     viewInfo.format = dummyImageFmt;
     viewInfo.image = dummyImage;
-    viewInfo.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B };
+    viewInfo.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
     viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     viewInfo.subresourceRange.baseMipLevel = 0;
     viewInfo.subresourceRange.levelCount = 1;
