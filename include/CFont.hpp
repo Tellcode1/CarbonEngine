@@ -13,24 +13,42 @@
 
 namespace cf
 {
-	constexpr const char *CFontRegistryPath = "./CFont/Registry.txt";
 
+	// static void CFInit(void);
+}
+
+constexpr u32 MaxFontCount = 8;
+
+struct ctext
+{
 	struct _CFont; typedef _CFont *CFont;
 	struct CFontLoadInfo;
 
-	extern void CFLoad(const CFontLoadInfo* pInfo, CFont* dst);
+	static void Render(ctext::CFont font, VkCommandBuffer cmd, std::u32string text, f32 x, f32 y, f32 scale);
+    static void Init();
+    static void CreatePipeline();
 
-	// Cannot be incomplete because the stupd unordered_map needs it
+    static VkPipeline pipeline;
+    static VkPipelineLayout pipelineLayout;
+    static VkShaderModule vertex;
+    static VkShaderModule fragment;
+    static VkDescriptorPool descPool;
+    static VkDescriptorSetLayout descLayout;
+    static VkDescriptorSet descSet;
+    static VkImage dummyImage;
+    static VkImageView dummyImageView;
+    static VkSampler dummyImageSampler;
+
+	constexpr static const char *CFontRegistryPath = "./CFont/Registry.txt";
+
+	static void CFLoad(const CFontLoadInfo* pInfo, CFont* dst);
+
 	struct CFGlyph
 	{
-		inline CFGlyph() : initialized(false) {};
-		inline CFGlyph(msdf_atlas::GlyphGeometry g) : geometry(g), initialized(true) {}
-
-		inline u32 getCodepoint() const { return geometry.getCodepoint(); }
-
-		msdf_atlas::GlyphGeometry geometry;
-		bool initialized = false;
-		private:
+		f32 x0, y0, x1, y1;
+		f32 s0, t0, s1, t1;
+		f32 advance;
+		u32 codepoint;
 	};
 
 	/* Internal CFont struct. Do not modify yourselves! */
@@ -39,20 +57,13 @@ namespace cf
 		u32 atlasWidth, atlasHeight;
 		u8 *atlasData;
 
-		inline CFGlyph GetGlyph(u32 codepoint) {
-			if (m_glyphGeometry.find(codepoint) != m_glyphGeometry.end()) return m_glyphGeometry[codepoint];
-			LOG_ERROR("No Glyph for codepoint %u", codepoint);
-
-			return CFGlyph();
-		}
-
 		u32 fontIndex;
 		VkImage texture;
 		VkImageView textureView;
 		VkDeviceMemory textureMemory;
 		VkSampler sampler;
 
-		friend void cf::CFLoad(const CFontLoadInfo* pInfo, CFont* dst);
+		friend void ctext::CFLoad(const CFontLoadInfo* pInfo, CFont* dst);
 
 		private:
 		std::unordered_map<u32, CFGlyph> m_glyphGeometry;
@@ -62,8 +73,6 @@ namespace cf
 	{
 		const char *fontPath;
 	};
-
-	// static void CFInit(void);
-}
+};
 
 #endif
