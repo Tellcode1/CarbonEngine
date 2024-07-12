@@ -5,6 +5,7 @@
 #include "pro.hpp"
 #include "Renderer.hpp"
 #include "CFont.hpp"
+#include "CTextRenderer.hpp"
 
 int main(void) {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER);
@@ -26,10 +27,10 @@ int main(void) {
     // What in the unholy f%$ where you doing
     LOG_DEBUG("Initialized in %ld ms || %.3f s", SDL_GetTicks(), SDL_GetTicks() / 1000.0f);
 
-    ctext::CFont amongus;
-    ctext::CFontLoadInfo infoo{};
+    cf::CFont amongus;
+    cf::CFontLoadInfo infoo{};
     infoo.fontPath = "../Assets/roboto.ttf";
-    ctext::CFLoad(&infoo, &amongus);
+    cf::CFLoad(&infoo, &amongus);
 
     SDL_Event event;
 

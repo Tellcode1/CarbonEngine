@@ -10,6 +10,9 @@ include_directories(${SDL3_INCLUDE_DIRS})
 find_package(Freetype REQUIRED)
 include_directories(${FREETYPE_INCLUDE_DIRS})
 
+find_package(Boost REQUIRED COMPONENTS filesystem)
+include_directories(${Boost_INCLUDE_DIRS})
+
 # find_package(stb REQUIRED)
 # include_directories(${stb_INCLUDE_DIRS})
 
@@ -29,6 +32,7 @@ set(SOURCES
     src/Context.cpp
     src/Bootstrap.cpp
     src/Renderer.cpp
+    src/CTextRenderer.cpp
     src/epichelperlib.cpp
     src/CFont.cpp
 )
@@ -57,7 +61,7 @@ set(LIBS
     vulkan
     SDL3
     freetype
-    boost_filesystem
+    ${Boost_LIBRARIES}
     msdf-atlas-gen
 )
 

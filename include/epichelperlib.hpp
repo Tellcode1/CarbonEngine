@@ -53,13 +53,6 @@ namespace help
         //     VkImage* dstImage, VkDeviceMemory* dstMemory, bool externallyAllocated = false
         // );
 
-        void StageImageTransfer(VkImage dst, void* data, u32 width, u32 height, u32 channels);
-        
-        // makes image for vulkan by loading it with stb
-        // I'm the god of removing something, realising it was important and then adding it back again, just differently.
-        void killme(u8 *buffer, u32 width, u32 height, VkFormat format, u32 channels, VkImage *dst, VkDeviceMemory *dstMem);
-        u8* killme(const char *path, u32 *width, u32 *height, VkFormat *channels, VkImage *dst, VkDeviceMemory *dstMem);
-
         // incomplete = true = the command will be recorded to the active command buffer
         void TransitionImageLayout(
             VkCommandBuffer cmd, VkImage image, u32 mipLevels,
