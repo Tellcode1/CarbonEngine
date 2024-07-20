@@ -27,13 +27,12 @@ void ctext::CFLoad(const CFontLoadInfo* pInfo, CFont* dst)
 	}
 
     msdfgen::FreetypeHandle *ft = msdfgen::initializeFreetype();
-    msdfgen::FontHandle *font = msdfgen::loadFont(ft, pInfo->fontPath);
-
     if (!ft) {
         LOG_ERROR("msdfgen<Freetype> failed to initialize");
         return;
     }
 
+    msdfgen::FontHandle *font = msdfgen::loadFont(ft, pInfo->fontPath);
     if (!font) {
         LOG_ERROR("Failed to load font. Is path (\"%s\") valid?", pInfo->fontPath);
         return;
@@ -88,31 +87,27 @@ void ctext::CFLoad(const CFontLoadInfo* pInfo, CFont* dst)
 
     std::ofstream among("amongus.md");
     for (const msdf_atlas::GlyphGeometry& glyph : glyphs) {
-        i32 x0, y0, x1, y1;
-        glyph.getBoxRect(x0, y0, x1, y1);
+        i32 x, y, w, h;
+        glyph.getBoxRect(x, y, w, h);
 
-        f64 s0, t0, s1, t1;
-        glyph.getQuadAtlasBounds(s0, t0, s1, t1);
-        
-        among <<
-            glyph.getCodepoint() << " : " <<
-            s0 << ", " <<
-            t0 << ", " <<
-            s1 << ", " <<
-            t1 << '\n';
+        f64 l, b, r, t;
+        glyph.getQuadAtlasBounds(l, b, r, t);
 
         CFGlyph mogus;
-        mogus.s0 = s0 / f32(width);
-        mogus.t0 = t0 / f32(height);
-        mogus.s1 = s1 / f32(width);
-        mogus.t1 = t1 / f32(height);
+        mogus.l = l / f32(width);
+        mogus.b = (1.0f - b) / f32(height);
+        mogus.r = r / f32(width);
+        mogus.t = (1.0f - t) / f32(height);
 
-        mogus.x0 = x0;
-        mogus.y0 = y0;
-        mogus.x1 = x1;
-        mogus.y1 = y1;
+        // May god have mercy on people who have to use these operators
+        x >>= 6;
+        y >>= 6;
+        mogus.x0 = (x) / f32(width);
+        mogus.y0 = (y) / f32(height);
+        mogus.x1 = (x + w) / f32(width);
+        mogus.y1 = (y + h) / f32(height);
 
-        mogus.advance = glyph.getAdvance();
+        mogus.advance = static_cast<f32>(glyph.getAdvance());
         (*dst)->m_glyphGeometry[glyph.getCodepoint()] = mogus;
     }
     among.close();
@@ -121,8 +116,6 @@ void ctext::CFLoad(const CFontLoadInfo* pInfo, CFont* dst)
     dstRef.atlasWidth = width;
     dstRef.atlasHeight = height;
     dstRef.atlasData = pixelBuffer;
-
-    std::cout << "Allocated image of size " << width*height*channels << " bytes" << std::endl;
 
     help::Images::killme(pixelBuffer, width, height, imageFormat, channels, &dstRef.texture, &dstRef.textureMemory);
 
@@ -181,8 +174,24 @@ VkImage ctext::dummyImage = VK_NULL_HANDLE;
 VkImageView ctext::dummyImageView = VK_NULL_HANDLE;
 VkSampler ctext::dummyImageSampler = VK_NULL_HANDLE;
 
-void GenerateGlyphVertices(const ctext::CFont font, const ctext::CFGlyph& glyph, std::vector<vec4>& vertices, std::vector<u16>& indices, float x, float y, float scale) {
-    
+void GenerateGlyphVertices(const ctext::CFont font, std::vector<vec4>& vertices, const std::u32string& str) {
+    for (const auto& c : str)
+    {
+        const ctext::CFGlyph& glyph = font->get_glyph(c);
+
+        // vertices = {
+        //     vec4(-1.0f, -1.0f, vec2(0.0f, 0.0f)),
+        //     vec4( 1.0f, -1.0f, vec2(1.0f, 0.0f)),
+        //     vec4( 1.0f,  1.0f, vec2(1.0f, 1.0f)),
+        //     vec4(-1.0f,  1.0f, vec2(0.0f, 1.0f))
+        // };
+
+
+        vertices.push_back(vec4( glyph.x0, glyph.y0, glyph.l, glyph.t ));
+        vertices.push_back(vec4( glyph.x1, glyph.y0, glyph.r, glyph.t ));
+        vertices.push_back(vec4( glyph.x1, glyph.y1, glyph.r, glyph.b ));
+        vertices.push_back(vec4( glyph.x0, glyph.y1, glyph.l, glyph.b ));
+    }
 }
 
 void ctext::Render(ctext::CFont font, VkCommandBuffer cmd, std::u32string text, float x, float y, float scale)
@@ -192,16 +201,11 @@ void ctext::Render(ctext::CFont font, VkCommandBuffer cmd, std::u32string text, 
 
     static VkBuffer buff;
     static VkDeviceMemory mem;
-    vertices = {
-        vec4(-1.0f, -1.0f, vec2(0.0f, 0.0f)),
-        vec4( 1.0f, -1.0f, vec2(1.0f, 0.0f)),
-        vec4( 1.0f,  1.0f, vec2(1.0f, 1.0f)),
-        vec4(-1.0f,  1.0f, vec2(0.0f, 1.0f))
-    };
     std::vector<u32> indices = {
         0, 1, 2,
         0, 2, 3
     };
+    GenerateGlyphVertices(font, vertices, U"Q");
 
     if (!buff) {
         help::Buffers::CreateBuffer(
@@ -219,6 +223,17 @@ void ctext::Render(ctext::CFont font, VkCommandBuffer cmd, std::u32string text, 
     memcpy((uchar *)data + vertices.size() * sizeof(vec4), indices.data(), indices.size() * sizeof(u32));
     vkUnmapMemory(device, mem);
 
+    i32 mx_, my_;
+    SDL_GetMouseState(&mx_, &my_);
+    f32 mx = mx_, my = my_;
+    mx = f32(mx)/vctx::RenderExtent.width;
+    my = f32(my)/vctx::RenderExtent.height;
+    mx = mx * 2.0f - 1.0f;
+    my = my * 2.0f - 1.0f;
+
+    mat4 model(1.0f);
+    model = glm::translate(model, vec3(mx, my, 0.0f));
+
     constexpr VkDeviceSize offsets = 0;
     VkDeviceSize indexOffset = vertices.size() * sizeof(vec4);
 
@@ -226,6 +241,7 @@ void ctext::Render(ctext::CFont font, VkCommandBuffer cmd, std::u32string text, 
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descSet, 0, nullptr);
     vkCmdBindVertexBuffers(cmd, 0, 1, &buff, &offsets);
     vkCmdBindIndexBuffer(cmd, buff, indexOffset, VK_INDEX_TYPE_UINT32);
+    vkCmdPushConstants(cmd, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4), &model);
     vkCmdDrawIndexed(cmd, indices.size(), 1, 0, 0, 0);
 }
 
@@ -360,6 +376,11 @@ void ctext::CreatePipeline()
         { 0, sizeof(vec4), VK_VERTEX_INPUT_RATE_VERTEX }
     };
 
+    const std::vector<VkPushConstantRange> pushConstants = { 
+        // stageFlags, offset, size
+        { VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4) }
+    };
+
     VkPipelineShaderStageCreateInfo vertexShaderInfo{};
     vertexShaderInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vertexShaderInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
@@ -384,6 +405,7 @@ void ctext::CreatePipeline()
     pc.pipelineLayout = pipelineLayout;
     pc.pAttributeDescriptions = &attributeDescriptions;
     pc.pBindingDescriptions = &bindingDescriptions;
+    pc.pPushConstants = &pushConstants;
     pc.pDescriptorLayouts = &layouts;
     pc.pShaderCreateInfos = &shaders;
     pc.extent.width = vctx::RenderExtent.width;

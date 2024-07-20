@@ -5,6 +5,7 @@
 #include "pro.hpp"
 #include "Renderer.hpp"
 #include "CFont.hpp"
+#include "CArrays/CVector.hpp"
 
 int main(void) {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER);
@@ -19,7 +20,7 @@ int main(void) {
     f32 totalTime = 0.0f;
     u16 numFrames = 0;
 
-    u64 currentTime = SDL_GetTicksNS();
+    u64 currentTime = SDL_GetTicks64();
     u64 lastFrameTime = currentTime;
     f64 dt = 0.0;
 
@@ -39,8 +40,8 @@ int main(void) {
             RD::ProcessEvent(&event);
         }
 
-        currentTime = SDL_GetTicksNS();
-        dt = (currentTime - lastFrameTime) / 1000000000.0;
+        currentTime = SDL_GetTicks();
+        dt = (currentTime - lastFrameTime) / 1000.0;
         lastFrameTime = currentTime;
 
         // Profiling code
@@ -58,9 +59,6 @@ int main(void) {
             
             RD::EndRender();
         }
-
-        // Input::ProcessEvents();
-        
     }
     
     // Do not do cleanup because we are big bois

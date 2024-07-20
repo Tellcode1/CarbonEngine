@@ -1,37 +1,7 @@
 #ifndef __PCH__
 #define __PCH__
 
-#if defined( __clang__ )
-#   if __has_attribute( always_inline )
-#     define CARBON_FORCE_INLINE __attribute__( ( always_inline ) ) __inline__
-#   else
-#     define CARBON_FORCE_INLINE inline
-#   endif
-#elif defined( __GNUC__ )
-#   define CARBON_FORCE_INLINE __attribute__( ( always_inline ) ) __inline__
-#elif defined( _MSC_VER )
-#   define CARBON_FORCE_INLINE inline
-#else
-#   define CARBON_FORCE_INLINE inline
-#endif
-
-#include <cstdint>
-
-typedef uint64_t u64;
-typedef uint32_t u32;
-typedef uint16_t u16;
-typedef uint8_t u8;
-typedef uint8_t uchar;
-typedef int8_t sbyte;
-typedef uint8_t ubyte;
-
-typedef int64_t i64;
-typedef int32_t i32;
-typedef int16_t i16;
-typedef int8_t i8;
-
-typedef float f32;
-typedef double f64;
+#include "defines.h"
 
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #define GLM_FORCE_RADIANS
@@ -79,26 +49,6 @@ using glm::mat2;
 using glm::mat3;
 using glm::mat4;
 
-// #define BLK "\e[0;30m"
-// #define RED "\e[0;31m"
-// #define GRN "\e[0;32m"
-// #define YEL "\e[0;33m"
-// #define BLU "\e[0;34m"
-// #define MAG "\e[0;35m"
-// #define CYN "\e[0;36m"
-// #define WHT "\e[0;37m"
-
-constexpr const char* ANSI_FORMAT_BLACK = "\033[30m";
-constexpr const char* ANSI_FORMAT_RED = "\033[31m";
-constexpr const char* ANSI_FORMAT_GREEN = "\033[32m";
-constexpr const char* ANSI_FORMAT_YELLOW = "\033[33m";
-constexpr const char* ANSI_FORMAT_BLUE = "\033[34m";
-constexpr const char* ANSI_FORMAT_MAGENTA = "\033[35m";
-constexpr const char* ANSI_FORMAT_CYAN = "\033[36m";
-constexpr const char* ANSI_FORMAT_WHITE = "\033[37m";
-constexpr const char* ANSI_FORMAT_RESET = "\033[0m";
-constexpr const char* ANSI_FORMAT_DEFAULT = ANSI_FORMAT_RESET;
-
 #include <iostream>
 #include <iomanip>
 #include <fstream>
@@ -116,14 +66,10 @@ constexpr const char* ANSI_FORMAT_DEFAULT = ANSI_FORMAT_RESET;
 
 #include <vulkan/vulkan.hpp>
 
-#include <SDL3/SDL.h>
-#include <SDL3/SDL_vulkan.h>
-
-#include <codecvt>
-#include <locale>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_vulkan.h>
 
 #include <chrono>
-#define CONCAT(x, y) x##y
 
 #define __WRAPPER1(x, y) CONCAT(x, y)
 
@@ -174,8 +120,6 @@ inline void LOG_DEBUG(std::string fmt, ...) {
 }
 
 #undef __LOG
-
-#define array_len(arr) (sizeof(arr) / sizeof(arr[0]))
 
 #include "pro.hpp"
 #include "Context.hpp"

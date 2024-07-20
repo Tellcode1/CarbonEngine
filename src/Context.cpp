@@ -20,7 +20,10 @@ VkInstance CreateInstance(const char* title, std::unordered_set<std::string_view
 	appInfo.engineVersion = 0;
 
 	uint32_t SDLExtensionCount = 0;
-	const char* const* SDLExtensions = SDL_Vulkan_GetInstanceExtensions(&SDLExtensionCount);
+	SDL_Vulkan_GetInstanceExtensions(ctx::window, &SDLExtensionCount, nullptr);
+	const char** SDLExtensions = new const char *[SDLExtensionCount];
+	SDL_Vulkan_GetInstanceExtensions(ctx::window, &SDLExtensionCount, SDLExtensions);
+
 	std::vector<const char*> enabledExtensions;
 
 	for (const auto& ext : RequiredInstanceExtensions)
@@ -241,7 +244,7 @@ VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR surface)
 }
 
 void Context::Initialize(const char* title, u32 windowWidth, u32 windowHeight) {
-	ctx::window = SDL_CreateWindow(title, windowWidth, windowHeight, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
+	ctx::window = SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, windowWidth, windowHeight, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
 	if(ctx::window == nullptr) {
 		std::cout << ANSI_FORMAT_RED << "Window creation failed.\nSDL reports: " << ANSI_FORMAT_RESET << SDL_GetError() << "\n";
 		exit(-1);
@@ -250,7 +253,7 @@ void Context::Initialize(const char* title, u32 windowWidth, u32 windowHeight) {
 	ctx::instance = CreateInstance(title, ctx::availableInstanceExtensions);
 	assert(ctx::instance != nullptr);
 	
-	if(SDL_Vulkan_CreateSurface(ctx::window, ctx::instance, nullptr, &ctx::surface) != 0) {
+	if(SDL_Vulkan_CreateSurface(ctx::window, ctx::instance, &ctx::surface) != SDL_TRUE) {
 		std::cout << ANSI_FORMAT_RED << "Surface creation failed.\nSDL reports: " << ANSI_FORMAT_RESET << SDL_GetError() << "\n";
 		exit(-1);
 	}

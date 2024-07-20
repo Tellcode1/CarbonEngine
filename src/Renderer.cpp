@@ -22,7 +22,7 @@ boost::signals2::signal<void(void)> VulkanContextSingleton::OnWindowResized;
 VkSwapchainKHR Renderer::swapchain = VK_NULL_HANDLE;
 u8 Renderer::currentFrame = 0;
 u32 Renderer::imageIndex = 0;
-bool Renderer::resizeRequested = false;
+bool Renderer::framebufferResized = false;
 bool Renderer::running = true;
 VkCommandPool Renderer::commandPool = VK_NULL_HANDLE;
 std::vector<FrameRenderData> Renderer::renderData;
@@ -45,7 +45,7 @@ void Renderer::Initialize() {
 
         u32 graphicsFamily, graphicsAndComputeFamily, presentFamily, computeFamily, transferFamily;
         bool foundGraphicsFamily = false, foundGraphicsAndComputeFamily = false, foundPresentFamily = false, foundComputeFamily = false, foundTransferFamily = false;
-            
+
         u32 i = 0;
         for (u32 j = 0; j < queueCount; j++) {
             const VkQueueFamilyProperties& queueFamily = queueFamilies[j];
@@ -93,11 +93,10 @@ void Renderer::Initialize() {
         vkGetDeviceQueue(device, graphicsAndComputeFamily, 0, &vctx::GraphicsAndComputeQueue);
     }
 
+    SDL_PumpEvents();
     i32 w, h;
-    SDL_GetWindowSizeInPixels(window, &w, &h);
-
-    vctx::RenderExtent.width = w;
-    vctx::RenderExtent.height = h;
+    SDL_Vulkan_GetDrawableSize(window, &w, &h);
+    vctx::RenderExtent = { (u32)w, (u32)h };
 
     pro::SwapchainCreateInfo scio{};
     scio.extent = vctx::RenderExtent;
@@ -187,17 +186,10 @@ void Renderer::Initialize() {
 
 void Renderer::ProcessEvent(SDL_Event *event)
 {
-    if ((event->type == SDL_EVENT_QUIT) || (event->type == SDL_EVENT_KEY_DOWN && event->key.scancode == EXIT_KEY))
+    if ((event->type == SDL_QUIT) || (event->type == SDL_KEYDOWN && event->key.keysym.scancode == EXIT_KEY))
         running = false;
-
-    if (event->type == SDL_EVENT_WINDOW_RESIZED) {
-        resizeRequested = true;
-    }
-
-    if (resizeRequested) {
-        _SignalResize();
-        resizeRequested = false;
-    }
+    if (event->type & SDL_WINDOWEVENT_RESIZED || event->type & SDL_WINDOWEVENT_SIZE_CHANGED)
+        framebufferResized = true;
 }
 
 bool Renderer::BeginRender()
@@ -208,9 +200,9 @@ bool Renderer::BeginRender()
 
     const VkResult imageAcquireResult = vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, renderData[currentFrame].imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
 
-	if(imageAcquireResult == VK_ERROR_OUT_OF_DATE_KHR || imageAcquireResult == VK_SUBOPTIMAL_KHR)
+	if(imageAcquireResult == VK_ERROR_OUT_OF_DATE_KHR || imageAcquireResult == VK_SUBOPTIMAL_KHR || framebufferResized)
 	{
-        resizeRequested = true;
+        _SignalResize();
 		return false;
 	}
 	else if (imageAcquireResult != VK_SUCCESS && imageAcquireResult != VK_SUBOPTIMAL_KHR) 
@@ -278,10 +270,9 @@ void Renderer::EndRender()
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = &swapchain;
     
-    VkResult result = vkQueuePresentKHR(vctx::PresentQueue, &presentInfo);
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-        resizeRequested = true;
-    }
+    const VkResult result = vkQueuePresentKHR(vctx::PresentQueue, &presentInfo);
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized)
+        _SignalResize();
     
     currentFrame = ((currentFrame + 1) % MaxFramesInFlight);
 }
@@ -290,32 +281,39 @@ void Renderer::_SignalResize()
 {
     vkDeviceWaitIdle(device);
 
-    constexpr VkSemaphoreCreateInfo semaphoreCreateInfo{
+    vkDestroySwapchainKHR(device, swapchain, nullptr);
+
+    constexpr VkSemaphoreCreateInfo semaphoreCreateInfo {
         VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, nullptr, 0
     };
 
-    constexpr VkFenceCreateInfo fenceCreateInfo{
+    constexpr VkFenceCreateInfo fenceCreateInfo {
         VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, nullptr, VK_FENCE_CREATE_SIGNALED_BIT
     };
-
+    
     // adhoc method of resetting them
     for (u32 i = 0; i < MaxFramesInFlight; i++) {
         vkDestroySemaphore(device, renderData[i].imageAvailableSemaphore, nullptr);
         vkDestroySemaphore(device, renderData[i].renderingFinishedSemaphore, nullptr);
         vkDestroyFence(device, renderData[i].inFlightFence, nullptr);
-
-        vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &renderData[i].renderingFinishedSemaphore);
-        vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &renderData[i].imageAvailableSemaphore);
-        vkCreateFence(device, &fenceCreateInfo, nullptr, &renderData[i].inFlightFence);
     }
-
-    vkDestroySwapchainKHR(device, swapchain, nullptr);
+    for (u32 i = 0; i < vctx::SwapChainImageCount; i++)
+    {
+        vkDestroyImageView(device, renderData[i].swapchainImageView, nullptr);
+        vkDestroyFramebuffer(device, renderData[i].framebuffer, nullptr);
+    }
+    renderData.clear();
 
     i32 w, h;
-    SDL_GetWindowSizeInPixels(window, &w, &h);
-    
-    vctx::RenderExtent.width = w;
-    vctx::RenderExtent.height = h;
+    SDL_Vulkan_GetDrawableSize(window, &w, &h);
+
+    VkSurfaceCapabilitiesKHR surface_capabilities;
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physDevice, surface, &surface_capabilities);
+
+    w = std::clamp((u32)w, surface_capabilities.minImageExtent.width, surface_capabilities.maxImageExtent.width);
+    h = std::clamp((u32)h, surface_capabilities.minImageExtent.height, surface_capabilities.maxImageExtent.height);
+
+    vctx::RenderExtent = { (u32)w, (u32)h };
 
     pro::SwapchainCreateInfo scio{};
     scio.extent = vctx::RenderExtent;
@@ -327,25 +325,29 @@ void Renderer::_SignalResize()
     scio.eColorSpace = vctx::SwapChainColorSpace;
     pro::CreateSwapChain(device, &scio, &swapchain);
 
-    for (u32 i = 0; i < vctx::SwapChainImageCount; i++)
-    {
-        vkDestroyImageView(device, renderData[i].swapchainImageView, nullptr);
-        vkDestroyFramebuffer(device, renderData[i].framebuffer, nullptr);
-    }
-
     u32 requestedImageCount = 0;
     vkGetSwapchainImagesKHR(device, swapchain, &requestedImageCount, nullptr);
-	renderData.resize(requestedImageCount);
     VkImage swapchainImages[requestedImageCount];
 	vkGetSwapchainImagesKHR(device, swapchain, &requestedImageCount, swapchainImages);
+    
+    renderData.resize(requestedImageCount);
+
+    for (u32 i = 0; i < MaxFramesInFlight; i++)
+    {
+        vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &renderData[i].renderingFinishedSemaphore);
+        vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &renderData[i].imageAvailableSemaphore);
+        vkCreateFence(device, &fenceCreateInfo, nullptr, &renderData[i].inFlightFence);
+    }
 
     vctx::SwapChainImageCount = requestedImageCount;
 
     for (u32 i = 0; i < requestedImageCount; i++)
     {
+        renderData[i].swapchainImage = swapchainImages[i];
+
         VkImageViewCreateInfo imageViewCreateInfo{};
         imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        imageViewCreateInfo.image = swapchainImages[i];
+        imageViewCreateInfo.image = renderData[i].swapchainImage;
         imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
         imageViewCreateInfo.format = vctx::SwapChainImageFormat;
         imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -369,11 +371,11 @@ void Renderer::_SignalResize()
         framebufferInfo.width = vctx::RenderExtent.width;
         framebufferInfo.height = vctx::RenderExtent.height;
         framebufferInfo.layers = 1;
-
         if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &renderData[i].framebuffer) != VK_SUCCESS) {
            LOG_ERROR("Failed to create framebuffer for swapchain image %u", i);
         }
     }
 
+    framebufferResized = false;
     vctx::OnWindowResized();
 }

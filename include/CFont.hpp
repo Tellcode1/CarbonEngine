@@ -46,7 +46,7 @@ struct ctext
 	struct CFGlyph
 	{
 		f32 x0, y0, x1, y1;
-		f32 s0, t0, s1, t1;
+		f32 l, b, r, t;
 		f32 advance;
 		u32 codepoint;
 	};
@@ -64,6 +64,10 @@ struct ctext
 		VkSampler sampler;
 
 		friend void ctext::CFLoad(const CFontLoadInfo* pInfo, CFont* dst);
+
+		const CFGlyph& get_glyph(u32 codepoint) {
+			return m_glyphGeometry[codepoint];
+		}
 
 		private:
 		std::unordered_map<u32, CFGlyph> m_glyphGeometry;
