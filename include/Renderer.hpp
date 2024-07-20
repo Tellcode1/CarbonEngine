@@ -54,7 +54,7 @@ struct Renderer
 
     static u8 currentFrame;
     static u32 imageIndex;
-    static bool resizeRequested;
+    static bool framebufferResized;
     static bool running;
 
     static std::vector<FrameRenderData> renderData;

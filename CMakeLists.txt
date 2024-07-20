@@ -4,8 +4,8 @@ project(main)
 find_package(Vulkan REQUIRED)
 include_directories(${Vulkan_INCLUDE_DIRS})
 
-find_package(SDL3 REQUIRED)
-include_directories(${SDL3_INCLUDE_DIRS})
+find_package(SDL2 REQUIRED)
+include_directories(${SDL2_INCLUDE_DIRS})
 
 find_package(Freetype REQUIRED)
 include_directories(${FREETYPE_INCLUDE_DIRS})
@@ -55,7 +55,7 @@ add_subdirectory(${CMAKE_SOURCE_DIR}/external/msdf-atlas-gen)
 
 set(LIBS
     vulkan
-    SDL3
+    SDL2
     freetype
     boost_filesystem
     msdf-atlas-gen
