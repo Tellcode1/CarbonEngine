@@ -95,26 +95,26 @@ inline void LOG_ERROR(std::string fmt, ...) {
 }
 
 inline void LOG_AND_ABORT(std::string fmt, ...) {
-    const std::string preceder = "[FATAL ERROR] ";
+    const std::string preceder = ANSI_FORMAT_RED + std::string("[FATAL ERROR] ") + ANSI_FORMAT_RESET;
     const std::string succeeder = "\nThe program can not continue\n";
     __LOG();
     abort();
 }
 
 inline void LOG_WARNING(std::string fmt, ...) {
-    const std::string preceder = "[Warning] ";
+    const std::string preceder = ANSI_FORMAT_YELLOW + std::string("[Warning] ") + ANSI_FORMAT_RESET;
     const std::string succeeder = "\n";
     __LOG();
 }
 
 inline void LOG_INFO(std::string fmt, ...) {
-    const std::string preceder = "[Info] ";
+    const std::string preceder = ANSI_FORMAT_CYAN + std::string("[Info] ") + ANSI_FORMAT_RESET;
     const std::string succeeder = "\n";
     __LOG();
 }
 
 inline void LOG_DEBUG(std::string fmt, ...) {
-    const std::string preceder = "[Debug] ";
+    const std::string preceder = ANSI_FORMAT_GREEN + std::string("[Debug] ") + ANSI_FORMAT_RESET;
     const std::string succeeder = "\n";
     __LOG();
 }

@@ -4,6 +4,17 @@
 #include "stb/stb_image_write.h"
 #include "stb/stb_image.h"
 
+VkPipeline ctext::pipeline = VK_NULL_HANDLE;
+VkPipelineLayout ctext::pipeline_layout = VK_NULL_HANDLE;
+VkShaderModule ctext::vertex = VK_NULL_HANDLE;
+VkShaderModule ctext::fragment = VK_NULL_HANDLE;
+VkDescriptorPool ctext::desc_pool = VK_NULL_HANDLE;
+VkDescriptorSetLayout ctext::desc_Layout = VK_NULL_HANDLE;
+VkDescriptorSet ctext::desc_set = VK_NULL_HANDLE;
+VkImage ctext::error_image = VK_NULL_HANDLE;
+VkImageView ctext::error_image_view = VK_NULL_HANDLE;
+VkSampler ctext::error_image_sampler = VK_NULL_HANDLE;
+
 /* I have no idea what any of this is */
 
 typedef char32_t unicode;
@@ -42,18 +53,19 @@ void ctext::CFLoad(const CFontLoadInfo* pInfo, CFont* dst)
 
     std::vector<msdf_atlas::GlyphGeometry> glyphs;
     msdf_atlas::FontGeometry fontGeometry(&glyphs);
-    fontGeometry.loadCharset(font, 1.0, msdf_atlas::Charset::ASCII);
+    msdf_atlas::Charset charset;
+    fontGeometry.loadCharset(font, 1.0, charset.ASCII);
 
     constexpr double maxCornerAngle = 3.0;
-    for (msdf_atlas::GlyphGeometry& glyph : glyphs) {
+    for (msdf_atlas::GlyphGeometry& glyph : glyphs)
         glyph.edgeColoring(&msdfgen::edgeColoringInkTrap, maxCornerAngle, 0);
-    }
 
     msdf_atlas::TightAtlasPacker packer;
     packer.setDimensionsConstraint(msdf_atlas::DimensionsConstraint::POWER_OF_TWO_SQUARE);
     packer.setMinimumScale(24.0);
     packer.setPixelRange(2.0);
     packer.setMiterLimit(1.0);
+    packer.setSpacing(2);
     packer.pack(glyphs.data(), glyphs.size());
 
     i32 width_ = 0, height_ = 0;
@@ -67,14 +79,12 @@ void ctext::CFLoad(const CFontLoadInfo* pInfo, CFont* dst)
         msdf_atlas::BitmapAtlasStorage<f32, channels>
     > generator(width, height);
 
-    msdf_atlas::GeneratorAttributes attributes;
-    // generator.setAttributes(attributes);
-    generator.setThreadCount(std::thread::hardware_concurrency());
+    generator.setThreadCount(4);
     generator.generate(glyphs.data(), glyphs.size());
 
     msdfgen::BitmapConstRef<f32, channels> bitmap = generator.atlasStorage();
 
-    u8* pixelBuffer = new u8[ width * height * channels ];
+    u8* pixelBuffer = reinterpret_cast<u8*>(malloc(width * height * channels));
     memset(pixelBuffer, 0, width * height * channels);
 
     // what the f(*(#$)*@#) is this
@@ -87,28 +97,40 @@ void ctext::CFLoad(const CFontLoadInfo* pInfo, CFont* dst)
 
     std::ofstream among("amongus.md");
     for (const msdf_atlas::GlyphGeometry& glyph : glyphs) {
-        i32 x, y, w, h;
-        glyph.getBoxRect(x, y, w, h);
+        f64 x0_, y0_, x1_, y1_;
+        glyph.getQuadPlaneBounds(x0_, y0_, x1_, y1_);
 
-        f64 l, b, r, t;
-        glyph.getQuadAtlasBounds(l, b, r, t);
+        f64 l_, b_, r_, t_;
+        glyph.getQuadAtlasBounds(l_, b_, r_, t_);
+
+        f32 l = f32(l_), r = f32(r_);
+        f32 b  = 1.0f - (f32)b_;
+        f32 t  = 1.0f - (f32)t_;
+        
+        f32 x0 = f32(x0_), x1 = f32(x1_);
+        f32 y0 = 1.0f - (f32)y0_;
+        f32 y1 = 1.0f - (f32)y1_;
 
         CFGlyph mogus;
         mogus.l = l / f32(width);
-        mogus.b = (1.0f - b) / f32(height);
+        mogus.b = t / f32(height);
         mogus.r = r / f32(width);
-        mogus.t = (1.0f - t) / f32(height);
+        mogus.t = b / f32(height);
 
-        // May god have mercy on people who have to use these operators
-        x >>= 6;
-        y >>= 6;
-        mogus.x0 = (x) / f32(width);
-        mogus.y0 = (y) / f32(height);
-        mogus.x1 = (x + w) / f32(width);
-        mogus.y1 = (y + h) / f32(height);
+        mogus.x0 = x0;
+        mogus.y0 = y0;
+        mogus.x1 = x1;
+        mogus.y1 = y1;
+
+        msdfgen::FontMetrics metrics;
+        msdfgen::getFontMetrics(metrics, font);
+
+        (**dst).line_height = metrics.lineHeight;
+        (**dst).ascender = metrics.ascenderY / metrics.emSize;
+        (**dst).descender  = metrics.descenderY / metrics.emSize;
 
         mogus.advance = static_cast<f32>(glyph.getAdvance());
-        (*dst)->m_glyphGeometry[glyph.getCodepoint()] = mogus;
+        (**dst).m_glyph_geometry[glyph.getCodepoint()] = mogus;
     }
     among.close();
 
@@ -117,80 +139,87 @@ void ctext::CFLoad(const CFontLoadInfo* pInfo, CFont* dst)
     dstRef.atlasHeight = height;
     dstRef.atlasData = pixelBuffer;
 
-    help::Images::killme(pixelBuffer, width, height, imageFormat, channels, &dstRef.texture, &dstRef.textureMemory);
+    help::Images::killme(pixelBuffer, width, height, imageFormat, channels, &dstRef.texture, &dstRef.texture_memory);
 
-    VkSamplerCreateInfo samplerInfo{};
-    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    samplerInfo.magFilter = VK_FILTER_LINEAR;
-    samplerInfo.minFilter = VK_FILTER_LINEAR;
-    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    if (vkCreateSampler(device, &samplerInfo, nullptr, &dstRef.sampler) != VK_SUCCESS)
+    VkSamplerCreateInfo sampler_info{};
+    sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    sampler_info.magFilter = VK_FILTER_LINEAR;
+    sampler_info.minFilter = VK_FILTER_LINEAR;
+    sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    if (vkCreateSampler(device, &sampler_info, nullptr, &dstRef.sampler) != VK_SUCCESS)
         LOG_ERROR("Failed to create sampler");
 
-    VkImageViewCreateInfo viewInfo{};
-    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    viewInfo.format = imageFormat;
-    viewInfo.image = dstRef.texture;
-    viewInfo.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
-    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    viewInfo.subresourceRange.baseMipLevel = 0;
-    viewInfo.subresourceRange.levelCount = 1;
-    viewInfo.subresourceRange.baseArrayLayer = 0;
-    viewInfo.subresourceRange.layerCount = 1;
-    if (vkCreateImageView(device, &viewInfo, nullptr, &dstRef.textureView) != VK_SUCCESS)
+    VkImageViewCreateInfo view_info{};
+    view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    view_info.format = imageFormat;
+    view_info.image = dstRef.texture;
+    view_info.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
+    view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    view_info.subresourceRange.baseMipLevel = 0;
+    view_info.subresourceRange.levelCount = 1;
+    view_info.subresourceRange.baseArrayLayer = 0;
+    view_info.subresourceRange.layerCount = 1;
+    if (vkCreateImageView(device, &view_info, nullptr, &dstRef.texture_view) != VK_SUCCESS)
         LOG_ERROR("Failed to create image view");
 
-    VkDescriptorImageInfo dummyImageInfo{};
-    dummyImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    dummyImageInfo.sampler = dstRef.sampler;
-    dummyImageInfo.imageView = dstRef.textureView;
+    VkDescriptorImageInfo error_image_info{};
+    error_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    error_image_info.sampler = dstRef.sampler;
+    error_image_info.imageView = dstRef.texture_view;
 
-    for (u32 i = 0; i < MaxFontCount; i++)
+    for (u32 i = 0; i < MAX_FONT_COUNT; i++)
     {
         VkWriteDescriptorSet writeSet{};
         writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writeSet.dstSet = descSet;
+        writeSet.dstSet = desc_set;
         writeSet.dstBinding = 0;
         writeSet.descriptorCount = 1;
-        writeSet.pImageInfo = &dummyImageInfo;
+        writeSet.pImageInfo = &error_image_info;
         writeSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         writeSet.dstArrayElement = i;
         vkUpdateDescriptorSets(device, 1, &writeSet, 0, nullptr);
     }
+
+    msdfgen::deinitializeFreetype(ft);
 }
 
-VkPipeline ctext::pipeline = VK_NULL_HANDLE;
-VkPipelineLayout ctext::pipelineLayout = VK_NULL_HANDLE;
-VkShaderModule ctext::vertex = VK_NULL_HANDLE;
-VkShaderModule ctext::fragment = VK_NULL_HANDLE;
-VkDescriptorPool ctext::descPool = VK_NULL_HANDLE;
-VkDescriptorSetLayout ctext::descLayout = VK_NULL_HANDLE;
-VkDescriptorSet ctext::descSet = VK_NULL_HANDLE;
-VkImage ctext::dummyImage = VK_NULL_HANDLE;
-VkImageView ctext::dummyImageView = VK_NULL_HANDLE;
-VkSampler ctext::dummyImageSampler = VK_NULL_HANDLE;
-
-void GenerateGlyphVertices(const ctext::CFont font, std::vector<vec4>& vertices, const std::u32string& str) {
+void GenerateGlyphVertices(const ctext::CFont font, std::vector<vec4>& vertices, std::vector<u32>& indices, const std::u32string& str, f32 xbegin, f32 ybegin) {
+    f32 x = xbegin;
+    f32 y = 0.0f;
+    u32 indexOffset = 0;
     for (const auto& c : str)
     {
+        if (c == U'\n') {
+            x = 0.0f;
+            y += font->line_height;
+            continue;
+        }
+
         const ctext::CFGlyph& glyph = font->get_glyph(c);
 
-        // vertices = {
-        //     vec4(-1.0f, -1.0f, vec2(0.0f, 0.0f)),
-        //     vec4( 1.0f, -1.0f, vec2(1.0f, 0.0f)),
-        //     vec4( 1.0f,  1.0f, vec2(1.0f, 1.0f)),
-        //     vec4(-1.0f,  1.0f, vec2(0.0f, 1.0f))
-        // };
+        f32 x0 = x + glyph.x0;
+        f32 x1 = x + glyph.x1;
+        f32 y0 = y + glyph.y0;
+        f32 y1 = y + glyph.y1;
 
+        vertices.push_back(vec4( x0, y0, glyph.l, glyph.t ));
+        vertices.push_back(vec4( x1, y0, glyph.r, glyph.t ));
+        vertices.push_back(vec4( x1, y1, glyph.r, glyph.b ));
+        vertices.push_back(vec4( x0, y1, glyph.l, glyph.b ));
 
-        vertices.push_back(vec4( glyph.x0, glyph.y0, glyph.l, glyph.t ));
-        vertices.push_back(vec4( glyph.x1, glyph.y0, glyph.r, glyph.t ));
-        vertices.push_back(vec4( glyph.x1, glyph.y1, glyph.r, glyph.b ));
-        vertices.push_back(vec4( glyph.x0, glyph.y1, glyph.l, glyph.b ));
+        indices.push_back(indexOffset + 0);
+        indices.push_back(indexOffset + 1);
+        indices.push_back(indexOffset + 2);
+        indices.push_back(indexOffset + 2);
+        indices.push_back(indexOffset + 3);
+        indices.push_back(indexOffset + 0);
+
+        x += glyph.advance;
+        indexOffset += 4;
     }
 }
 
@@ -198,14 +227,12 @@ void ctext::Render(ctext::CFont font, VkCommandBuffer cmd, std::u32string text, 
 {
     cmd = Renderer::GetDrawBuffer();
     std::vector<vec4> vertices;
+    std::vector<u32> indices;
 
     static VkBuffer buff;
     static VkDeviceMemory mem;
-    std::vector<u32> indices = {
-        0, 1, 2,
-        0, 2, 3
-    };
-    GenerateGlyphVertices(font, vertices, U"Q");
+    std::u32string sus = U"AjBqG";
+    GenerateGlyphVertices(font, vertices, indices, sus, 0.0f, 0.0f);
 
     if (!buff) {
         help::Buffers::CreateBuffer(
@@ -233,15 +260,16 @@ void ctext::Render(ctext::CFont font, VkCommandBuffer cmd, std::u32string text, 
 
     mat4 model(1.0f);
     model = glm::translate(model, vec3(mx, my, 0.0f));
+    model = glm::scale(model, vec3(scale, scale, 1.0f));
 
     constexpr VkDeviceSize offsets = 0;
     VkDeviceSize indexOffset = vertices.size() * sizeof(vec4);
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descSet, 0, nullptr);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1, &desc_set, 0, nullptr);
     vkCmdBindVertexBuffers(cmd, 0, 1, &buff, &offsets);
     vkCmdBindIndexBuffer(cmd, buff, indexOffset, VK_INDEX_TYPE_UINT32);
-    vkCmdPushConstants(cmd, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4), &model);
+    vkCmdPushConstants(cmd, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4), &model);
     vkCmdDrawIndexed(cmd, indices.size(), 1, 0, 0, 0);
 }
 
@@ -249,12 +277,12 @@ void ctext::Init()
 {
     const VkDescriptorSetLayoutBinding bindings[] = {
         // binding; descriptorType; descriptorCount; stageFlags; pImmutableSamplers;
-        { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MaxFontCount, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr },
+        { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_FONT_COUNT, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr },
     };
 
     constexpr VkDescriptorPoolSize poolSizes[] = {
         // type; descriptorCount;
-        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MaxFontCount },
+        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_FONT_COUNT },
     };
 
     VkDescriptorPoolCreateInfo poolInfo{};
@@ -262,22 +290,22 @@ void ctext::Init()
     poolInfo.pPoolSizes = poolSizes;
     poolInfo.poolSizeCount = array_len(poolSizes);
     poolInfo.maxSets = 1;
-    if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descPool) != VK_SUCCESS)
+    if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &desc_pool) != VK_SUCCESS)
         LOG_ERROR("Failed to create descriptor pool");
 
     VkDescriptorSetLayoutCreateInfo setLayoutInfo{};
     setLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     setLayoutInfo.pBindings = bindings;
     setLayoutInfo.bindingCount = array_len(bindings);
-    if (vkCreateDescriptorSetLayout(device, &setLayoutInfo, nullptr, &descLayout) != VK_SUCCESS)
+    if (vkCreateDescriptorSetLayout(device, &setLayoutInfo, nullptr, &desc_Layout) != VK_SUCCESS)
         LOG_ERROR("%s Failto create descriptor set layout");
 
     VkDescriptorSetAllocateInfo setAllocInfo{};
     setAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    setAllocInfo.descriptorPool = descPool;
+    setAllocInfo.descriptorPool = desc_pool;
     setAllocInfo.descriptorSetCount = 1;
-    setAllocInfo.pSetLayouts = &descLayout;
-    if (vkAllocateDescriptorSets(device, &setAllocInfo, &descSet) != VK_SUCCESS)
+    setAllocInfo.pSetLayouts = &desc_Layout;
+    if (vkAllocateDescriptorSets(device, &setAllocInfo, &desc_set) != VK_SUCCESS)
         LOG_ERROR("Failed to allocate descriptor sets");
 
     u32 width, height;
@@ -285,7 +313,7 @@ void ctext::Init()
 
     // No need to store image memory because it won't ever be deleted (probably)
     VkDeviceMemory dummyImageMemory;;
-    stbi_image_free(help::Images::killme("../Assets/error.png", &width, &height, &dummyImageFmt, &dummyImage, &dummyImageMemory));
+    stbi_image_free(help::Images::killme("../Assets/error.png", &width, &height, &dummyImageFmt, &error_image, &dummyImageMemory));
 
     VkSamplerCreateInfo samplerInfo{};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -295,41 +323,41 @@ void ctext::Init()
     samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    if (vkCreateSampler(device, &samplerInfo, nullptr, &dummyImageSampler) != VK_SUCCESS)
+    if (vkCreateSampler(device, &samplerInfo, nullptr, &error_image_sampler) != VK_SUCCESS)
         LOG_ERROR("Failed to create sampler");
 
     VkImageViewCreateInfo viewInfo{};
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
     viewInfo.format = dummyImageFmt;
-    viewInfo.image = dummyImage;
+    viewInfo.image = error_image;
     viewInfo.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
     viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     viewInfo.subresourceRange.baseMipLevel = 0;
     viewInfo.subresourceRange.levelCount = 1;
     viewInfo.subresourceRange.baseArrayLayer = 0;
     viewInfo.subresourceRange.layerCount = 1;
-    if (vkCreateImageView(device, &viewInfo, nullptr, &dummyImageView) != VK_SUCCESS)
+    if (vkCreateImageView(device, &viewInfo, nullptr, &error_image_view) != VK_SUCCESS)
         LOG_ERROR("Failed to create image view");
 
     VkDescriptorImageInfo dummyImageInfo{};
     dummyImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    dummyImageInfo.sampler = dummyImageSampler;
-    dummyImageInfo.imageView = dummyImageView;
+    dummyImageInfo.sampler = error_image_sampler;
+    dummyImageInfo.imageView = error_image_view;
 
-    VkWriteDescriptorSet *writeSets = new VkWriteDescriptorSet[MaxFontCount];
-    memset(writeSets, 0, sizeof(VkWriteDescriptorSet) * MaxFontCount);
-    for (u32 i = 0; i < MaxFontCount; i++)
+    VkWriteDescriptorSet *writeSets = new VkWriteDescriptorSet[MAX_FONT_COUNT];
+    memset(writeSets, 0, sizeof(VkWriteDescriptorSet) * MAX_FONT_COUNT);
+    for (u32 i = 0; i < MAX_FONT_COUNT; i++)
     {
         writeSets[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writeSets[i].dstSet = descSet;
+        writeSets[i].dstSet = desc_set;
         writeSets[i].dstBinding = 0;
         writeSets[i].descriptorCount = 1;
         writeSets[i].pImageInfo = &dummyImageInfo;
         writeSets[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         writeSets[i].dstArrayElement = i;
     }
-    vkUpdateDescriptorSets(device, MaxFontCount, writeSets, 0, nullptr);
+    vkUpdateDescriptorSets(device, MAX_FONT_COUNT, writeSets, 0, nullptr);
     delete[] writeSets;
 
     u32 VertexShaderBinarySize, FragmentShaderBinarySize;
@@ -394,7 +422,7 @@ void ctext::CreatePipeline()
     fragmentShaderInfo.pName = "main";
 
     const std::vector<VkPipelineShaderStageCreateInfo> shaders = { vertexShaderInfo, fragmentShaderInfo };
-    const std::vector<VkDescriptorSetLayout> layouts = { descLayout };
+    const std::vector<VkDescriptorSetLayout> layouts = { desc_Layout };
 
     const pro::PipelineBlendState blend = pro::PipelineBlendState(pro::BlendPreset::PRO_BLEND_PRESET_ALPHA);
 
@@ -402,7 +430,7 @@ void ctext::CreatePipeline()
     pc.format = vctx::SwapChainImageFormat;
     pc.subpass = 0;
     pc.renderPass = vctx::GlobalRenderPass;
-    pc.pipelineLayout = pipelineLayout;
+    pc.pipelineLayout = pipeline_layout;
     pc.pAttributeDescriptions = &attributeDescriptions;
     pc.pBindingDescriptions = &bindingDescriptions;
     pc.pPushConstants = &pushConstants;
@@ -412,7 +440,7 @@ void ctext::CreatePipeline()
     pc.extent.height = vctx::RenderExtent.height;
     pc.pShaderCreateInfos = &shaders;
     pc.pBlendState = &blend;
-    pro::CreatePipelineLayout(device, &pc, &pipelineLayout);
-    pc.pipelineLayout = pipelineLayout;
+    pro::CreatePipelineLayout(device, &pc, &pipeline_layout);
+    pc.pipelineLayout = pipeline_layout;
     pro::CreateGraphicsPipeline(device, &pc, &pipeline, 0);
 }

@@ -16,7 +16,7 @@ int main(void) {
     TIME_FUNCTION(Renderer::Initialize());
     ctext::Init();
 
-    constexpr f32 updateTime = 3.0f; // seconds. 1.5f = 1.5 seconds
+    constexpr f32 updateTime = 5.0f; // seconds. 1.5f = 1.5 seconds
     f32 totalTime = 0.0f;
     u16 numFrames = 0;
 
@@ -24,20 +24,23 @@ int main(void) {
     u64 lastFrameTime = currentTime;
     f64 dt = 0.0;
 
-    // What in the unholy f%$ where you doing
-    LOG_DEBUG("Initialized in %ld ms || %.3f s", SDL_GetTicks(), SDL_GetTicks() / 1000.0f);
-
     ctext::CFont amongus;
     ctext::CFontLoadInfo infoo{};
     infoo.fontPath = "../Assets/roboto.ttf";
     ctext::CFLoad(&infoo, &amongus);
 
+    f32 scale = 1.0f;
+
     SDL_Event event;
 
+    // What in the unholy f%$ where you doing
+    LOG_DEBUG("Initialized in %ld ms (%.3f s)", SDL_GetTicks(), SDL_GetTicks() / 1000.0f);
     while(RD::running) {
-        SDL_PumpEvents();
         while(SDL_PollEvent(&event)) {
             RD::ProcessEvent(&event);
+            if (event.type == SDL_MOUSEWHEEL) {
+                scale += event.wheel.y / 20.0f;
+            }
         }
 
         currentTime = SDL_GetTicks();
@@ -48,14 +51,14 @@ int main(void) {
         totalTime += dt;
         numFrames++;
         if (totalTime > updateTime) {
-            printf("%ldfps : %d frames / %.2fs = ~%fs/frame\n", static_cast<u64>(floorf(numFrames / totalTime)), numFrames, updateTime, totalTime / static_cast<f32>(numFrames));
+            printf("%ldfps : %d frames / %.2fs = ~%fms/frame\n", static_cast<u64>(floorf(numFrames / totalTime)), numFrames, updateTime, (totalTime / static_cast<f32>(numFrames)) * 1000.0);
             numFrames = 0;
             totalTime = 0.0;
         }
 
         if (RD::BeginRender()) {
 
-            ctext::Render(amongus, Renderer::GetDrawBuffer(), U"gamer", 0.0f, 1.0f, 1.0f);
+            ctext::Render(amongus, Renderer::GetDrawBuffer(), U"gamer", 0.0f, 0.0f, scale);
             
             RD::EndRender();
         }

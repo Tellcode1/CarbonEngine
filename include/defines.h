@@ -50,4 +50,6 @@ typedef int8_t i8;
 typedef float f32;
 typedef double f64;
 
+typedef long unsigned size_t;
+
 #endif
