@@ -20,17 +20,14 @@ VkQueue VulkanContextSingleton::TransferQueue = VK_NULL_HANDLE;
 boost::signals2::signal<void(void)> VulkanContextSingleton::OnWindowResized;
 
 VkSwapchainKHR Renderer::swapchain = VK_NULL_HANDLE;
-u8 Renderer::currentFrame = 0;
 u32 Renderer::imageIndex = 0;
-bool Renderer::framebufferResized = false;
-bool Renderer::running = true;
 VkCommandPool Renderer::commandPool = VK_NULL_HANDLE;
 std::vector<FrameRenderData> Renderer::renderData;
 VkCommandBuffer Renderer::drawBuffers[MaxFramesInFlight];
 
 constexpr VkPresentModeKHR PresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
 
-void Renderer::Initialize() {
+void Renderer::initialize() {
     /* Initialize graphics singleton */
     {
         if (!pro::GetSupportedFormat(device, physDevice, surface, &vctx::SwapChainImageFormat, &vctx::SwapChainColorSpace)) {
@@ -184,23 +181,16 @@ void Renderer::Initialize() {
     }
 }
 
-void Renderer::ProcessEvent(SDL_Event *event)
-{
-    if ((event->type == SDL_QUIT) || (event->type == SDL_KEYDOWN && event->key.keysym.scancode == EXIT_KEY))
-        running = false;
-    if (event->type & SDL_WINDOWEVENT_RESIZED || event->type & SDL_WINDOWEVENT_SIZE_CHANGED)
-        framebufferResized = true;
-}
-
 bool Renderer::BeginRender()
 {
     const VkCommandBuffer& drawBuffer = GetDrawBuffer();
+    const u32 current_frame = cengine::get_current_frame() % MaxFramesInFlight;
 
-    vkWaitForFences(device, 1, &renderData[currentFrame].inFlightFence, VK_TRUE, UINT64_MAX);
+    vkWaitForFences(device, 1, &renderData[current_frame].inFlightFence, VK_TRUE, UINT64_MAX);
 
-    const VkResult imageAcquireResult = vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, renderData[currentFrame].imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+    const VkResult imageAcquireResult = vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, renderData[current_frame].imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
 
-	if(imageAcquireResult == VK_ERROR_OUT_OF_DATE_KHR || imageAcquireResult == VK_SUBOPTIMAL_KHR || framebufferResized)
+	if(imageAcquireResult == VK_ERROR_OUT_OF_DATE_KHR || imageAcquireResult == VK_SUBOPTIMAL_KHR || cengine::get_frame_buffer_resized())
 	{
         _SignalResize();
 		return false;
@@ -211,7 +201,7 @@ bool Renderer::BeginRender()
 		return false;
     }
 
-    vkResetFences(device, 1, &renderData[currentFrame].inFlightFence);
+    vkResetFences(device, 1, &renderData[current_frame].inFlightFence);
 
     constexpr VkClearValue clearValues = { { 0.0f, 0.0f, 0.0f, 1.0f} };
 
@@ -236,7 +226,8 @@ bool Renderer::BeginRender()
 
 void Renderer::EndRender()
 {
-    const auto& drawBuffer = drawBuffers[currentFrame];
+    const u32 current_frame = cengine::get_current_frame() % MaxFramesInFlight;
+    const auto& drawBuffer = drawBuffers[current_frame];
 	
     vkCmdEndRenderPass(drawBuffer);
     vkEndCommandBuffer(drawBuffer);
@@ -244,8 +235,8 @@ void Renderer::EndRender()
 	VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-    const VkSemaphore waitSemaphores[] = {renderData[currentFrame].imageAvailableSemaphore};
-    const VkSemaphore signalSemaphores[] = {renderData[currentFrame].renderingFinishedSemaphore};
+    const VkSemaphore waitSemaphores[] = {renderData[current_frame].imageAvailableSemaphore};
+    const VkSemaphore signalSemaphores[] = {renderData[current_frame].renderingFinishedSemaphore};
 
     VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
     submitInfo.pWaitDstStageMask = waitStages;
@@ -260,7 +251,7 @@ void Renderer::EndRender()
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
     
-    vkQueueSubmit(vctx::PresentQueue, 1, &submitInfo, renderData[currentFrame].inFlightFence);
+    vkQueueSubmit(vctx::PresentQueue, 1, &submitInfo, renderData[current_frame].inFlightFence);
 
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -271,10 +262,8 @@ void Renderer::EndRender()
     presentInfo.pSwapchains = &swapchain;
     
     const VkResult result = vkQueuePresentKHR(vctx::PresentQueue, &presentInfo);
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized)
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || cengine::get_frame_buffer_resized())
         _SignalResize();
-    
-    currentFrame = ((currentFrame + 1) % MaxFramesInFlight);
 }
 
 void Renderer::_SignalResize()
@@ -376,6 +365,6 @@ void Renderer::_SignalResize()
         }
     }
 
-    framebufferResized = false;
+    cengine::_reset_frame_buffer_resized();
     vctx::OnWindowResized();
 }

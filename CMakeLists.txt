@@ -23,6 +23,13 @@ set(OUTPUT
 
 include_directories(${CMAKE_SOURCE_DIR}/Atlas)
 
+set(PRECOMPILED_HEADERS
+    include/stdafx.hpp
+    include/cengine.hpp
+    include/ctext.hpp
+    include/cinput.hpp
+)
+
 set(SOURCES
     src/pro.cpp
     src/main.cpp
@@ -30,7 +37,9 @@ set(SOURCES
     src/Bootstrap.cpp
     src/Renderer.cpp
     src/epichelperlib.cpp
-    src/CFont.cpp
+    src/cengine.cpp
+    src/ctext.cpp
+    src/cinput.cpp
 )
 
 include_directories(${CMAKE_SOURCE_DIR})
@@ -74,4 +83,4 @@ target_link_libraries(${OUTPUT} ${LIBS})
 # add_executable(Atlas ${ATLAS_SOURCES})
 # target_link_libraries(Atlas ${ATLAS_LIBS})
 
-target_precompile_headers(${OUTPUT} PRIVATE include/stdafx.hpp)
+target_precompile_headers(${OUTPUT} PRIVATE ${PRECOMPILED_HEADERS})

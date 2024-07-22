@@ -17,7 +17,27 @@
 #   define CARBON_FORCE_INLINE inline
 #endif
 
-#define CARBON_NO_DISCARD [[nodiscard]]
+#if defined(__has_cpp_attribute)
+    #if __has_cpp_attribute(nodiscard)
+        #define CARBON_NO_DISCARD [[nodiscard]]
+    #else
+        #define CARBON_NO_DISCARD
+    #endif
+#elif defined(_MSC_VER)
+    #if _MSC_VER >= 1911 // Visual Studio 2017 version 15.3
+        #define CARBON_NO_DISCARD [[nodiscard]]
+    #else
+        #define CARBON_NO_DISCARD
+    #endif
+#elif defined(__GNUC__)
+    #if __GNUC__ >= 7
+        #define CARBON_NO_DISCARD [[nodiscard]]
+    #else
+        #define CARBON_NO_DISCARD
+    #endif
+#else
+    #define CARBON_NO_DISCARD
+#endif
 
 #define CONCAT(x, y) x##y
 

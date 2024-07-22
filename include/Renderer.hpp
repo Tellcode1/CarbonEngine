@@ -1,38 +1,11 @@
 #ifndef __RENDERER__
 #define __RENDERER__
 
-#include "stdafx.hpp"
+#include "cengine.hpp"
 
 constexpr static SDL_Scancode EXIT_KEY = SDL_SCANCODE_ESCAPE;
 constexpr static u8 MaxFramesInFlight = 2;
 constexpr static VkExtent2D DefaultExtent = { 800, 600 }; // Starting window size
-
-struct VulkanContextSingleton
-{
-    static VkFormat SwapChainImageFormat;
-    static VkColorSpaceKHR SwapChainColorSpace;
-    static u32 SwapChainImageCount;
-
-    static VkRenderPass GlobalRenderPass;
-
-    static VkExtent2D RenderExtent;
-
-    static u32 GraphicsFamilyIndex;
-    static u32 PresentFamilyIndex;
-    static u32 ComputeFamilyIndex;
-    static u32 TransferQueueIndex;
-    static u32 GraphicsAndComputeFamilyIndex;
-
-    static VkQueue GraphicsQueue;
-    static VkQueue GraphicsAndComputeQueue;
-    static VkQueue PresentQueue;
-    static VkQueue ComputeQueue;
-    static VkQueue TransferQueue;
-
-    static boost::signals2::signal<void(void)> OnWindowResized;
-};
-
-using vctx = VulkanContextSingleton;
 
 struct FrameRenderData
 {
@@ -51,19 +24,15 @@ struct Renderer
 
     static VkSwapchainKHR swapchain;
     static VkCommandPool commandPool;
-
-    static u8 currentFrame;
+;
     static u32 imageIndex;
-    static bool framebufferResized;
-    static bool running;
 
     static std::vector<FrameRenderData> renderData;
     static VkCommandBuffer drawBuffers[MaxFramesInFlight];
 
-    static void Initialize();
-    static void ProcessEvent(SDL_Event* event);
+    static void initialize();
 
-    static inline VkCommandBuffer GetDrawBuffer() { return drawBuffers[currentFrame]; };
+    static VkCommandBuffer CARBON_FORCE_INLINE GetDrawBuffer() { return drawBuffers[cengine::get_current_frame()]; }
     static bool BeginRender();
     static void EndRender();
 

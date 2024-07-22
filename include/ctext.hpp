@@ -1,31 +1,23 @@
 #ifndef __C_FONT_HPP__
 #define __C_FONT_HPP__
 
-#include "stdafx.hpp"
+struct ctext;
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-function"
+#include "stdafx.hpp"
 
 #define MSDFGEN_PUBLIC // ?
 #include "external/msdf-atlas-gen/msdf-atlas-gen/msdf-atlas-gen.h"
 
-#pragma GCC diagnostic pop
-
-namespace cf
-{
-
-	// static void CFInit(void);
-}
-
-constexpr u32 MAX_FONT_COUNT = 8;
-
 struct ctext
 {
+	constexpr static u32 MAX_FONT_COUNT = 8;
+
 	struct _CFont; typedef _CFont *CFont;
 	struct CFontLoadInfo;
 
 	static void Render(ctext::CFont font, VkCommandBuffer cmd, std::u32string text, f32 x, f32 y, f32 scale);
-    static void Init();
+	static void render_line(const ctext::CFont font, const std::u32string &str, f32 *xbegin, f32 y);
+    static void initialize();
     static void CreatePipeline();
 
     static VkPipeline pipeline;
@@ -38,6 +30,8 @@ struct ctext
     static VkImage error_image;
     static VkImageView error_image_view;
     static VkSampler error_image_sampler;
+
+	static u32 chars_drawn;
 
 	/*
 	*	I'll just detail what I want to do with the registry.
@@ -54,6 +48,7 @@ struct ctext
 	constexpr static const char *CFontRegistryPath = "./CFont/Registry.txt";
 
 	static void CFLoad(const CFontLoadInfo* pInfo, CFont* dst);
+	static void update();
 
 	struct CFGlyph
 	{
@@ -61,6 +56,14 @@ struct ctext
 		f32 l, b, r, t;
 		f32 advance;
 		u32 codepoint;
+
+		CARBON_FORCE_INLINE f32 get_width() const {
+			return x1 - x0;
+		}
+
+		CARBON_FORCE_INLINE f32 get_height() const {
+			return y0 - y1;
+		}
 	};
 
 	enum HoriAlignment
@@ -85,6 +88,8 @@ struct ctext
 
 		f32 line_height;
 		f32 ascender, descender;
+
+		f32 space_width;
 
 		u32 font_index;
 		VkImage texture;

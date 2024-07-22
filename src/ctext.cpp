@@ -1,4 +1,4 @@
-#include "CFont.hpp"
+#include "ctext.hpp"
 #include "epichelperlib.hpp"
 
 #include "stb/stb_image_write.h"
@@ -14,6 +14,8 @@ VkDescriptorSet ctext::desc_set = VK_NULL_HANDLE;
 VkImage ctext::error_image = VK_NULL_HANDLE;
 VkImageView ctext::error_image_view = VK_NULL_HANDLE;
 VkSampler ctext::error_image_sampler = VK_NULL_HANDLE;
+
+u32 ctext::chars_drawn = 0;
 
 /* I have no idea what any of this is */
 
@@ -97,6 +99,11 @@ void ctext::CFLoad(const CFontLoadInfo* pInfo, CFont* dst)
 
     std::ofstream among("amongus.md");
     for (const msdf_atlas::GlyphGeometry& glyph : glyphs) {
+        if (glyph.isWhitespace()) {
+            (**dst).space_width = glyph.getAdvance();
+            continue;
+        }
+
         f64 x0_, y0_, x1_, y1_;
         glyph.getQuadPlaneBounds(x0_, y0_, x1_, y1_);
 
@@ -125,12 +132,13 @@ void ctext::CFLoad(const CFontLoadInfo* pInfo, CFont* dst)
         msdfgen::FontMetrics metrics;
         msdfgen::getFontMetrics(metrics, font);
 
-        (**dst).line_height = metrics.lineHeight;
+        (**dst).line_height = metrics.lineHeight / metrics.emSize;
         (**dst).ascender = metrics.ascenderY / metrics.emSize;
         (**dst).descender  = metrics.descenderY / metrics.emSize;
 
         mogus.advance = static_cast<f32>(glyph.getAdvance());
-        (**dst).m_glyph_geometry[glyph.getCodepoint()] = mogus;
+        if (glyph.getCodepoint() !=0)
+            (**dst).m_glyph_geometry[glyph.getCodepoint()] = mogus;
     }
     among.close();
 
@@ -187,15 +195,33 @@ void ctext::CFLoad(const CFontLoadInfo* pInfo, CFont* dst)
     msdfgen::deinitializeFreetype(ft);
 }
 
-void GenerateGlyphVertices(const ctext::CFont font, std::vector<vec4>& vertices, std::vector<u32>& indices, const std::u32string& str, f32 xbegin, f32 ybegin) {
+void ctext::update()
+{
+    chars_drawn = 0;
+}
+
+/* Takes a string with either \0 or \n at the end */
+void ctext::render_line(const ctext::CFont font, const std::u32string &str, f32 *xbegin, f32 y)
+{
+
+}
+
+void gen_vertices(const ctext::CFont font, std::vector<vec4>& vertices, std::vector<u32>& indices, const std::u32string& str, f32 xbegin, f32 ybegin) {
+    if (str.length() == 0)
+        return;
+
     f32 x = xbegin;
     f32 y = 0.0f;
-    u32 indexOffset = 0;
+    u32 i = 0;
+
     for (const auto& c : str)
     {
         if (c == U'\n') {
-            x = 0.0f;
+            x = xbegin;
             y += font->line_height;
+            continue;
+        } else if (c == U' ') {
+            x += font->space_width;
             continue;
         }
 
@@ -210,56 +236,64 @@ void GenerateGlyphVertices(const ctext::CFont font, std::vector<vec4>& vertices,
         vertices.push_back(vec4( x1, y0, glyph.r, glyph.t ));
         vertices.push_back(vec4( x1, y1, glyph.r, glyph.b ));
         vertices.push_back(vec4( x0, y1, glyph.l, glyph.b ));
-
-        indices.push_back(indexOffset + 0);
-        indices.push_back(indexOffset + 1);
-        indices.push_back(indexOffset + 2);
-        indices.push_back(indexOffset + 2);
-        indices.push_back(indexOffset + 3);
-        indices.push_back(indexOffset + 0);
+        
+        const u32 index_offset = ctext::chars_drawn * 4;
+        indices.push_back(index_offset + 0);
+        indices.push_back(index_offset + 1);
+        indices.push_back(index_offset + 2);
+        indices.push_back(index_offset + 2);
+        indices.push_back(index_offset + 3);
+        indices.push_back(index_offset + 0);
 
         x += glyph.advance;
-        indexOffset += 4;
+        ctext::chars_drawn++;
+        i++;
     }
 }
 
 void ctext::Render(ctext::CFont font, VkCommandBuffer cmd, std::u32string text, float x, float y, float scale)
 {
+    u32 effective_length = 0;
+    for (const auto& c : text)
+        if (c != '\n' && c != '\t' && c != ' ')
+            effective_length++;
+
+    if (effective_length == 0) {
+        chars_drawn = 0;
+        return;
+    }
+
     cmd = Renderer::GetDrawBuffer();
     std::vector<vec4> vertices;
     std::vector<u32> indices;
 
     static VkBuffer buff;
     static VkDeviceMemory mem;
-    std::u32string sus = U"AjBqG";
-    GenerateGlyphVertices(font, vertices, indices, sus, 0.0f, 0.0f);
 
-    if (!buff) {
-        help::Buffers::CreateBuffer(
-            vertices.size() * sizeof(vec4) + indices.size() * sizeof(u32),
-            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            &buff,
-            &mem
-        );
+    gen_vertices(font, vertices, indices, text, 0.0f, 0.0f);
+
+    if (buff) {
+        vkDeviceWaitIdle(device);
+        vkDestroyBuffer(device, buff, nullptr);
+        vkFreeMemory(device, mem, nullptr);
     }
 
+    help::Buffers::CreateBuffer(
+        vertices.size() * sizeof(vec4) + indices.size() * sizeof(u32),
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        &buff,
+        &mem
+    );
+
     void* data;
-    vkMapMemory(device, mem, 0, vertices.size() * sizeof(vec4), 0, &data);
+    vkMapMemory(device, mem, 0, vertices.size() * sizeof(vec4) + indices.size() * sizeof(u32), 0, &data);
     memcpy(data, vertices.data(), vertices.size() * sizeof(vec4));
     memcpy((uchar *)data + vertices.size() * sizeof(vec4), indices.data(), indices.size() * sizeof(u32));
     vkUnmapMemory(device, mem);
 
-    i32 mx_, my_;
-    SDL_GetMouseState(&mx_, &my_);
-    f32 mx = mx_, my = my_;
-    mx = f32(mx)/vctx::RenderExtent.width;
-    my = f32(my)/vctx::RenderExtent.height;
-    mx = mx * 2.0f - 1.0f;
-    my = my * 2.0f - 1.0f;
-
     mat4 model(1.0f);
-    model = glm::translate(model, vec3(mx, my, 0.0f));
+    model = glm::translate(model, vec3(cinput::get_mouse_position(), 0.0f));
     model = glm::scale(model, vec3(scale, scale, 1.0f));
 
     constexpr VkDeviceSize offsets = 0;
@@ -273,7 +307,7 @@ void ctext::Render(ctext::CFont font, VkCommandBuffer cmd, std::u32string text, 
     vkCmdDrawIndexed(cmd, indices.size(), 1, 0, 0, 0);
 }
 
-void ctext::Init()
+void ctext::initialize()
 {
     const VkDescriptorSetLayoutBinding bindings[] = {
         // binding; descriptorType; descriptorCount; stageFlags; pImmutableSamplers;
