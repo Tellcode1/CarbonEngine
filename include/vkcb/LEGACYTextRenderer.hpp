@@ -1,7 +1,7 @@
 #ifndef __NANO_TEXT_RENDERER_HPP__
 #define __NANO_TEXT_RENDERER_HPP__
 
-#include "stdafx.hpp"
+#include "vkcbstdafx.hpp"
 #include "Bootstrap.hpp"
 #include "pro.hpp"
 #include <glm/packing.hpp>

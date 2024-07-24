@@ -1,7 +1,8 @@
 #ifndef __CONTEXT_HPP__
 #define __CONTEXT_HPP__
 
-#include "stdafx.hpp"
+#include "vkcbstdafx.hpp"
+#include "carrays/cvector.hpp"
 
 const std::vector<const char*> ValidationLayers = {  
 	"VK_LAYER_KHRONOS_validation",
@@ -91,8 +92,8 @@ struct Context {
 
 	static VkDebugUtilsMessengerEXT debugMessenger;
 
-	static std::unordered_set<std::string_view> availableDeviceExtensions;
-	static std::unordered_set<std::string_view> availableInstanceExtensions;
+	static cvector<std::string_view> availableDeviceExtensions;
+	static cvector<std::string_view> availableInstanceExtensions;
 	static VkPhysicalDeviceFeatures availableFeatures;
 
 	static void Initialize(const char* title, u32 windowWidth, u32 windowHeight);

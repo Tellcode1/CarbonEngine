@@ -1,7 +1,7 @@
 #ifndef __EPIC_HELPER_LIBRARY_HPP__
 #define __EPIC_HELPER_LIBRARY_HPP__
 
-#include "stdafx.hpp"
+#include "vkcbstdafx.hpp"
 #include "Context.hpp"
 #include "Renderer.hpp"
 

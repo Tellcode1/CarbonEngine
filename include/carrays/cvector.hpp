@@ -5,7 +5,7 @@
 #include <string.h>
 
 template<typename T>
-struct CVector
+struct cvector
 {
     private:
     u32 m_count;
@@ -13,16 +13,24 @@ struct CVector
     T *m_data;
 
     public:
-    CARBON_FORCE_INLINE u32 size() {
+    CARBON_FORCE_INLINE u32 size() const {
         return m_count;
     }
 
-    CARBON_FORCE_INLINE u32 length() {
+    CARBON_FORCE_INLINE u32 length() const {
         return m_count;
     }
 
-    CARBON_FORCE_INLINE T *data() {
+    CARBON_FORCE_INLINE T *data() const {
         return m_data;
+    }
+
+    CARBON_FORCE_INLINE T *begin() const {
+        return m_data;
+    }
+
+    CARBON_FORCE_INLINE T *end() const {
+        return m_data + m_count;
     }
 
     void reallocate(u32 new_capacity) {
@@ -32,19 +40,20 @@ struct CVector
         m_data = reinterpret_cast<T*>(new_data);
     }
 
-    CVector() : m_count(0), m_data(nullptr) {}
-    CVector(u32 element_count) : m_count(element_count) { reallocate(element_count); }
+    cvector() : m_count(0), m_data(nullptr), m_capacity(0) {}
+    cvector(u32 element_count) : m_count(element_count) { reallocate(element_count); }
     
-    CVector(const std::initializer_list<T>& init_list) : m_count(init_list.size()) {
+    cvector(const std::initializer_list<T>& init_list) : m_count(init_list.size()) {
         reallocate(init_list.size());
         memcpy(m_data, init_list.begin(), m_count * sizeof(T));
     }
 
-    void push_back(const T& element) {
+    u32 push_back(const T& element) {
         if ((m_count + 1) >= m_capacity)
             reallocate(std::max(1U, m_capacity * 2U));
         m_data[m_count] = element;
         m_count++;
+        return m_count - 1;
     }
 
     void insert(u32 index, const T& element) {
@@ -67,7 +76,7 @@ struct CVector
         m_count--;
     }
 
-    CARBON_NO_DISCARD T at(u32 index) {
+    CARBON_NO_DISCARD T& at(u32 index) const {
         if (index >= m_count)
             LOG_ERROR(
                 "Attempt to access element at index %u but array holds only %u elements?", index, m_count
@@ -76,7 +85,7 @@ struct CVector
     }
 
     // Finds and returns the first occurence of the element in the array, UINT32_MAX if doesn't exist
-    CARBON_NO_DISCARD u32 find(const T& element) {
+    CARBON_NO_DISCARD u32 find(const T& element) const {
         for (u32 i = 0; i < m_count; i++)
             if (m_data[i] == element)
                 return i;
@@ -85,8 +94,27 @@ struct CVector
 
     CARBON_FORCE_INLINE void clear() {
         free(m_data);
+        m_data = nullptr;
         m_count = 0;
         m_capacity = 0;
+    }
+
+    CARBON_FORCE_INLINE void resize(u32 new_size) {
+        if (new_size == 0)
+            LOG_ERROR("Request array resize to 0");
+
+        T *new_data = (T *)malloc(sizeof(T) * new_size);
+
+        u32 move_size = std::min(new_size, m_count) * sizeof(T);
+
+        if (m_data) {
+            memmove(new_data, m_data, move_size);
+            free(m_data);
+        }
+
+        m_data = new_data;
+        m_count =  new_size;
+        m_capacity = new_size;
     }
 };
 

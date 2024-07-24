@@ -1,7 +1,7 @@
 #ifndef __BOOTSTRAP__
 #define __BOOTSTRAP__
 
-#include "stdafx.hpp"
+#include "vkcbstdafx.hpp"
 
 namespace bootstrap {
     // vkb::Instance CreateInstance();

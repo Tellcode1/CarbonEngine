@@ -1,4 +1,5 @@
 #include "Context.hpp"
+#include <set>
 
 VkInstance 							 Context::instance;
 VkDevice 							 Context::device;
@@ -6,11 +7,11 @@ VkPhysicalDevice 					 Context::physDevice;
 VkSurfaceKHR 				         Context::surface;
 SDL_Window* 				         Context::window;
 VkDebugUtilsMessengerEXT 			 Context::debugMessenger;
-std::unordered_set<std::string_view> Context::availableDeviceExtensions;
-std::unordered_set<std::string_view> Context::availableInstanceExtensions;
+cvector<std::string_view> 			 Context::availableDeviceExtensions;
+cvector<std::string_view> 			 Context::availableInstanceExtensions;
 VkPhysicalDeviceFeatures 			 Context::availableFeatures;
 
-VkInstance CreateInstance(const char* title, std::unordered_set<std::string_view>& availableExtensions) {
+VkInstance CreateInstance(const char* title, cvector<std::string_view>& availableExtensions) {
     VkApplicationInfo appInfo{};
 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	appInfo.applicationVersion = VK_API_VERSION_1_0;
@@ -44,7 +45,7 @@ VkInstance CreateInstance(const char* title, std::unordered_set<std::string_view
 		for(const auto& want : WantedInstanceExtensions)
 			if(strcmp(name, want) == 0) {
 				enabledExtensions.push_back(name);
-				availableExtensions.insert(name);
+				availableExtensions.push_back(name);
 				break;
 			}
 	}
@@ -323,7 +324,7 @@ void Context::Initialize(const char* title, u32 windowWidth, u32 windowHeight) {
 	vkEnumerateDeviceExtensionProperties(ctx::physDevice, nullptr, &extensionCount, extensions);
 
 	for(u32 i = 0; i < extensionCount; i++)
-		ctx::availableDeviceExtensions.insert(extensions[i].extensionName);
+		ctx::availableDeviceExtensions.push_back(extensions[i].extensionName);
 
 	u32 enabledIterator = 0;
 

@@ -1,7 +1,10 @@
 #define STB_IMAGE_IMPLEMENTATION
 
+#include "stdafx.hpp"
 #include "cengine.hpp"
-#include "CArrays/CVector.hpp"
+#include "ctext.hpp"
+#include "cinput.hpp"
+#include "carrays/cvector.hpp"
 
 int main(void) {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER);
@@ -9,7 +12,6 @@ int main(void) {
     using RD = Renderer;
 
     TIME_FUNCTION(ctx::Initialize("epic", 800, 600));
-    Renderer::initialize();
     cengine::initialize();
 
     constexpr f32 updateTime = 1.5f; // seconds. 1.5f = 1.5 seconds

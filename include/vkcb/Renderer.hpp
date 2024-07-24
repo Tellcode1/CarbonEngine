@@ -2,6 +2,8 @@
 #define __RENDERER__
 
 #include "cengine.hpp"
+#include "carrays/cvector.hpp"
+#include "carrays/carray.hpp"
 
 constexpr static SDL_Scancode EXIT_KEY = SDL_SCANCODE_ESCAPE;
 constexpr static u8 MaxFramesInFlight = 2;
@@ -24,15 +26,16 @@ struct Renderer
 
     static VkSwapchainKHR swapchain;
     static VkCommandPool commandPool;
-;
+
+    static u32 renderer_frame;
     static u32 imageIndex;
 
-    static std::vector<FrameRenderData> renderData;
-    static VkCommandBuffer drawBuffers[MaxFramesInFlight];
+    static cvector<FrameRenderData> renderData;
+    static carray<VkCommandBuffer, MaxFramesInFlight> drawBuffers;
 
     static void initialize();
 
-    static VkCommandBuffer CARBON_FORCE_INLINE GetDrawBuffer() { return drawBuffers[cengine::get_current_frame()]; }
+    static VkCommandBuffer CARBON_FORCE_INLINE GetDrawBuffer() { return drawBuffers.at(renderer_frame); }
     static bool BeginRender();
     static void EndRender();
 

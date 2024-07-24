@@ -4,6 +4,7 @@
 struct ctext;
 
 #include "stdafx.hpp"
+#include "vkcb/vkcbstdafx.hpp"
 
 #define MSDFGEN_PUBLIC // ?
 #include "external/msdf-atlas-gen/msdf-atlas-gen/msdf-atlas-gen.h"

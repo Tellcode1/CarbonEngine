@@ -10,7 +10,7 @@
 
 */
 
-#include "stdafx.hpp"
+#include "vkcbstdafx.hpp"
 
 typedef void (*ResultCheckFunc) (const VkResult result, const char *FILE, const char *FUNC, size_t LINE);
 typedef u32 ProFlags;
@@ -35,12 +35,13 @@ enum PipelineCreateFlagBits
 };
 typedef ProFlags PipelineCreateFlags;
 
+// #define ResultCheck(func) pro::__resultFunc(func, __ASSERT_FILE, __ASSERT_FUNCTION, __LINE__)
 #define ResultCheck(func) pro::__resultFunc(func, __ASSERT_FILE, __ASSERT_FUNCTION, __LINE__)
 
 namespace pro
 {
 	inline void __defaultResultCheckFunc(const VkResult result, const char *FILE, const char *FUNC, size_t LINE) {
-		result != VK_SUCCESS ? LOG_ERROR("In file %s:\n        In function %s at line %lu:\n        Function returned error code %u", FILE, FUNC, LINE, result) : void(0);
+		(result != VK_SUCCESS) ? LOG_ERROR("In file %s:\n        In function %s at line %lu:\n        Function returned error code %i", FILE, FUNC, LINE, result) : void(0);
 	}
 	
 	/*
@@ -54,7 +55,10 @@ namespace pro
 	*/
 	inline void SetResultCheckFunc(ResultCheckFunc func)
 	{
-		__resultFunc = (func != nullptr) ? func : __defaultResultCheckFunc;
+		if (func != nullptr)
+			__resultFunc = func;
+		else
+			func = __defaultResultCheckFunc;
 	}
 
 	/*

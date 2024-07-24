@@ -25,21 +25,23 @@ include_directories(${CMAKE_SOURCE_DIR}/Atlas)
 
 set(PRECOMPILED_HEADERS
     include/stdafx.hpp
+    include/vkcb/vkcbstdafx.hpp
     include/cengine.hpp
     include/ctext.hpp
     include/cinput.hpp
 )
 
 set(SOURCES
-    src/pro.cpp
     src/main.cpp
-    src/Context.cpp
-    src/Bootstrap.cpp
-    src/Renderer.cpp
-    src/epichelperlib.cpp
     src/cengine.cpp
     src/ctext.cpp
     src/cinput.cpp
+    
+    src/vkcb/pro.cpp
+    src/vkcb/Context.cpp
+    src/vkcb/Bootstrap.cpp
+    src/vkcb/Renderer.cpp
+    src/vkcb/epichelperlib.cpp
 )
 
 include_directories(${CMAKE_SOURCE_DIR})
@@ -47,6 +49,9 @@ include_directories(${CMAKE_SOURCE_DIR}/src)
 include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(${CMAKE_SOURCE_DIR}/external)
 include_directories(${CMAKE_SOURCE_DIR}/UIX)
+
+include_directories(${CMAKE_SOURCE_DIR}/include/vkcb)
+include_directories(${CMAKE_SOURCE_DIR}/src/vkcb)
 
 set(MSDFGEN_CORE_ONLY OFF)
 set(MSDFGEN_BUILD_STANDALONE OFF)

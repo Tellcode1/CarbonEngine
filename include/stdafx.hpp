@@ -50,24 +50,7 @@ using glm::mat3;
 using glm::mat4;
 
 #include <iostream>
-#include <iomanip>
 #include <fstream>
-
-#include <ctime>
-#include <thread>
-#include <atomic>
-#include <mutex>
-
-#include <vector>
-#include <set>
-#include <map>
-#include <unordered_map>
-#include <unordered_set>
-
-#include <vulkan/vulkan.hpp>
-
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_vulkan.h>
 
 #include <chrono>
 
@@ -79,10 +62,9 @@ using glm::mat4;
                             LOG_DEBUG("[Line %d] Function %s took %ldms", LINE, #func, (std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - __WRAPPER1(__COUNTER_BEGIN__, __LINE__)).count()) / 1000000.0, LINE);
 #define TIME_FUNCTION(func) TIME_FUNCTION_REAL(func, __LINE__)
 
-#include <boost/signals2.hpp>
-
 #define DEBUG
 
+#include <stdarg.h>
 #define __LOG()     va_list args; \
                     va_start(args, fmt); \
                     vfprintf(stderr, (preceder + fmt + succeeder).c_str(), args); \
@@ -120,36 +102,5 @@ inline void LOG_DEBUG(std::string fmt, ...) {
 }
 
 #undef __LOG
-
-struct VulkanContextSingleton
-{
-    static VkFormat SwapChainImageFormat;
-    static VkColorSpaceKHR SwapChainColorSpace;
-    static u32 SwapChainImageCount;
-
-    static VkRenderPass GlobalRenderPass;
-
-    static VkExtent2D RenderExtent;
-
-    static u32 GraphicsFamilyIndex;
-    static u32 PresentFamilyIndex;
-    static u32 ComputeFamilyIndex;
-    static u32 TransferQueueIndex;
-    static u32 GraphicsAndComputeFamilyIndex;
-
-    static VkQueue GraphicsQueue;
-    static VkQueue GraphicsAndComputeQueue;
-    static VkQueue PresentQueue;
-    static VkQueue ComputeQueue;
-    static VkQueue TransferQueue;
-
-    static boost::signals2::signal<void(void)> OnWindowResized;
-};
-
-using vctx = VulkanContextSingleton;
-
-#include "pro.hpp"
-#include "Context.hpp"
-#include "Renderer.hpp"
 
 #endif

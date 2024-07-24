@@ -37,7 +37,7 @@ public:
     }
 
     constexpr static u32 FIXED_FRAME_RATE = 30;
-    constexpr static f64 fixed_frame_delay = 1000.0 / FIXED_FRAME_RATE;
+    constexpr static f64 fixed_frame_delay = 1000.0 / (f64)FIXED_FRAME_RATE;
 
     static void initialize();
     static void consume_event(SDL_Event *event);
