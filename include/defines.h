@@ -43,6 +43,9 @@
 
 #define array_len(arr) (sizeof(arr) / sizeof(arr[0]))
 
+#define cassert_and_ret(expr) if (!static_cast<bool>(expr)) { LOG_ERROR("[%s : %u] Assertion %s failed", __ASSERT_FILE, __ASSERT_LINE, #expr); return; }
+#define cassert(expr) (!static_cast<bool>(expr) ? LOG_ERROR("[%s : %u] Assertion %s failed", __ASSERT_FILE, __ASSERT_LINE, #expr) : void(0))
+
 constexpr const char* ANSI_FORMAT_BLACK = "\033[30m";
 constexpr const char* ANSI_FORMAT_RED = "\033[31m";
 constexpr const char* ANSI_FORMAT_GREEN = "\033[32m";
@@ -55,6 +58,7 @@ constexpr const char* ANSI_FORMAT_RESET = "\033[0m";
 constexpr const char* ANSI_FORMAT_DEFAULT = ANSI_FORMAT_RESET;
 
 typedef uint64_t u64;
+typedef uint64_t size_t;
 typedef uint32_t u32;
 typedef uint16_t u16;
 typedef uint8_t u8;
@@ -69,7 +73,5 @@ typedef int8_t i8;
 
 typedef float f32;
 typedef double f64;
-
-typedef long unsigned size_t;
 
 #endif

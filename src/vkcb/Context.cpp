@@ -11,6 +11,10 @@ cvector<std::string_view> 			 Context::availableDeviceExtensions;
 cvector<std::string_view> 			 Context::availableInstanceExtensions;
 VkPhysicalDeviceFeatures 			 Context::availableFeatures;
 
+VkSampleCountFlagBits                device_info::MAX_SAMPLES;
+bool 				                 device_info::SUPPORTS_MULTISAMPLING;
+f32 				                 device_info::MAX_ANISOTROPY;
+
 VkInstance CreateInstance(const char* title, cvector<std::string_view>& availableExtensions) {
     VkApplicationInfo appInfo{};
 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -364,6 +368,30 @@ void Context::Initialize(const char* title, u32 windowWidth, u32 windowHeight) {
 
 	if (vkCreateDevice(ctx::physDevice, &deviceCreateInfo, nullptr, &ctx::device) != VK_SUCCESS) {
 		LOG_AND_ABORT("Failed to create device");
+	}
+
+	VkPhysicalDeviceProperties props;
+	vkGetPhysicalDeviceProperties(ctx::physDevice, &props);
+
+	device_info::MAX_ANISOTROPY = props.limits.maxSamplerAnisotropy;
+	device_info::SUPPORTS_MULTISAMPLING = true;
+
+	const VkSampleCountFlags samples = props.limits.framebufferColorSampleCounts;
+    if (samples & VK_SAMPLE_COUNT_64_BIT)
+		device_info::MAX_SAMPLES = VK_SAMPLE_COUNT_64_BIT;
+    else if (samples & VK_SAMPLE_COUNT_32_BIT)
+		device_info::MAX_SAMPLES = VK_SAMPLE_COUNT_32_BIT;
+    else if (samples & VK_SAMPLE_COUNT_16_BIT)
+		device_info::MAX_SAMPLES = VK_SAMPLE_COUNT_16_BIT;
+    else if (samples & VK_SAMPLE_COUNT_8_BIT)
+		device_info::MAX_SAMPLES = VK_SAMPLE_COUNT_8_BIT;
+    else if (samples & VK_SAMPLE_COUNT_4_BIT)
+		device_info::MAX_SAMPLES = VK_SAMPLE_COUNT_4_BIT;
+    else if (samples & VK_SAMPLE_COUNT_2_BIT)
+		device_info::MAX_SAMPLES = VK_SAMPLE_COUNT_2_BIT;
+	else {
+		device_info::MAX_SAMPLES = VK_SAMPLE_COUNT_1_BIT;
+		device_info::SUPPORTS_MULTISAMPLING = false;
 	}
 
 	delete[] queueCreateInfos;

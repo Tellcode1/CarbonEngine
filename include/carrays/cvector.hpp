@@ -35,17 +35,22 @@ struct cvector
 
     void reallocate(u32 new_capacity) {
         void *new_data = malloc(sizeof(T) * new_capacity);
-        memmove(new_data, m_data, sizeof(T) * m_capacity);
+        if (m_data)
+            memmove(new_data, m_data, sizeof(T) * m_capacity);
         m_capacity = new_capacity;
         m_data = reinterpret_cast<T*>(new_data);
     }
 
     cvector() : m_count(0), m_data(nullptr), m_capacity(0) {}
-    cvector(u32 element_count) : m_count(element_count) { reallocate(element_count); }
+    cvector(u32 element_count) : m_count(0), m_data(nullptr) { reallocate(element_count); }
     
     cvector(const std::initializer_list<T>& init_list) : m_count(init_list.size()) {
         reallocate(init_list.size());
         memcpy(m_data, init_list.begin(), m_count * sizeof(T));
+    }
+
+    ~cvector() {
+        free(m_data);
     }
 
     u32 push_back(const T& element) {
@@ -54,6 +59,19 @@ struct cvector
         m_data[m_count] = element;
         m_count++;
         return m_count - 1;
+    }
+
+    constexpr cvector<T> & operator=(const T &other) {
+        clear();
+        push_back(other);
+        return *this;
+    }
+
+    constexpr cvector<T> & operator=(const cvector<T> &other) {
+        clear();
+        reallocate(other.size());
+        memcpy(m_data, other.data(), other.size() * sizeof(T));
+        return *this;
     }
 
     void insert(u32 index, const T& element) {

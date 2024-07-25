@@ -21,8 +21,8 @@ u32 ctext::chars_drawn = 0;
 
 typedef char32_t unicode;
 
-constexpr u32 channels = 3;
-constexpr auto DistanceFieldGenerator = &msdf_atlas::msdfGenerator; // Change this when changing channels too
+constexpr u32 channels = 1;
+constexpr auto DistanceFieldGenerator = &msdf_atlas::sdfGenerator; // Change this when changing channels too
 static_assert(channels >= 1 && channels <= 4 && channels != 2);
 
 constexpr VkFormat imageFormat = 
@@ -31,13 +31,16 @@ constexpr VkFormat imageFormat =
     (channels == 1) ? VK_FORMAT_R8_UNORM :
     VK_FORMAT_UNDEFINED;
 
-void ctext::CFLoad(const CFontLoadInfo* pInfo, CFont* dst)
+void ctext::CFLoad(const CFontLoadInfo *__restrict pInfo, CFont* dst)
 {
 	if (!pInfo || !dst)
 	{
 		LOG_ERROR("pInfo or dst is nullptr!");
 		return;
 	}
+
+    cassert_and_ret(pInfo->scale > 0.0f);
+    cassert_and_ret(pInfo->chset.size() > 0);
 
     msdfgen::FreetypeHandle *ft = msdfgen::initializeFreetype();
     if (!ft) {
@@ -51,22 +54,22 @@ void ctext::CFLoad(const CFontLoadInfo* pInfo, CFont* dst)
         return;
     }
 
-    *dst = new ctext::_CFont();
+    *dst = new CFont_T();
 
     std::vector<msdf_atlas::GlyphGeometry> glyphs;
     msdf_atlas::FontGeometry fontGeometry(&glyphs);
-    msdf_atlas::Charset charset;
-    fontGeometry.loadCharset(font, 1.0, charset.ASCII);
+    fontGeometry.loadCharset(font, 1.0, pInfo->chset);
 
     constexpr double maxCornerAngle = 3.0;
     for (msdf_atlas::GlyphGeometry& glyph : glyphs)
         glyph.edgeColoring(&msdfgen::edgeColoringInkTrap, maxCornerAngle, 0);
 
+    const f32 scale = pInfo->scale;
     msdf_atlas::TightAtlasPacker packer;
     packer.setDimensionsConstraint(msdf_atlas::DimensionsConstraint::POWER_OF_TWO_SQUARE);
-    packer.setMinimumScale(24.0);
-    packer.setPixelRange(2.0);
-    packer.setMiterLimit(1.0);
+    packer.setMinimumScale(scale);
+    packer.setPixelRange(scale);
+    packer.setMiterLimit(scale / 12.0f);
     packer.setSpacing(2);
     packer.pack(glyphs.data(), glyphs.size());
 
@@ -100,7 +103,7 @@ void ctext::CFLoad(const CFontLoadInfo* pInfo, CFont* dst)
     std::ofstream among("amongus.md");
     for (const msdf_atlas::GlyphGeometry& glyph : glyphs) {
         if (glyph.isWhitespace()) {
-            (**dst).space_width = glyph.getAdvance();
+            (*dst)->space_width = glyph.getAdvance();
             continue;
         }
 
@@ -132,22 +135,21 @@ void ctext::CFLoad(const CFontLoadInfo* pInfo, CFont* dst)
         msdfgen::FontMetrics metrics;
         msdfgen::getFontMetrics(metrics, font);
 
-        (**dst).line_height = metrics.lineHeight / metrics.emSize;
-        (**dst).ascender = metrics.ascenderY / metrics.emSize;
-        (**dst).descender  = metrics.descenderY / metrics.emSize;
+        (*dst)->line_height = metrics.lineHeight / metrics.emSize;
+        (*dst)->ascender = metrics.ascenderY / metrics.emSize;
+        (*dst)->descender  = metrics.descenderY / metrics.emSize;
 
         mogus.advance = static_cast<f32>(glyph.getAdvance());
         if (glyph.getCodepoint() !=0)
-            (**dst).m_glyph_geometry[glyph.getCodepoint()] = mogus;
+            (*dst)->m_glyph_geometry[glyph.getCodepoint()] = mogus;
     }
     among.close();
 
-    ctext::_CFont &dstRef = **dst; // Dereference CFont* -> _CFont* -> _CFont
-    dstRef.atlasWidth = width;
-    dstRef.atlasHeight = height;
-    dstRef.atlasData = pixelBuffer;
+    (*dst)->atlasWidth = width;
+    (*dst)->atlasHeight = height;
+    (*dst)->atlasData = pixelBuffer;
 
-    help::Images::killme(pixelBuffer, width, height, imageFormat, channels, &dstRef.texture, &dstRef.texture_memory);
+    help::Images::killme(pixelBuffer, width, height, imageFormat, channels, &(*dst)->texture, &(*dst)->texture_memory);
 
     VkSamplerCreateInfo sampler_info{};
     sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -157,27 +159,27 @@ void ctext::CFLoad(const CFontLoadInfo* pInfo, CFont* dst)
     sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    if (vkCreateSampler(device, &sampler_info, nullptr, &dstRef.sampler) != VK_SUCCESS)
+    if (vkCreateSampler(device, &sampler_info, nullptr, &(*dst)->sampler) != VK_SUCCESS)
         LOG_ERROR("Failed to create sampler");
 
     VkImageViewCreateInfo view_info{};
     view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
     view_info.format = imageFormat;
-    view_info.image = dstRef.texture;
+    view_info.image = (*dst)->texture;
     view_info.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
     view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     view_info.subresourceRange.baseMipLevel = 0;
     view_info.subresourceRange.levelCount = 1;
     view_info.subresourceRange.baseArrayLayer = 0;
     view_info.subresourceRange.layerCount = 1;
-    if (vkCreateImageView(device, &view_info, nullptr, &dstRef.texture_view) != VK_SUCCESS)
+    if (vkCreateImageView(device, &view_info, nullptr, &(*dst)->texture_view) != VK_SUCCESS)
         LOG_ERROR("Failed to create image view");
 
     VkDescriptorImageInfo error_image_info{};
     error_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    error_image_info.sampler = dstRef.sampler;
-    error_image_info.imageView = dstRef.texture_view;
+    error_image_info.sampler = (*dst)->sampler;
+    error_image_info.imageView = (*dst)->texture_view;
 
     for (u32 i = 0; i < MAX_FONT_COUNT; i++)
     {
@@ -206,8 +208,20 @@ void ctext::render_line(const ctext::CFont font, const std::u32string &str, f32 
 
 }
 
+bool font_is_valid(const ctext::CFont fnt)
+{
+    bool valid = true;
+    if (fnt == nullptr) valid = false;
+    if (fnt->atlasWidth == 0 && fnt->atlasHeight == 0) valid = false;
+    if (fnt->m_glyph_geometry.size() == 0) valid = false;
+    return valid;
+}
+
 void gen_vertices(const ctext::CFont font, std::vector<vec4>& vertices, std::vector<u32>& indices, const std::u32string& str, f32 xbegin, f32 ybegin) {
     if (str.length() == 0)
+        return;
+
+    if (!font_is_valid(font))
         return;
 
     f32 x = xbegin;
@@ -394,27 +408,24 @@ void ctext::initialize()
     vkUpdateDescriptorSets(device, MAX_FONT_COUNT, writeSets, 0, nullptr);
     delete[] writeSets;
 
-    u32 VertexShaderBinarySize, FragmentShaderBinarySize;
-    help::Files::LoadBinary("./Shaders/vert.text.spv", nullptr, &VertexShaderBinarySize);
-    std::vector<u8> VertexShaderBinary(VertexShaderBinarySize);
-    help::Files::LoadBinary("./Shaders/vert.text.spv", VertexShaderBinary.data(), &VertexShaderBinarySize);
+    cvector<u8> vshader_binary;
+    help::Files::LoadBinary("./Shaders/vert.text.spv", &vshader_binary);
 
-    help::Files::LoadBinary("./Shaders/frag.text.spv", nullptr, &FragmentShaderBinarySize);
-    std::vector<u8> FragmentShaderBinary(FragmentShaderBinarySize);
-    help::Files::LoadBinary("./Shaders/frag.text.spv", FragmentShaderBinary.data(), &FragmentShaderBinarySize);
+    cvector<u8> fshader_binary;
+    help::Files::LoadBinary("./Shaders/ctext/sdf.frag.spv", &fshader_binary);
 
     VkShaderModuleCreateInfo vertexShaderModuleInfo{};
     vertexShaderModuleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    vertexShaderModuleInfo.codeSize = VertexShaderBinarySize;
-    vertexShaderModuleInfo.pCode = reinterpret_cast<const u32*>(VertexShaderBinary.data());
+    vertexShaderModuleInfo.codeSize = vshader_binary.size();
+    vertexShaderModuleInfo.pCode = reinterpret_cast<const u32*>(vshader_binary.data());
     if (vkCreateShaderModule(device, &vertexShaderModuleInfo, nullptr, &vertex) != VK_SUCCESS) {
         LOG_ERROR("Failed to create vertex shader module!");
     }
 
     VkShaderModuleCreateInfo fragmentShaderModuleInfo{};
     fragmentShaderModuleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    fragmentShaderModuleInfo.codeSize = FragmentShaderBinarySize;
-    fragmentShaderModuleInfo.pCode = reinterpret_cast<const u32*>(FragmentShaderBinary.data());
+    fragmentShaderModuleInfo.codeSize = fshader_binary.size();
+    fragmentShaderModuleInfo.pCode = reinterpret_cast<const u32*>(fshader_binary.data());
     if (vkCreateShaderModule(device, &fragmentShaderModuleInfo, nullptr, &fragment) != VK_SUCCESS) {
         LOG_ERROR("Failed to create fragment shader module!");
     }
@@ -476,5 +487,5 @@ void ctext::CreatePipeline()
     pc.pBlendState = &blend;
     pro::CreatePipelineLayout(device, &pc, &pipeline_layout);
     pc.pipelineLayout = pipeline_layout;
-    pro::CreateGraphicsPipeline(device, &pc, &pipeline, 0);
+    pro::CreateGraphicsPipeline(device, &pc, &pipeline, PIPELINE_CREATE_FLAGS_ENABLE_BLEND);
 }

@@ -6,11 +6,23 @@ if [ $# -ne 1 ]; then
     exit 1
 fi
 
+compile_shader(){
+    echo "-- Compiling $2"
+    glslangValidator -V $2 -S $3 -o $1.tmp
+    spirv-opt $1.tmp -o $1
+    rm $1.tmp
+}
+
 mkdir -p $1/Shaders
+mkdir -p $1/Shaders/ctext
 
-glslangValidator -V ./vert.glsl -S vert -o $1/Shaders/vert.spv
-glslangValidator -V ./frag.glsl -S frag -o $1/Shaders/frag.spv
+echo Shader Compilation start
+    compile_shader $1/Shaders/vert.spv ./vert.glsl vert
+    compile_shader $1/Shaders/frag.spv ./frag.glsl frag
 
-glslangValidator -V ./vert.text.glsl -S vert -o $1/Shaders/vert.text.spv
-glslangValidator -V ./frag.text.glsl -S frag -o $1/Shaders/frag.text.spv
-glslangValidator -V ./text.comp -S comp -o $1/Shaders/comp.text.spv
+    compile_shader $1/Shaders/vert.text.spv ./vert.text.glsl vert
+    compile_shader $1/Shaders/frag.text.spv ./frag.text.glsl frag
+    compile_shader $1/Shaders/comp.text.spv ./text.comp      comp
+
+    compile_shader $1/Shaders/ctext/sdf.frag.spv ./ctext/sdf.frag.glsl frag
+echo Done!

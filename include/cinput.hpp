@@ -2,6 +2,7 @@
 #define __C_INPUT_HPP__
 
 #include "stdafx.hpp"
+#include <SDL2/SDL.h>
 #include <bitset>
 
 struct cinput
@@ -9,6 +10,7 @@ struct cinput
     private:
     static std::bitset<SDL_NUM_SCANCODES> kb_state;
     static std::bitset<SDL_NUM_SCANCODES> last_frame_kb_state;
+
     static vec2 mouse_position;
 
     public:

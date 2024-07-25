@@ -13,6 +13,7 @@ struct VulkanContextSingleton
     static VkFormat SwapChainImageFormat;
     static VkColorSpaceKHR SwapChainColorSpace;
     static u32 SwapChainImageCount;
+    static VkSampleCountFlagBits Samples;
 
     static VkRenderPass GlobalRenderPass;
 
@@ -31,6 +32,13 @@ struct VulkanContextSingleton
     static VkQueue TransferQueue;
 
     static csignal OnWindowResized;
+};
+
+struct device_info
+{
+    static VkSampleCountFlagBits MAX_SAMPLES;
+    static bool SUPPORTS_MULTISAMPLING;
+    static f32 MAX_ANISOTROPY;
 };
 
 using vctx = VulkanContextSingleton;

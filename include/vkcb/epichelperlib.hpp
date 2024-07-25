@@ -4,6 +4,7 @@
 #include "vkcbstdafx.hpp"
 #include "Context.hpp"
 #include "Renderer.hpp"
+#include "carrays/cvector.hpp"
 
 namespace help
 {
@@ -58,6 +59,7 @@ namespace help
         // makes image for vulkan by loading it with stb
         // I'm the god of removing something, realising it was important and then adding it back again, just differently.
         void killme(u8 *buffer, u32 width, u32 height, VkFormat format, u32 channels, VkImage *dst, VkDeviceMemory *dstMem);
+        void create_empty(u32 width, u32 height, VkFormat format, VkSampleCountFlagBits samples, u32 channels, VkImageUsageFlags usage, VkImage *dst, VkDeviceMemory *dstMem);
         u8* killme(const char *path, u32 *width, u32 *height, VkFormat *channels, VkImage *dst, VkDeviceMemory *dstMem);
 
         // incomplete = true = the command will be recorded to the active command buffer
@@ -71,6 +73,11 @@ namespace help
     namespace Files
     {
         void Load(const char* path, u8* dst, u32* dstSize);
+
+        /*
+        *   Calls resize on dst!
+        */
+        void LoadBinary(const char *path, cvector<u8> *dst);
         void LoadBinary(const char* path, u8* dst, u32* dstSize);
     }
 }

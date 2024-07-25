@@ -172,6 +172,26 @@ VkResult help::Commands::EndSingleTimeCommands(VkCommandBuffer cmd, VkQueue queu
     return VK_SUCCESS;
 }
 
+void help::Files::LoadBinary(const char * path, cvector<u8>* dst)
+{
+    std::ifstream instream(path, std::ios::ate | std::ios::binary);
+    if (!instream.is_open()) {
+        LOG_ERROR("Failed to open file at path %s", path);
+        instream.close(); // I think instream automatically closes when it goes out of scope but I don't want to find out
+        return;
+    }
+
+    const std::streampos file_size = instream.tellg();
+    if (file_size == -1)
+        LOG_ERROR("Invalid file size? %s", path);
+
+    dst->resize(file_size);
+    instream.seekg(0);
+    instream.read(reinterpret_cast<char *>(dst->data()), file_size);
+
+    instream.close();
+}
+
 void help::Files::LoadBinary(const char* path, u8* dst, u32* dstSize) {
     if(!dst) {
         *dstSize = (u32)boost::filesystem::file_size(path);
@@ -366,6 +386,12 @@ void help::Images::StageImageTransfer(VkImage dst, void *data, u32 width, u32 he
 
 void help::Images::killme(u8 *buffer, u32 width, u32 height, VkFormat format, u32 channels, VkImage *dst, VkDeviceMemory *dstMem)
 {
+    create_empty(width, height, format, VK_SAMPLE_COUNT_1_BIT, channels, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, dst, dstMem);
+    StageImageTransfer(*dst, buffer, width, height, channels);
+}
+
+void help::Images::create_empty(u32 width, u32 height, VkFormat format, VkSampleCountFlagBits samples, u32 channels, VkImageUsageFlags usage, VkImage *dst, VkDeviceMemory *dstMem)
+{
     VkImageCreateInfo imageCreateInfo{};
     imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -377,8 +403,8 @@ void help::Images::killme(u8 *buffer, u32 width, u32 height, VkFormat format, u3
     imageCreateInfo.format = format;
     imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-    imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageCreateInfo.usage = usage;
+    imageCreateInfo.samples = samples;
     imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     if (vkCreateImage(device, &imageCreateInfo, nullptr, dst) != VK_SUCCESS)
         LOG_ERROR("Failed to create image");
@@ -395,8 +421,6 @@ void help::Images::killme(u8 *buffer, u32 width, u32 height, VkFormat format, u3
 
     vkAllocateMemory(device, &allocInfo, nullptr, dstMem);
     vkBindImageMemory(device, *dst, *dstMem, 0);
-
-    StageImageTransfer(*dst, buffer, width, height, channels);
 }
 
 u8* help::Images::killme(const char *path, u32 *width, u32 *height, VkFormat *channels, VkImage *dst, VkDeviceMemory *dstMem)

@@ -1,5 +1,6 @@
 #define STB_IMAGE_IMPLEMENTATION
 
+#include "defines.h"
 #include "stdafx.hpp"
 #include "cengine.hpp"
 #include "ctext.hpp"
@@ -11,8 +12,14 @@ int main(void) {
 
     using RD = Renderer;
 
-    TIME_FUNCTION(ctx::Initialize("epic", 800, 600));
-    cengine::initialize();
+    TIME_FUNCTION(cengine::initialize_context("kilometers per second (edgy)(im cool now ok?)", 800, 600));
+
+    renderer_config rdconf{};
+    rdconf.present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
+    rdconf.max_frames_in_flight = 2;
+    rdconf.window_resizable = true;
+    rdconf.multisampling_enable = false;
+    cengine::initialize(&rdconf);
 
     constexpr f32 updateTime = 1.5f; // seconds. 1.5f = 1.5 seconds
     f32 totalTime = 0.0f;
@@ -20,9 +27,12 @@ int main(void) {
 
     ctext::CFont amongus;
     ctext::CFontLoadInfo infoo{};
-    infoo.fontPath = "../Assets/roboto.ttf";
+    infoo.fontPath = "../Assets/beiruti.ttf";
+    infoo.chset = msdf_atlas::Charset::ASCII;
+    infoo.scale = 32.0f;
     ctext::CFLoad(&infoo, &amongus);
-    std::u32string str = U"Aj\nBqG";
+
+    std::u32string str = U"Aq\nJQWzz";
 
     f32 scale = 1.0f;
 

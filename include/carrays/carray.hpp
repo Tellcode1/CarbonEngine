@@ -15,7 +15,7 @@ struct carray
         return m_size;
     }
 
-    CARBON_FORCE_INLINE u64 length() const {
+    constexpr CARBON_FORCE_INLINE u64 length() const {
         return m_size;
     }
 

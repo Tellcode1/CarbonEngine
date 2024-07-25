@@ -13,7 +13,8 @@ struct ctext
 {
 	constexpr static u32 MAX_FONT_COUNT = 8;
 
-	struct _CFont; typedef _CFont *CFont;
+	struct CFont_T;
+	typedef CFont_T *CFont;
 	struct CFontLoadInfo;
 
 	static void Render(ctext::CFont font, VkCommandBuffer cmd, std::u32string text, f32 x, f32 y, f32 scale);
@@ -49,6 +50,7 @@ struct ctext
 	constexpr static const char *CFontRegistryPath = "./CFont/Registry.txt";
 
 	static void CFLoad(const CFontLoadInfo* pInfo, CFont* dst);
+	static bool font_is_valid(const ctext::CFont fnt);
 	static void update();
 
 	struct CFGlyph
@@ -82,7 +84,7 @@ struct ctext
 	};
 
 	/* Internal CFont struct. Do not modify yourselves! */
-	struct _CFont
+	struct CFont_T
 	{
 		u32 atlasWidth, atlasHeight;
 		u8 *atlasData;
@@ -99,6 +101,7 @@ struct ctext
 		VkSampler sampler;
 
 		friend void ctext::CFLoad(const CFontLoadInfo* pInfo, CFont* dst);
+		friend bool font_is_valid(const ctext::CFont fnt);
 
 		const CFGlyph& get_glyph(u32 codepoint) {
 			if (m_glyph_geometry.find(codepoint) != m_glyph_geometry.end())
@@ -115,6 +118,8 @@ struct ctext
 	struct CFontLoadInfo
 	{
 		const char *fontPath;
+		f32 scale;
+		msdf_atlas::Charset chset;
 	};
 };
 

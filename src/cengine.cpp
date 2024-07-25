@@ -3,23 +3,23 @@
 #include "ctext.hpp"
 #include "cinput.hpp"
 
-uint8_t cengine::current_frame = 0;
-double cengine::delta_time = 0.0;
-double cengine::last_frame_time = 0.0;
-double cengine::time = 0.0;
-uint64_t cengine::frame_start = 0;
-uint64_t cengine::fixed_frame_start = 0;
-uint64_t cengine::frame_time = 0;
+u8 cengine::current_frame = 0;
+f64 cengine::delta_time = 0.0;
+f64 cengine::last_frame_time = 0.0;
+f64 cengine::time = 0.0;
+u64 cengine::frame_start = 0;
+u64 cengine::fixed_frame_start = 0;
+u64 cengine::frame_time = 0;
 bool cengine::framebuffer_resized = false;
 bool cengine::application_running = true;
 
-void cengine::initialize() {
-    Renderer::initialize();
+void cengine::initialize(const renderer_config *conf) {
+    Renderer::initialize(conf);
     ctext::initialize();
     cinput::initialize();
 }
 
-void cengine::consume_event(SDL_Event *event) {
+void cengine::consume_event(const SDL_Event *event) {
     if ((event->type == SDL_QUIT) || (event->type == SDL_KEYDOWN && event->key.keysym.scancode == SDL_SCANCODE_ESCAPE))
         application_running = false;
 

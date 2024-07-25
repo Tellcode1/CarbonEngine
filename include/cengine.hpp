@@ -2,7 +2,9 @@
 #define __C_ENGINE_HPP__
 
 #include "defines.h"
-#include <SDL2/SDL.h>
+
+struct renderer_config;
+union SDL_Event;
 
 struct cengine
 {
@@ -36,11 +38,15 @@ public:
         return time;
     }
 
+    static void CARBON_FORCE_INLINE initialize_context(const char *title, u32 width, u32 height) {
+        ctx::Initialize(title, width, height);
+    }
+
     constexpr static u32 FIXED_FRAME_RATE = 30;
     constexpr static f64 fixed_frame_delay = 1000.0 / (f64)FIXED_FRAME_RATE;
 
-    static void initialize();
-    static void consume_event(SDL_Event *event);
+    static void initialize(const renderer_config *conf);
+    static void consume_event(const SDL_Event *event);
     static void update();
     static void begin_frame();
     static void end_frame();
