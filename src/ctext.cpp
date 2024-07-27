@@ -1,13 +1,11 @@
 #include "ctext.hpp"
 #include "epichelperlib.hpp"
+#include "Bootstrap.hpp"
 
 #include "stb/stb_image_write.h"
 #include "stb/stb_image.h"
+#include <cinput.hpp>
 
-VkPipeline ctext::pipeline = VK_NULL_HANDLE;
-VkPipelineLayout ctext::pipeline_layout = VK_NULL_HANDLE;
-VkShaderModule ctext::vertex = VK_NULL_HANDLE;
-VkShaderModule ctext::fragment = VK_NULL_HANDLE;
 VkDescriptorPool ctext::desc_pool = VK_NULL_HANDLE;
 VkDescriptorSetLayout ctext::desc_Layout = VK_NULL_HANDLE;
 VkDescriptorSet ctext::desc_set = VK_NULL_HANDLE;
@@ -16,6 +14,8 @@ VkImageView ctext::error_image_view = VK_NULL_HANDLE;
 VkSampler ctext::error_image_sampler = VK_NULL_HANDLE;
 
 u32 ctext::chars_drawn = 0;
+VkCommandBuffer ctext::buf;
+VkFence ctext::fence = VK_NULL_HANDLE;
 
 /* I have no idea what any of this is */
 
@@ -135,9 +135,9 @@ void ctext::CFLoad(const CFontLoadInfo *__restrict pInfo, CFont* dst)
         msdfgen::FontMetrics metrics;
         msdfgen::getFontMetrics(metrics, font);
 
-        (*dst)->line_height = metrics.lineHeight / metrics.emSize;
-        (*dst)->ascender = metrics.ascenderY / metrics.emSize;
-        (*dst)->descender  = metrics.descenderY / metrics.emSize;
+        (*dst)->line_height = f32(metrics.lineHeight) / f32(metrics.emSize);
+        (*dst)->ascender =    f32(metrics.ascenderY ) / f32(metrics.emSize);
+        (*dst)->descender  =  f32(metrics.descenderY) / f32(metrics.emSize);
 
         mogus.advance = static_cast<f32>(glyph.getAdvance());
         if (glyph.getCodepoint() !=0)
@@ -195,6 +195,173 @@ void ctext::CFLoad(const CFontLoadInfo *__restrict pInfo, CFont* dst)
     }
 
     msdfgen::deinitializeFreetype(ft);
+
+    const char *fshader_path;
+
+    if (pInfo->channel_count == CHANNELS_SDF)
+        fshader_path = "./Shaders/ctext/sdf.frag.spv";
+    else if (pInfo->channel_count == CHANNELS_MSDF)
+        fshader_path = "./Shaders/ctext/msdf.frag.spv";
+    else if (pInfo->channel_count == CHANNELS_MTSDF)
+        fshader_path = "./Shaders/ctext/mtsdf.frag.spv";
+
+    cvector<u8> vshader_binary;
+    cvector<u8> fshader_binary;
+    cvector<u8> cshader_binary;
+
+    help::Files::LoadBinary("./Shaders/vert.text.spv", &vshader_binary);
+    help::Files::LoadBinary("./Shaders/ctext/test.comp.spv", &cshader_binary);
+    help::Files::LoadBinary(fshader_path, &fshader_binary);
+
+    VkShaderModuleCreateInfo vertexShaderModuleInfo{};
+    vertexShaderModuleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    vertexShaderModuleInfo.codeSize = vshader_binary.size();
+    vertexShaderModuleInfo.pCode = reinterpret_cast<const u32*>(vshader_binary.data());
+    if (vkCreateShaderModule(device, &vertexShaderModuleInfo, nullptr, &(*dst)->vshader) != VK_SUCCESS) {
+        LOG_ERROR("ctext failed to create vertex shader module");
+    }
+
+    VkShaderModuleCreateInfo fragmentShaderModuleInfo{};
+    fragmentShaderModuleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    fragmentShaderModuleInfo.codeSize = fshader_binary.size();
+    fragmentShaderModuleInfo.pCode = reinterpret_cast<const u32*>(fshader_binary.data());
+    if (vkCreateShaderModule(device, &fragmentShaderModuleInfo, nullptr, &(*dst)->fshader) != VK_SUCCESS) {
+        LOG_ERROR("ctext failed to create fragment shader module");
+    }
+
+    VkShaderModuleCreateInfo compute_shader_module_info{};
+    compute_shader_module_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    compute_shader_module_info.codeSize = cshader_binary.size();
+    compute_shader_module_info.pCode = reinterpret_cast<const u32*>(cshader_binary.data());
+    if (vkCreateShaderModule(device, &compute_shader_module_info, nullptr, &(*dst)->cshader) != VK_SUCCESS) {
+        LOG_ERROR("ctext failed to create comput shader module");
+    }
+
+    const std::vector<VkVertexInputAttributeDescription> attributeDescriptions = {
+        // location; binding; format; offset;
+        { 0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0 },
+    };
+
+    const std::vector<VkVertexInputBindingDescription> bindingDescriptions = {
+        // binding; stride; inputRate
+        { 0, sizeof(vec4), VK_VERTEX_INPUT_RATE_VERTEX }
+    };
+
+    const std::vector<VkPushConstantRange> pushConstants = { 
+        // stageFlags, offset, size
+        { VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4) }
+    };
+
+    VkPipelineShaderStageCreateInfo vertexShaderInfo{};
+    vertexShaderInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    vertexShaderInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    vertexShaderInfo.module = (*dst)->vshader;
+    vertexShaderInfo.pName = "main";
+
+    VkPipelineShaderStageCreateInfo fragmentShaderInfo{};
+    fragmentShaderInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    fragmentShaderInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    fragmentShaderInfo.module = (*dst)->fshader;
+    fragmentShaderInfo.pName = "main";
+
+    const std::vector<VkPipelineShaderStageCreateInfo> shaders = { vertexShaderInfo, fragmentShaderInfo };
+    const std::vector<VkDescriptorSetLayout> layouts = { desc_Layout };
+
+    const pro::PipelineBlendState blend = pro::PipelineBlendState(pro::BlendPreset::PRO_BLEND_PRESET_ALPHA);
+
+    pro::PipelineCreateInfo pc{};
+    pc.format = vctx::SwapChainImageFormat;
+    pc.subpass = 0;
+    pc.renderPass = vctx::GlobalRenderPass;
+    pc.pipelineLayout = (*dst)->pipeline_layout;
+    pc.pAttributeDescriptions = &attributeDescriptions;
+    pc.pBindingDescriptions = &bindingDescriptions;
+    pc.pPushConstants = &pushConstants;
+    pc.pDescriptorLayouts = &layouts;
+    pc.pShaderCreateInfos = &shaders;
+    pc.extent.width = vctx::RenderExtent.width;
+    pc.extent.height = vctx::RenderExtent.height;
+    pc.pShaderCreateInfos = &shaders;
+    pc.pBlendState = &blend;
+    pro::CreatePipelineLayout(device, &pc, &(*dst)->pipeline_layout);
+    pc.pipelineLayout = (*dst)->pipeline_layout;
+    pro::CreateGraphicsPipeline(device, &pc, &(*dst)->pipeline, PIPELINE_CREATE_FLAGS_ENABLE_BLEND);
+
+    // help::Buffers::CreateBuffer(128, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &(*dst)->buffer, &(*dst)->buffer_memory);
+
+    const std::vector<VkDescriptorSetLayoutBinding> comp_set_layout_binding = {
+        // binding; descriptorType; descriptorCount; stageFlags; pImmutableSamplers;
+        { 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr },
+        { 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr }
+    };
+
+    VkDescriptorSetLayoutCreateInfo comp_set_layout_create_info{};
+    comp_set_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    comp_set_layout_create_info.bindingCount = comp_set_layout_binding.size();
+    comp_set_layout_create_info.pBindings = comp_set_layout_binding.data();
+    vkCreateDescriptorSetLayout(device, &comp_set_layout_create_info, nullptr, &(*dst)->compute.comp_layout);
+
+    constexpr VkDescriptorPoolSize pool_sizes[] = {
+        // type; descriptorCount;
+        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 },
+    };
+
+    VkDescriptorPoolCreateInfo pool_info{};
+    pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    pool_info.poolSizeCount = array_len(pool_sizes);
+    pool_info.pPoolSizes = pool_sizes;
+    pool_info.maxSets = 1;
+    vkCreateDescriptorPool(device, &pool_info, nullptr, &(*dst)->compute.comp_pool);
+
+    VkDescriptorSetAllocateInfo alloc_info{};
+    alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    alloc_info.descriptorPool = (*dst)->compute.comp_pool;
+    alloc_info.descriptorSetCount = 1;
+    alloc_info.pSetLayouts = &(*dst)->compute.comp_layout;
+    vkAllocateDescriptorSets(device, &alloc_info, &(*dst)->compute.comp_set);
+
+    VkPipelineLayoutCreateInfo layout_info{};
+    layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    layout_info.pSetLayouts = &(*dst)->compute.comp_layout;
+    layout_info.setLayoutCount = 1;
+    vkCreatePipelineLayout(device, &layout_info, nullptr, &(*dst)->compute.layout);
+
+    VkPipelineShaderStageCreateInfo comp_shader_info{};
+    comp_shader_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    comp_shader_info.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+    comp_shader_info.module = (*dst)->cshader;
+    comp_shader_info.pName = "main";
+
+    VkComputePipelineCreateInfo comp_pipline{};
+    comp_pipline.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    comp_pipline.basePipelineHandle = (*dst)->pipeline;
+    comp_pipline.stage = comp_shader_info;
+    comp_pipline.layout = (*dst)->compute.layout;
+    vkCreateComputePipelines(device, nullptr, 1, &comp_pipline, nullptr, &(*dst)->compute.pipeline);
+
+    VkFenceCreateInfo fence_info{};
+    fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fence_info.flags = 0;
+    vkCreateFence(device, &fence_info, nullptr, &fence);
+
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandPool = Renderer::commandPool;
+    allocInfo.commandBufferCount = 1;
+
+	if(vkAllocateCommandBuffers(device, &allocInfo, &buf) != VK_SUCCESS) {
+		printf("Failed to allocate command buffer");
+	}
+}
+
+bool ctext::font_is_valid(const ctext::CFont fnt)
+{
+    bool valid = true;
+    if (fnt == nullptr) valid = false;
+    if (fnt->atlasWidth == 0 && fnt->atlasHeight == 0) valid = false;
+    if (fnt->m_glyph_geometry.size() == 0) valid = false;
+    return valid;
 }
 
 void ctext::update()
@@ -208,24 +375,15 @@ void ctext::render_line(const ctext::CFont font, const std::u32string &str, f32 
 
 }
 
-bool font_is_valid(const ctext::CFont fnt)
-{
-    bool valid = true;
-    if (fnt == nullptr) valid = false;
-    if (fnt->atlasWidth == 0 && fnt->atlasHeight == 0) valid = false;
-    if (fnt->m_glyph_geometry.size() == 0) valid = false;
-    return valid;
-}
-
-void gen_vertices(const ctext::CFont font, std::vector<vec4>& vertices, std::vector<u32>& indices, const std::u32string& str, f32 xbegin, f32 ybegin) {
+void gen_vertices(const ctext::CFont font, std::vector<vec4>& vertices, std::vector<u32>& indices, const std::u32string& str, f32 xbegin, f32 ybegin, f32 scale) {
     if (str.length() == 0)
         return;
 
-    if (!font_is_valid(font))
+    if (!ctext::font_is_valid(font))
         return;
 
     f32 x = xbegin;
-    f32 y = 0.0f;
+    f32 y = ybegin;
     u32 i = 0;
 
     for (const auto& c : str)
@@ -241,23 +399,31 @@ void gen_vertices(const ctext::CFont font, std::vector<vec4>& vertices, std::vec
 
         const ctext::CFGlyph& glyph = font->get_glyph(c);
 
-        f32 x0 = x + glyph.x0;
-        f32 x1 = x + glyph.x1;
-        f32 y0 = y + glyph.y0;
-        f32 y1 = y + glyph.y1;
+        const f32 x0 = (x + glyph.x0) * scale;
+        const f32 x1 = (x + glyph.x1) * scale;
+        const f32 y0 = (y + glyph.y0) * scale;
+        const f32 y1 = (y + glyph.y1) * scale;
 
-        vertices.push_back(vec4( x0, y0, glyph.l, glyph.t ));
-        vertices.push_back(vec4( x1, y0, glyph.r, glyph.t ));
-        vertices.push_back(vec4( x1, y1, glyph.r, glyph.b ));
-        vertices.push_back(vec4( x0, y1, glyph.l, glyph.b ));
+        // vertices.push_back(vec4( x0, y0, glyph.l, glyph.t ));
+        // vertices.push_back(vec4( x1, y0, glyph.r, glyph.t ));
+        // vertices.push_back(vec4( x1, y1, glyph.r, glyph.b ));
+        // vertices.push_back(vec4( x0, y1, glyph.l, glyph.b ));
+
+
+        vertices.push_back(vec4( x0, y0, glyph.l, glyph.t )); // 0
+        vertices.push_back(vec4( x1, y0, glyph.r, glyph.t )); // 1
+        vertices.push_back(vec4( x1, y1, glyph.r, glyph.b )); // 2
+        vertices.push_back(vec4( x1, y1, glyph.r, glyph.b )); // 2
+        vertices.push_back(vec4( x0, y1, glyph.l, glyph.b )); // 3
+        vertices.push_back(vec4( x0, y0, glyph.l, glyph.t )); // 0
         
-        const u32 index_offset = ctext::chars_drawn * 4;
-        indices.push_back(index_offset + 0);
-        indices.push_back(index_offset + 1);
-        indices.push_back(index_offset + 2);
-        indices.push_back(index_offset + 2);
-        indices.push_back(index_offset + 3);
-        indices.push_back(index_offset + 0);
+        // const u32 index_offset = ctext::chars_drawn * 4;
+        // indices.push_back(index_offset + 0);
+        // indices.push_back(index_offset + 1);
+        // indices.push_back(index_offset + 2);
+        // indices.push_back(index_offset + 2);
+        // indices.push_back(index_offset + 3);
+        // indices.push_back(index_offset + 0);
 
         x += glyph.advance;
         ctext::chars_drawn++;
@@ -267,6 +433,8 @@ void gen_vertices(const ctext::CFont font, std::vector<vec4>& vertices, std::vec
 
 void ctext::Render(ctext::CFont font, VkCommandBuffer cmd, std::u32string text, float x, float y, float scale)
 {
+    cassert_and_ret(font_is_valid(font));
+
     u32 effective_length = 0;
     for (const auto& c : text)
         if (c != '\n' && c != '\t' && c != ' ')
@@ -284,41 +452,120 @@ void ctext::Render(ctext::CFont font, VkCommandBuffer cmd, std::u32string text, 
     static VkBuffer buff;
     static VkDeviceMemory mem;
 
-    gen_vertices(font, vertices, indices, text, 0.0f, 0.0f);
+    static VkBuffer comp_buff;
+    static VkDeviceMemory comp_mem;
 
-    if (buff) {
-        vkDeviceWaitIdle(device);
-        vkDestroyBuffer(device, buff, nullptr);
-        vkFreeMemory(device, mem, nullptr);
+    static u32 allocated_size = 0;
+    static f32 last_frame_scale = 0.0f;
+
+    gen_vertices(font, vertices, indices, text, 0.0f, 0.0f, scale);
+
+    if (effective_length != allocated_size) {
+        if (buff) {
+            vkDeviceWaitIdle(device);
+            vkDestroyBuffer(device, buff, nullptr);
+            vkFreeMemory(device, mem, nullptr);
+        }
+
+        const u32 glyph_count_byte_size = 16; /* aligned */
+        const u32 buff_size = glyph_count_byte_size + sizeof(vec4) * vertices.size();
+        help::Buffers::CreateBuffer(
+            buff_size,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+            &buff,
+            &mem
+        );
+
+        const u32 vert_count = vertices.size();
+
+        void *mapped;
+        vkMapMemory(device, mem, 0, buff_size, 0, &mapped);
+        memcpy(mapped, &vert_count, sizeof(u32));
+        memcpy(static_cast<u8 *>(mapped) + glyph_count_byte_size /* FU*() ALIGNMENT */, vertices.data(), vertices.size() * sizeof(vec4));
+        vkUnmapMemory(device, mem);
+
+        help::Buffers::CreateBuffer(
+            vertices.size() * sizeof(vec4),
+            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            &comp_buff,
+            &comp_mem
+        );
+
+        VkDescriptorBufferInfo buffer_info{};
+        buffer_info.buffer = buff;
+        buffer_info.range = buff_size;
+        buffer_info.offset = 0;
+
+        VkWriteDescriptorSet write_set{};
+        write_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write_set.descriptorCount = 1;
+        write_set.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        write_set.dstBinding = 0;
+        write_set.dstSet = font->compute.comp_set;
+        write_set.pBufferInfo = &buffer_info;
+        vkUpdateDescriptorSets(device, 1, &write_set, 0, nullptr);
+
+        buffer_info.buffer = comp_buff;
+        buffer_info.range = vertices.size() * sizeof(vec4);
+        buffer_info.offset = 0;
+
+        write_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write_set.descriptorCount = 1;
+        write_set.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        write_set.dstBinding = 1;
+        write_set.dstSet = font->compute.comp_set;
+        write_set.pBufferInfo = &buffer_info;
+        vkUpdateDescriptorSets(device, 1, &write_set, 0, nullptr);
+    } else if (last_frame_scale != scale) {
+        const u32 glyph_count_byte_size = 16; /* aligned */
+        const u32 vert_count = vertices.size();
+        const u32 buff_size = glyph_count_byte_size + sizeof(vec4) * vertices.size();
+
+        void *mapped;
+        vkMapMemory(device, mem, 0, buff_size, 0, &mapped);
+        memcpy(mapped, &vert_count, sizeof(u32));
+        memcpy(static_cast<u8 *>(mapped) + glyph_count_byte_size /* FU*() ALIGNMENT */, vertices.data(), vertices.size() * sizeof(vec4));
+        vkUnmapMemory(device, mem);
     }
 
-    help::Buffers::CreateBuffer(
-        vertices.size() * sizeof(vec4) + indices.size() * sizeof(u32),
-        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        &buff,
-        &mem
-    );
-
-    void* data;
-    vkMapMemory(device, mem, 0, vertices.size() * sizeof(vec4) + indices.size() * sizeof(u32), 0, &data);
-    memcpy(data, vertices.data(), vertices.size() * sizeof(vec4));
-    memcpy((uchar *)data + vertices.size() * sizeof(vec4), indices.data(), indices.size() * sizeof(u32));
-    vkUnmapMemory(device, mem);
+    allocated_size = effective_length;
+    last_frame_scale = scale;
 
     mat4 model(1.0f);
     model = glm::translate(model, vec3(cinput::get_mouse_position(), 0.0f));
-    model = glm::scale(model, vec3(scale, scale, 1.0f));
 
-    constexpr VkDeviceSize offsets = 0;
-    VkDeviceSize indexOffset = vertices.size() * sizeof(vec4);
+    VkCommandBufferBeginInfo begin_info{};
+    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1, &desc_set, 0, nullptr);
-    vkCmdBindVertexBuffers(cmd, 0, 1, &buff, &offsets);
-    vkCmdBindIndexBuffer(cmd, buff, indexOffset, VK_INDEX_TYPE_UINT32);
-    vkCmdPushConstants(cmd, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4), &model);
-    vkCmdDrawIndexed(cmd, indices.size(), 1, 0, 0, 0);
+    vkBeginCommandBuffer(buf, &begin_info);
+
+    vkCmdBindPipeline(buf, VK_PIPELINE_BIND_POINT_COMPUTE, font->compute.pipeline);
+    vkCmdBindDescriptorSets(buf, VK_PIPELINE_BIND_POINT_COMPUTE, font->compute.layout, 0, 1, &font->compute.comp_set, 0, nullptr);    
+    vkCmdDispatch(buf, 1, 1, 1);
+
+    vkEndCommandBuffer(buf);
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &buf;
+
+    vkQueueSubmit(vctx::ComputeQueue, 1, &submitInfo, fence);
+
+    vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX);
+    vkResetFences(device, 1, &fence);
+    vkResetCommandBuffer(buf, 0);
+
+    constexpr VkDeviceSize offsets[] = { 0 };
+
+    vkCmdPushConstants(cmd, font->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4), &model);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, font->pipeline_layout, 0, 1, &desc_set, 0, nullptr);
+    vkCmdBindVertexBuffers(cmd, 0, 1, &comp_buff, offsets);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, font->pipeline);
+    vkCmdDraw(cmd, vertices.size(), 1, 0, 0);
+
 }
 
 void ctext::initialize()
@@ -393,99 +640,16 @@ void ctext::initialize()
     dummyImageInfo.sampler = error_image_sampler;
     dummyImageInfo.imageView = error_image_view;
 
-    VkWriteDescriptorSet *writeSets = new VkWriteDescriptorSet[MAX_FONT_COUNT];
-    memset(writeSets, 0, sizeof(VkWriteDescriptorSet) * MAX_FONT_COUNT);
     for (u32 i = 0; i < MAX_FONT_COUNT; i++)
     {
-        writeSets[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writeSets[i].dstSet = desc_set;
-        writeSets[i].dstBinding = 0;
-        writeSets[i].descriptorCount = 1;
-        writeSets[i].pImageInfo = &dummyImageInfo;
-        writeSets[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        writeSets[i].dstArrayElement = i;
+        VkWriteDescriptorSet write_set{};
+        write_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write_set.dstSet = desc_set;
+        write_set.dstBinding = 0;
+        write_set.descriptorCount = 1;
+        write_set.pImageInfo = &dummyImageInfo;
+        write_set.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        write_set.dstArrayElement = i;
+        vkUpdateDescriptorSets(device, 1, &write_set, 0, nullptr);
     }
-    vkUpdateDescriptorSets(device, MAX_FONT_COUNT, writeSets, 0, nullptr);
-    delete[] writeSets;
-
-    cvector<u8> vshader_binary;
-    help::Files::LoadBinary("./Shaders/vert.text.spv", &vshader_binary);
-
-    cvector<u8> fshader_binary;
-    help::Files::LoadBinary("./Shaders/ctext/sdf.frag.spv", &fshader_binary);
-
-    VkShaderModuleCreateInfo vertexShaderModuleInfo{};
-    vertexShaderModuleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    vertexShaderModuleInfo.codeSize = vshader_binary.size();
-    vertexShaderModuleInfo.pCode = reinterpret_cast<const u32*>(vshader_binary.data());
-    if (vkCreateShaderModule(device, &vertexShaderModuleInfo, nullptr, &vertex) != VK_SUCCESS) {
-        LOG_ERROR("Failed to create vertex shader module!");
-    }
-
-    VkShaderModuleCreateInfo fragmentShaderModuleInfo{};
-    fragmentShaderModuleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    fragmentShaderModuleInfo.codeSize = fshader_binary.size();
-    fragmentShaderModuleInfo.pCode = reinterpret_cast<const u32*>(fshader_binary.data());
-    if (vkCreateShaderModule(device, &fragmentShaderModuleInfo, nullptr, &fragment) != VK_SUCCESS) {
-        LOG_ERROR("Failed to create fragment shader module!");
-    }
-
-    CreatePipeline();
-
-    vctx::OnWindowResized.connect(
-        CreatePipeline
-    );
-}
-
-void ctext::CreatePipeline()
-{
-    const std::vector<VkVertexInputAttributeDescription> attributeDescriptions = {
-        // location; binding; format; offset;
-        { 0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0 },
-    };
-
-    const std::vector<VkVertexInputBindingDescription> bindingDescriptions = {
-        // binding; stride; inputRate
-        { 0, sizeof(vec4), VK_VERTEX_INPUT_RATE_VERTEX }
-    };
-
-    const std::vector<VkPushConstantRange> pushConstants = { 
-        // stageFlags, offset, size
-        { VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4) }
-    };
-
-    VkPipelineShaderStageCreateInfo vertexShaderInfo{};
-    vertexShaderInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    vertexShaderInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    vertexShaderInfo.module = vertex;
-    vertexShaderInfo.pName = "main";
-
-    VkPipelineShaderStageCreateInfo fragmentShaderInfo{};
-    fragmentShaderInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    fragmentShaderInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    fragmentShaderInfo.module = fragment;
-    fragmentShaderInfo.pName = "main";
-
-    const std::vector<VkPipelineShaderStageCreateInfo> shaders = { vertexShaderInfo, fragmentShaderInfo };
-    const std::vector<VkDescriptorSetLayout> layouts = { desc_Layout };
-
-    const pro::PipelineBlendState blend = pro::PipelineBlendState(pro::BlendPreset::PRO_BLEND_PRESET_ALPHA);
-
-    pro::PipelineCreateInfo pc{};
-    pc.format = vctx::SwapChainImageFormat;
-    pc.subpass = 0;
-    pc.renderPass = vctx::GlobalRenderPass;
-    pc.pipelineLayout = pipeline_layout;
-    pc.pAttributeDescriptions = &attributeDescriptions;
-    pc.pBindingDescriptions = &bindingDescriptions;
-    pc.pPushConstants = &pushConstants;
-    pc.pDescriptorLayouts = &layouts;
-    pc.pShaderCreateInfos = &shaders;
-    pc.extent.width = vctx::RenderExtent.width;
-    pc.extent.height = vctx::RenderExtent.height;
-    pc.pShaderCreateInfos = &shaders;
-    pc.pBlendState = &blend;
-    pro::CreatePipelineLayout(device, &pc, &pipeline_layout);
-    pc.pipelineLayout = pipeline_layout;
-    pro::CreateGraphicsPipeline(device, &pc, &pipeline, PIPELINE_CREATE_FLAGS_ENABLE_BLEND);
 }

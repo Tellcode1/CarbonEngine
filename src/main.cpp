@@ -30,6 +30,7 @@ int main(void) {
     infoo.fontPath = "../Assets/beiruti.ttf";
     infoo.chset = msdf_atlas::Charset::ASCII;
     infoo.scale = 32.0f;
+    infoo.channel_count = ctext::CHANNELS_SDF;
     ctext::CFLoad(&infoo, &amongus);
 
     std::u32string str = U"Aq\nJQWzz";

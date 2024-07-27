@@ -143,29 +143,33 @@ VkCommandBuffer help::Commands::BeginSingleTimeCommands(VkCommandBuffer src)
 VkResult help::Commands::EndSingleTimeCommands(VkCommandBuffer cmd, VkQueue queue, bool waitForExecution)
 {
     VkResult res = vkEndCommandBuffer(cmd);
-    if(res != VK_SUCCESS) return res;
+    if (res != VK_SUCCESS) return res;
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &cmd;
 
-	VkFenceCreateInfo fenceInfo{};
-	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-	fenceInfo.flags = 0;
-	VkFence fence = VK_NULL_HANDLE;
-	
-    if(waitForExecution) {
+    VkFence fence = VK_NULL_HANDLE;
+    VkFenceCreateInfo fenceInfo{};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags = 0;
+
+    if (waitForExecution) {
         res = vkCreateFence(device, &fenceInfo, nullptr, &fence);
-        if(res != VK_SUCCESS) return res;
+        if (res != VK_SUCCESS) return res;
     }
 
     res = vkQueueSubmit(queue, 1, &submitInfo, fence);
-    if(res != VK_SUCCESS) return res;
+    if (res != VK_SUCCESS) return res;
 
-	if (waitForExecution) {
-        vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX);
-	    vkDestroyFence(device, fence, nullptr);
+    if (waitForExecution) {
+        if (fence != VK_NULL_HANDLE) {
+            res = vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX);
+            if (res != VK_SUCCESS) return res;
+            vkDestroyFence(device, fence, nullptr);
+        }
+        vkDeviceWaitIdle(device);
         vkFreeCommandBuffers(device, Renderer::commandPool, 1, &cmd);
     }
 

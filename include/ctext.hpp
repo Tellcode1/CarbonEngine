@@ -20,12 +20,7 @@ struct ctext
 	static void Render(ctext::CFont font, VkCommandBuffer cmd, std::u32string text, f32 x, f32 y, f32 scale);
 	static void render_line(const ctext::CFont font, const std::u32string &str, f32 *xbegin, f32 y);
     static void initialize();
-    static void CreatePipeline();
 
-    static VkPipeline pipeline;
-    static VkPipelineLayout pipeline_layout;
-    static VkShaderModule vertex;
-    static VkShaderModule fragment;
     static VkDescriptorPool desc_pool;
     static VkDescriptorSetLayout desc_Layout;
     static VkDescriptorSet desc_set;
@@ -34,6 +29,8 @@ struct ctext
     static VkSampler error_image_sampler;
 
 	static u32 chars_drawn;
+	static VkCommandBuffer buf;
+	static VkFence fence;
 
 	/*
 	*	I'll just detail what I want to do with the registry.
@@ -83,6 +80,17 @@ struct ctext
 		CTEXT_VERT_ALIGN_BOTTOM = 2,
 	};
 
+	enum BitmapChannels
+	{
+		CHANNELS_1 = 0,
+		CHANNELS_3 = 1,
+		CHANNELS_4 = 2,
+
+		CHANNELS_SDF = CHANNELS_1,
+		CHANNELS_MSDF = CHANNELS_3,
+		CHANNELS_MTSDF = CHANNELS_4,
+	};
+
 	/* Internal CFont struct. Do not modify yourselves! */
 	struct CFont_T
 	{
@@ -94,14 +102,31 @@ struct ctext
 
 		f32 space_width;
 
+		VkPipeline pipeline;
+		VkPipelineLayout pipeline_layout;
+		VkShaderModule vshader;
+		VkShaderModule fshader;
+		VkShaderModule cshader;
+
+		struct {
+			VkPipeline pipeline;
+			VkPipelineLayout layout;
+			VkDescriptorSetLayout comp_layout;
+			VkDescriptorPool comp_pool;
+			VkDescriptorSet comp_set;
+		} compute;
+
 		u32 font_index;
 		VkImage texture;
 		VkImageView texture_view;
 		VkDeviceMemory texture_memory;
 		VkSampler sampler;
 
+		VkBuffer buffer;
+		VkDeviceMemory buffer_memory;
+
 		friend void ctext::CFLoad(const CFontLoadInfo* pInfo, CFont* dst);
-		friend bool font_is_valid(const ctext::CFont fnt);
+		friend bool ctext::font_is_valid(const ctext::CFont fnt);
 
 		const CFGlyph& get_glyph(u32 codepoint) {
 			if (m_glyph_geometry.find(codepoint) != m_glyph_geometry.end())
@@ -117,9 +142,10 @@ struct ctext
 
 	struct CFontLoadInfo
 	{
-		const char *fontPath;
-		f32 scale;
-		msdf_atlas::Charset chset;
+		const char *fontPath = nullptr;
+		f32 scale = 24.0f;
+		msdf_atlas::Charset chset = msdf_atlas::Charset::ASCII;
+		BitmapChannels channel_count = CHANNELS_SDF;
 	};
 };
 

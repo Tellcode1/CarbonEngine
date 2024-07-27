@@ -1,4 +1,5 @@
 #include "Renderer.hpp"
+#include "ctext.hpp"
 
 #include "stdafx.hpp"
 #include "pro.hpp"
@@ -329,7 +330,7 @@ void Renderer::EndRender()
 
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
-    
+
     vkQueueSubmit(vctx::PresentQueue, 1, &submitInfo, renderData.at(renderer_frame).inFlightFence);
 
     VkPresentInfoKHR presentInfo{};
@@ -339,7 +340,7 @@ void Renderer::EndRender()
     presentInfo.pImageIndices = &imageIndex;
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = &swapchain;
-    
+
     const VkResult result = vkQueuePresentKHR(vctx::PresentQueue, &presentInfo);
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || cengine::get_frame_buffer_resized())
         _SignalResize();

@@ -37,41 +37,41 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessengerCallback(
     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
     void* pUserData) {
 
-	std::string preceder = "[VkDebugUtilsMessengerEXT] ";
+	std::string preceder = "[VkDBG]";
 	std::string succeeder = "\n";
 
 	switch(messageSeverity)
 	{
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
-			preceder += "[WARNING] ";
+			preceder += "[WARN]";
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
-			preceder += "[INFO] ";
+			preceder += "[INFO]";
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
-			preceder += "[ERROR] ";
+			preceder += "[ERR]";
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
-			preceder += "[VERBOSE] ";
+			preceder += "[VERB]";
 			break;
 		default:
-			preceder += "[UNKNOWN SEVERITY] ";
+			preceder += "[UNKNOWN SEVERITY]";
 			break;
 	}
 
 	switch(messageType)
 	{
 		case VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT:
-			preceder += "[GENERAL] ";
+			preceder += "[GEN] ";
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT:
-			preceder += "[VALIDATION] ";
+			preceder += "[VALTION] ";
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT:
-			preceder += "[PERFORMANCE] ";
+			preceder += "[PERF] ";
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_TYPE_DEVICE_ADDRESS_BINDING_BIT_EXT:
-			preceder += "[DEVICE ADDRESS BINDING] ";
+			preceder += "[ADDR BIND] ";
 			break;
 		default:
 			preceder += "[UNKNOWN TYPE] ";
