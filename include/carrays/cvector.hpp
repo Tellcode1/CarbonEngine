@@ -33,6 +33,10 @@ struct cvector
         return m_data + m_count;
     }
 
+    CARBON_FORCE_INLINE bool empty() const {
+        return m_count == 0;
+    }
+
     void reallocate(u32 new_capacity) {
         void *new_data = malloc(sizeof(T) * new_capacity);
         if (m_data)

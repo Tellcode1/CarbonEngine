@@ -31,7 +31,7 @@ int main(void) {
     infoo.chset = msdf_atlas::Charset::ASCII;
     infoo.scale = 32.0f;
     infoo.channel_count = ctext::CHANNELS_SDF;
-    ctext::CFLoad(&infoo, &amongus);
+    ctext::load_font(&infoo, &amongus);
 
     std::u32string str = U"Aq\nJQWzz";
 
@@ -83,8 +83,10 @@ int main(void) {
         }
 
         if (RD::BeginRender()) {
-
-            ctext::Render(amongus, Renderer::GetDrawBuffer(), str, 0.0f, 0.0f, scale);
+            
+            ctext::begin_render(amongus);
+            ctext::Render(amongus, str, 0.0f, 0.0f, scale);
+            ctext::end_render(amongus);
             
             RD::EndRender();
         }

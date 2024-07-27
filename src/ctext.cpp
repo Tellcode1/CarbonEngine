@@ -13,10 +13,6 @@ VkImage ctext::error_image = VK_NULL_HANDLE;
 VkImageView ctext::error_image_view = VK_NULL_HANDLE;
 VkSampler ctext::error_image_sampler = VK_NULL_HANDLE;
 
-u32 ctext::chars_drawn = 0;
-VkCommandBuffer ctext::buf;
-VkFence ctext::fence = VK_NULL_HANDLE;
-
 /* I have no idea what any of this is */
 
 typedef char32_t unicode;
@@ -31,7 +27,7 @@ constexpr VkFormat imageFormat =
     (channels == 1) ? VK_FORMAT_R8_UNORM :
     VK_FORMAT_UNDEFINED;
 
-void ctext::CFLoad(const CFontLoadInfo *__restrict pInfo, CFont* dst)
+void ctext::load_font(const CFontLoadInfo *__restrict pInfo, CFont* dst)
 {
 	if (!pInfo || !dst)
 	{
@@ -48,9 +44,9 @@ void ctext::CFLoad(const CFontLoadInfo *__restrict pInfo, CFont* dst)
         return;
     }
 
-    msdfgen::FontHandle *font = msdfgen::loadFont(ft, pInfo->fontPath);
-    if (!font) {
-        LOG_ERROR("Failed to load font. Is path (\"%s\") valid?", pInfo->fontPath);
+    msdfgen::FontHandle *fnt = msdfgen::loadFont(ft, pInfo->fontPath);
+    if (!fnt) {
+        LOG_ERROR("Failed to load fnt. Is path (\"%s\") valid?", pInfo->fontPath);
         return;
     }
 
@@ -58,7 +54,7 @@ void ctext::CFLoad(const CFontLoadInfo *__restrict pInfo, CFont* dst)
 
     std::vector<msdf_atlas::GlyphGeometry> glyphs;
     msdf_atlas::FontGeometry fontGeometry(&glyphs);
-    fontGeometry.loadCharset(font, 1.0, pInfo->chset);
+    fontGeometry.loadCharset(fnt, 1.0, pInfo->chset);
 
     constexpr double maxCornerAngle = 3.0;
     for (msdf_atlas::GlyphGeometry& glyph : glyphs)
@@ -133,11 +129,9 @@ void ctext::CFLoad(const CFontLoadInfo *__restrict pInfo, CFont* dst)
         mogus.y1 = y1;
 
         msdfgen::FontMetrics metrics;
-        msdfgen::getFontMetrics(metrics, font);
+        msdfgen::getFontMetrics(metrics, fnt);
 
         (*dst)->line_height = f32(metrics.lineHeight) / f32(metrics.emSize);
-        (*dst)->ascender =    f32(metrics.ascenderY ) / f32(metrics.emSize);
-        (*dst)->descender  =  f32(metrics.descenderY) / f32(metrics.emSize);
 
         mogus.advance = static_cast<f32>(glyph.getAdvance());
         if (glyph.getCodepoint() !=0)
@@ -229,14 +223,6 @@ void ctext::CFLoad(const CFontLoadInfo *__restrict pInfo, CFont* dst)
         LOG_ERROR("ctext failed to create fragment shader module");
     }
 
-    VkShaderModuleCreateInfo compute_shader_module_info{};
-    compute_shader_module_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    compute_shader_module_info.codeSize = cshader_binary.size();
-    compute_shader_module_info.pCode = reinterpret_cast<const u32*>(cshader_binary.data());
-    if (vkCreateShaderModule(device, &compute_shader_module_info, nullptr, &(*dst)->cshader) != VK_SUCCESS) {
-        LOG_ERROR("ctext failed to create comput shader module");
-    }
-
     const std::vector<VkVertexInputAttributeDescription> attributeDescriptions = {
         // location; binding; format; offset;
         { 0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0 },
@@ -287,72 +273,13 @@ void ctext::CFLoad(const CFontLoadInfo *__restrict pInfo, CFont* dst)
     pc.pipelineLayout = (*dst)->pipeline_layout;
     pro::CreateGraphicsPipeline(device, &pc, &(*dst)->pipeline, PIPELINE_CREATE_FLAGS_ENABLE_BLEND);
 
-    // help::Buffers::CreateBuffer(128, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &(*dst)->buffer, &(*dst)->buffer_memory);
-
-    const std::vector<VkDescriptorSetLayoutBinding> comp_set_layout_binding = {
-        // binding; descriptorType; descriptorCount; stageFlags; pImmutableSamplers;
-        { 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr },
-        { 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr }
-    };
-
-    VkDescriptorSetLayoutCreateInfo comp_set_layout_create_info{};
-    comp_set_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    comp_set_layout_create_info.bindingCount = comp_set_layout_binding.size();
-    comp_set_layout_create_info.pBindings = comp_set_layout_binding.data();
-    vkCreateDescriptorSetLayout(device, &comp_set_layout_create_info, nullptr, &(*dst)->compute.comp_layout);
-
-    constexpr VkDescriptorPoolSize pool_sizes[] = {
-        // type; descriptorCount;
-        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 },
-    };
-
-    VkDescriptorPoolCreateInfo pool_info{};
-    pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    pool_info.poolSizeCount = array_len(pool_sizes);
-    pool_info.pPoolSizes = pool_sizes;
-    pool_info.maxSets = 1;
-    vkCreateDescriptorPool(device, &pool_info, nullptr, &(*dst)->compute.comp_pool);
-
-    VkDescriptorSetAllocateInfo alloc_info{};
-    alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    alloc_info.descriptorPool = (*dst)->compute.comp_pool;
-    alloc_info.descriptorSetCount = 1;
-    alloc_info.pSetLayouts = &(*dst)->compute.comp_layout;
-    vkAllocateDescriptorSets(device, &alloc_info, &(*dst)->compute.comp_set);
-
-    VkPipelineLayoutCreateInfo layout_info{};
-    layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    layout_info.pSetLayouts = &(*dst)->compute.comp_layout;
-    layout_info.setLayoutCount = 1;
-    vkCreatePipelineLayout(device, &layout_info, nullptr, &(*dst)->compute.layout);
-
-    VkPipelineShaderStageCreateInfo comp_shader_info{};
-    comp_shader_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    comp_shader_info.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-    comp_shader_info.module = (*dst)->cshader;
-    comp_shader_info.pName = "main";
-
-    VkComputePipelineCreateInfo comp_pipline{};
-    comp_pipline.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-    comp_pipline.basePipelineHandle = (*dst)->pipeline;
-    comp_pipline.stage = comp_shader_info;
-    comp_pipline.layout = (*dst)->compute.layout;
-    vkCreateComputePipelines(device, nullptr, 1, &comp_pipline, nullptr, &(*dst)->compute.pipeline);
-
-    VkFenceCreateInfo fence_info{};
-    fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fence_info.flags = 0;
-    vkCreateFence(device, &fence_info, nullptr, &fence);
-
-    VkCommandBufferAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandPool = Renderer::commandPool;
-    allocInfo.commandBufferCount = 1;
-
-	if(vkAllocateCommandBuffers(device, &allocInfo, &buf) != VK_SUCCESS) {
-		printf("Failed to allocate command buffer");
-	}
+    help::Buffers::CreateBuffer(
+        1, // alloc 1 byte of memory to store all program data (don't you dare allocate more)
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+        &(*dst)->buffer,
+        &(*dst)->buffer_memory
+    );
 }
 
 bool ctext::font_is_valid(const ctext::CFont fnt)
@@ -364,208 +291,174 @@ bool ctext::font_is_valid(const ctext::CFont fnt)
     return valid;
 }
 
-void ctext::update()
+void ctext::end_render(ctext::CFont fnt)
 {
-    chars_drawn = 0;
+    if (fnt->drawcalls.empty())
+        return;
+
+    u32 total_vertex_byte_size = 0;
+    u32 total_index_count = 0;
+
+    for (const text_drawcall_t *drawcall : fnt->drawcalls) {
+        total_vertex_byte_size += drawcall->vertex_count * sizeof(vec4);
+        total_index_count += drawcall->index_count;
+    }
+
+    const u32 total_index_byte_size = total_index_count * sizeof(u32);
+
+    vkDeviceWaitIdle(device);
+    vkDestroyBuffer(device, fnt->buffer, nullptr);
+    vkFreeMemory(device, fnt->buffer_memory, nullptr);
+
+    const u32 buff_size = total_vertex_byte_size + total_index_byte_size;
+    help::Buffers::CreateBuffer(
+        buff_size,
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+        &fnt->buffer,
+        &fnt->buffer_memory
+    );
+
+    void *mapped;
+    vkMapMemory(device, fnt->buffer_memory, 0, buff_size, 0, &mapped);
+
+    u32 vertex_copy_iterator = 0;
+    u32 index_copy_iterator = 0;
+    for (const text_drawcall_t *drawcall : fnt->drawcalls) {
+        memcpy(static_cast<u8 *>(mapped) + vertex_copy_iterator, drawcall->vertices, drawcall->vertex_count * sizeof(vec4));
+        memcpy(static_cast<u8 *>(mapped) + total_vertex_byte_size + index_copy_iterator, drawcall->indices, drawcall->index_count * sizeof(u32));
+        vertex_copy_iterator += drawcall->vertex_count * sizeof(vec4);
+        index_copy_iterator += drawcall->index_count * sizeof(u32);
+    }
+
+    vkUnmapMemory(device, fnt->buffer_memory);
+
+    const VkCommandBuffer cmd = Renderer::GetDrawBuffer();
+    constexpr VkDeviceSize offsets[] = { 0 };
+
+    vkCmdPushConstants(
+        cmd,
+        fnt->pipeline_layout,
+        VK_SHADER_STAGE_VERTEX_BIT,
+        0, sizeof(mat4),
+        glm::value_ptr(glm::translate(glm::mat4(1.0f), vec3(cinput::get_mouse_position(), 0.0f)))
+    );
+
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, fnt->pipeline_layout, 0, 1, &desc_set, 0, nullptr);
+    vkCmdBindVertexBuffers(cmd, 0, 1, &fnt->buffer, offsets);
+    vkCmdBindIndexBuffer(cmd, fnt->buffer, total_vertex_byte_size, VK_INDEX_TYPE_UINT32);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, fnt->pipeline);
+    vkCmdDrawIndexed(cmd, total_index_count, 1, 0, 0, 0);
+}
+
+ctext::text_drawcall_t *ctext::create_text_drawcall(u32 num_verts, u32 num_inds)
+{
+    void *allocation = malloc(sizeof(text_drawcall_t) + (num_verts * sizeof(vec4)) + (num_inds * sizeof(u32)));
+    text_drawcall_t  *new_drawcall = (text_drawcall_t *)allocation;
+    new_drawcall->vertex_count = num_verts;
+    new_drawcall->index_count = num_inds;
+    new_drawcall->vertices = (vec4 *)((uchar *)allocation + sizeof(text_drawcall_t));
+    new_drawcall->indices = (u32 *)((uchar *)allocation + (num_verts * sizeof(vec4)) + sizeof(text_drawcall_t));
+
+    return new_drawcall;
+}
+
+void ctext::begin_render(ctext::CFont fnt)
+{
+    fnt->chars_drawn = 0;
+    for (text_drawcall_t *drawcall : fnt->drawcalls) {
+        free(drawcall);
+    }
+    fnt->drawcalls.clear();
 }
 
 /* Takes a string with either \0 or \n at the end */
-void ctext::render_line(const ctext::CFont font, const std::u32string &str, f32 *xbegin, f32 y)
+void ctext::render_line(const ctext::CFont fnt, const std::u32string &str, f32 *xbegin, f32 y)
 {
 
 }
 
-void gen_vertices(const ctext::CFont font, std::vector<vec4>& vertices, std::vector<u32>& indices, const std::u32string& str, f32 xbegin, f32 ybegin, f32 scale) {
+/*
+*   rets the count of indices. pass to vkCmdDrawIndexed
+*/
+u32 gen_vertices(const ctext::CFont fnt, ctext::text_drawcall_t *drawcall, const std::u32string& str, f32 xbegin, f32 ybegin, f32 scale) {
     if (str.length() == 0)
-        return;
+        return 0;
 
-    if (!ctext::font_is_valid(font))
-        return;
+    if (!ctext::font_is_valid(fnt))
+        return UINT32_MAX;
 
     f32 x = xbegin;
     f32 y = ybegin;
     u32 i = 0;
 
+    drawcall->index_count = 0;
+    drawcall->vertex_count = 0;
+
     for (const auto& c : str)
     {
         if (c == U'\n') {
             x = xbegin;
-            y += font->line_height;
+            y += fnt->line_height;
             continue;
         } else if (c == U' ') {
-            x += font->space_width;
+            x += fnt->space_width;
             continue;
         }
 
-        const ctext::CFGlyph& glyph = font->get_glyph(c);
+        const ctext::CFGlyph& glyph = fnt->get_glyph(c);
 
         const f32 x0 = (x + glyph.x0) * scale;
         const f32 x1 = (x + glyph.x1) * scale;
         const f32 y0 = (y + glyph.y0) * scale;
         const f32 y1 = (y + glyph.y1) * scale;
 
-        // vertices.push_back(vec4( x0, y0, glyph.l, glyph.t ));
-        // vertices.push_back(vec4( x1, y0, glyph.r, glyph.t ));
-        // vertices.push_back(vec4( x1, y1, glyph.r, glyph.b ));
-        // vertices.push_back(vec4( x0, y1, glyph.l, glyph.b ));
-
-
-        vertices.push_back(vec4( x0, y0, glyph.l, glyph.t )); // 0
-        vertices.push_back(vec4( x1, y0, glyph.r, glyph.t )); // 1
-        vertices.push_back(vec4( x1, y1, glyph.r, glyph.b )); // 2
-        vertices.push_back(vec4( x1, y1, glyph.r, glyph.b )); // 2
-        vertices.push_back(vec4( x0, y1, glyph.l, glyph.b )); // 3
-        vertices.push_back(vec4( x0, y0, glyph.l, glyph.t )); // 0
+        vec4 *vertex_output_data = (drawcall->vertices) + i * 4;
+        vertex_output_data[0] = vec4( x0, y0, glyph.l, glyph.t );
+        vertex_output_data[1] = vec4( x1, y0, glyph.r, glyph.t );
+        vertex_output_data[2] = vec4( x1, y1, glyph.r, glyph.b );
+        vertex_output_data[3] = vec4( x0, y1, glyph.l, glyph.b );
         
-        // const u32 index_offset = ctext::chars_drawn * 4;
-        // indices.push_back(index_offset + 0);
-        // indices.push_back(index_offset + 1);
-        // indices.push_back(index_offset + 2);
-        // indices.push_back(index_offset + 2);
-        // indices.push_back(index_offset + 3);
-        // indices.push_back(index_offset + 0);
+        const u32 index_offset = fnt->chars_drawn * 4;
+        u32 *index_output_data = (drawcall->indices) + i * 6;
+        index_output_data[0] = index_offset + 0;
+        index_output_data[1] = index_offset + 1;
+        index_output_data[2] = index_offset + 2;
+        index_output_data[3] = index_offset + 2;
+        index_output_data[4] = index_offset + 3;
+        index_output_data[5] = index_offset + 0;
 
         x += glyph.advance;
-        ctext::chars_drawn++;
+        fnt->chars_drawn++;
+        drawcall->vertex_count += 4;
+        drawcall->index_count += 6;
         i++;
     }
+
+    return i * 6;
 }
 
-void ctext::Render(ctext::CFont font, VkCommandBuffer cmd, std::u32string text, float x, float y, float scale)
+void ctext::Render(ctext::CFont fnt, std::u32string text, float x, float y, float scale)
 {
-    cassert_and_ret(font_is_valid(font));
+    cassert_and_ret(font_is_valid(fnt));
 
     u32 effective_length = 0;
     for (const auto& c : text)
-        if (c != '\n' && c != '\t' && c != ' ')
+        if (c != U'\n' && c != U'\t' && c != U' ')
             effective_length++;
 
     if (effective_length == 0) {
-        chars_drawn = 0;
+        fnt->chars_drawn = 0;
         return;
     }
 
-    cmd = Renderer::GetDrawBuffer();
-    std::vector<vec4> vertices;
-    std::vector<u32> indices;
+    const u32 vertex_count = effective_length * 4;
+    const u32 index_count = effective_length * 6;
 
-    static VkBuffer buff;
-    static VkDeviceMemory mem;
-
-    static VkBuffer comp_buff;
-    static VkDeviceMemory comp_mem;
-
-    static u32 allocated_size = 0;
-    static f32 last_frame_scale = 0.0f;
-
-    gen_vertices(font, vertices, indices, text, 0.0f, 0.0f, scale);
-
-    if (effective_length != allocated_size) {
-        if (buff) {
-            vkDeviceWaitIdle(device);
-            vkDestroyBuffer(device, buff, nullptr);
-            vkFreeMemory(device, mem, nullptr);
-        }
-
-        const u32 glyph_count_byte_size = 16; /* aligned */
-        const u32 buff_size = glyph_count_byte_size + sizeof(vec4) * vertices.size();
-        help::Buffers::CreateBuffer(
-            buff_size,
-            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-            &buff,
-            &mem
-        );
-
-        const u32 vert_count = vertices.size();
-
-        void *mapped;
-        vkMapMemory(device, mem, 0, buff_size, 0, &mapped);
-        memcpy(mapped, &vert_count, sizeof(u32));
-        memcpy(static_cast<u8 *>(mapped) + glyph_count_byte_size /* FU*() ALIGNMENT */, vertices.data(), vertices.size() * sizeof(vec4));
-        vkUnmapMemory(device, mem);
-
-        help::Buffers::CreateBuffer(
-            vertices.size() * sizeof(vec4),
-            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            &comp_buff,
-            &comp_mem
-        );
-
-        VkDescriptorBufferInfo buffer_info{};
-        buffer_info.buffer = buff;
-        buffer_info.range = buff_size;
-        buffer_info.offset = 0;
-
-        VkWriteDescriptorSet write_set{};
-        write_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        write_set.descriptorCount = 1;
-        write_set.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        write_set.dstBinding = 0;
-        write_set.dstSet = font->compute.comp_set;
-        write_set.pBufferInfo = &buffer_info;
-        vkUpdateDescriptorSets(device, 1, &write_set, 0, nullptr);
-
-        buffer_info.buffer = comp_buff;
-        buffer_info.range = vertices.size() * sizeof(vec4);
-        buffer_info.offset = 0;
-
-        write_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        write_set.descriptorCount = 1;
-        write_set.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        write_set.dstBinding = 1;
-        write_set.dstSet = font->compute.comp_set;
-        write_set.pBufferInfo = &buffer_info;
-        vkUpdateDescriptorSets(device, 1, &write_set, 0, nullptr);
-    } else if (last_frame_scale != scale) {
-        const u32 glyph_count_byte_size = 16; /* aligned */
-        const u32 vert_count = vertices.size();
-        const u32 buff_size = glyph_count_byte_size + sizeof(vec4) * vertices.size();
-
-        void *mapped;
-        vkMapMemory(device, mem, 0, buff_size, 0, &mapped);
-        memcpy(mapped, &vert_count, sizeof(u32));
-        memcpy(static_cast<u8 *>(mapped) + glyph_count_byte_size /* FU*() ALIGNMENT */, vertices.data(), vertices.size() * sizeof(vec4));
-        vkUnmapMemory(device, mem);
-    }
-
-    allocated_size = effective_length;
-    last_frame_scale = scale;
-
-    mat4 model(1.0f);
-    model = glm::translate(model, vec3(cinput::get_mouse_position(), 0.0f));
-
-    VkCommandBufferBeginInfo begin_info{};
-    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-    vkBeginCommandBuffer(buf, &begin_info);
-
-    vkCmdBindPipeline(buf, VK_PIPELINE_BIND_POINT_COMPUTE, font->compute.pipeline);
-    vkCmdBindDescriptorSets(buf, VK_PIPELINE_BIND_POINT_COMPUTE, font->compute.layout, 0, 1, &font->compute.comp_set, 0, nullptr);    
-    vkCmdDispatch(buf, 1, 1, 1);
-
-    vkEndCommandBuffer(buf);
-
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &buf;
-
-    vkQueueSubmit(vctx::ComputeQueue, 1, &submitInfo, fence);
-
-    vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX);
-    vkResetFences(device, 1, &fence);
-    vkResetCommandBuffer(buf, 0);
-
-    constexpr VkDeviceSize offsets[] = { 0 };
-
-    vkCmdPushConstants(cmd, font->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4), &model);
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, font->pipeline_layout, 0, 1, &desc_set, 0, nullptr);
-    vkCmdBindVertexBuffers(cmd, 0, 1, &comp_buff, offsets);
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, font->pipeline);
-    vkCmdDraw(cmd, vertices.size(), 1, 0, 0);
-
+    text_drawcall_t *drawcall = create_text_drawcall(vertex_count, index_count);
+    
+    gen_vertices(fnt, drawcall, text, 0.0f, 0.0f, scale);
+    fnt->drawcalls.push_back(drawcall);
 }
 
 void ctext::initialize()

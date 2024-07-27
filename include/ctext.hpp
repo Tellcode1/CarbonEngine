@@ -17,7 +17,7 @@ struct ctext
 	typedef CFont_T *CFont;
 	struct CFontLoadInfo;
 
-	static void Render(ctext::CFont font, VkCommandBuffer cmd, std::u32string text, f32 x, f32 y, f32 scale);
+	static void Render(ctext::CFont font, std::u32string text, f32 x, f32 y, f32 scale);
 	static void render_line(const ctext::CFont font, const std::u32string &str, f32 *xbegin, f32 y);
     static void initialize();
 
@@ -27,10 +27,6 @@ struct ctext
     static VkImage error_image;
     static VkImageView error_image_view;
     static VkSampler error_image_sampler;
-
-	static u32 chars_drawn;
-	static VkCommandBuffer buf;
-	static VkFence fence;
 
 	/*
 	*	I'll just detail what I want to do with the registry.
@@ -46,9 +42,11 @@ struct ctext
 	*/
 	constexpr static const char *CFontRegistryPath = "./CFont/Registry.txt";
 
-	static void CFLoad(const CFontLoadInfo* pInfo, CFont* dst);
+	static void load_font(const CFontLoadInfo* pInfo, CFont* dst);
 	static bool font_is_valid(const ctext::CFont fnt);
-	static void update();
+
+	static void begin_render(ctext::CFont fnt);
+	static void end_render(ctext::CFont fnt);
 
 	struct CFGlyph
 	{
@@ -91,6 +89,18 @@ struct ctext
 		CHANNELS_MTSDF = CHANNELS_4,
 	};
 
+	struct text_drawcall_t {
+		u32 vertex_count;
+		u32 index_count;
+		vec4 *vertices;
+    	u32 *indices;
+
+		CARBON_FORCE_INLINE u32 get_index_data_offset() const {
+			return vertex_count * sizeof(vec4);
+		}
+	};
+	static text_drawcall_t *create_text_drawcall(u32 num_verts, u32 num_inds);
+
 	/* Internal CFont struct. Do not modify yourselves! */
 	struct CFont_T
 	{
@@ -98,23 +108,12 @@ struct ctext
 		u8 *atlasData;
 
 		f32 line_height;
-		f32 ascender, descender;
-
 		f32 space_width;
 
 		VkPipeline pipeline;
 		VkPipelineLayout pipeline_layout;
 		VkShaderModule vshader;
 		VkShaderModule fshader;
-		VkShaderModule cshader;
-
-		struct {
-			VkPipeline pipeline;
-			VkPipelineLayout layout;
-			VkDescriptorSetLayout comp_layout;
-			VkDescriptorPool comp_pool;
-			VkDescriptorSet comp_set;
-		} compute;
 
 		u32 font_index;
 		VkImage texture;
@@ -125,7 +124,10 @@ struct ctext
 		VkBuffer buffer;
 		VkDeviceMemory buffer_memory;
 
-		friend void ctext::CFLoad(const CFontLoadInfo* pInfo, CFont* dst);
+		u32 chars_drawn;
+		cvector<text_drawcall_t *> drawcalls;
+
+		friend void ctext::load_font(const CFontLoadInfo* pInfo, CFont* dst);
 		friend bool ctext::font_is_valid(const ctext::CFont fnt);
 
 		const CFGlyph& get_glyph(u32 codepoint) {

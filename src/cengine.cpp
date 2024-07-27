@@ -37,7 +37,6 @@ void cengine::update() {
     }
 
     cinput::update();
-    ctext::update();
 }
 
 void cengine::begin_frame() {
