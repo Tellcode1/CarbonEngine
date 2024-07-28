@@ -113,15 +113,14 @@ VkInstance CreateInstance(const char* title, cvector<std::string_view>& availabl
 		instanceCreateinfo.ppEnabledLayerNames = ValidationLayers.data();
 	}
 
+	delete[] layerProperties;
+	delete[] extensions;
 	#else
 
 	instanceCreateinfo.enabledLayerCount = 0;
 	instanceCreateinfo.ppEnabledLayerNames = nullptr;
 
 	#endif
-
-	delete[] layerProperties;
-	delete[] extensions;
 
     VkInstance instance;
 	vkCreateInstance(&instanceCreateinfo, nullptr, &instance);
@@ -241,10 +240,10 @@ VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR surface)
 	vkGetPhysicalDeviceProperties(physicalDevices[0], &properties);
 
 	LOG_ERROR("Could not find an appropriate device. Falling back to device 0: %s\n", properties.deviceName);
-	delete[] physicalDevices;
 
 	VkPhysicalDevice fallback = physicalDevices[0];
 	PrintDeviceInfo(fallback);
+	delete[] physicalDevices;
 	return fallback;
 }
 

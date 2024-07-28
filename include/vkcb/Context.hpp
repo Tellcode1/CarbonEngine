@@ -49,7 +49,6 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessengerCallback(
 			preceder += "[INFO]";
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
-			abort();
 			preceder += "[ERR]";
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:

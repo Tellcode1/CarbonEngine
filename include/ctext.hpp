@@ -46,7 +46,7 @@ struct ctext
 	static bool font_is_valid(const ctext::CFont fnt);
 
 	static void begin_render(ctext::CFont fnt);
-	static void end_render(ctext::CFont fnt);
+	static void end_render(ctext::CFont fnt, mat4 model);
 
 	struct CFGlyph
 	{
@@ -80,9 +80,9 @@ struct ctext
 
 	enum BitmapChannels
 	{
-		CHANNELS_1 = 0,
-		CHANNELS_3 = 1,
-		CHANNELS_4 = 2,
+		CHANNELS_1 = 1,
+		CHANNELS_3 = 3,
+		CHANNELS_4 = 4,
 
 		CHANNELS_SDF = CHANNELS_1,
 		CHANNELS_MSDF = CHANNELS_3,

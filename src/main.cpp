@@ -30,7 +30,7 @@ int main(void) {
     infoo.fontPath = "../Assets/beiruti.ttf";
     infoo.chset = msdf_atlas::Charset::ASCII;
     infoo.scale = 32.0f;
-    infoo.channel_count = ctext::CHANNELS_SDF;
+    infoo.channel_count = ctext::CHANNELS_MSDF;
     ctext::load_font(&infoo, &amongus);
 
     std::u32string str = U"Aq\nJQWzz";
@@ -49,7 +49,7 @@ int main(void) {
             switch (event.type)
             {
                 case SDL_MOUSEWHEEL:
-                    scale += event.wheel.y / 20.0f;
+                    scale += event.wheel.y / 50.0f;
                     break;
                 case SDL_TEXTINPUT:
                     for (u32 i = 0; i < strlen(event.text.text); i++)
@@ -66,12 +66,17 @@ int main(void) {
                 str = str.substr(0, backpos + 1);
             else
                 str.clear();
-        } else if (cinput::is_key_pressed(SDL_SCANCODE_BACKSPACE) && str.length() > 0) {
+        }
+        if (cinput::is_key_pressed(SDL_SCANCODE_BACKSPACE) && str.length() > 0) {
             str.pop_back();
-        } else if (cinput::is_key_pressed(SDL_SCANCODE_RETURN)) {
+        }
+        if (cinput::is_key_pressed(SDL_SCANCODE_RETURN)) {
             str += '\n';
-        } else if (cinput::is_key_pressed(SDL_SCANCODE_DELETE))
+        }
+        if (cinput::is_key_pressed(SDL_SCANCODE_DELETE))
             str.clear();
+        if (cinput::is_key_held(SDL_SCANCODE_K))
+            scale -= 0.0005f;
 
         // Profiling code
         totalTime += cengine::get_delta_time()*1000.0f;
@@ -83,10 +88,14 @@ int main(void) {
         }
 
         if (RD::BeginRender()) {
+            vec2 mouse_position = cinput::get_mouse_position();
             
             ctext::begin_render(amongus);
-            ctext::Render(amongus, str, 0.0f, 0.0f, scale);
-            ctext::end_render(amongus);
+
+            ctext::Render(amongus, str, mouse_position.x, mouse_position.y, scale);
+            ctext::Render(amongus, U"volvo unban me pls", 0.0f, 0.0f, scale);
+
+            ctext::end_render(amongus, mat4(1.0f));
             
             RD::EndRender();
         }

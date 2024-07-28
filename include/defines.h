@@ -43,8 +43,8 @@
 
 #define array_len(arr) (sizeof(arr) / sizeof(arr[0]))
 
-#define cassert_and_ret(expr) if (!static_cast<bool>(expr)) { LOG_ERROR("[%s : %u] Assertion %s failed", __ASSERT_FILE, __ASSERT_LINE, #expr); return; }
-#define cassert(expr) (!static_cast<bool>(expr) ? LOG_ERROR("[%s : %u] Assertion %s failed", __ASSERT_FILE, __ASSERT_LINE, #expr) : void(0))
+#define cassert_and_ret(expr) if (!static_cast<bool>(expr)) { LOG_ERROR("[%s : %u] Assertion %s failed", __FILE__, __LINE__, #expr); return; }
+#define cassert(expr) (!static_cast<bool>(expr) ? LOG_ERROR("[%s : %u] Assertion %s failed", __FILE__, __LINE__, #expr) : void(0))
 
 constexpr const char* ANSI_FORMAT_BLACK = "\033[30m";
 constexpr const char* ANSI_FORMAT_RED = "\033[31m";

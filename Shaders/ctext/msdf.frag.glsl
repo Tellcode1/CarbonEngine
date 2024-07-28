@@ -6,7 +6,7 @@ layout(location=0) out
 vec4 outColor;
 
 layout(location=1) in flat
-uint textureIndex;
+uint texture_index;
 
 layout(location=0) in
 vec2 texCoords;
@@ -30,7 +30,7 @@ float contour(in float d, in float w) {
 }
 
 void main() {
-    vec3 distance = texture(bitmaps[0], texCoords).rgb;
+    vec3 distance = texture(bitmaps[texture_index], texCoords).rgb;
     float dist = median(distance.r, distance.g, distance.b);
     float pxDist = screen_px_range() * (dist - 0.5);
     float opacity = clamp(pxDist + 0.5, 0.0, 1.0);

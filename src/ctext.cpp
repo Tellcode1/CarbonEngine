@@ -4,7 +4,7 @@
 
 #include "stb/stb_image_write.h"
 #include "stb/stb_image.h"
-#include <cinput.hpp>
+#include "cinput.hpp"
 
 VkDescriptorPool ctext::desc_pool = VK_NULL_HANDLE;
 VkDescriptorSetLayout ctext::desc_Layout = VK_NULL_HANDLE;
@@ -17,15 +17,25 @@ VkSampler ctext::error_image_sampler = VK_NULL_HANDLE;
 
 typedef char32_t unicode;
 
-constexpr u32 channels = 1;
-constexpr auto DistanceFieldGenerator = &msdf_atlas::sdfGenerator; // Change this when changing channels too
-static_assert(channels >= 1 && channels <= 4 && channels != 2);
+template <typename T, u32 channels>
+u8 *i_hate_my_life(u32 width, u32 height, T &generator, std::vector<msdf_atlas::GlyphGeometry> &glyphs) {
+    generator.setThreadCount(4);
+    generator.generate(glyphs.data(), glyphs.size());
+    msdfgen::BitmapConstRef<f32, channels> bitmap = generator.atlasStorage();
 
-constexpr VkFormat imageFormat = 
-    (channels == 4) ? VK_FORMAT_R8G8B8A8_UNORM :
-    (channels == 3) ? VK_FORMAT_R8G8B8_UNORM :
-    (channels == 1) ? VK_FORMAT_R8_UNORM :
-    VK_FORMAT_UNDEFINED;
+    u8* pixelBuffer = reinterpret_cast<u8*>(malloc(width * height * channels));
+    memset(pixelBuffer, 0, width * height * channels);
+
+    // what the f(*(#$)*@#) is this
+    for (u32 y = 0; y < height; y++)
+        for (u32 x = 0; x < width; x++)
+            for (u32 c = 0; c < channels; c++)
+                pixelBuffer[(width * (height - y - 1) + x) * channels + c] = msdfgen::pixelFloatToByte(bitmap.pixels[(width * y + x) * channels + c]);
+
+    msdfgen::savePng(bitmap, "debug.png");
+
+    return pixelBuffer;
+}
 
 void ctext::load_font(const CFontLoadInfo *__restrict pInfo, CFont* dst)
 {
@@ -73,28 +83,48 @@ void ctext::load_font(const CFontLoadInfo *__restrict pInfo, CFont* dst)
     packer.getDimensions(width_, height_);
     u32 width = width_, height = height_; // I hate people who use integers for no reason like bro an unsigned is obviously better here
 
-    msdf_atlas::ImmediateAtlasGenerator<
+    const VkFormat bitmap_fmt =
+        (pInfo->channel_count == 4) ? VK_FORMAT_R8G8B8A8_UNORM :
+        (pInfo->channel_count == 3) ? VK_FORMAT_R8G8B8_UNORM :
+        (pInfo->channel_count == 1) ? VK_FORMAT_R8_UNORM :
+        VK_FORMAT_UNDEFINED;
+
+    using sdf_gen =  msdf_atlas::ImmediateAtlasGenerator<
         f32,
-        channels,
-        DistanceFieldGenerator,
-        msdf_atlas::BitmapAtlasStorage<f32, channels>
-    > generator(width, height);
+        1,
+        msdf_atlas::sdfGenerator,
+        msdf_atlas::BitmapAtlasStorage<f32, 1>
+    >;
 
-    generator.setThreadCount(4);
-    generator.generate(glyphs.data(), glyphs.size());
+    using msdf_gen =  msdf_atlas::ImmediateAtlasGenerator<
+        f32,
+        3,
+        msdf_atlas::msdfGenerator,
+        msdf_atlas::BitmapAtlasStorage<f32, 3>
+    >;
 
-    msdfgen::BitmapConstRef<f32, channels> bitmap = generator.atlasStorage();
+    using mtsdf_gen =  msdf_atlas::ImmediateAtlasGenerator<
+        f32,
+        4,
+        msdf_atlas::mtsdfGenerator,
+        msdf_atlas::BitmapAtlasStorage<f32, 4>
+    >;
 
-    u8* pixelBuffer = reinterpret_cast<u8*>(malloc(width * height * channels));
-    memset(pixelBuffer, 0, width * height * channels);
-
-    // what the f(*(#$)*@#) is this
-    for (u32 y = 0; y < height; y++)
-        for (u32 x = 0; x < width; x++)
-            for (u32 c = 0; c < channels; c++)
-                pixelBuffer[(width * (height - y - 1) + x) * channels + c] = msdfgen::pixelFloatToByte(bitmap.pixels[(width * y + x) * channels + c]);
-
-    msdfgen::savePng(bitmap, "debug.png");
+    u8 *pixelBuffer;
+    if (pInfo->channel_count == CHANNELS_1) {
+        sdf_gen gen(width, height);
+        pixelBuffer = i_hate_my_life<sdf_gen, 1>(width, height, gen, glyphs);
+    } else if (pInfo->channel_count == CHANNELS_3) {
+        msdf_gen gen(width, height);
+        pixelBuffer = i_hate_my_life<msdf_gen, 3>(width, height, gen, glyphs);
+    } else if (pInfo->channel_count == CHANNELS_4) {
+        mtsdf_gen gen(width, height);
+        pixelBuffer = i_hate_my_life<mtsdf_gen, 4>(width, height, gen, glyphs);
+    } else {
+        __builtin_unreachable();
+        LOG_AND_ABORT("Invalid channel count");
+        pixelBuffer = nullptr; // Satisfy the compiler gods
+    }
 
     std::ofstream among("amongus.md");
     for (const msdf_atlas::GlyphGeometry& glyph : glyphs) {
@@ -143,7 +173,7 @@ void ctext::load_font(const CFontLoadInfo *__restrict pInfo, CFont* dst)
     (*dst)->atlasHeight = height;
     (*dst)->atlasData = pixelBuffer;
 
-    help::Images::killme(pixelBuffer, width, height, imageFormat, channels, &(*dst)->texture, &(*dst)->texture_memory);
+    help::Images::killme(pixelBuffer, width, height, bitmap_fmt, pInfo->channel_count, &(*dst)->texture, &(*dst)->texture_memory);
 
     VkSamplerCreateInfo sampler_info{};
     sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -159,7 +189,7 @@ void ctext::load_font(const CFontLoadInfo *__restrict pInfo, CFont* dst)
     VkImageViewCreateInfo view_info{};
     view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    view_info.format = imageFormat;
+    view_info.format = bitmap_fmt;
     view_info.image = (*dst)->texture;
     view_info.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
     view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -235,7 +265,8 @@ void ctext::load_font(const CFontLoadInfo *__restrict pInfo, CFont* dst)
 
     const std::vector<VkPushConstantRange> pushConstants = { 
         // stageFlags, offset, size
-        { VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4) }
+        { VK_SHADER_STAGE_VERTEX_BIT, 0,           sizeof(u32) },
+        { VK_SHADER_STAGE_VERTEX_BIT, sizeof(u32), sizeof(mat4) }
     };
 
     VkPipelineShaderStageCreateInfo vertexShaderInfo{};
@@ -291,7 +322,7 @@ bool ctext::font_is_valid(const ctext::CFont fnt)
     return valid;
 }
 
-void ctext::end_render(ctext::CFont fnt)
+void ctext::end_render(ctext::CFont fnt, mat4 model)
 {
     if (fnt->drawcalls.empty())
         return;
@@ -336,12 +367,20 @@ void ctext::end_render(ctext::CFont fnt)
     const VkCommandBuffer cmd = Renderer::GetDrawBuffer();
     constexpr VkDeviceSize offsets[] = { 0 };
 
+    struct {
+        u32 texture_index;
+        mat4 model;
+    } push_constants;
+
+    push_constants.texture_index = fnt->font_index;
+    push_constants.model = mat4(1.0f);
+
     vkCmdPushConstants(
         cmd,
         fnt->pipeline_layout,
         VK_SHADER_STAGE_VERTEX_BIT,
         0, sizeof(mat4),
-        glm::value_ptr(glm::translate(glm::mat4(1.0f), vec3(cinput::get_mouse_position(), 0.0f)))
+        glm::value_ptr(glm::mat4(1.0f))
     );
 
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, fnt->pipeline_layout, 0, 1, &desc_set, 0, nullptr);
@@ -354,6 +393,8 @@ void ctext::end_render(ctext::CFont fnt)
 ctext::text_drawcall_t *ctext::create_text_drawcall(u32 num_verts, u32 num_inds)
 {
     void *allocation = malloc(sizeof(text_drawcall_t) + (num_verts * sizeof(vec4)) + (num_inds * sizeof(u32)));
+    memset(allocation, 0, sizeof(text_drawcall_t) + (num_verts * sizeof(vec4)) + (num_inds * sizeof(u32)));
+
     text_drawcall_t  *new_drawcall = (text_drawcall_t *)allocation;
     new_drawcall->vertex_count = num_verts;
     new_drawcall->index_count = num_inds;
@@ -372,55 +413,40 @@ void ctext::begin_render(ctext::CFont fnt)
     fnt->drawcalls.clear();
 }
 
-/* Takes a string with either \0 or \n at the end */
-void ctext::render_line(const ctext::CFont fnt, const std::u32string &str, f32 *xbegin, f32 y)
-{
-
-}
-
-/*
-*   rets the count of indices. pass to vkCmdDrawIndexed
-*/
-u32 gen_vertices(const ctext::CFont fnt, ctext::text_drawcall_t *drawcall, const std::u32string& str, f32 xbegin, f32 ybegin, f32 scale) {
+void gen_vertices(const ctext::CFont fnt, ctext::text_drawcall_t *drawcall, const std::u32string& str, f32 xbegin, f32 ybegin, f32 scale) {
     if (str.length() == 0)
-        return 0;
-
-    if (!ctext::font_is_valid(fnt))
-        return UINT32_MAX;
+        return;
 
     f32 x = xbegin;
     f32 y = ybegin;
     u32 i = 0;
 
-    drawcall->index_count = 0;
-    drawcall->vertex_count = 0;
-
-    for (const auto& c : str)
+    for (const auto c : str)
     {
         if (c == U'\n') {
             x = xbegin;
-            y += fnt->line_height;
+            y += fnt->line_height * scale;
             continue;
         } else if (c == U' ') {
-            x += fnt->space_width;
+            x += fnt->space_width * scale;
             continue;
         }
 
         const ctext::CFGlyph& glyph = fnt->get_glyph(c);
 
-        const f32 x0 = (x + glyph.x0) * scale;
-        const f32 x1 = (x + glyph.x1) * scale;
-        const f32 y0 = (y + glyph.y0) * scale;
-        const f32 y1 = (y + glyph.y1) * scale;
+        const f32 x0 = x + glyph.x0 * scale;
+        const f32 x1 = x + glyph.x1 * scale;
+        const f32 y0 = y + glyph.y0 * scale;
+        const f32 y1 = y + glyph.y1 * scale;
 
-        vec4 *vertex_output_data = (drawcall->vertices) + i * 4;
-        vertex_output_data[0] = vec4( x0, y0, glyph.l, glyph.t );
-        vertex_output_data[1] = vec4( x1, y0, glyph.r, glyph.t );
-        vertex_output_data[2] = vec4( x1, y1, glyph.r, glyph.b );
-        vertex_output_data[3] = vec4( x0, y1, glyph.l, glyph.b );
-        
+        vec4 * const vertex_output_data = (vec4 *)(drawcall->vertices) + i * 4;
+        vertex_output_data[0] = { x0, y0, glyph.l, glyph.t };
+        vertex_output_data[1] = { x1, y0, glyph.r, glyph.t };
+        vertex_output_data[2] = { x1, y1, glyph.r, glyph.b };
+        vertex_output_data[3] = { x0, y1, glyph.l, glyph.b };
+
         const u32 index_offset = fnt->chars_drawn * 4;
-        u32 *index_output_data = (drawcall->indices) + i * 6;
+        u32 * const index_output_data = (drawcall->indices) + i * 6;
         index_output_data[0] = index_offset + 0;
         index_output_data[1] = index_offset + 1;
         index_output_data[2] = index_offset + 2;
@@ -428,14 +454,10 @@ u32 gen_vertices(const ctext::CFont fnt, ctext::text_drawcall_t *drawcall, const
         index_output_data[4] = index_offset + 3;
         index_output_data[5] = index_offset + 0;
 
-        x += glyph.advance;
+        x += glyph.advance * scale;
         fnt->chars_drawn++;
-        drawcall->vertex_count += 4;
-        drawcall->index_count += 6;
         i++;
     }
-
-    return i * 6;
 }
 
 void ctext::Render(ctext::CFont fnt, std::u32string text, float x, float y, float scale)
@@ -456,8 +478,16 @@ void ctext::Render(ctext::CFont fnt, std::u32string text, float x, float y, floa
     const u32 index_count = effective_length * 6;
 
     text_drawcall_t *drawcall = create_text_drawcall(vertex_count, index_count);
-    
-    gen_vertices(fnt, drawcall, text, 0.0f, 0.0f, scale);
+    gen_vertices(fnt, drawcall, text, x, y, scale);
+
+    if (effective_length == 0) {
+        free(drawcall);
+        fnt->chars_drawn = 0;
+        return;
+    }
+
+    drawcall->vertex_count = effective_length * 4;
+    drawcall->index_count = effective_length * 6;
     fnt->drawcalls.push_back(drawcall);
 }
 

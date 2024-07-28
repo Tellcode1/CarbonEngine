@@ -35,8 +35,7 @@ enum PipelineCreateFlagBits
 };
 typedef ProFlags PipelineCreateFlags;
 
-// #define ResultCheck(func) pro::__resultFunc(func, __ASSERT_FILE, __ASSERT_FUNCTION, __LINE__)
-#define ResultCheck(func) pro::__resultFunc(func, __ASSERT_FILE, __ASSERT_FUNCTION, __LINE__)
+#define ResultCheck(func) pro::__resultFunc(func, __FILE__, __PRETTY_FUNCTION__, __LINE__)
 
 namespace pro
 {
