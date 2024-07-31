@@ -1,21 +1,18 @@
 #version 450
 
-const uint MAX_FONT_COUNT = 8;
-
 layout(location=0) out
 vec4 outColor;
-
-layout(location=1) in flat
-uint texture_index;
 
 layout(location=0) in
 vec2 texCoords;
 
 layout(set=0,binding=0) uniform
-sampler2D bitmaps[ MAX_FONT_COUNT ];
+sampler2D bitmap;
 
 void main() {;
-    float dist = 0.5 - texture(bitmaps[texture_index], texCoords).r;
+    float dist = 0.5 - texture(bitmap, texCoords).r;
+    if (dist == 0.0)
+        discard;
     vec2 ddist = vec2(dFdx(dist), dFdy(dist));
     float pixelDist = dist / length(ddist);
     float alpha = 0.5 - pixelDist;

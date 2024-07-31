@@ -230,7 +230,7 @@ void pro::CreateRenderPass(VkDevice device, RenderPassCreateInfo const *pCreateI
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorAttachmentReference;
 
-    std::vector<VkAttachmentDescription> attachments { colorAttachmentDescription };
+    cvector<VkAttachmentDescription> attachments { colorAttachmentDescription };
 
 	u32 curr_attachment = 1;
 
@@ -364,7 +364,8 @@ bool pro::GetSupportedFormat(VkDevice device, VkPhysicalDevice physDevice, VkSur
 	vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, surfaceFormats);
 
 	VkSurfaceFormatKHR selectedFormat = { VK_FORMAT_MAX_ENUM, VK_COLOR_SPACE_MAX_ENUM_KHR };
-	std::unordered_map<VkFormat, VkColorSpaceKHR> desiredFormats = {
+
+	constexpr VkSurfaceFormatKHR desired_formats[] = {
 		{ VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR },
 		{ VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR }
 	};
@@ -372,13 +373,14 @@ bool pro::GetSupportedFormat(VkDevice device, VkPhysicalDevice physDevice, VkSur
 	for (u32 i = 0; i < formatCount; i++)
 	{
 		const auto& surfaceFormat = surfaceFormats[i];
-		const auto formatIter = desiredFormats.find(surfaceFormat.format);
-		if (formatIter != desiredFormats.end() &&
-			formatIter->second == surfaceFormat.colorSpace)
-		{
-			selectedFormat = surfaceFormat;
-			desiredFormats.erase(formatIter);
-			break;
+		for (u32 j = 0; j < array_len(desired_formats); j++) {
+			if (surfaceFormat.format == desired_formats[j].format 
+				&&
+				surfaceFormat.colorSpace == desired_formats[j].colorSpace
+			   ) {
+					selectedFormat.format = surfaceFormat.format;
+					selectedFormat.colorSpace = surfaceFormat.colorSpace;
+			   }
 		}
 	}
 

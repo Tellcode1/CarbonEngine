@@ -60,7 +60,8 @@ struct cvector
     u32 push_back(const T& element) {
         if ((m_count + 1) >= m_capacity)
             reallocate(std::max(1U, m_capacity * 2U));
-        m_data[m_count] = element;
+        // m_data[m_count] = element;
+        memcpy(&m_data[m_count], &element, sizeof(T));
         m_count++;
         return m_count - 1;
     }
@@ -99,10 +100,10 @@ struct cvector
     }
 
     CARBON_NO_DISCARD T& at(u32 index) const {
-        if (index >= m_count)
-            LOG_ERROR(
-                "Attempt to access element at index %u but array holds only %u elements?", index, m_count
-            );
+        return m_data[index];
+    }
+
+    CARBON_FORCE_INLINE T& operator [](u64 index) const {
         return m_data[index];
     }
 
@@ -119,6 +120,10 @@ struct cvector
         m_data = nullptr;
         m_count = 0;
         m_capacity = 0;
+    }
+
+    CARBON_FORCE_INLINE void reset() {
+        m_count = 0;
     }
 
     CARBON_FORCE_INLINE void resize(u32 new_size) {

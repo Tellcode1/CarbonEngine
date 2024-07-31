@@ -73,6 +73,9 @@ int main(void) {
         if (cinput::is_key_pressed(SDL_SCANCODE_RETURN)) {
             str += '\n';
         }
+        if (cinput::is_key_pressed(SDL_SCANCODE_TAB)) {
+            str += '\t';
+        }
         if (cinput::is_key_pressed(SDL_SCANCODE_DELETE))
             str.clear();
         if (cinput::is_key_held(SDL_SCANCODE_K))
@@ -92,8 +95,8 @@ int main(void) {
             
             ctext::begin_render(amongus);
 
-            ctext::Render(amongus, str, mouse_position.x, mouse_position.y, scale);
-            ctext::Render(amongus, U"volvo unban me pls", 0.0f, 0.0f, scale);
+            ctext::render(amongus, str, ctext::CTEXT_HORI_ALIGN_CENTER, ctext::CTEXT_VERT_ALIGN_CENTER, mouse_position.x, mouse_position.y, scale);
+            ctext::render(amongus, U"volvo unban me pls", ctext::CTEXT_HORI_ALIGN_CENTER, ctext::CTEXT_VERT_ALIGN_CENTER, 0.0f, 0.0f, scale);
 
             ctext::end_render(amongus, mat4(1.0f));
             

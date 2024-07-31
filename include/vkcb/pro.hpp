@@ -15,8 +15,8 @@
 typedef void (*ResultCheckFunc) (const VkResult result, const char *FILE, const char *FUNC, size_t LINE);
 typedef u32 ProFlags;
 
-#define REQUIRED_PTR(ptr) if(ptr == nullptr) LOG_AND_ABORT(#ptr" :  Required parameter '"#ptr"' specified as nullptr.\n", __FILE__, __LINE__, __PRETTY_FUNCTION__)
-#define NOT_EQUAL_TO(val, to) if(val == to) LOG_AND_ABORT(#val" == "#to". Value "#val" must not be equal to "#to".\n", __FILE__, __LINE__, __PRETTY_FUNCTION__)
+#define REQUIRED_PTR(ptr) if(ptr == nullptr) LOG_AND_ABORT(#ptr" :  Required parameter '"#ptr"' specified as nullptr.\n", get_filename(__FILE__), __LINE__, __PRETTY_FUNCTION__)
+#define NOT_EQUAL_TO(val, to) if(val == to) LOG_AND_ABORT(#val" == "#to". Value "#val" must not be equal to "#to".\n", get_filename(__FILE__), __LINE__, __PRETTY_FUNCTION__)
 
 #ifndef PRO_ARRAY_TYPE
 	#define PRO_ARRAY_TYPE std::vector
@@ -35,7 +35,7 @@ enum PipelineCreateFlagBits
 };
 typedef ProFlags PipelineCreateFlags;
 
-#define ResultCheck(func) pro::__resultFunc(func, __FILE__, __PRETTY_FUNCTION__, __LINE__)
+#define ResultCheck(func) pro::__resultFunc(func, get_filename(__FILE__), __PRETTY_FUNCTION__, __LINE__)
 
 namespace pro
 {

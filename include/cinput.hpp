@@ -1,8 +1,7 @@
 #ifndef __C_INPUT_HPP__
 #define __C_INPUT_HPP__
 
-#include "stdafx.hpp"
-#include <SDL2/SDL.h>
+#include "vkcbstdafx.hpp"
 #include <bitset>
 
 struct cinput
@@ -14,7 +13,6 @@ struct cinput
     static vec2 mouse_position;
 
     public:
-
     enum key_state : i32
     {
         KB_STATE_PRESSED = 0,
@@ -72,7 +70,7 @@ struct cinput
 
         else if (!kb_state[sc] && last_frame_kb_state[sc])
             return key_state::KB_STATE_RELEASED;
-        
+
         return KB_STATE_INVALID;
     }
 };

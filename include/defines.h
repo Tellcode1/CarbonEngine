@@ -2,6 +2,7 @@
 #define __DEFINES_H__
 
 #include <cstdint>
+#include <cstring>
 
 #if defined( __clang__ )
 #   if __has_attribute( always_inline )
@@ -43,8 +44,8 @@
 
 #define array_len(arr) (sizeof(arr) / sizeof(arr[0]))
 
-#define cassert_and_ret(expr) if (!static_cast<bool>(expr)) { LOG_ERROR("[%s : %u] Assertion %s failed", __FILE__, __LINE__, #expr); return; }
-#define cassert(expr) (!static_cast<bool>(expr) ? LOG_ERROR("[%s : %u] Assertion %s failed", __FILE__, __LINE__, #expr) : void(0))
+#define cassert_and_ret(expr) if (!static_cast<bool>(expr)) { LOG_ERROR("[%s : %u] Assertion %s failed", get_filename(__FILE__), __LINE__, #expr); return; }
+#define cassert(expr) (!static_cast<bool>(expr) ? LOG_ERROR("[%s : %u] Assertion %s failed", get_filename(__FILE__), __LINE__, #expr) : void(0))
 
 constexpr const char* ANSI_FORMAT_BLACK = "\033[30m";
 constexpr const char* ANSI_FORMAT_RED = "\033[31m";
@@ -73,5 +74,22 @@ typedef int8_t i8;
 
 typedef float f32;
 typedef double f64;
+
+constexpr static inline u32 reverse_find(const char *begin, const char *end, char value) {
+    const char *iterator = end - 1;
+    while (iterator >= begin) {
+        if (*iterator == value)
+            return iterator - begin;
+        iterator--;
+    }
+    return (u32)-1;
+}
+
+constexpr static const char *get_filename(const char *path) {
+    u32 pos = reverse_find(path, path + strlen(path), '/');
+    if (pos != (u32)-1)
+        return path + pos + 1;
+    return path;
+}
 
 #endif

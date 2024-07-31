@@ -101,4 +101,8 @@ inline void LOG_DEBUG(std::string fmt, ...) {
 
 #undef __LOG
 
+inline u32 align(u32 size, u32 alignment) {
+    return (size + alignment - 1) & ~(alignment - 1);
+}
+
 #endif
