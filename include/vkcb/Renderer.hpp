@@ -1,11 +1,14 @@
 #ifndef __RENDERER__
 #define __RENDERER__
 
+#include <unordered_map>
+
 #include "defines.h"
 #include "stdafx.hpp"
 #include "cengine.hpp"
 #include "carrays/cvector.hpp"
 #include "carrays/carray.hpp"
+#include "cobject.hpp"
 
 struct FrameRenderData
 {
@@ -35,6 +38,7 @@ struct Renderer
     Renderer() = default;
     ~Renderer() = default;
 
+    static const void *empty_array; // you can use this for empty offset buffers, etc. it has 256 bytes of memory
     static renderer_config config;
 
     static VkSwapchainKHR swapchain;
@@ -50,12 +54,14 @@ struct Renderer
 
     static cvector<FrameRenderData> renderData;
     static cvector<VkCommandBuffer> drawBuffers;
+    static std::unordered_map<cobject_base *, u32> obj_offsets;
 
     static void initialize(const renderer_config *conf);
 
     static VkCommandBuffer CARBON_FORCE_INLINE GetDrawBuffer() { return drawBuffers.at(renderer_frame); }
     static bool BeginRender();
     static void EndRender();
+    // static void render(cobject_sprite_renderer *render);
 
     private:
     static void _SignalResize();

@@ -9,6 +9,24 @@ struct ctext;
 #define MSDFGEN_PUBLIC // ?
 #include "external/msdf-atlas-gen/msdf-atlas-gen/msdf-atlas-gen.h"
 
+#include "cobject.hpp"
+
+enum HoriAlignment
+{
+    CTEXT_HORI_ALIGN_LEFT = 0,
+    CTEXT_HORI_ALIGN_CENTER = 1,
+    CTEXT_HORI_ALIGN_RIGHT = 2,
+};
+
+enum VertAlignment
+{
+    CTEXT_VERT_ALIGN_TOP = 0,
+    CTEXT_VERT_ALIGN_CENTER = 1,
+    CTEXT_VERT_ALIGN_BOTTOM = 2,
+};
+
+typedef char32_t codepoint;
+
 struct ctext
 {
     constexpr static u32 MAX_FONT_COUNT = 8;
@@ -18,22 +36,7 @@ struct ctext
     struct CFontLoadInfo;
     struct text_drawcall_t;
 
-    enum HoriAlignment
-    {
-        CTEXT_HORI_ALIGN_LEFT = 0,
-        CTEXT_HORI_ALIGN_CENTER = 1,
-        CTEXT_HORI_ALIGN_RIGHT = 2,
-    };
-
-    enum VertAlignment
-    {
-        CTEXT_VERT_ALIGN_TOP = 0,
-        CTEXT_VERT_ALIGN_CENTER = 1,
-        CTEXT_VERT_ALIGN_BOTTOM = 2,
-    };
-
-
-    static void render(ctext::CFont fnt, std::u32string text, const ctext::HoriAlignment horizontal, const ctext::VertAlignment vertical, const f32 x, const f32 y, const f32 scale);
+    static void render(ctext::CFont fnt, const std::u32string_view text, const HoriAlignment horizontal, const VertAlignment vertical, const f32 x, const f32 y, const f32 scale);
     static void initialize();
 
     static VkDescriptorPool desc_pool;
@@ -64,17 +67,16 @@ struct ctext
 
     struct CFGlyph
     {
-        f32 x0, y0, x1, y1;
-        f32 l, b, r, t;
+        f32 positions[4];
+        f32 uv[4];
         f32 advance;
-        u32 codepoint;
 
         CARBON_FORCE_INLINE f32 get_width() const {
-            return x1 - x0;
+            return positions[2] - positions[0];
         }
 
         CARBON_FORCE_INLINE f32 get_height() const {
-            return y0 - y1;
+            return positions[1] - positions[3];
         }
     };
 
@@ -92,6 +94,7 @@ struct ctext
     struct text_drawcall_t {
         u32 vertex_count;
         u32 index_count;
+        u32 index_offset;
         vec4 *vertices;
         u32 *indices;
     };
@@ -119,21 +122,21 @@ struct ctext
         u32 allocated_size;
         VkBuffer buffer;
         VkDeviceMemory buffer_memory;
-        void resize_buffer(u32 new_buffer_size);
+        void *mapped;
+        void resize_buffer(u32 new_buffer_size, u32 index_buffer_offset);
+
+        struct ctext_hasher {
+        template <typename T>
+            constexpr inline std::size_t operator()(const T& key) const {
+                return static_cast<std::size_t>(key);
+            }
+        };
 
         u32 chars_drawn;
-        cvector<text_drawcall_t> drawcalls;
-        std::unordered_map<u32, CFGlyph> m_glyph_geometry;
+        std::vector<text_drawcall_t> drawcalls;
+        std::unordered_map<codepoint, CFGlyph, ctext_hasher> glyph_map;
 
         friend void ctext::load_font(const CFontLoadInfo* pInfo, CFont* dst);
-
-        const CFGlyph& get_glyph(u32 codepoint) {
-            if (m_glyph_geometry.find(codepoint) != m_glyph_geometry.end())
-                return m_glyph_geometry[codepoint];
-
-            LOG_ERROR("codepoint %u nonexistent", codepoint);
-            return m_glyph_geometry[U' '];
-        }
     };
 
     struct CFontLoadInfo

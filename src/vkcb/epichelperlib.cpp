@@ -352,7 +352,7 @@ void help::Images::StageImageTransfer(VkImage dst, void *data, u32 width, u32 he
     VkMemoryAllocateInfo stagingBufferAllocInfo{};
     stagingBufferAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     stagingBufferAllocInfo.allocationSize = stagingBufferRequirements.size;
-    stagingBufferAllocInfo.memoryTypeIndex = pro::GetMemoryType(physDevice, stagingBufferRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    stagingBufferAllocInfo.memoryTypeIndex = help::Memory::GetMemoryType(physDevice, stagingBufferRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
     vkAllocateMemory(device, &stagingBufferAllocInfo, nullptr, &stagingBufferMemory);
     vkBindBufferMemory(device, stagingBuffer, stagingBufferMemory, 0);
@@ -416,7 +416,7 @@ void help::Images::create_empty(u32 width, u32 height, VkFormat format, VkSample
     VkMemoryRequirements imageMemoryRequirements;
     vkGetImageMemoryRequirements(device, *dst, &imageMemoryRequirements);
 
-    const u32 localDeviceMemoryIndex = pro::GetMemoryType(physDevice, imageMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    const u32 localDeviceMemoryIndex = help::Memory::GetMemoryType(physDevice, imageMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -495,4 +495,81 @@ void help::Images::LoadFromDisk(const char *path, u8 channels, u8 **dst, u32 *ds
     *dst = buffer;
     *dstWidth = width;
     *dstHeight = height;
+}
+
+bool help::Images::GetSupportedFormat(VkDevice device, VkPhysicalDevice physDevice, VkSurfaceKHR surface, VkFormat *dstFormat, VkColorSpaceKHR *dstColorSpace)
+{
+	REQUIRED_PTR(device);
+	REQUIRED_PTR(physDevice);
+	REQUIRED_PTR(surface);
+	REQUIRED_PTR(dstFormat);
+	REQUIRED_PTR(dstColorSpace);
+
+    u32 formatCount = 0;
+	vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, VK_NULL_HANDLE);
+	VkSurfaceFormatKHR *surfaceFormats = new VkSurfaceFormatKHR[formatCount];
+	vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, surfaceFormats);
+
+	VkSurfaceFormatKHR selectedFormat = { VK_FORMAT_MAX_ENUM, VK_COLOR_SPACE_MAX_ENUM_KHR };
+
+	constexpr VkSurfaceFormatKHR desired_formats[] = {
+		{ VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR },
+		{ VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR }
+	};
+
+	for (u32 i = 0; i < formatCount; i++)
+	{
+		const auto& surfaceFormat = surfaceFormats[i];
+		for (u32 j = 0; j < array_len(desired_formats); j++) {
+			if (surfaceFormat.format == desired_formats[j].format 
+				&&
+				surfaceFormat.colorSpace == desired_formats[j].colorSpace
+			   ) {
+					selectedFormat.format = surfaceFormat.format;
+					selectedFormat.colorSpace = surfaceFormat.colorSpace;
+			   }
+		}
+	}
+
+	if (selectedFormat.format == VK_FORMAT_MAX_ENUM || selectedFormat.colorSpace == VK_COLOR_SPACE_MAX_ENUM_KHR) {
+		return VK_FALSE;
+	} else {
+		*dstFormat = selectedFormat.format;
+		*dstColorSpace = selectedFormat.colorSpace;
+		
+		return VK_TRUE;
+	}
+
+	delete[] surfaceFormats;
+	return VK_FALSE;
+}
+
+u32 help::Images::GetImageCount(VkPhysicalDevice physDevice, VkSurfaceKHR surface)
+{
+	REQUIRED_PTR(physDevice);
+	REQUIRED_PTR(surface);
+
+    VkSurfaceCapabilitiesKHR surfaceCapabilities;
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physDevice, surface, &surfaceCapabilities);
+
+	u32 requestedImageCount = surfaceCapabilities.minImageCount + 1;
+	if(requestedImageCount < surfaceCapabilities.maxImageCount)
+		requestedImageCount = surfaceCapabilities.maxImageCount;
+
+	return requestedImageCount;
+}
+
+u32 help::Memory::GetMemoryType(VkPhysicalDevice physDevice, const u32 memoryTypeBits, const VkMemoryPropertyFlags properties)
+{
+	REQUIRED_PTR(physDevice);
+	NOT_EQUAL_TO(properties, 0);
+
+    VkPhysicalDeviceMemoryProperties memoryProperties;
+	vkGetPhysicalDeviceMemoryProperties(physDevice, &memoryProperties);
+
+	for (u32 i = 0; i < memoryProperties.memoryTypeCount; i++) 
+    	if ((memoryTypeBits & (1 << i)) && (memoryProperties.memoryTypes[i].propertyFlags & properties) == properties)
+        	return i;
+
+	return -1;
 }

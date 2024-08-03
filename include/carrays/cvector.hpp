@@ -57,6 +57,7 @@ struct cvector
         free(m_data);
     }
 
+    // copies an element into array
     u32 push_back(const T& element) {
         if ((m_count + 1) >= m_capacity)
             reallocate(std::max(1U, m_capacity * 2U));

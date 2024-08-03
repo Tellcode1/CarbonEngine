@@ -7,12 +7,6 @@ include_directories(${Vulkan_INCLUDE_DIRS})
 find_package(SDL2 REQUIRED)
 include_directories(${SDL2_INCLUDE_DIRS})
 
-find_package(Freetype REQUIRED)
-include_directories(${FREETYPE_INCLUDE_DIRS})
-
-# find_package(stb REQUIRED)
-# include_directories(${stb_INCLUDE_DIRS})
-
 include_directories(${CMAKE_SOURCE_DIR}/src)
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
@@ -42,6 +36,7 @@ set(SOURCES
     src/vkcb/Bootstrap.cpp
     src/vkcb/Renderer.cpp
     src/vkcb/epichelperlib.cpp
+    src/vkcb/cobject.cpp
 )
 
 include_directories(${CMAKE_SOURCE_DIR})
@@ -84,6 +79,8 @@ add_executable(${OUTPUT} ${SOURCES})
 target_link_options(${OUTPUT} PRIVATE -g -Wall -fopenmp)
 target_compile_options(${OUTPUT} PRIVATE -g -Wall -fopenmp)
 target_link_libraries(${OUTPUT} ${LIBS})
+
+add_executable(shader_manager src/vkcb/cshader_manager.c)
 
 # add_executable(Atlas ${ATLAS_SOURCES})
 # target_link_libraries(Atlas ${ATLAS_LIBS})

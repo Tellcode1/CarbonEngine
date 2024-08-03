@@ -7,7 +7,7 @@
 #include "cinput.hpp"
 #include "carrays/cvector.hpp"
 
-int main(void) {
+int main(int argc, char *argv[]) {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER);
 
     using RD = Renderer;
@@ -27,20 +27,21 @@ int main(void) {
 
     ctext::CFont amongus;
     ctext::CFontLoadInfo infoo{};
-    infoo.fontPath = "../Assets/beiruti.ttf";
+    infoo.fontPath = "../Assets/roboto.ttf";
     infoo.chset = msdf_atlas::Charset::ASCII;
     infoo.scale = 32.0f;
     infoo.channel_count = ctext::CHANNELS_MSDF;
     ctext::load_font(&infoo, &amongus);
 
-    std::u32string str = U"Aq\nJQWzz";
+    std::u32string str = U"The quick brown fox jumped over the lazy dog";
+    std::u32string alt_str;
 
     f32 scale = 1.0f;
 
     // What in the unholy f%$ where you doing
     LOG_DEBUG("Initialized in %ld ms (%.3f s)", SDL_GetTicks(), SDL_GetTicks() / 1000.0f);
     while(cengine::running())
-    {    
+    {
         SDL_Event event;
 
         SDL_PumpEvents();
@@ -78,8 +79,17 @@ int main(void) {
         }
         if (cinput::is_key_pressed(SDL_SCANCODE_DELETE))
             str.clear();
-        if (cinput::is_key_held(SDL_SCANCODE_K))
-            scale -= 0.0005f;
+        if (cinput::is_key_pressed(SDL_SCANCODE_KP_0)) {
+            // pc abuse
+            for (u32 j = 0; j < 100; j++) {
+                for (u32 i = 0; i < 100; i++) {
+                    alt_str += U"100k chars at 70fps ";
+                }
+                alt_str += U'\n';
+            }
+            std::cout << alt_str.size() << '\n';
+        }
+
 
         // Profiling code
         totalTime += cengine::get_delta_time()*1000.0f;
@@ -95,8 +105,13 @@ int main(void) {
             
             ctext::begin_render(amongus);
 
-            ctext::render(amongus, str, ctext::CTEXT_HORI_ALIGN_CENTER, ctext::CTEXT_VERT_ALIGN_CENTER, mouse_position.x, mouse_position.y, scale);
-            ctext::render(amongus, U"volvo unban me pls", ctext::CTEXT_HORI_ALIGN_CENTER, ctext::CTEXT_VERT_ALIGN_CENTER, 0.0f, 0.0f, scale);
+            ctext::render(amongus, str, CTEXT_HORI_ALIGN_CENTER, CTEXT_VERT_ALIGN_CENTER, mouse_position.x, mouse_position.y, scale);
+            ctext::render(amongus, U"{-1.0f, -1.0f}", CTEXT_HORI_ALIGN_LEFT, CTEXT_VERT_ALIGN_TOP,     -1.0f, -1.0f, scale);
+            ctext::render(amongus, U"{-1.0f,  1.0f}", CTEXT_HORI_ALIGN_LEFT, CTEXT_VERT_ALIGN_BOTTOM,  -1.0f,  1.0f, scale);
+            ctext::render(amongus, U"{ 1.0f, -1.0f}", CTEXT_HORI_ALIGN_RIGHT, CTEXT_VERT_ALIGN_TOP,     1.0f, -1.0f, scale);
+            ctext::render(amongus, U"{ 1.0f,  1.0f}", CTEXT_HORI_ALIGN_RIGHT, CTEXT_VERT_ALIGN_BOTTOM,  1.0f,  1.0f, scale);
+            ctext::render(amongus, U"{ 0.0f,  0.0f}", CTEXT_HORI_ALIGN_CENTER, CTEXT_VERT_ALIGN_CENTER, 0.0f,  0.0f, scale);
+            ctext::render(amongus, alt_str, CTEXT_HORI_ALIGN_CENTER, CTEXT_VERT_ALIGN_CENTER, 0.0f,  0.0f, scale);
 
             ctext::end_render(amongus, mat4(1.0f));
             

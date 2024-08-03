@@ -1,7 +1,5 @@
 #version 450
 
-const uint MAX_FONT_COUNT = 8;
-
 layout(location=0) out
 vec4 outColor;
 
@@ -15,7 +13,8 @@ float median(float r, float g, float b) {
     return max(min(r, g), min(max(r, g), b));
 }
 
-const float pxRange = 32.0f;
+const float pxRange = 32.0;
+
 float screen_px_range() {
     vec2 unit_range = vec2(pxRange)/vec2(textureSize(bitmap, 0));
     vec2 screen_tex_size = vec2(1.0)/fwidth(texCoords);
@@ -27,11 +26,11 @@ float contour(in float d, in float w) {
 }
 
 void main() {
+    // float contour_width = (scale) / screen_px_range(); // u can adjust this a little
+    float contour_width = (1.0) / screen_px_range(); // u can adjust this a little
+
     vec3 distance = texture(bitmap, texCoords).rgb;
     float dist = median(distance.r, distance.g, distance.b);
-    if (dist == 0.0)
-        discard;
-    float pxDist = screen_px_range() * (dist - 0.5);
-    float opacity = clamp(pxDist + 0.5, 0.0, 1.0);
-    outColor = vec4(1.0, 1.0, 1.0, opacity);
+    float alpha = contour(dist, contour_width);
+    outColor = vec4(vec3(1.0), alpha);
 }

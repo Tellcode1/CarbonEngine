@@ -15,6 +15,7 @@ namespace help
         void MapMemory(VkDeviceMemory memory, u64 size, u64 offset, void** dstPtr);
         void UnmapMemory(VkDeviceMemory memory);
         void FlushMappedMemory(VkDeviceMemory memory, u64 size, u64 offset);
+	    u32 GetMemoryType(VkPhysicalDevice physDevice, const u32 memoryTypeBits, const VkMemoryPropertyFlags properties);
     }
     namespace Buffers
     {
@@ -23,6 +24,7 @@ namespace help
 
         /*  */
         void StageBufferTransfer(VkBuffer dst, void* data, u64 size);
+
     }
     namespace Commands
     {
@@ -69,6 +71,10 @@ namespace help
             VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
             VkPipelineStageFlags sourceStage, VkPipelineStageFlags destinationStage
         );
+        
+        // I don't know where to keep this functions.
+        bool GetSupportedFormat(VkDevice device, VkPhysicalDevice physDevice, VkSurfaceKHR surface, VkFormat* dstFormat, VkColorSpaceKHR* dstColorSpace);
+        u32 GetImageCount(VkPhysicalDevice physDevice, VkSurfaceKHR surface);
     }
     namespace Files
     {

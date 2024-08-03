@@ -31,20 +31,24 @@ u32 Renderer::imageIndex = 0;
 VkCommandPool Renderer::commandPool = VK_NULL_HANDLE;
 cvector<FrameRenderData> Renderer::renderData;
 cvector<VkCommandBuffer> Renderer::drawBuffers;
+std::unordered_map<cobject_base *, u32> Renderer::obj_offsets;
 renderer_config Renderer::config;
+
+const void *Renderer::empty_array;
 
 VkImage Renderer::color_image = VK_NULL_HANDLE;
 VkDeviceMemory Renderer::color_image_memory = VK_NULL_HANDLE;
 VkImageView Renderer::color_image_view = VK_NULL_HANDLE;
 
 void Renderer::initialize(const renderer_config *conf) {
+    Renderer::empty_array = calloc(1, 256);
     memcpy(&config, conf, sizeof(renderer_config));
     /* Initialize graphics singleton */
     {
-        if (!pro::GetSupportedFormat(device, physDevice, surface, &vctx::SwapChainImageFormat, &vctx::SwapChainColorSpace)) {
+        if (!help::Images::GetSupportedFormat(device, physDevice, surface, &vctx::SwapChainImageFormat, &vctx::SwapChainColorSpace)) {
             LOG_AND_ABORT("No supported format for display.");
         }
-        vctx::SwapChainImageCount = pro::GetImageCount(physDevice, surface);
+        vctx::SwapChainImageCount = help::Images::GetImageCount(physDevice, surface);
 
         u32 queueCount = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, nullptr);
@@ -308,7 +312,7 @@ bool Renderer::BeginRender()
 void Renderer::EndRender()
 {
     const auto& drawBuffer = drawBuffers.at(renderer_frame);
-	
+
     vkCmdEndRenderPass(drawBuffer);
     vkEndCommandBuffer(drawBuffer);
 
