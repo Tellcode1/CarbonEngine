@@ -6,8 +6,8 @@
 #include "defines.h"
 #include "stdafx.hpp"
 #include "cengine.hpp"
-#include "carrays/cvector.hpp"
-#include "carrays/carray.hpp"
+#include "containers/cvector.hpp"
+#include "containers/carray.hpp"
 #include "cobject.hpp"
 
 struct FrameRenderData

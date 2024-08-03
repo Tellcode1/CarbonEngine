@@ -3,6 +3,8 @@
 
 struct ctext;
 
+static_assert(__STDC_UTF_32__ == 1);
+
 #include "stdafx.hpp"
 #include "vkcb/vkcbstdafx.hpp"
 
@@ -10,6 +12,7 @@ struct ctext;
 #include "external/msdf-atlas-gen/msdf-atlas-gen/msdf-atlas-gen.h"
 
 #include "cobject.hpp"
+#include "containers/cstring.hpp"
 
 enum HoriAlignment
 {
@@ -25,8 +28,6 @@ enum VertAlignment
     CTEXT_VERT_ALIGN_BOTTOM = 2,
 };
 
-typedef char32_t codepoint;
-
 struct ctext
 {
     constexpr static u32 MAX_FONT_COUNT = 8;
@@ -36,7 +37,20 @@ struct ctext
     struct CFontLoadInfo;
     struct text_drawcall_t;
 
-    static void render(ctext::CFont fnt, const std::u32string_view text, const HoriAlignment horizontal, const VertAlignment vertical, const f32 x, const f32 y, const f32 scale);
+    struct text_render_info {
+        HoriAlignment horizontal;
+        VertAlignment vertical;
+        f32 x;
+        f32 y;
+        f32 scale;
+
+        text_render_info() = default;
+        ~text_render_info() = default;
+    };
+
+    // Hmm.. sprintf doesn't work with unicode I guess.
+    // I'll figure out what to do later.
+    static void render(ctext::CFont fnt, const text_render_info *pInfo, const unicode *fmt, ...);
     static void initialize();
 
     static VkDescriptorPool desc_pool;
@@ -134,7 +148,7 @@ struct ctext
 
         u32 chars_drawn;
         std::vector<text_drawcall_t> drawcalls;
-        std::unordered_map<codepoint, CFGlyph, ctext_hasher> glyph_map;
+        std::unordered_map<unicode, CFGlyph, ctext_hasher> glyph_map;
 
         friend void ctext::load_font(const CFontLoadInfo* pInfo, CFont* dst);
     };

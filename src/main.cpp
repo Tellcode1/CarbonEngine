@@ -5,7 +5,8 @@
 #include "cengine.hpp"
 #include "ctext.hpp"
 #include "cinput.hpp"
-#include "carrays/cvector.hpp"
+#include "containers/cvector.hpp"
+#include "containers/cstring.hpp"
 
 int main(int argc, char *argv[]) {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER);
@@ -33,10 +34,10 @@ int main(int argc, char *argv[]) {
     infoo.channel_count = ctext::CHANNELS_MSDF;
     ctext::load_font(&infoo, &amongus);
 
-    std::u32string str = U"The quick brown fox jumped over the lazy dog";
-    std::u32string alt_str;
+    cstring str = U"The quick brown fox jumped over the lazy dog";
+    cstring alt_str;
 
-    f32 scale = 1.0f;
+    f32 scale = 0.5f;
 
     // What in the unholy f%$ where you doing
     LOG_DEBUG("Initialized in %ld ms (%.3f s)", SDL_GetTicks(), SDL_GetTicks() / 1000.0f);
@@ -62,28 +63,34 @@ int main(int argc, char *argv[]) {
         cengine::update();
 
         if (cinput::is_key_pressed(SDL_SCANCODE_BACKSPACE) && cinput::is_key_held(SDL_SCANCODE_LCTRL)) {
-            size_t backpos;
-            if ((backpos = str.rfind(U' ')) != std::string::npos || (backpos = str.rfind(U'\n')) != std::string::npos)
-                str = str.substr(0, backpos + 1);
+            const u32 space_pos = str.rfind(U' ');
+            const u32 newline_pos = str.rfind(U'\n');
+            u32 pos = cstring::npos;
+
+            if (space_pos != cstring::npos && (newline_pos == cstring::npos || space_pos > newline_pos))
+                pos = space_pos + 1;
+            else if (newline_pos != cstring::npos && (space_pos == cstring::npos || newline_pos > space_pos))
+                pos = newline_pos + 1;
+
+            if (pos != cstring::npos)
+                str = str.substr(0, pos);
             else
                 str.clear();
         }
-        if (cinput::is_key_pressed(SDL_SCANCODE_BACKSPACE) && str.length() > 0) {
+        else if (cinput::is_key_pressed(SDL_SCANCODE_BACKSPACE) && str.length() > 0) {
             str.pop_back();
         }
-        if (cinput::is_key_pressed(SDL_SCANCODE_RETURN)) {
-            str += '\n';
-        }
-        if (cinput::is_key_pressed(SDL_SCANCODE_TAB)) {
-            str += '\t';
-        }
-        if (cinput::is_key_pressed(SDL_SCANCODE_DELETE))
+        else if (cinput::is_key_pressed(SDL_SCANCODE_RETURN))
+            str += U'\n';
+        else if (cinput::is_key_pressed(SDL_SCANCODE_TAB))
+            str += U'\t';
+        else if (cinput::is_key_pressed(SDL_SCANCODE_DELETE))
             str.clear();
-        if (cinput::is_key_pressed(SDL_SCANCODE_KP_0)) {
+        else if (cinput::is_key_pressed(SDL_SCANCODE_KP_0)) {
             // pc abuse
             for (u32 j = 0; j < 100; j++) {
-                for (u32 i = 0; i < 100; i++) {
-                    alt_str += U"100k chars at 70fps ";
+                for (u32 i = 0; i < 50; i++) {
+                    alt_str += (const unicode *)U"100k chars at 70fps ";
                 }
                 alt_str += U'\n';
             }
@@ -105,13 +112,21 @@ int main(int argc, char *argv[]) {
             
             ctext::begin_render(amongus);
 
-            ctext::render(amongus, str, CTEXT_HORI_ALIGN_CENTER, CTEXT_VERT_ALIGN_CENTER, mouse_position.x, mouse_position.y, scale);
-            ctext::render(amongus, U"{-1.0f, -1.0f}", CTEXT_HORI_ALIGN_LEFT, CTEXT_VERT_ALIGN_TOP,     -1.0f, -1.0f, scale);
-            ctext::render(amongus, U"{-1.0f,  1.0f}", CTEXT_HORI_ALIGN_LEFT, CTEXT_VERT_ALIGN_BOTTOM,  -1.0f,  1.0f, scale);
-            ctext::render(amongus, U"{ 1.0f, -1.0f}", CTEXT_HORI_ALIGN_RIGHT, CTEXT_VERT_ALIGN_TOP,     1.0f, -1.0f, scale);
-            ctext::render(amongus, U"{ 1.0f,  1.0f}", CTEXT_HORI_ALIGN_RIGHT, CTEXT_VERT_ALIGN_BOTTOM,  1.0f,  1.0f, scale);
-            ctext::render(amongus, U"{ 0.0f,  0.0f}", CTEXT_HORI_ALIGN_CENTER, CTEXT_VERT_ALIGN_CENTER, 0.0f,  0.0f, scale);
-            ctext::render(amongus, alt_str, CTEXT_HORI_ALIGN_CENTER, CTEXT_VERT_ALIGN_CENTER, 0.0f,  0.0f, scale);
+            ctext::text_render_info info;
+            info.x = mouse_position.x;
+            info.y = mouse_position.y;
+            info.horizontal = CTEXT_HORI_ALIGN_CENTER;
+            info.vertical = CTEXT_VERT_ALIGN_CENTER;
+            info.scale = scale;
+            ctext::render(amongus, &info, str.data());
+
+            ctext::render(amongus, &info, alt_str.data());
+
+            info.horizontal = CTEXT_HORI_ALIGN_LEFT;
+            info.vertical = CTEXT_VERT_ALIGN_TOP;
+            info.x = -1.0f;
+            info.y = -1.0f;
+            ctext::render(amongus, &info, U"%u fps", int(1.0f / cengine::get_delta_time()));
 
             ctext::end_render(amongus, mat4(1.0f));
             

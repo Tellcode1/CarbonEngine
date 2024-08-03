@@ -7,18 +7,26 @@
 template<typename T>
 struct cvector
 {
-    private:
+    protected:
     u32 m_count;
     u32 m_capacity;
     T *m_data;
 
     public:
+
+    constexpr static u32 invalid = UINT32_MAX;
+    constexpr static u32 npos = invalid;
+
     CARBON_FORCE_INLINE u32 size() const {
         return m_count;
     }
 
     CARBON_FORCE_INLINE u32 length() const {
         return m_count;
+    }
+
+    CARBON_FORCE_INLINE u32 max_capacity() const {
+        return m_capacity;
     }
 
     CARBON_FORCE_INLINE T *data() const {
@@ -39,8 +47,10 @@ struct cvector
 
     void reallocate(u32 new_capacity) {
         void *new_data = malloc(sizeof(T) * new_capacity);
-        if (m_data)
-            memmove(new_data, m_data, sizeof(T) * m_capacity);
+        if (m_data) {
+            memcpy(new_data, m_data, sizeof(T) * m_capacity);
+            free(m_data);
+        }
         m_capacity = new_capacity;
         m_data = reinterpret_cast<T*>(new_data);
     }
@@ -54,17 +64,22 @@ struct cvector
     }
 
     ~cvector() {
-        free(m_data);
+        if (m_data)
+            free(m_data);
     }
 
     // copies an element into array
     u32 push_back(const T& element) {
         if ((m_count + 1) >= m_capacity)
             reallocate(std::max(1U, m_capacity * 2U));
-        // m_data[m_count] = element;
+
         memcpy(&m_data[m_count], &element, sizeof(T));
         m_count++;
         return m_count - 1;
+    }
+
+    void pop_back() {
+        m_count--;
     }
 
     constexpr cvector<T> & operator=(const T &other) {
@@ -74,6 +89,8 @@ struct cvector
     }
 
     constexpr cvector<T> & operator=(const cvector<T> &other) {
+        if (&other == this)
+            return *this;
         clear();
         reallocate(other.size());
         memcpy(m_data, other.data(), other.size() * sizeof(T));
@@ -95,7 +112,7 @@ struct cvector
             );
         
         if (m_count - index - 1)
-            memmove(m_data + index, m_data + (index + 1), (m_count - index - 1) * sizeof(T)); // please don't ask me what this is
+            memcpy(m_data + index, m_data + (index + 1), (m_count - index - 1) * sizeof(T)); // please don't ask me what this is
         
         m_count--;
     }
@@ -104,20 +121,21 @@ struct cvector
         return m_data[index];
     }
 
-    CARBON_FORCE_INLINE T& operator [](u64 index) const {
+    CARBON_FORCE_INLINE T& operator [](u32 index) const {
         return m_data[index];
     }
 
-    // Finds and returns the first occurence of the element in the array, UINT32_MAX if doesn't exist
+    // Finds and returns the first occurence of the element in the array, cvector::invalid if doesn't exist
     CARBON_NO_DISCARD u32 find(const T& element) const {
         for (u32 i = 0; i < m_count; i++)
             if (m_data[i] == element)
                 return i;
-        return UINT32_MAX;
+        return invalid;
     }
 
     CARBON_FORCE_INLINE void clear() {
-        free(m_data);
+        if (m_data)
+            free(m_data);
         m_data = nullptr;
         m_count = 0;
         m_capacity = 0;
@@ -136,7 +154,7 @@ struct cvector
         u32 move_size = std::min(new_size, m_count) * sizeof(T);
 
         if (m_data) {
-            memmove(new_data, m_data, move_size);
+            memcpy(new_data, m_data, move_size);
             free(m_data);
         }
 

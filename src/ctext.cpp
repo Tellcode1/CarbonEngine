@@ -15,8 +15,6 @@ VkSampler ctext::error_image_sampler = VK_NULL_HANDLE;
 
 /* I have no idea what any of this is */
 
-typedef char32_t unicode;
-
 template <typename T, u32 channels>
 u8 *i_hate_my_life(u32 width, u32 height, T &generator, std::vector<msdf_atlas::GlyphGeometry> &glyphs) {
     generator.setThreadCount(4);
@@ -376,15 +374,15 @@ void ctext::end_render(ctext::CFont fnt, mat4 model)
     vkCmdDrawIndexed(cmd, total_index_count, 1, 0, 0, 0);
 }
 
-static std::vector<std::u32string_view> split_string(const std::u32string_view& str) {
-    std::vector<std::u32string_view> result;
+static std::vector<cstring_view> split_string(const cstring_view &str) {
+    std::vector<cstring_view> result;
     result.reserve(16);
 
     const unicode* str_data = str.data();
     size_t prev = 0;
     size_t pos = 0;
 
-    while ((pos = str.find(U'\n', prev)) != std::u32string::npos) {
+    while ((pos = str.find(U'\n', prev)) != cstring::invalid) {
         result.emplace_back(str_data + prev, pos - prev);
         prev = pos + 1;
     }
@@ -404,26 +402,26 @@ void ctext::begin_render(ctext::CFont fnt)
 }
 
 static void render_line(
-    const ctext::CFont fnt,
-    const std::u32string_view &str,
-    const f32 scale,
+    const ctext::CFont &fnt,
+    const cstring_view &str,
+    const f32 &scale,
     const ctext::text_drawcall_t* drawcall,
     f32 x,
-    const f32 y,
-    const u32 i,
-    const u32 j,
-    const ctext::CFGlyph **glyphs
+    const f32 &y,
+    const int &iter,
+    const ctext::CFGlyph ** &glyphs,
+    int &glyph_iter
 ) {
 
     const f32 scaled_space_width = fnt->space_width * scale;
     const f32 scaled_tab_width = scaled_space_width * 4.0f;
 
-    vec4* vertex_output_data = drawcall->vertices + i * 4;
-    u32* index_output_data = drawcall->indices + i * 6;
+    vec4* vertex_output_data = drawcall->vertices + iter * 4;
+    u32* index_output_data = drawcall->indices + iter * 6;
     u32 index_offset = fnt->chars_drawn * 4;
 
-    for (int k = 0; k < (int)str.size(); k++) {
-        const unicode c = str[k];
+    for (int i = 0; i < (int)str.size(); i++) {
+        const unicode c = str[i];
         switch (c) {
             case U' ':
                 x += scaled_space_width;
@@ -432,17 +430,17 @@ static void render_line(
                 x += scaled_tab_width;
                 continue;
             default:
-                const ctext::CFGlyph *glyph = glyphs[j + k];
+                const ctext::CFGlyph &glyph = *(glyphs[glyph_iter]);
 
-                const f32 glyph_x0 = glyph->positions[0] * scale + x;
-                const f32 glyph_x1 = glyph->positions[1] * scale + x;
-                const f32 glyph_y0 = glyph->positions[2] * scale + y;
-                const f32 glyph_y1 = glyph->positions[3] * scale + y;
+                const f32 glyph_x0 = glyph.positions[0] * scale + x;
+                const f32 glyph_x1 = glyph.positions[1] * scale + x;
+                const f32 glyph_y0 = glyph.positions[2] * scale + y;
+                const f32 glyph_y1 = glyph.positions[3] * scale + y;
 
-                vertex_output_data[0] = { glyph_x0, glyph_y0, glyph->uv[0], glyph->uv[2] };
-                vertex_output_data[1] = { glyph_x1, glyph_y0, glyph->uv[1], glyph->uv[2] };
-                vertex_output_data[2] = { glyph_x1, glyph_y1, glyph->uv[1], glyph->uv[3] };
-                vertex_output_data[3] = { glyph_x0, glyph_y1, glyph->uv[0], glyph->uv[3] };
+                vertex_output_data[0] = { glyph_x0, glyph_y0, glyph.uv[0], glyph.uv[2] };
+                vertex_output_data[1] = { glyph_x1, glyph_y0, glyph.uv[1], glyph.uv[2] };
+                vertex_output_data[2] = { glyph_x1, glyph_y1, glyph.uv[1], glyph.uv[3] };
+                vertex_output_data[3] = { glyph_x0, glyph_y1, glyph.uv[0], glyph.uv[3] };
 
                 index_output_data[0] = index_offset;
                 index_output_data[1] = index_offset + 1;
@@ -455,13 +453,14 @@ static void render_line(
                 index_output_data += 6;
                 index_offset += 4;
 
-                x += glyph->advance * scale;
+                x += glyph.advance * scale;
+                glyph_iter++;
                 continue;
         }
     }
 }
 
-constexpr inline u32 get_effective_length(const std::u32string_view &str) {
+constexpr inline u32 get_effective_length(const cstring_view &str) {
     i32 len = 0;
     for (const unicode &c : str)
         switch (c) {
@@ -477,26 +476,25 @@ constexpr inline u32 get_effective_length(const std::u32string_view &str) {
     return len;
 }
 
-#include <atomic>
-
-void gen_vertices(const ctext::CFont fnt, const HoriAlignment horizontal, const VertAlignment vertical, ctext::text_drawcall_t* drawcall, const std::u32string_view& str, f32 xbegin, f32 y, const f32 scale) {
+void gen_vertices(const ctext::CFont &fnt, ctext::text_drawcall_t* drawcall, const ctext::text_render_info *pInfo, const cstring_view &str, const u32 effective_length) {
     if (str.empty())
         return;
 
-    const std::vector<std::u32string_view> splitted_strings = split_string(str);
+    const std::vector<cstring_view> splitted_strings = split_string(str);
 
-    const f32 scaled_line_height = fnt->line_height * scale;
-    const f32 scaled_space_width = fnt->space_width * scale;
-    const f32 scaled_tab_width = (fnt->space_width * 4.0f) * scale;
+    const f32 scaled_line_height = fnt->line_height * pInfo->scale;
+    const f32 scaled_space_width = fnt->space_width * pInfo->scale;
+    const f32 scaled_tab_width = (fnt->space_width * 4.0f) * pInfo->scale;
 
-    switch(vertical)
+    f32 y = pInfo->y;
+    switch(pInfo->vertical)
     {
         case CTEXT_VERT_ALIGN_CENTER:
-            y = y - ((fnt->line_height * scale) * splitted_strings.size()) / 2.0f;
+            y = y - ((fnt->line_height * pInfo->scale) * splitted_strings.size()) / 2.0f;
             break;
 
         case CTEXT_VERT_ALIGN_BOTTOM:
-            y = y - (fnt->line_height * scale) * splitted_strings.size();
+            y = y - (fnt->line_height * pInfo->scale) * splitted_strings.size();
             break;
 
         case CTEXT_VERT_ALIGN_TOP:
@@ -504,73 +502,57 @@ void gen_vertices(const ctext::CFont fnt, const HoriAlignment horizontal, const 
 
         default:
             __builtin_unreachable();
-            LOG_ERROR("Invalid vertical alignment. Specified (int)%u. (Implement?)\n", vertical);
+            LOG_ERROR("Invalid vertical alignment. Specified (int)%u. (Implement?)\n", pInfo->vertical);
             break;
         break;
     }
 
-    i32 naive_length = 0;
-    for (const auto &line : splitted_strings)
-        naive_length += line.size();
-
-    const ctext::CFGlyph **glyphs = (const ctext::CFGlyph **)malloc(naive_length * sizeof(void *));
+    const ctext::CFGlyph **glyphs = (const ctext::CFGlyph **)malloc(effective_length * sizeof(void *));
+    
     f32 widths[ splitted_strings.size() ];
-    i32 line_lengths[ splitted_strings.size() ];
 
-    #pragma omp parallel
-    {
-        #pragma omp for nowait
-        for (int i = 0; i < (int)splitted_strings.size(); i++) {
-            const std::u32string_view& line = splitted_strings[i];
-            std::atomic_int accum_len = 0;
-            std::atomic<float> accum_width = 0.0f;
-            // Try to remove atomics somehow. They decrease the fps by like 30%!!!!
-            #pragma omp parallel
-            {
-                #pragma omp for nowait
-                for (int j = 0; j < (int)line.length(); j++)
-                {
-                    const unicode c = line[j];
-                    switch (c) {
-                        case U' ':
-                            accum_width.store(accum_width.load() + scaled_space_width);
-                            continue;
-                        case U'\t':
-                            accum_width.store(accum_width.load() + scaled_tab_width);
-                            continue;
-                        case U'\n':
-                            continue;
-                        default:
-                            const u32 index = i * splitted_strings.size() + j;
-                            glyphs[index] = &fnt->glyph_map.at(c);
-                            accum_len++;
-                            accum_width.store(accum_width.load() + glyphs[index]->advance * scale);
-                            continue;
-                    }
-                }
+    int glyph_iter = 0;
+    for (int i = 0; i < (int)splitted_strings.size(); i++) {
+        const cstring_view &line = splitted_strings[i];
+        f32 local_width = 0.0f;
 
-                widths[i] = accum_width;
-                line_lengths[i] = accum_len;
+        for (int j = 0; j < (int)line.length(); j++) {
+            const unicode c = line[j];
+            switch (c) {
+                case U' ':
+                    local_width += scaled_space_width;
+                    break;
+                case U'\t':
+                    local_width += scaled_tab_width;
+                    break;
+                case U'\n':
+                    break;
+                default:
+                    glyphs[glyph_iter] = &fnt->glyph_map.at(c);
+                    local_width += glyphs[glyph_iter]->advance * pInfo->scale;
+                    glyph_iter++;
+                    break;
             }
         }
 
+        widths[i] =
+            (pInfo->horizontal == CTEXT_HORI_ALIGN_CENTER) ?
+                pInfo->x - local_width / 2.0f
+                :
+                (pInfo->horizontal == CTEXT_HORI_ALIGN_RIGHT) ?
+                    pInfo->x - local_width
+                    :
+                    pInfo->x;
     }
 
     i32 iter = 0;
+    glyph_iter = 0;
     for (int i = 0; i < (int)splitted_strings.size(); i++) {
-        const f32 offset =
-            (horizontal == CTEXT_HORI_ALIGN_CENTER) ?
-                xbegin - widths[i] / 2.0f
-               :
-               (horizontal == CTEXT_HORI_ALIGN_RIGHT) ?
-                   xbegin - widths[i]
-                   :
-                   xbegin;
-        render_line(fnt, splitted_strings[i], scale, drawcall, offset, y + i * scaled_line_height, iter, i * splitted_strings.size(), glyphs);
+        render_line(fnt, splitted_strings[i], pInfo->scale, drawcall, widths[i], y + i * scaled_line_height, iter, glyphs, glyph_iter);
 
-        const u32 &effective_len = line_lengths[i];
-        iter += effective_len;
-        fnt->chars_drawn += effective_len;
+        const u32 len = get_effective_length(splitted_strings[i]);
+        iter += len;
+        fnt->chars_drawn += len;
     }
 
     free(glyphs);
@@ -579,9 +561,12 @@ void gen_vertices(const ctext::CFont fnt, const HoriAlignment horizontal, const 
     drawcall->index_count = iter * 6;
 }
 
-void ctext::render(ctext::CFont fnt, const std::u32string_view text, const HoriAlignment horizontal, const VertAlignment vertical, const f32 x, const f32 y, const f32 scale)
+void ctext::render(ctext::CFont fnt, const text_render_info *pInfo, const unicode *fmt, ...)
 {
-    const u32 effective_length = get_effective_length(text);
+    if (!fmt)
+        return;
+    const cstring_view str = fmt;
+    const u32 effective_length = get_effective_length(str);
 
     if (effective_length == 0)
         return;
@@ -598,7 +583,7 @@ void ctext::render(ctext::CFont fnt, const std::u32string_view text, const HoriA
     drawcall.vertices = (vec4 *)((uchar *)allocation);
     drawcall.indices = (u32 *)((uchar *)allocation + (vertex_count * sizeof(vec4)));
     drawcall.index_offset = (vertex_count * sizeof(vec4));
-    gen_vertices(fnt, horizontal, vertical, &drawcall, text, x, y, scale);
+    gen_vertices(fnt, &drawcall, pInfo, str, effective_length);
 
     drawcall.vertex_count = effective_length * 4;
     drawcall.index_count = effective_length * 6;

@@ -2,7 +2,6 @@
 #define __C_OBJECT_HPP__
 
 #include "vkcbstdafx.hpp"
-#include <functional>
 
 constexpr inline u32 bit(u32 idx) {
     return 1 << idx;
@@ -33,7 +32,8 @@ struct ctransform;
 struct cobject_base;
 struct cvkpipeline;
 
-typedef std::function<void(VkCommandBuffer cmd)> cvk_render_fn;
+// typedef std::function<void(VkCommandBuffer cmd)> cvk_render_fn;
+typedef void (*cvk_render_fn)(VkCommandBuffer cmd);
 
 void cvk_bind_pipeline(const VkCommandBuffer cmd, const cvkpipeline *pipeline);
 cobject_base create_sprite(cobject_shape shape, cobject_indexing indexing);
