@@ -1,5 +1,5 @@
 #include "epichelperlib.hpp"
-#include <boost/filesystem.hpp>
+#include <fstream>
 
 // stb loves to kick compilers in the liver so it shouldn't be put in the precompiled header
 #define STB_IMAGE_IMPLEMENTATION
@@ -197,10 +197,6 @@ void help::Files::LoadBinary(const char * path, cvector<u8>* dst)
 }
 
 void help::Files::LoadBinary(const char* path, u8* dst, u32* dstSize) {
-    if(!dst) {
-        *dstSize = (u32)boost::filesystem::file_size(path);
-        return;
-    }
     std::ifstream instream(path, std::ios::ate | std::ios::binary);
     if (!instream.is_open()) {
         printf("Failed to open file at path %s\n", path);
@@ -210,6 +206,10 @@ void help::Files::LoadBinary(const char* path, u8* dst, u32* dstSize) {
     }
 
     *dstSize = (u32)instream.tellg();
+    if (!dst) {
+        instream.close();
+        return;
+    }
     instream.seekg(0);
     instream.read(reinterpret_cast<char*>(dst), *dstSize);
 

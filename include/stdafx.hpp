@@ -48,16 +48,13 @@ using glm::mat3;
 using glm::mat4;
 
 #include <iostream>
-#include <fstream>
-
-#include <chrono>
 
 #define __WRAPPER1(x, y) CONCAT(x, y)
 
 // May god never have a look at this define. I will not be spared.
-#define TIME_FUNCTION_REAL(func, LINE) const auto __WRAPPER1(__COUNTER_BEGIN__, __LINE__) = std::chrono::high_resolution_clock::now();\
+#define TIME_FUNCTION_REAL(func, LINE) const auto __WRAPPER1(__COUNTER_BEGIN__, __LINE__) = SDL_GetTicks64();\
 							func; /* Call the function*/ \
-                            LOG_DEBUG("[Line %d] Function %s took %ldms", LINE, #func, (std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - __WRAPPER1(__COUNTER_BEGIN__, __LINE__)).count()) / 1000000.0, LINE);
+                            LOG_DEBUG("[Line %d] Function %s took %ldms", LINE, #func, SDL_GetTicks64() - __WRAPPER1(__COUNTER_BEGIN__, __LINE__), LINE);
 #define TIME_FUNCTION(func) TIME_FUNCTION_REAL(func, __LINE__)
 
 #define DEBUG

@@ -31,7 +31,7 @@ u32 Renderer::imageIndex = 0;
 VkCommandPool Renderer::commandPool = VK_NULL_HANDLE;
 cvector<FrameRenderData> Renderer::renderData;
 cvector<VkCommandBuffer> Renderer::drawBuffers;
-std::unordered_map<cobject_base *, u32> Renderer::obj_offsets;
+chashmap<cobject_base *, u32> Renderer::obj_offsets;
 renderer_config Renderer::config;
 
 const void *Renderer::empty_array;
@@ -214,9 +214,9 @@ void Renderer::initialize(const renderer_config *conf) {
             VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, nullptr, VK_FENCE_CREATE_SIGNALED_BIT
         };
 
-        vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &renderData.at(i).renderingFinishedSemaphore);
-        vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &renderData.at(i).imageAvailableSemaphore);
-        vkCreateFence(device, &fenceCreateInfo, nullptr, &renderData.at(i).inFlightFence);
+        vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &renderData[i].renderingFinishedSemaphore);
+        vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &renderData[i].imageAvailableSemaphore);
+        vkCreateFence(device, &fenceCreateInfo, nullptr, &renderData[i].inFlightFence);
 	}
 
     for (u32 i = 0; i < requestedImageCount; i++) {
@@ -235,11 +235,11 @@ void Renderer::initialize(const renderer_config *conf) {
         imageViewCreateInfo.subresourceRange.levelCount = 1;
         imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
         imageViewCreateInfo.subresourceRange.layerCount = 1;
-        if (vkCreateImageView(device, &imageViewCreateInfo, nullptr, &renderData.at(i).swapchainImageView) != VK_SUCCESS) {
+        if (vkCreateImageView(device, &imageViewCreateInfo, nullptr, &renderData[i].swapchainImageView) != VK_SUCCESS) {
             LOG_ERROR("Failed to create view for swapchain image %d", i);
         }
 
-        const VkImageView swapchain_image_view = renderData.at(i).swapchainImageView;
+        const VkImageView swapchain_image_view = renderData[i].swapchainImageView;
 
         cvector<VkImageView> attachments(3);
 
@@ -262,7 +262,7 @@ void Renderer::initialize(const renderer_config *conf) {
         framebufferInfo.width = vctx::RenderExtent.width;
         framebufferInfo.height = vctx::RenderExtent.height;
         framebufferInfo.layers = 1;
-        if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &renderData.at(i).framebuffer) != VK_SUCCESS)
+        if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &renderData[i].framebuffer) != VK_SUCCESS)
             LOG_ERROR("Failed to create framebuffer for swapchain image %d", i);
     }
 }
@@ -366,14 +366,14 @@ void Renderer::_SignalResize()
     
     // adhoc method of resetting them
     for (u32 i = 0; i < config.max_frames_in_flight; i++) {
-        vkDestroySemaphore(device, renderData.at(i).imageAvailableSemaphore, nullptr);
-        vkDestroySemaphore(device, renderData.at(i).renderingFinishedSemaphore, nullptr);
-        vkDestroyFence(device, renderData.at(i).inFlightFence, nullptr);
+        vkDestroySemaphore(device, renderData[i].imageAvailableSemaphore, nullptr);
+        vkDestroySemaphore(device, renderData[i].renderingFinishedSemaphore, nullptr);
+        vkDestroyFence(device, renderData[i].inFlightFence, nullptr);
     }
     for (u32 i = 0; i < vctx::SwapChainImageCount; i++)
     {
-        vkDestroyImageView(device, renderData.at(i).swapchainImageView, nullptr);
-        vkDestroyFramebuffer(device, renderData.at(i).framebuffer, nullptr);
+        vkDestroyImageView(device, renderData[i].swapchainImageView, nullptr);
+        vkDestroyFramebuffer(device, renderData[i].framebuffer, nullptr);
     }
     renderData.clear();
 
@@ -417,20 +417,20 @@ void Renderer::_SignalResize()
 
     for (u32 i = 0; i < config.max_frames_in_flight; i++)
     {
-        vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &renderData.at(i).renderingFinishedSemaphore);
-        vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &renderData.at(i).imageAvailableSemaphore);
-        vkCreateFence(device, &fenceCreateInfo, nullptr, &renderData.at(i).inFlightFence);
+        vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &renderData[i].renderingFinishedSemaphore);
+        vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &renderData[i].imageAvailableSemaphore);
+        vkCreateFence(device, &fenceCreateInfo, nullptr, &renderData[i].inFlightFence);
     }
 
     vctx::SwapChainImageCount = requestedImageCount;
 
     for (u32 i = 0; i < requestedImageCount; i++)
     {
-        renderData.at(i).swapchainImage = swapchainImages[i];
+        renderData[i].swapchainImage = swapchainImages[i];
 
         VkImageViewCreateInfo imageViewCreateInfo{};
         imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        imageViewCreateInfo.image = renderData.at(i).swapchainImage;
+        imageViewCreateInfo.image = renderData[i].swapchainImage;
         imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
         imageViewCreateInfo.format = vctx::SwapChainImageFormat;
         imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -442,7 +442,7 @@ void Renderer::_SignalResize()
         imageViewCreateInfo.subresourceRange.levelCount = 1;
         imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
         imageViewCreateInfo.subresourceRange.layerCount = 1;
-        if (vkCreateImageView(device, &imageViewCreateInfo, nullptr, &renderData.at(i).swapchainImageView) != VK_SUCCESS) {
+        if (vkCreateImageView(device, &imageViewCreateInfo, nullptr, &renderData[i].swapchainImageView) != VK_SUCCESS) {
             LOG_ERROR("Failed to create view for swapchain image %u", i);
         }
 
@@ -450,11 +450,11 @@ void Renderer::_SignalResize()
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         framebufferInfo.renderPass = vctx::GlobalRenderPass;
         framebufferInfo.attachmentCount = 1;
-        framebufferInfo.pAttachments = &renderData.at(i).swapchainImageView;
+        framebufferInfo.pAttachments = &renderData[i].swapchainImageView;
         framebufferInfo.width = vctx::RenderExtent.width;
         framebufferInfo.height = vctx::RenderExtent.height;
         framebufferInfo.layers = 1;
-        if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &renderData.at(i).framebuffer) != VK_SUCCESS) {
+        if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &renderData[i].framebuffer) != VK_SUCCESS) {
            LOG_ERROR("Failed to create framebuffer for swapchain image %u", i);
         }
     }

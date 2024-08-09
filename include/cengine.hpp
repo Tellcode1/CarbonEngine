@@ -53,9 +53,11 @@ public:
 
 private:
     static u8 current_frame;
-    static f64 delta_time;
-    static f64 last_frame_time;
+    static u64 last_frame_time; // div by SDL_GetPerofrmanceCounterFrequency to get actual time.
     static f64 time;
+
+    static f64 delta_time;
+    static u64 delta_time_last_frame_time;
 
     static u64 frame_start;
     static u64 fixed_frame_start;

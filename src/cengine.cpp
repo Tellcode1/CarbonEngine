@@ -1,3 +1,4 @@
+#include <chrono>
 #include "cengine.hpp"
 #include "Renderer.hpp"
 #include "ctext.hpp"
@@ -5,7 +6,7 @@
 
 u8 cengine::current_frame = 0;
 f64 cengine::delta_time = 0.0;
-f64 cengine::last_frame_time = 0.0;
+u64 cengine::last_frame_time = 0;
 f64 cengine::time = 0.0;
 u64 cengine::frame_start = 0;
 u64 cengine::fixed_frame_start = 0;
@@ -28,9 +29,11 @@ void cengine::consume_event(const SDL_Event *event) {
 }
 
 void cengine::update() {
-    time = SDL_GetTicks64() / 1000.0;
-    delta_time = (time - last_frame_time) / 1000.0;
-    last_frame_time = time;
+    time = fmul((f64)SDL_GetTicks64(), 1000.0);
+
+    u64 curr_time = SDL_GetPerformanceCounter();
+    delta_time = fdiv(curr_time - last_frame_time, SDL_GetPerformanceFrequency());
+    last_frame_time = curr_time;
 
     if (static_cast<double>(SDL_GetTicks64() - fixed_frame_start) >= fixed_frame_delay) {
         fixed_frame_start = SDL_GetTicks64();

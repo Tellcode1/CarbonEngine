@@ -13,8 +13,8 @@ struct csignal : cvector<csignal_empty_func>
             (*iter)();
     }
 
-    CARBON_FORCE_INLINE u32 connect(csignal_empty_func func) {
-        return this->push_back(func);
+    CARBON_FORCE_INLINE void connect(csignal_empty_func func) {
+        this->push_back(func);
     }
 };
 

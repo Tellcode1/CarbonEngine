@@ -22,7 +22,7 @@ int main(int argc, char *argv[]) {
     rdconf.multisampling_enable = false;
     cengine::initialize(&rdconf);
 
-    constexpr f32 updateTime = 1.5f; // seconds. 1.5f = 1.5 seconds
+    constexpr f32 updateTime = 3.0f; // seconds. 1.5f = 1.5 seconds
     f32 totalTime = 0.0f;
     u32 numFrames = 0;
 
@@ -30,7 +30,7 @@ int main(int argc, char *argv[]) {
     ctext::CFontLoadInfo infoo{};
     infoo.fontPath = "../Assets/roboto.ttf";
     infoo.chset = msdf_atlas::Charset::ASCII;
-    infoo.scale = 32.0f;
+    infoo.scale = 24.0f;
     infoo.channel_count = ctext::CHANNELS_MSDF;
     ctext::load_font(&infoo, &amongus);
 
@@ -39,28 +39,31 @@ int main(int argc, char *argv[]) {
 
     f32 scale = 0.5f;
 
+    int curr_showing_fps = 0;
+
     // What in the unholy f%$ where you doing
     LOG_DEBUG("Initialized in %ld ms (%.3f s)", SDL_GetTicks(), SDL_GetTicks() / 1000.0f);
     while(cengine::running())
     {
+        cengine::update();
         SDL_Event event;
 
         SDL_PumpEvents();
         while(SDL_PollEvent(&event)) {
             cengine::consume_event(&event);
+            if (event.type == SDL_TEXTINPUT) {
+                for (const char *c = event.text.text; *c; c++) {
+                    str += ((unicode)*c);
+                }
+            }
             switch (event.type)
             {
                 case SDL_MOUSEWHEEL:
                     scale += event.wheel.y / 50.0f;
                     break;
-                case SDL_TEXTINPUT:
-                    for (u32 i = 0; i < strlen(event.text.text); i++)
-                        str += event.text.text[i];
-                    break;
                 break;
             }
         }
-        cengine::update();
 
         if (cinput::is_key_pressed(SDL_SCANCODE_BACKSPACE) && cinput::is_key_held(SDL_SCANCODE_LCTRL)) {
             const u32 space_pos = str.rfind(U' ');
@@ -68,12 +71,15 @@ int main(int argc, char *argv[]) {
             u32 pos = cstring::npos;
 
             if (space_pos != cstring::npos && (newline_pos == cstring::npos || space_pos > newline_pos))
-                pos = space_pos + 1;
+                pos = space_pos;
             else if (newline_pos != cstring::npos && (space_pos == cstring::npos || newline_pos > space_pos))
-                pos = newline_pos + 1;
+                pos = newline_pos;
 
-            if (pos != cstring::npos)
-                str = str.substr(0, pos);
+            if (pos != cstring::npos) {
+                if (str[pos] == U' ' || str[pos] == U'\n')
+                    pos--;
+                str = str.substr(0, pos + 1);
+            }
             else
                 str.clear();
         }
@@ -90,19 +96,19 @@ int main(int argc, char *argv[]) {
             // pc abuse
             for (u32 j = 0; j < 100; j++) {
                 for (u32 i = 0; i < 50; i++) {
-                    alt_str += (const unicode *)U"100k chars at 70fps ";
+                    alt_str += U"100k chars at 110 fps";
                 }
                 alt_str += U'\n';
             }
-            std::cout << alt_str.size() << '\n';
+            printf("%u\n", u32(alt_str.size()));
         }
 
-
         // Profiling code
-        totalTime += cengine::get_delta_time()*1000.0f;
+        totalTime += cengine::get_delta_time();
         numFrames++;
         if (totalTime > updateTime) {
-            printf("%ldfps : %d frames / %.2fs = ~%fms/frame\n", static_cast<u64>(floorf(numFrames / totalTime)), numFrames, updateTime, (totalTime / static_cast<f32>(numFrames)) * 1000.0);
+            curr_showing_fps = floorf(numFrames / totalTime);
+            printf("%dfps : %d frames / %.2fs = ~%fms/frame\n", curr_showing_fps, numFrames, updateTime, (totalTime / static_cast<f32>(numFrames)));
             numFrames = 0;
             totalTime = 0.0;
         }
@@ -126,7 +132,7 @@ int main(int argc, char *argv[]) {
             info.vertical = CTEXT_VERT_ALIGN_TOP;
             info.x = -1.0f;
             info.y = -1.0f;
-            ctext::render(amongus, &info, U"%u fps", int(1.0f / cengine::get_delta_time()));
+            ctext::render(amongus, &info, U"%i %s frames", curr_showing_fps, U"joosy");
 
             ctext::end_render(amongus, mat4(1.0f));
             

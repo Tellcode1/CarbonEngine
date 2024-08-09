@@ -7,15 +7,15 @@ VkPhysicalDevice 					 Context::physDevice;
 VkSurfaceKHR 				         Context::surface;
 SDL_Window* 				         Context::window;
 VkDebugUtilsMessengerEXT 			 Context::debugMessenger;
-cvector<std::string_view> 			 Context::availableDeviceExtensions;
-cvector<std::string_view> 			 Context::availableInstanceExtensions;
+cvector<cstring_view> 			 Context::availableDeviceExtensions;
+cvector<cstring_view> 			 Context::availableInstanceExtensions;
 VkPhysicalDeviceFeatures 			 Context::availableFeatures;
 
 VkSampleCountFlagBits                device_info::MAX_SAMPLES;
 bool 				                 device_info::SUPPORTS_MULTISAMPLING;
 f32 				                 device_info::MAX_ANISOTROPY;
 
-VkInstance CreateInstance(const char* title, cvector<std::string_view>& availableExtensions) {
+VkInstance CreateInstance(const char* title, cvector<cstring_view>& availableExtensions) {
     VkApplicationInfo appInfo{};
 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	appInfo.applicationVersion = VK_API_VERSION_1_0;
@@ -29,7 +29,7 @@ VkInstance CreateInstance(const char* title, cvector<std::string_view>& availabl
 	const char** SDLExtensions = new const char *[SDLExtensionCount];
 	SDL_Vulkan_GetInstanceExtensions(ctx::window, &SDLExtensionCount, SDLExtensions);
 
-	std::vector<const char*> enabledExtensions;
+	cvector<const char*> enabledExtensions;
 
 	for (const auto& ext : RequiredInstanceExtensions)
 		enabledExtensions.push_back(ext);
@@ -49,7 +49,7 @@ VkInstance CreateInstance(const char* title, cvector<std::string_view>& availabl
 		for(const auto& want : WantedInstanceExtensions)
 			if(strcmp(name, want) == 0) {
 				enabledExtensions.push_back(name);
-				availableExtensions.push_back(name);
+				availableExtensions.push_back((unicode *)name);
 				break;
 			}
 	}
@@ -90,7 +90,7 @@ VkInstance CreateInstance(const char* title, cvector<std::string_view>& availabl
 
 			printf("But instance asked for (i.e. are not available):\n");
 
-			std::vector<const char*> missingLayers;
+			cvector<const char*> missingLayers;
 		
 			for(const auto& layer : ValidationLayers)
 			{
@@ -327,7 +327,7 @@ void Context::Initialize(const char* title, u32 windowWidth, u32 windowHeight) {
 	vkEnumerateDeviceExtensionProperties(ctx::physDevice, nullptr, &extensionCount, extensions);
 
 	for(u32 i = 0; i < extensionCount; i++)
-		ctx::availableDeviceExtensions.push_back(extensions[i].extensionName);
+		ctx::availableDeviceExtensions.push_back((unicode *)extensions[i].extensionName);
 
 	u32 enabledIterator = 0;
 

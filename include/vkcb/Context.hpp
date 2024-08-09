@@ -3,16 +3,19 @@
 
 #include "vkcbstdafx.hpp"
 #include "containers/cvector.hpp"
+#include "containers/cstring.hpp"
 
-const std::vector<const char*> ValidationLayers = {  
+#include <vector>
+
+const cvector<const char*> ValidationLayers = {  
 	"VK_LAYER_KHRONOS_validation",
 };
-const std::vector<const char*> RequiredInstanceExtensions = {
+const cvector<const char*> RequiredInstanceExtensions = {
 	VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
 	VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
 };
 
-const std::vector<const char*> WantedInstanceExtensions = {
+const cvector<const char*> WantedInstanceExtensions = {
 	// VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
 };
 
@@ -20,7 +23,7 @@ constexpr static const char* WantedDeviceExtensions[] = {
 	// VK_EXT_ROBUSTNESS_2_EXTENSION_NAME,
 };
 
-const std::vector<const char*> RequiredDeviceExtensions = {
+const cvector<const char*> RequiredDeviceExtensions = {
 	VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 };
 
@@ -37,44 +40,44 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessengerCallback(
     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
     void* pUserData) {
 
-	std::string preceder = "[VkDBG]";
-	std::string succeeder = "\n";
+	cstring preceder = U"[VkDBG]";
+	cstring succeeder = U"\n";
 
 	switch(messageSeverity)
 	{
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
-			preceder += "[WARN]";
+			preceder += U"[WARN]";
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
-			preceder += "[INFO]";
+			preceder += U"[INFO]";
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
-			preceder += "[ERR]";
+			preceder += U"[ERR]";
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
-			preceder += "[VERB]";
+			preceder += U"[VERB]";
 			break;
 		default:
-			preceder += "[UNKNOWN SEVERITY]";
+			preceder += U"[UNKNOWN SEVERITY]";
 			break;
 	}
 
 	switch(messageType)
 	{
 		case VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT:
-			preceder += "[GEN] ";
+			preceder += U"[GEN] ";
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT:
-			preceder += "[VALTION] ";
+			preceder += U"[VALTION] ";
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT:
-			preceder += "[PERF] ";
+			preceder += U"[PERF] ";
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_TYPE_DEVICE_ADDRESS_BINDING_BIT_EXT:
-			preceder += "[ADDR BIND] ";
+			preceder += U"[ADDR BIND] ";
 			break;
 		default:
-			preceder += "[UNKNOWN TYPE] ";
+			preceder += U"[UNKNOWN TYPE] ";
 			break;
 	}
 
@@ -92,8 +95,8 @@ struct Context {
 
 	static VkDebugUtilsMessengerEXT debugMessenger;
 
-	static cvector<std::string_view> availableDeviceExtensions;
-	static cvector<std::string_view> availableInstanceExtensions;
+	static cvector<cstring_view> availableDeviceExtensions;
+	static cvector<cstring_view> availableInstanceExtensions;
 	static VkPhysicalDeviceFeatures availableFeatures;
 
 	static void Initialize(const char* title, u32 windowWidth, u32 windowHeight);

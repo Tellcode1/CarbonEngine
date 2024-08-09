@@ -6,11 +6,11 @@
 #include "containers/cvector.hpp"
 
 typedef char32_t unicode;
-struct cstring;
 struct cstring_view;
 
-constexpr inline static u32 ustrlen(const unicode* str) {
-    const unicode* s = str;
+template <typename char_type>
+constexpr inline static u32 ustrlen(const char_type* str) {
+    const char_type* s = str;
     for (; *s != U'\0'; s++) {}
     return s - str;
 }
@@ -57,7 +57,7 @@ struct cstring_view {
         return m_count == 0;
     }
 
-    operator cstring();
+    // operator cstring_base<unicode>();
 
     constexpr unicode operator[](u32 pos) const {
         if (pos >= m_count)
@@ -98,65 +98,46 @@ struct cstring_view {
     u32 m_count;
 };
 
-struct cstring : public cvector<unicode> {
-
-    constexpr inline u32 size() const noexcept {
-        return m_count;
+template <typename char_type>
+struct cstring_base : public cvector<char_type> {
+    using cvector<char_type>::m_data;
+    using cvector<char_type>::begin;
+    using cvector<char_type>::end;
+    using cvector<char_type>::npos;
+    using cvector<char_type>::m_count;
+    using cvector<char_type>::push_back;
+    using cvector<char_type>::push_set;
+    using cvector<char_type>::reallocate;
+    using cvector<char_type>::size;
+    using cvector<char_type>::max_capacity;
+    using cvector<char_type>::m_capacity;
+    using base = cvector<char_type>;
+    constexpr inline const char_type* c_str() const noexcept {
+        return this->m_data;
     }
 
-    constexpr inline u32 length() const noexcept {
-        return m_count;
-    }
-
-    constexpr inline const unicode* data() const noexcept {
-        return m_data;
-    }
-
-    constexpr inline const unicode* begin() const noexcept {
-        return m_data;
-    }
-
-    constexpr inline const unicode* end() const noexcept {
-        return m_data + m_count;
-    }
-
-    constexpr inline const unicode* c_str() const noexcept {
-        return m_data;
-    }
-
-    constexpr inline bool empty() const noexcept {
-        return m_count == 0;
-    }
-
-    constexpr inline cstring &operator +=(const unicode &c) {
-        push_back(c);
+    constexpr inline cstring_base &operator +=(const char_type &c) {
+        this->push_back(c);
         return *this;
     }
 
-    constexpr inline cstring &operator +=(const unicode *str) {
-        u32 other_len = ustrlen(str);
-        if ((size() + other_len) >= (this->max_capacity()))
-            reallocate(size() + other_len);
-        memcpy(m_data + m_count, str, other_len * sizeof(unicode));
-        m_count += other_len;
+    constexpr inline void push_set(const unicode *str) {
+        base::push_set(str, ustrlen(str));
+    }
+
+    constexpr inline cstring_base &operator +=(const char_type *str) {
+        push_set(str);
         m_data[m_count] = U'\0';
         return *this;
     }
 
-    constexpr inline cstring &operator +=(const cstring &other) {
-        if ((size() + other.size()) >= (this->max_capacity()))
-            reallocate(size() + other.size());
-        memcpy(m_data + m_count, other.data(), other.size() * sizeof(unicode));
-        m_count += other.size();
+    constexpr inline cstring_base &operator +=(const cstring_base &other) {
+        base::push_set(other.data(), other.size());
         return *this;
     }
 
-    void push_back(const unicode &c) {
-        if ((m_count + 1) >= m_capacity)
-            reallocate(std::max(1U, m_capacity * 2U));
-
-        m_data[m_count] = c;
-        m_count++;
+    void push_back(const char_type &c) {
+        base::push_back(c);
         m_data[m_count] = U'\0';
     }
 
@@ -165,34 +146,32 @@ struct cstring : public cvector<unicode> {
         m_data[m_count] = U'\0';
     }
 
-    constexpr inline cstring &operator =(const unicode *str) {
+    constexpr inline cstring_base &operator =(const char_type *str) {
         const u32 other_len = ustrlen(str);
         if ((other_len - 1) > this->max_capacity())
             reallocate(other_len - 1);
-        memcpy(m_data + m_count, str, (other_len) * sizeof(unicode));
+        memcpy(m_data + m_count, str, (other_len) * sizeof(char_type));
         m_count += (other_len - 1);
         return *this;
     }
 
-    cstring(const cstring& other) {
-        reallocate(other.m_capacity);
-        m_count = other.m_count;
-        memcpy(m_data, other.m_data, m_count * sizeof(unicode));
+    cstring_base(const cstring_base& other) {
+        push_set(other.data(), other.size());
         m_data[m_count] = U'\0';
     }
 
-    cstring& operator=(const cstring& other) {
+    cstring_base& operator=(const cstring_base& other) {
         if (this != &other) {
             if (m_data)
                 free(m_data);
             m_count = other.m_count;
             reallocate(other.m_capacity);
-            memcpy(m_data, other.m_data, m_count * sizeof(unicode));
+            memcpy(m_data, other.m_data, m_count * sizeof(char_type));
         }
         return *this;
     }
 
-    cstring& operator=(cstring&& other) noexcept {
+    cstring_base& operator=(cstring_base&& other) noexcept {
         if (this != &other && other.size() > 0) {
             if (m_data)
                 free(m_data);
@@ -207,24 +186,30 @@ struct cstring : public cvector<unicode> {
         return *this;
     }
 
-    constexpr inline cstring() {
+    bool operator ==(const cstring_base &other) const {
+        if (this->size() != other.size())
+            return false;
+        return memcmp(this->data(), other.data(), this->size() * sizeof(char_type)) == 0;
+    }
+
+    constexpr inline cstring_base() {
         m_data = nullptr;
         m_count = 0;
         m_capacity = 0;
     }
 
-    constexpr inline cstring(const unicode *begin, const unicode *end) {
+    constexpr inline cstring_base(const char_type *begin, const char_type *end) {
         m_data = nullptr;
         m_count = 0;
         m_capacity = 0;
 
         const u32 len = end - begin;
         reallocate(len);
-        memcpy(m_data, begin, len * sizeof(unicode));
+        memcpy(m_data, begin, len * sizeof(char_type));
         m_data[m_count] = U'\0';
     }
 
-    constexpr inline cstring(const unicode *str) {
+    constexpr inline cstring_base(const char_type *str) {
         m_data = nullptr;
         m_count = 0;
         m_capacity = 0;
@@ -233,16 +218,16 @@ struct cstring : public cvector<unicode> {
         reallocate(len + 1);
         m_count = len;
         m_data[m_count] = U'\0';
-        memcpy(m_data, str, len * sizeof(unicode));
+        memcpy(m_data, str, len * sizeof(char_type));
     }
 
-    constexpr inline cstring(const unicode *str, u32 len) {
+    constexpr inline cstring_base(const char_type *str, u32 len) {
         m_data = nullptr;
         m_count = 0;
         m_capacity = 0;
-        m_count = len;
         reallocate(len);
-        memcpy(m_data, str, len * sizeof(unicode));
+        memcpy(m_data, str, len * sizeof(char_type));
+        m_count = len;
         m_data[m_count] = U'\0';
     }
 
@@ -250,7 +235,7 @@ struct cstring : public cvector<unicode> {
         return cstring_view(this->data(), this->size());
     }
 
-    constexpr inline u32 find(const unicode &c, u32 begin = 0) const {
+    constexpr inline u32 find(const char_type &c, u32 begin = 0) const {
         if (begin >= m_count)
             return npos;
         for (u32 i = begin; i < m_count; i++) {
@@ -273,7 +258,7 @@ struct cstring : public cvector<unicode> {
     //     return npos;
     // }
 
-    constexpr inline u32 rfind(const unicode &c) const {
+    constexpr inline u32 rfind(const char_type &c) const {
         if (m_count == 0)
             return npos;
 
@@ -286,24 +271,27 @@ struct cstring : public cvector<unicode> {
         return npos;
     }
 
-    inline cstring substr(u32 pos, u32 len) const {
+    inline cstring_base substr(u32 pos, u32 len) const {
         if (pos > m_count)
-            return cstring();
+            return cstring_base();
 
         if (pos + len > m_count)
             len = m_count - pos;
 
-        cstring result;
+        cstring_base result;
         result.reallocate(len + 1);
-        memcpy(result.m_data, m_data + pos, len * sizeof(unicode));
-        result.m_count = len;
-        result.m_data[result.m_count] = U'\0';
+        memcpy(result.m_data, m_data + pos, len * sizeof(char_type));
+        result.m_count = len - 1;
+        result.m_data[len] = U'\0';
         return result;
     }
 };
 
-inline cstring_view::operator cstring() {
-    return cstring(m_data, m_count);
-}
+typedef cstring_base<unicode> cstring;
+typedef cstring_base<char> crawstring;
+
+// inline cstring_view::operator cstring_base<unicode>() {
+//     return cstring_base(m_data, m_count);
+// }
 
 #endif//__C_STRING_HPP__

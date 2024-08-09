@@ -55,9 +55,9 @@ set(MSDFGEN_USE_VCPKG OFF)
 
 set(MSDF_ATLAS_USE_VCPKG OFF)
 set(MSDF_ATLAS_USE_SKIA OFF)
-set(MSDF_ATLAS_DYNAMIC_RUNTIME ON)
+set(MSDF_ATLAS_DYNAMIC_RUNTIME OFF)
+set(MSDF_ATLAS_NO_ARTERY_FONT ON)
 
-add_subdirectory(${CMAKE_SOURCE_DIR}/external/tinyxml2)
 include_directories(${CMAKE_SOURCE_DIR}/external/msdf-atlas-gen/msdfgen)
 include_directories(${CMAKE_SOURCE_DIR}/external/msdf-atlas-gen/msdf-atlas-gen)
 add_subdirectory(${CMAKE_SOURCE_DIR}/external/msdf-atlas-gen)
@@ -65,8 +65,6 @@ add_subdirectory(${CMAKE_SOURCE_DIR}/external/msdf-atlas-gen)
 set(LIBS
     vulkan
     SDL2
-    freetype
-    boost_filesystem
     msdf-atlas-gen
 )
 
@@ -81,8 +79,5 @@ target_compile_options(${OUTPUT} PRIVATE -g -Wall -fopenmp)
 target_link_libraries(${OUTPUT} ${LIBS})
 
 add_executable(shader_manager src/vkcb/cshader_manager.c)
-
-# add_executable(Atlas ${ATLAS_SOURCES})
-# target_link_libraries(Atlas ${ATLAS_LIBS})
 
 target_precompile_headers(${OUTPUT} PRIVATE ${PRECOMPILED_HEADERS})

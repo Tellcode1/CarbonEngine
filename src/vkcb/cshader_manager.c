@@ -17,6 +17,8 @@
     #define stat _stat
 #endif
 
+#define false 0
+#define true 1
 typedef unsigned char bool;
 
 void append_shaders_to_cache(const char *shader) {
@@ -36,6 +38,7 @@ bool was_shader_modified(const char *shader) {
         time_t mod_time = attrs.st_mtime;
         printf("%li \n", mod_time);
     }
+    return 1;
 }
 
 void printcache() {

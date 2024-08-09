@@ -13,6 +13,8 @@ static_assert(__STDC_UTF_32__ == 1);
 
 #include "cobject.hpp"
 #include "containers/cstring.hpp"
+#include "containers/chashmap.hpp"
+#include "containers/clinkedlist.hpp"
 
 enum HoriAlignment
 {
@@ -118,6 +120,7 @@ struct ctext
     {
         u32 atlas_width, atlas_height;
         u8 *atlas_data;
+        f32 pixel_range;
 
         f32 line_height;
         f32 space_width;
@@ -141,14 +144,14 @@ struct ctext
 
         struct ctext_hasher {
         template <typename T>
-            constexpr inline std::size_t operator()(const T& key) const {
+            constexpr static inline std::size_t hash(const T& key) {
                 return static_cast<std::size_t>(key);
             }
         };
 
         u32 chars_drawn;
-        std::vector<text_drawcall_t> drawcalls;
-        std::unordered_map<unicode, CFGlyph, ctext_hasher> glyph_map;
+        cvector<text_drawcall_t> drawcalls;
+        chashmap<unicode, CFGlyph, ctext_hasher> glyph_map;
 
         friend void ctext::load_font(const CFontLoadInfo* pInfo, CFont* dst);
     };
@@ -161,6 +164,84 @@ struct ctext
         BitmapChannels channel_count = CHANNELS_SDF;
     };
 
+    // reddit saves the day
+    static cdoubly_linked_list<int> unicode_to_utf8(unicode charcode)
+    {
+        cdoubly_linked_list<int> d;
+        if (charcode < 128)
+        {
+            d.push_back(charcode);
+        }
+        else
+        {
+            int first_bits = 6; 
+            const int other_bits = 6;
+            int first_val = 0xC0;
+            int t = 0;
+            while (charcode >= (1 << first_bits))
+            {
+                {
+                    t = 128 | (charcode & ((1 << other_bits)-1));
+                    charcode >>= other_bits;
+                    first_val |= 1 << (first_bits);
+                    first_bits--;
+                }
+                d.push_front(t);
+            }
+            t = first_val | charcode;
+            d.push_front(t);
+        }
+        return d;
+    };
+
+    static cdoubly_linked_list<unicode> string_to_unicode(const char *str) {
+        cdoubly_linked_list<unicode> retval;
+        while (*str) {
+            retval.push_back(*str);
+            str++;
+        }
+        return retval;
+    }
+
+    static cdoubly_linked_list<unicode> string_to_utf8(const char *str) {
+        cdoubly_linked_list<unicode> utf8_bytes;
+        cdoubly_linked_list<unicode> unicode_points = string_to_unicode(str);
+        for (auto node = unicode_points.get_first(); node != nullptr; node = node->next) {
+            cdoubly_linked_list<int> utf8 = unicode_to_utf8(node->data);
+            for (auto utf8_node = utf8.get_first(); utf8_node != nullptr; utf8_node = utf8_node->next) {
+                utf8_bytes.push_back(utf8_node->data);
+            }
+        }
+        return utf8_bytes;
+    }
+
+    static unicode utf8_to_unicode(cdoubly_linked_list<unicode> &coded)
+    {
+        unicode charcode = 0;
+        int t = coded.front();
+        if (t < 128)
+        {
+            return t;
+        }
+        coded.pop_front();
+        int high_bit_mask = (1 << 6) -1;
+        int high_bit_shift = 0;
+        int total_bits = 0;
+        constexpr int other_bits = 6;
+        while((t & 0xC0) == 0xC0)
+        {
+            t <<= 1;
+            t &= 0xff;
+            total_bits += 6;
+            high_bit_mask >>= 1; 
+            high_bit_shift++;
+            charcode <<= other_bits;
+            charcode |= coded.front() & ((1 << other_bits)-1);
+            coded.pop_front();
+        } 
+        charcode |= ((t >> high_bit_shift) & high_bit_mask) << total_bits;
+        return charcode;
+    }
 };
 
 #endif

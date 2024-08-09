@@ -18,10 +18,6 @@ typedef u32 ProFlags;
 #define REQUIRED_PTR(ptr) if(ptr == nullptr) LOG_AND_ABORT(#ptr" :  Required parameter '"#ptr"' specified as nullptr.\n", get_filename(__FILE__), __LINE__, __PRETTY_FUNCTION__)
 #define NOT_EQUAL_TO(val, to) if(val == to) LOG_AND_ABORT(#val" == "#to". Value "#val" must not be equal to "#to".\n", get_filename(__FILE__), __LINE__, __PRETTY_FUNCTION__)
 
-#ifndef PRO_ARRAY_TYPE
-	#define PRO_ARRAY_TYPE std::vector
-#endif
-
 constexpr u64 tobit(u64 num) { return 1 << num; }
 
 enum PipelineCreateFlagBits
@@ -117,11 +113,11 @@ namespace pro
 		/*
 		*	Array pointers are allowed to be nullptr
 		*/
-		const PRO_ARRAY_TYPE<VkVertexInputAttributeDescription>* pAttributeDescriptions = nullptr;
-		const PRO_ARRAY_TYPE<VkVertexInputBindingDescription>* pBindingDescriptions = nullptr;
-		const PRO_ARRAY_TYPE<VkDescriptorSetLayout>* pDescriptorLayouts = nullptr;
-		const PRO_ARRAY_TYPE<VkPushConstantRange>* pPushConstants = nullptr;
-		const PRO_ARRAY_TYPE<VkPipelineShaderStageCreateInfo>* pShaderCreateInfos = nullptr;
+		const cvector<VkVertexInputAttributeDescription>* pAttributeDescriptions = nullptr;
+		const cvector<VkVertexInputBindingDescription>* pBindingDescriptions = nullptr;
+		const cvector<VkDescriptorSetLayout>* pDescriptorLayouts = nullptr;
+		const cvector<VkPushConstantRange>* pPushConstants = nullptr;
+		const cvector<VkPipelineShaderStageCreateInfo>* pShaderCreateInfos = nullptr;
 
 		PipelineCreateInfo() = default;
 		~PipelineCreateInfo() = default;

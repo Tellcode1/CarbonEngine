@@ -1,13 +1,12 @@
 #ifndef __RENDERER__
 #define __RENDERER__
 
-#include <unordered_map>
-
 #include "defines.h"
 #include "stdafx.hpp"
 #include "cengine.hpp"
 #include "containers/cvector.hpp"
 #include "containers/carray.hpp"
+#include "containers/chashmap.hpp"
 #include "cobject.hpp"
 
 struct FrameRenderData
@@ -54,7 +53,7 @@ struct Renderer
 
     static cvector<FrameRenderData> renderData;
     static cvector<VkCommandBuffer> drawBuffers;
-    static std::unordered_map<cobject_base *, u32> obj_offsets;
+    static chashmap<cobject_base *, u32> obj_offsets;
 
     static void initialize(const renderer_config *conf);
 
