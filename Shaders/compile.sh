@@ -21,10 +21,10 @@ echo Shader Compilation start
     compile_shader $1/Shaders/frag.spv ./frag.glsl frag
 
     compile_shader $1/Shaders/vert.text.spv ./vert.text.glsl vert
-    compile_shader $1/Shaders/frag.text.spv ./frag.text.glsl frag
     compile_shader $1/Shaders/comp.text.spv ./text.comp      comp
 
     compile_shader $1/Shaders/ctext/sdf.frag.spv ./ctext/sdf.frag.glsl frag
     compile_shader $1/Shaders/ctext/msdf.frag.spv ./ctext/msdf.frag.glsl frag
+    compile_shader $1/Shaders/ctext/mtsdf.frag.spv ./ctext/mtsdf.frag.glsl frag
     compile_shader $1/Shaders/ctext/test.comp.spv ./ctext/test.comp.glsl comp
 echo Done!

@@ -175,8 +175,9 @@ void PrintDeviceInfo(VkPhysicalDevice device)
 			break;
 	}
 
+	// I think it looks cleaner this way
 	LOG_INFO(
-		"Selected device : (%s) %s Vulkan API Version %d.%d",
+		"(%s) %s Vulkan API Version %d.%d",
 		deviceTypeStr, properties.deviceName,
 		properties.apiVersion >> 22, (properties.apiVersion >> 12) & 0x3FF
 	);
@@ -270,7 +271,7 @@ void Context::Initialize(const char* title, u32 windowWidth, u32 windowHeight) {
 	vkGetPhysicalDeviceQueueFamilyProperties(ctx::physDevice, &queueCount, queueFamilies);
 
 	// Clang loves complaining about these.
-	u32 graphicsFamily, presentFamily, computeFamily, transferFamily;
+	u32 graphicsFamily = 0, presentFamily = 0, computeFamily = 0, transferFamily = 0;
 	(void)graphicsFamily, (void)presentFamily, (void)computeFamily, (void)transferFamily;
 
 	bool foundGraphicsFamily = false, foundPresentFamily = false, foundComputeFamily = false, foundTransferFamily = false;

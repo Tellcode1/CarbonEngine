@@ -8,6 +8,8 @@
 #include "containers/cvector.hpp"
 #include "containers/cstring.hpp"
 
+#include "include/engine/object/cgameobject.hpp"
+
 int main(int argc, char *argv[]) {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER);
 
@@ -30,7 +32,7 @@ int main(int argc, char *argv[]) {
     ctext::CFontLoadInfo infoo{};
     infoo.fontPath = "../Assets/roboto.ttf";
     infoo.chset = msdf_atlas::Charset::ASCII;
-    infoo.scale = 24.0f;
+    infoo.scale = 48.0f;
     infoo.channel_count = ctext::CHANNELS_MSDF;
     ctext::load_font(&infoo, &amongus);
 
@@ -40,6 +42,8 @@ int main(int argc, char *argv[]) {
     f32 scale = 0.5f;
 
     int curr_showing_fps = 0;
+
+    csquare_t *sqr = ccreate_square();
 
     // What in the unholy f%$ where you doing
     LOG_DEBUG("Initialized in %ld ms (%.3f s)", SDL_GetTicks(), SDL_GetTicks() / 1000.0f);
@@ -135,6 +139,8 @@ int main(int argc, char *argv[]) {
             ctext::render(amongus, &info, U"%i %s frames", curr_showing_fps, U"joosy");
 
             ctext::end_render(amongus, mat4(1.0f));
+
+            // crender_square(sqr, Renderer::GetDrawBuffer());
             
             RD::EndRender();
         }

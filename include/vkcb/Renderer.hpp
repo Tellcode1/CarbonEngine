@@ -7,7 +7,6 @@
 #include "containers/cvector.hpp"
 #include "containers/carray.hpp"
 #include "containers/chashmap.hpp"
-#include "cobject.hpp"
 
 struct FrameRenderData
 {
@@ -53,7 +52,6 @@ struct Renderer
 
     static cvector<FrameRenderData> renderData;
     static cvector<VkCommandBuffer> drawBuffers;
-    static chashmap<cobject_base *, u32> obj_offsets;
 
     static void initialize(const renderer_config *conf);
 

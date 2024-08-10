@@ -17,7 +17,7 @@ float median(float r, float g, float b) {
 }
 
 float screen_px_range() {
-    vec2 unit_range = vec2(scale) / vec2(textureSize(bitmap, 0));
+    vec2 unit_range = vec2(scale)/vec2(textureSize(bitmap, 0));
     vec2 screen_tex_size = vec2(1.0)/fwidth(texCoords);
     return max(0.5 * dot(unit_range, screen_tex_size), 1.0);
 }
@@ -27,11 +27,12 @@ float contour(in float d, in float w) {
 }
 
 void main() {
-    // Request the devil for cleaner text
-    float contour_width = (0.666) / screen_px_range(); // u can adjust this a little
+    vec4 samp = texture(bitmap, texCoords).rgba;
+    float msdf_dist = median(samp.r, samp.g, samp.b);    
+    float distance = mix(msdf_dist, samp.a, 0.5);
 
-    vec3 distance = texture(bitmap, texCoords).rgb;
-    float dist = median(distance.r, distance.g, distance.b);
-    float alpha = contour(dist, contour_width);
+    float contour_width = (0.7) / screen_px_range(); // u can adjust this a little
+    float alpha = contour(distance, contour_width);
+
     outColor = vec4(vec3(1.0), alpha);
 }

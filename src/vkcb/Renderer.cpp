@@ -31,7 +31,6 @@ u32 Renderer::imageIndex = 0;
 VkCommandPool Renderer::commandPool = VK_NULL_HANDLE;
 cvector<FrameRenderData> Renderer::renderData;
 cvector<VkCommandBuffer> Renderer::drawBuffers;
-chashmap<cobject_base *, u32> Renderer::obj_offsets;
 renderer_config Renderer::config;
 
 const void *Renderer::empty_array;
@@ -55,7 +54,7 @@ void Renderer::initialize(const renderer_config *conf) {
         VkQueueFamilyProperties *queueFamilies = new VkQueueFamilyProperties[queueCount];
         vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, queueFamilies);
 
-        u32 graphicsFamily, graphicsAndComputeFamily, presentFamily, computeFamily, transferFamily;
+        u32 graphicsFamily = 0, graphicsAndComputeFamily = 0, presentFamily = 0, computeFamily = 0, transferFamily = 0;
         bool foundGraphicsFamily = false, foundGraphicsAndComputeFamily = false, foundPresentFamily = false, foundComputeFamily = false, foundTransferFamily = false;
 
         u32 i = 0;
@@ -98,11 +97,11 @@ void Renderer::initialize(const renderer_config *conf) {
         vctx::PresentFamilyIndex = presentFamily;
         vctx::GraphicsAndComputeFamilyIndex = graphicsAndComputeFamily;
 
-        vkGetDeviceQueue(device, graphicsFamily, 0, &vctx::GraphicsQueue);
-        vkGetDeviceQueue(device, computeFamily, 0, &vctx::ComputeQueue);
-        vkGetDeviceQueue(device, transferFamily, 0, &vctx::TransferQueue);
-        vkGetDeviceQueue(device, presentFamily, 0, &vctx::PresentQueue);
-        vkGetDeviceQueue(device, graphicsAndComputeFamily, 0, &vctx::GraphicsAndComputeQueue);
+        vkGetDeviceQueue(device, vctx::GraphicsFamilyIndex, 0, &vctx::GraphicsQueue);
+        vkGetDeviceQueue(device, vctx::ComputeFamilyIndex, 0, &vctx::ComputeQueue);
+        vkGetDeviceQueue(device, vctx::TransferQueueIndex, 0, &vctx::TransferQueue);
+        vkGetDeviceQueue(device, vctx::PresentFamilyIndex, 0, &vctx::PresentQueue);
+        vkGetDeviceQueue(device, vctx::GraphicsAndComputeFamilyIndex, 0, &vctx::GraphicsAndComputeQueue);
     }
 
     SDL_PumpEvents();
@@ -305,6 +304,20 @@ bool Renderer::BeginRender()
 
     vkBeginCommandBuffer(drawBuffer, &beginInfo);
     vkCmdBeginRenderPass(drawBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+    VkViewport viewport = {};
+    viewport.x = 0.0f;
+    viewport.y = 0.0f;
+    viewport.width = vctx::RenderExtent.width;
+    viewport.height = vctx::RenderExtent.height;
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+    vkCmdSetViewport(drawBuffer, 0, 1, &viewport);
+
+    VkRect2D scissor = {};
+    scissor.offset = { 0, 0 };
+    scissor.extent = { vctx::RenderExtent.width, vctx::RenderExtent.height };
+    vkCmdSetScissor(drawBuffer, 0, 1, &scissor);
 
     return true;
 }

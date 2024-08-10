@@ -21,6 +21,18 @@ struct cdefault_hash {
     };
 };
 
+// Honestly, reddit is writing all the code for me. I'm not complaining :>
+constexpr inline unsigned next_pott(unsigned n) {
+    if (n == 0) return 1;
+    --n;
+    n |= n >> 1;
+    n |= n >> 2;
+    n |= n >> 4;
+    n |= n >> 8;
+    n |= n >> 16;
+    return n + 1;
+}
+
 template<typename key, typename value, typename hash_fn = cdefault_hash<key>>
 struct chashmap {
     public:
@@ -28,11 +40,10 @@ struct chashmap {
         key k;
         value v;
         bool is_occupied;
-        cht_node() : is_occupied(false) {  }
     };
 
     chashmap(int capacity = 16) 
-        : entries(capacity), count(0) {
+        : entries(next_pott(capacity)), count(0) {
         nodes = (cht_node **)malloc(entries * sizeof(cht_node));
         memset(nodes, 0, entries * sizeof(cht_node));
     }
@@ -51,9 +62,9 @@ struct chashmap {
         if (count >= entries * 0.7f)
             resize(entries * 2);
 
-        int index = hash_fn::hash(k) % entries;
+        int index = hash_fn::hash(k) & (entries - 1);
         while (nodes[index] != nullptr && nodes[index]->is_occupied) {
-            index = (index + 1) % entries;
+            index = (index + 1) & (entries - 1);
         }
         
         if (!nodes[index])
@@ -68,27 +79,28 @@ struct chashmap {
 
     coptional<value> find(const key& k) const {
         coptional<value> retval = nullopt;
-        int index = hash_fn::hash(k) % entries;
+        int index = hash_fn::hash(k) & (entries - 1);
         while (nodes[index]) {
             if (nodes[index]->is_occupied && nodes[index]->k == k) // you have to use == instead of memcmp because cstring and other structs
                 retval.set(nodes[index]->v);
-            index = (index + 1) % entries;
+            index = (index + 1) & (entries - 1);
         }
         return retval;
     }
 
     value &at(const key &k) const {
-        int index = hash_fn::hash(k) % entries;
-        while (nodes[index]) {
-            if (nodes[index]->is_occupied && nodes[index]->k == k)
-                return nodes[index]->v;
-            index = (index + 1) % entries;
+        int index = hash_fn::hash(k) & (entries - 1);
+        while (true) {
+        cht_node *node = nodes[index];
+            if (node->is_occupied && node->k == k)
+                return node->v;
+            index = (index + 1) & (entries - 1);
         }
     }
-
     private:
 
     void resize(int new_capacity) {
+        new_capacity = next_pott(new_capacity);
         cht_node** old_nodes = nodes;
         int old_entries = entries;
 

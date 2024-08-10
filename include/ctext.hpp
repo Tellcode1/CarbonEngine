@@ -11,10 +11,8 @@ static_assert(__STDC_UTF_32__ == 1);
 #define MSDFGEN_PUBLIC // ?
 #include "external/msdf-atlas-gen/msdf-atlas-gen/msdf-atlas-gen.h"
 
-#include "cobject.hpp"
 #include "containers/cstring.hpp"
 #include "containers/chashmap.hpp"
-#include "containers/clinkedlist.hpp"
 
 enum HoriAlignment
 {
@@ -86,14 +84,6 @@ struct ctext
         f32 positions[4];
         f32 uv[4];
         f32 advance;
-
-        CARBON_FORCE_INLINE f32 get_width() const {
-            return positions[2] - positions[0];
-        }
-
-        CARBON_FORCE_INLINE f32 get_height() const {
-            return positions[1] - positions[3];
-        }
     };
 
     enum BitmapChannels
@@ -142,16 +132,16 @@ struct ctext
         void *mapped;
         void resize_buffer(u32 new_buffer_size, u32 index_buffer_offset);
 
-        struct ctext_hasher {
         template <typename T>
-            constexpr static inline std::size_t hash(const T& key) {
-                return static_cast<std::size_t>(key);
+        struct ctext_hasher {
+            constexpr static inline u32 hash(const T& key) {
+                return key;
             }
         };
 
         u32 chars_drawn;
         cvector<text_drawcall_t> drawcalls;
-        chashmap<unicode, CFGlyph, ctext_hasher> glyph_map;
+        chashmap<unicode, CFGlyph, ctext_hasher<unicode>> glyph_map;
 
         friend void ctext::load_font(const CFontLoadInfo* pInfo, CFont* dst);
     };
@@ -165,9 +155,9 @@ struct ctext
     };
 
     // reddit saves the day
-    static cdoubly_linked_list<int> unicode_to_utf8(unicode charcode)
+    static cvector<int> unicode_to_utf8(unicode charcode)
     {
-        cdoubly_linked_list<int> d;
+        cvector<int> d;
         if (charcode < 128)
         {
             d.push_back(charcode);
@@ -186,44 +176,37 @@ struct ctext
                     first_val |= 1 << (first_bits);
                     first_bits--;
                 }
-                d.push_front(t);
+                d.push_back(t);
             }
             t = first_val | charcode;
-            d.push_front(t);
+            d.push_back(t);
+            std::reverse(d.begin(), d.end());
         }
         return d;
     };
 
-    static cdoubly_linked_list<unicode> string_to_unicode(const char *str) {
-        cdoubly_linked_list<unicode> retval;
-        while (*str) {
-            retval.push_back(*str);
-            str++;
-        }
-        return retval;
-    }
-
-    static cdoubly_linked_list<unicode> string_to_utf8(const char *str) {
-        cdoubly_linked_list<unicode> utf8_bytes;
-        cdoubly_linked_list<unicode> unicode_points = string_to_unicode(str);
-        for (auto node = unicode_points.get_first(); node != nullptr; node = node->next) {
-            cdoubly_linked_list<int> utf8 = unicode_to_utf8(node->data);
-            for (auto utf8_node = utf8.get_first(); utf8_node != nullptr; utf8_node = utf8_node->next) {
-                utf8_bytes.push_back(utf8_node->data);
+    static cvector<unicode> utf32_to_utf8_str(const char *str) {
+        cvector<unicode> ret;
+        cvector<char> unicode_points;
+        unicode_points.push_set(str, strlen(str));
+        for (auto node : unicode_points) {
+            const cvector<int> utf8 = unicode_to_utf8(node);
+            for (const unicode &uc : utf8) {
+                ret.push_back(uc);
             }
         }
-        return utf8_bytes;
+        return ret;
     }
 
-    static unicode utf8_to_unicode(cdoubly_linked_list<unicode> &coded)
+    static unicode utf8_to_unicode(const cvector<unicode> &coded)
     {
+        int i = 0;
         unicode charcode = 0;
-        int t = coded.front();
+        int t = coded[0]; i++;
         if (t < 128)
         {
             return t;
         }
-        coded.pop_front();
         int high_bit_mask = (1 << 6) -1;
         int high_bit_shift = 0;
         int total_bits = 0;
@@ -236,8 +219,8 @@ struct ctext
             high_bit_mask >>= 1; 
             high_bit_shift++;
             charcode <<= other_bits;
-            charcode |= coded.front() & ((1 << other_bits)-1);
-            coded.pop_front();
+            charcode |= coded[i] & ((1 << other_bits)-1);
+            i++;
         } 
         charcode |= ((t >> high_bit_shift) & high_bit_mask) << total_bits;
         return charcode;

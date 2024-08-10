@@ -18,15 +18,9 @@ float screen_px_range() {
     return max(0.5 * dot(unit_range, screen_tex_size), 1.0);
 }
 
-float contour(in float d, in float w) {
-    const float lower = 0.496;
-    const float upper = 0.504;
-    return smoothstep(lower - w, upper + w, d);
-}
-
 void main() {
     float contour_width = (sqrt(0.5)) / screen_px_range(); // u can adjust this a little
     float distance = texture(bitmap, texCoords).r;
-    float alpha = contour(distance, contour_width);
+    float alpha = smoothstep(0.5 - contour_width, 0.5 + contour_width, distance);
     outColor = vec4(vec3(1.0), alpha);
 }

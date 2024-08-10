@@ -166,6 +166,16 @@ void pro::CreateGraphicsPipeline(VkDevice device, PipelineCreateInfo const *pCre
 	graphicsPipelineCreateInfo.subpass = pCreateInfo->subpass;
 	graphicsPipelineCreateInfo.basePipelineHandle = pCreateInfo->oldPipeline;
 
+	VkPipelineDynamicStateCreateInfo dynamicStateInfo{};
+	constexpr VkDynamicState dynamicStates[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+	if (flags & PIPELINE_CREATE_FLAGS_DISABLE_DYNAMIC_VIEWPORT) {}
+	else  {
+		dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+		dynamicStateInfo.dynamicStateCount = 2;
+		dynamicStateInfo.pDynamicStates = dynamicStates;
+		graphicsPipelineCreateInfo.pDynamicState = &dynamicStateInfo;
+	}
+	
 	if(flags & PIPELINE_CREATE_FLAGS_ENABLE_DEPTH_CHECK)
 	{
 		VkPipelineDepthStencilStateCreateInfo depthStencilState{};

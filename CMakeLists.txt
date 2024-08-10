@@ -37,6 +37,7 @@ set(SOURCES
     src/vkcb/Renderer.cpp
     src/vkcb/epichelperlib.cpp
     src/vkcb/cobject.cpp
+    src/engine/object/cgameobject.cpp
 )
 
 include_directories(${CMAKE_SOURCE_DIR})
