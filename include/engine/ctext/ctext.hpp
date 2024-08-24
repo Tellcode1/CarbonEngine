@@ -3,16 +3,12 @@
 
 struct ctext;
 
-static_assert(__STDC_UTF_32__ == 1);
+#include "../../math/vec2.h"
+#include "../../stdafx.hpp"
+#include "../../vkcb/vkcbstdafx.hpp"
 
-#include "stdafx.hpp"
-#include "vkcb/vkcbstdafx.hpp"
-
-#define MSDFGEN_PUBLIC // ?
-#include "external/msdf-atlas-gen/msdf-atlas-gen/msdf-atlas-gen.h"
-
-#include "containers/cstring.hpp"
-#include "containers/chashmap.hpp"
+#include "../../containers/cstring.hpp"
+#include "../../containers/chashmap.hpp"
 
 enum HoriAlignment
 {
@@ -28,6 +24,46 @@ enum VertAlignment
     CTEXT_VERT_ALIGN_BOTTOM = 2,
 };
 
+typedef struct ccharset_block {
+    unicode begin, end;
+} ccharset_block;
+
+static const ccharset_block ccharsets_range[] = {
+    { /* Basic Latin (ASCII) */ 0x0000, 0x007F},
+    { /* Latin-1 Supplement */ 0x0080, 0x00FF},
+    { /* Latin Extended-A */ 0x0100, 0x017F},
+    { /* Latin Extended-B */ 0x0180, 0x024F},
+    { /* Greek and Coptic */ 0x0370, 0x03FF},
+    { /* Cyrillic */ 0x0400, 0x04FF},
+    { /* Hebrew */ 0x0590, 0x05FF},
+    { /* Arabic */ 0x0600, 0x06FF},
+    { /* Devanagari */ 0x0900, 0x097F},
+    { /* Chinese, Japanese, and Korean (CJK) */ 0x4E00, 0x9FFF},
+    { /* Hangul Syllables */ 0xAC00, 0xD7AF},
+    { /* Emoji (Basic Emoji Block) */ 0x1F600, 0x1F64F},
+    { /* Mathematical Alphanumeric Symbols */ 0x1D400, 0x1D7FF},
+    { /* Supplementary Private Use Area-A */ 0xF0000, 0xFFFFF},
+    { /* Supplementary Private Use Area-B */ 0x100000, 0x10FFFF}
+};
+
+enum ccharset {
+    CHARSET_ASCII = 0,
+    CHARSET_LATIN1_SUPPLEMENT,
+    CHARSET_LATIN_EXTENDED_A,
+    CHARSET_LATIN_EXTENDED_B,
+    CHARSET_GREEK_COPTIC,
+    CHARSET_CYRILLIC,
+    CHARSET_HEBREW,
+    CHARSET_ARABIC,
+    CHARSET_DEVANAGARI,
+    CHARSET_CJK,
+    CHARSET_HANGUL,
+    CHARSET_BASIC_EMOJI,
+    CHARSET_MATHEMATICAL_SYMBOLS,
+    CHARSET_PRIVATE_USE_AREA_A,
+    CHARSET_PRIVATE_USE_AREA_B
+};
+
 struct ctext
 {
     constexpr static u32 MAX_FONT_COUNT = 8;
@@ -40,8 +76,7 @@ struct ctext
     struct text_render_info {
         HoriAlignment horizontal;
         VertAlignment vertical;
-        f32 x;
-        f32 y;
+        vec3 position;
         f32 scale;
 
         text_render_info() = default;
@@ -51,7 +86,7 @@ struct ctext
     // Hmm.. sprintf doesn't work with unicode I guess.
     // I'll figure out what to do later.
     static void render(ctext::CFont fnt, const text_render_info *pInfo, const unicode *fmt, ...);
-    static void initialize();
+    static void init();
 
     static VkDescriptorPool desc_pool;
     static VkDescriptorSetLayout desc_Layout;
@@ -97,11 +132,16 @@ struct ctext
         CHANNELS_MTSDF = CHANNELS_4,
     };
 
+    struct cglyph_vertex_t {
+        vec3 pos;
+        vec2 uv;
+    };
+
     struct text_drawcall_t {
         u32 vertex_count;
         u32 index_count;
         u32 index_offset;
-        vec4 *vertices;
+        cglyph_vertex_t *vertices;
         u32 *indices;
     };
 
@@ -150,14 +190,14 @@ struct ctext
     {
         const char *fontPath = nullptr;
         f32 scale = 24.0f;
-        msdf_atlas::Charset chset = msdf_atlas::Charset::ASCII;
+        ccharset chset = CHARSET_ASCII;
         BitmapChannels channel_count = CHANNELS_SDF;
     };
 
     // reddit saves the day
-    static cvector<int> unicode_to_utf8(unicode charcode)
+    static cvector<unicode> unicode_to_utf8(unicode charcode)
     {
-        cvector<int> d;
+        cvector<unicode> d;
         if (charcode < 128)
         {
             d.push_back(charcode);
@@ -168,7 +208,7 @@ struct ctext
             const int other_bits = 6;
             int first_val = 0xC0;
             int t = 0;
-            while (charcode >= (1 << first_bits))
+            while ((int)charcode >= (1 << first_bits))
             {
                 {
                     t = 128 | (charcode & ((1 << other_bits)-1));
@@ -190,7 +230,7 @@ struct ctext
         cvector<char> unicode_points;
         unicode_points.push_set(str, strlen(str));
         for (auto node : unicode_points) {
-            const cvector<int> utf8 = unicode_to_utf8(node);
+            const cvector<unicode> utf8 = unicode_to_utf8(node);
             for (const unicode &uc : utf8) {
                 ret.push_back(uc);
             }

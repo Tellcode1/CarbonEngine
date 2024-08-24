@@ -1,10 +1,9 @@
-#include "ctext.hpp"
-#include "epichelperlib.hpp"
-#include "Bootstrap.hpp"
+#include "../../../include/engine/ctext/ctext.hpp"
+#include "../../../include/vkcb/epichelperlib.hpp"
+#include "../../../include/vkcb/Bootstrap.hpp"
 
-#include "stb/stb_image_write.h"
-#include "stb/stb_image.h"
-#include "cinput.hpp"
+#define MSDFGEN_PUBLIC // ?
+#include "../../../external/msdf-atlas-gen/msdf-atlas-gen/msdf-atlas-gen.h"
 
 VkDescriptorPool ctext::desc_pool = VK_NULL_HANDLE;
 VkDescriptorSetLayout ctext::desc_Layout = VK_NULL_HANDLE;
@@ -24,13 +23,10 @@ u8 *i_hate_my_life(u32 width, u32 height, T &generator, std::vector<msdf_atlas::
     u8* pixelBuffer = reinterpret_cast<u8*>(malloc(width * height * channels));
 
     // what the f(*(#$)*@#) is this
-    #pragma omp parallel for
     for (u32 y = 0; y < height; y++)
         for (u32 x = 0; x < width; x++)
             for (u32 c = 0; c < channels; c++)
                 pixelBuffer[(width * (height - y - 1) + x) * channels + c] = msdfgen::pixelFloatToByte(bitmap.pixels[(width * y + x) * channels + c]);
-
-    msdfgen::savePng(bitmap, "debug.png");
 
     return pixelBuffer;
 }
@@ -44,7 +40,6 @@ void ctext::load_font(const CFontLoadInfo *__restrict pInfo, CFont* dst)
 	}
 
     cassert_and_ret(pInfo->scale > 0.0f);
-    cassert_and_ret(pInfo->chset.size() > 0);
 
     msdfgen::FreetypeHandle *ft = msdfgen::initializeFreetype();
     if (!ft) {
@@ -54,6 +49,7 @@ void ctext::load_font(const CFontLoadInfo *__restrict pInfo, CFont* dst)
 
     msdfgen::FontHandle *fnt = msdfgen::loadFont(ft, pInfo->fontPath);
     if (!fnt) {
+        msdfgen::deinitializeFreetype(ft);
         LOG_ERROR("Failed to load fnt. Is path (\"%s\") valid?", pInfo->fontPath);
         return;
     }
@@ -62,26 +58,28 @@ void ctext::load_font(const CFontLoadInfo *__restrict pInfo, CFont* dst)
 
     std::vector<msdf_atlas::GlyphGeometry> glyphs;
     msdf_atlas::FontGeometry fontGeometry(&glyphs);
-    fontGeometry.loadCharset(fnt, 1.0, pInfo->chset);
-    if (fontGeometry.getName() != nullptr)
-    std::cout << fontGeometry.getName() << '\n';
-    else
-    std::cout << "no name??\n";
 
-    constexpr double maxCornerAngle = 2.5;
+    msdf_atlas::Charset msdfcharset;
+
+    const ccharset_block &block = ccharsets_range[ pInfo->chset ];
+    for (unicode ch = block.begin; ch < block.end; ch++)
+        msdfcharset.add(ch);
+    fontGeometry.loadCharset(fnt, 1.0f, msdfcharset);
+
+    constexpr double maxCornerAngle = 3.0;
     for (msdf_atlas::GlyphGeometry& glyph : glyphs)
-        glyph.edgeColoring(&msdfgen::edgeColoringInkTrap, maxCornerAngle, 0);
+        glyph.edgeColoring(&msdfgen::edgeColoringByDistance, maxCornerAngle, 0);
 
-    const f32 scale = pInfo->scale;
+    const f32 scale = ceilf(pInfo->scale);
     msdf_atlas::TightAtlasPacker packer;
-    packer.setDimensionsConstraint(msdf_atlas::DimensionsConstraint::NONE);
-    packer.setMinimumScale(scale);
+    packer.setDimensionsConstraint(msdf_atlas::DimensionsConstraint::POWER_OF_TWO_SQUARE);
+    packer.setMinimumScale(pInfo->scale);
     packer.setPixelRange(scale);
-    packer.setMiterLimit(glm::max(scale / 12.0f, 1.0f));
-    packer.setSpacing(glm::max((int)ceilf(scale / 24.0f), 2));
+    packer.setMiterLimit(scale);
+    packer.setSpacing(2);
     packer.pack(glyphs.data(), glyphs.size());
 
-    (*dst)->pixel_range = pInfo->scale;
+    (*dst)->pixel_range = scale;
 
     i32 width_ = 0, height_ = 0;
     packer.getDimensions(width_, height_);
@@ -130,7 +128,6 @@ void ctext::load_font(const CFontLoadInfo *__restrict pInfo, CFont* dst)
     else {
         __builtin_unreachable();
         LOG_AND_ABORT("Invalid channel count");
-        pixelBuffer = nullptr; // Satisfy the compiler gods
     }
 
     for (const msdf_atlas::GlyphGeometry& glyph : glyphs) {
@@ -147,25 +144,21 @@ void ctext::load_font(const CFontLoadInfo *__restrict pInfo, CFont* dst)
 
         f32 l = (f32(l_)) / f32(width);
         f32 r = (f32(r_)) / f32(height);
-        f32 b  =( 1.0f - (f32)b_) / f32(width);
-        f32 t  =( 1.0f - (f32)t_) / f32(height);
+        f32 b  =(1.0f - (f32)b_) / f32(width);
+        f32 t  =(1.0f - (f32)t_) / f32(height);
         
         f32 x0 = f32(x0_), x1 = f32(x1_);
         f32 y0 = 1.0f - (f32)y0_;
         f32 y1 = 1.0f - (f32)y1_;
 
-        // glyph.l, glyph.t
-        // glyph.r, glyph.t
-        // glyph.r, glyph.b
-        // glyph.l, glyph.b
         CFGlyph mogus;
 
-        f32 positions[4] = {
+        const f32 positions[4] = {
             x0, x1,
             y0, y1,
         };
 
-        f32 uv_positions[4] = {
+        const f32 uv_positions[4] = {
             l, r,
             b, t
         };
@@ -174,9 +167,6 @@ void ctext::load_font(const CFontLoadInfo *__restrict pInfo, CFont* dst)
             mogus.positions[i] = positions[i];
             mogus.uv[i] = uv_positions[i];
         }
-
-        // mogus.positions = _mm_load_ps(positions);
-        // mogus.uv = _mm_load_ps(uv_positions);
 
         msdfgen::FontMetrics metrics;
         msdfgen::getFontMetrics(metrics, fnt);
@@ -276,12 +266,13 @@ void ctext::load_font(const CFontLoadInfo *__restrict pInfo, CFont* dst)
 
     const cvector<VkVertexInputAttributeDescription> attributeDescriptions = {
         // location; binding; format; offset;
-        { 0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0 },
+        { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0 }, // pos
+        { 1, 0, VK_FORMAT_R32G32_SFLOAT, sizeof(vec3) }, // uv
     };
 
     const cvector<VkVertexInputBindingDescription> bindingDescriptions = {
         // binding; stride; inputRate
-        { 0, sizeof(vec4), VK_VERTEX_INPUT_RATE_VERTEX }
+        { 0, sizeof(vec3) + sizeof(vec2), VK_VERTEX_INPUT_RATE_VERTEX }
     };
 
     const cvector<VkPushConstantRange> pushConstants = { 
@@ -320,17 +311,10 @@ void ctext::load_font(const CFontLoadInfo *__restrict pInfo, CFont* dst)
     pc.extent.height = vctx::RenderExtent.height;
     pc.pShaderCreateInfos = &shaders;
     pc.pBlendState = &blend;
+    pc.samples = vctx::Samples;
     pro::CreatePipelineLayout(device, &pc, &(*dst)->pipeline_layout);
     pc.pipelineLayout = (*dst)->pipeline_layout;
     pro::CreateGraphicsPipeline(device, &pc, &(*dst)->pipeline, PIPELINE_CREATE_FLAGS_ENABLE_BLEND);
-
-    help::Buffers::CreateBuffer(
-        1, // alloc 1 byte of memory to store all program data (don't you dare allocate more)
-        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        &(*dst)->buffer,
-        &(*dst)->buffer_memory
-    );
 
     vkDestroyShaderModule(device, (*dst)->vshader, nullptr);
     vkDestroyShaderModule(device, (*dst)->fshader, nullptr);
@@ -345,7 +329,7 @@ void ctext::end_render(ctext::CFont fnt, mat4 model)
     u32 total_index_count = 0;
 
     for (const text_drawcall_t &drawcall : fnt->drawcalls) {
-        total_vertex_byte_size += drawcall.vertex_count * sizeof(vec4);
+        total_vertex_byte_size += drawcall.vertex_count * sizeof(ctext::cglyph_vertex_t);
         total_index_count += drawcall.index_count;
     }
 
@@ -360,9 +344,9 @@ void ctext::end_render(ctext::CFont fnt, mat4 model)
     u32 vertex_copy_iterator = 0;
     u32 index_copy_iterator = 0;
     for (const text_drawcall_t &drawcall : fnt->drawcalls) {
-        memcpy(static_cast<u8 *>(mapped) + vertex_copy_iterator, drawcall.vertices, drawcall.vertex_count * sizeof(vec4));
+        memcpy(static_cast<u8 *>(mapped) + vertex_copy_iterator, drawcall.vertices, drawcall.vertex_count * sizeof(ctext::cglyph_vertex_t));
         memcpy(static_cast<u8 *>(mapped) + total_vertex_byte_size + index_copy_iterator, drawcall.indices, drawcall.index_count * sizeof(u32));
-        vertex_copy_iterator += drawcall.vertex_count * sizeof(vec4);
+        vertex_copy_iterator += drawcall.vertex_count * sizeof(ctext::cglyph_vertex_t);
         index_copy_iterator += drawcall.index_count * sizeof(u32);
     }
 
@@ -375,7 +359,9 @@ void ctext::end_render(ctext::CFont fnt, mat4 model)
         mat4 model;
         f32 scale;
     } pc;
-    pc.model = model;
+
+    // mat4 view = glm::lookAt(vec3(0.0f, 0.0f, 5.0f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f));
+    pc.model = camera.get_projection() * camera.get_view();
     pc.scale = fnt->pixel_range;
 
     vkCmdPushConstants(
@@ -435,7 +421,7 @@ static void render_line(
     const f32 scaled_space_width = fnt->space_width * pInfo->scale;
     const f32 scaled_tab_width = scaled_space_width * 4.0f;
 
-    vec4* vertex_output_data = drawcall->vertices + glyph_iter * 4;
+    ctext::cglyph_vertex_t* vertex_output_data = drawcall->vertices + glyph_iter * 4;
     u32* index_output_data = drawcall->indices + glyph_iter * 6;
     u32 index_offset = fnt->chars_drawn * 4;
 
@@ -457,12 +443,12 @@ static void render_line(
 
     f32 x =
     (pInfo->horizontal == CTEXT_HORI_ALIGN_CENTER) ?
-                pInfo->x - width / 2.0f
+                pInfo->position.x - width / 2.0f
                 :
                 (pInfo->horizontal == CTEXT_HORI_ALIGN_RIGHT) ?
-                    pInfo->x - width
+                    pInfo->position.x - width
                     :
-                    pInfo->x;
+                    pInfo->position.x;
 
     for (int i = 0; i < (int)str.size(); i++) {
         switch (str[i]) {
@@ -480,10 +466,10 @@ static void render_line(
                 const f32 glyph_y0 = glyph.positions[2] * pInfo->scale + y;
                 const f32 glyph_y1 = glyph.positions[3] * pInfo->scale + y;
 
-                vertex_output_data[0] = { glyph_x0, glyph_y0, glyph.uv[0], glyph.uv[2] };
-                vertex_output_data[1] = { glyph_x1, glyph_y0, glyph.uv[1], glyph.uv[2] };
-                vertex_output_data[2] = { glyph_x1, glyph_y1, glyph.uv[1], glyph.uv[3] };
-                vertex_output_data[3] = { glyph_x0, glyph_y1, glyph.uv[0], glyph.uv[3] };
+                vertex_output_data[0] = { vec3(glyph_x0, glyph_y0, pInfo->position.z * pInfo->scale), vec2(glyph.uv[0], glyph.uv[2]) };
+                vertex_output_data[1] = { vec3(glyph_x1, glyph_y0, pInfo->position.z * pInfo->scale), vec2(glyph.uv[1], glyph.uv[2]) };
+                vertex_output_data[2] = { vec3(glyph_x1, glyph_y1, pInfo->position.z * pInfo->scale), vec2(glyph.uv[1], glyph.uv[3]) };
+                vertex_output_data[3] = { vec3(glyph_x0, glyph_y1, pInfo->position.z * pInfo->scale), vec2(glyph.uv[0], glyph.uv[3]) };
 
                 index_output_data[0] = index_offset;
                 index_output_data[1] = index_offset + 1;
@@ -519,7 +505,7 @@ void gen_vertices(const ctext::CFont &fnt, ctext::text_drawcall_t* drawcall, con
 
     const f32 scaled_line_height = fnt->line_height * pInfo->scale;
 
-    f32 y = pInfo->y;
+    f32 y = pInfo->position.y;
     const f32 text_size = ((fnt->line_height * pInfo->scale) * splitted_strings.size());
     switch(pInfo->vertical)
     {
@@ -702,6 +688,7 @@ void ctext::render(ctext::CFont fnt, const text_render_info *pInfo, const unicod
         const unicode *str_temp;
 
         unicode buffer[512];
+        memset(buffer, 0, 512 * sizeof(unicode));
 
         va_list arg;
         va_start(arg, fmt);
@@ -735,7 +722,7 @@ void ctext::render(ctext::CFont fnt, const text_render_info *pInfo, const unicod
                         break;
 
                     case U'u':
-                    int_temp = va_arg(arg, unsigned);
+                        int_temp = va_arg(arg, unsigned);
                         itoa(int_temp, buffer, 10);
                         str.push_set(buffer);
                         break;
@@ -779,19 +766,21 @@ void ctext::render(ctext::CFont fnt, const text_render_info *pInfo, const unicod
     const u32 vertex_count = effective_length * 4;
     const u32 index_count = effective_length * 6;
 
-    const u32 allocation_size = (vertex_count * sizeof(vec4)) + (index_count * sizeof(u32));
+    const u32 allocation_size = (vertex_count * sizeof(ctext::cglyph_vertex_t)) + (index_count * sizeof(u32));
 
     void *allocation = malloc(allocation_size);
 
     text_drawcall_t drawcall;
-    drawcall.vertices = (vec4 *)((uchar *)allocation);
-    drawcall.indices = (u32 *)((uchar *)allocation + (vertex_count * sizeof(vec4)));
-    drawcall.index_offset = (vertex_count * sizeof(vec4));
+    drawcall.vertices = (ctext::cglyph_vertex_t *)allocation;
+    drawcall.indices = (u32 *)((uchar *)allocation + (vertex_count * sizeof(ctext::cglyph_vertex_t)));
+    drawcall.index_offset = (vertex_count * sizeof(ctext::cglyph_vertex_t));
 
     const ctext::CFGlyph **glyphs = (const ctext::CFGlyph **)malloc(effective_length * sizeof(void *));
     int glyph_iter = 0;
     for (int i = 0; i < (int)str.size(); i++) {
         const unicode &c = str[i];
+        if (c == U'\000')
+            break;
         if (c != U' ' && c != U'\t' && c != U'\n') {
             glyphs[glyph_iter] = &fnt->glyph_map.at(c);
             glyph_iter++;
@@ -808,7 +797,7 @@ void ctext::render(ctext::CFont fnt, const text_render_info *pInfo, const unicod
     fnt->drawcalls.push_back(drawcall);
 }
 
-void ctext::initialize()
+void ctext::init()
 {
     const VkDescriptorSetLayoutBinding bindings[] = {
         // binding; descriptorType; descriptorCount; stageFlags; pImmutableSamplers;
@@ -848,7 +837,7 @@ void ctext::initialize()
 
     // No need to store image memory because it won't ever be deleted (probably)
     VkDeviceMemory dummyImageMemory;;
-    stbi_image_free(help::Images::killme("../Assets/error.png", &width, &height, &dummyImageFmt, &error_image, &dummyImageMemory));
+    free(help::Images::killme("../Assets/error.png", &width, &height, &dummyImageFmt, &error_image, &dummyImageMemory));
 
     VkSamplerCreateInfo samplerInfo{};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;

@@ -1,8 +1,7 @@
 #ifndef __C_OPTIONAL_HPP__
 #define __C_OPTIONAL_HPP__
 
-#include "defines.h"
-
+#include "../include/defines.h"
 struct nullopt_t { constexpr inline nullopt_t(int _) {} };
 static const nullopt_t nullopt = nullopt_t(0);
 
@@ -10,7 +9,7 @@ template <typename Tp>
 struct coptional {
     public:
     constexpr CARBON_FORCE_INLINE coptional() : m_has_value(false) {  }
-    constexpr coptional(const Tp &val) : m_val(val), m_has_value(true) {  }
+    constexpr CARBON_FORCE_INLINE coptional(const Tp &val) : m_val(val), m_has_value(true) {  }
     constexpr CARBON_FORCE_INLINE coptional(nullopt_t) : m_has_value(false) {  }
 
     constexpr CARBON_FORCE_INLINE bool has_value() const {

@@ -8,6 +8,16 @@
 #include "containers/carray.hpp"
 #include "containers/chashmap.hpp"
 
+#include "engine/camera.hpp"
+
+// The camera should also own the output texture, etc.
+// Basically, the camera should be the first parameter that the renderer needs.
+// Something like render_begin( renderer, camera )
+// Btw this struct is for testing, this isn't an actual camera.
+// I'll get to that when I switch to making the game object, transforms, etc.
+extern ccamera camera;
+
+// Move ownership to camera VV
 struct FrameRenderData
 {
     VkImage         swapchainImage;
@@ -50,6 +60,11 @@ struct Renderer
     static VkDeviceMemory color_image_memory;
     static VkImageView color_image_view;
 
+    static VkFormat depth_buffer_format;
+    static VkImage depth_image;
+    static VkImageView depth_image_view;
+    static VkDeviceMemory depth_image_memory;
+
     static cvector<FrameRenderData> renderData;
     static cvector<VkCommandBuffer> drawBuffers;
 
@@ -61,6 +76,8 @@ struct Renderer
     // static void render(cobject_sprite_renderer *render);
 
     private:
+    static void _create_optional_images();
+    static void _create_framebuffers_and_swapchain_image_views();
     static void _SignalResize();
 };
 

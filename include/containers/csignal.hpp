@@ -2,8 +2,7 @@
 #define __C_SIGNAL_HPP__
 
 #include "cvector.hpp"
-#include "defines.h"
-
+#include "../defines.h"
 typedef void (* csignal_empty_func)(void);
 
 struct csignal : cvector<csignal_empty_func>

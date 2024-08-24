@@ -1,8 +1,7 @@
-#include <chrono>
-#include "cengine.hpp"
-#include "Renderer.hpp"
-#include "ctext.hpp"
-#include "cinput.hpp"
+#include "../include/cengine.hpp"
+#include "../include/vkcb/Renderer.hpp"
+#include "../include/engine/ctext/ctext.hpp"
+#include "../include/cinput.hpp"
 
 u8 cengine::current_frame = 0;
 f64 cengine::delta_time = 0.0;
@@ -16,7 +15,7 @@ bool cengine::application_running = true;
 
 void cengine::initialize(const renderer_config *conf) {
     Renderer::initialize(conf);
-    ctext::initialize();
+    ctext::init();
     cinput::initialize();
 }
 
@@ -29,13 +28,14 @@ void cengine::consume_event(const SDL_Event *event) {
 }
 
 void cengine::update() {
-    time = fmul((f64)SDL_GetTicks64(), 1000.0);
+    time = (f64)SDL_GetTicks64() * (1.0 / 1000.0);
 
     u64 curr_time = SDL_GetPerformanceCounter();
     delta_time = fdiv(curr_time - last_frame_time, SDL_GetPerformanceFrequency());
     last_frame_time = curr_time;
 
     if (static_cast<double>(SDL_GetTicks64() - fixed_frame_start) >= fixed_frame_delay) {
+        // fixed update
         fixed_frame_start = SDL_GetTicks64();
     }
 

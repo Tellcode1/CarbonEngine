@@ -7,6 +7,9 @@ include_directories(${Vulkan_INCLUDE_DIRS})
 find_package(SDL2 REQUIRED)
 include_directories(${SDL2_INCLUDE_DIRS})
 
+find_package(Freetype REQUIRED)
+include_directories(${FREETYPE_INCLUDE_DIRS})
+
 include_directories(${CMAKE_SOURCE_DIR}/src)
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
@@ -21,15 +24,15 @@ set(PRECOMPILED_HEADERS
     include/stdafx.hpp
     include/vkcb/vkcbstdafx.hpp
     include/cengine.hpp
-    include/ctext.hpp
     include/cinput.hpp
 )
 
 set(SOURCES
     src/main.cpp
     src/cengine.cpp
-    src/ctext.cpp
     src/cinput.cpp
+
+    src/engine/ctext/ctext.cpp
     
     src/vkcb/pro.cpp
     src/vkcb/Context.cpp
@@ -39,15 +42,6 @@ set(SOURCES
     src/vkcb/cobject.cpp
     src/engine/object/cgameobject.cpp
 )
-
-include_directories(${CMAKE_SOURCE_DIR})
-include_directories(${CMAKE_SOURCE_DIR}/src)
-include_directories(${CMAKE_SOURCE_DIR}/include)
-include_directories(${CMAKE_SOURCE_DIR}/external)
-include_directories(${CMAKE_SOURCE_DIR}/UIX)
-
-include_directories(${CMAKE_SOURCE_DIR}/include/vkcb)
-include_directories(${CMAKE_SOURCE_DIR}/src/vkcb)
 
 set(MSDFGEN_CORE_ONLY OFF)
 set(MSDFGEN_BUILD_STANDALONE OFF)
@@ -67,6 +61,7 @@ set(LIBS
     vulkan
     SDL2
     msdf-atlas-gen
+    ${FREETYPE_LIBRARIES}
 )
 
 execute_process(

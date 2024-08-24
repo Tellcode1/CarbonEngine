@@ -1,11 +1,11 @@
-#include "epichelperlib.hpp"
+#include "../../include/vkcb/epichelperlib.hpp"
 #include <fstream>
 
 // stb loves to kick compilers in the liver so it shouldn't be put in the precompiled header
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb/stb_image.h"
-#include "stb/stb_image_write.h"
+#include "../../external/stb/stb_image.h"
+#include "../../external/stb/stb_image_write.h"
 
 void help::Buffers::CreateBuffer(u64 size, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags, VkBuffer *dstBuffer, VkDeviceMemory *retMem, bool externallyAllocated)
 {
@@ -366,7 +366,7 @@ void help::Images::StageImageTransfer(VkImage dst, void *data, u32 width, u32 he
     const VkCommandBuffer cmd = help::Commands::BeginSingleTimeCommands();
 
     help::Images::TransitionImageLayout(
-        cmd, dst, 1,
+        cmd, dst, 1, VK_IMAGE_ASPECT_COLOR_BIT,
         VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
         0, VK_ACCESS_TRANSFER_WRITE_BIT,
         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT
@@ -381,6 +381,13 @@ void help::Images::StageImageTransfer(VkImage dst, void *data, u32 width, u32 he
     region.imageSubresource.baseArrayLayer = 0;
     region.imageSubresource.mipLevel = 0;
     vkCmdCopyBufferToImage(cmd, stagingBuffer, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+    TransitionImageLayout(
+            cmd, dst, 1, VK_IMAGE_ASPECT_COLOR_BIT,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            0, VK_ACCESS_TRANSFER_WRITE_BIT,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT
+        );
 
     help::Commands::EndSingleTimeCommands(cmd, vctx::TransferQueue);
 
@@ -455,6 +462,7 @@ u8* help::Images::killme(const char *path, u32 *width, u32 *height, VkFormat *ch
 
 void help::Images::TransitionImageLayout(VkCommandBuffer cmd, VkImage image,
 										 u32 mipLevels,
+                                         VkImageAspectFlagBits aspect,
 										 VkImageLayout oldLayout,
 										 VkImageLayout newLayout,
 										 VkAccessFlags srcAccessMask,
@@ -469,7 +477,7 @@ void help::Images::TransitionImageLayout(VkCommandBuffer cmd, VkImage image,
     barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.image = image;
-    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.aspectMask = aspect;
     barrier.subresourceRange.baseMipLevel = 0;
     barrier.subresourceRange.levelCount = mipLevels;
     barrier.subresourceRange.baseArrayLayer = 0;

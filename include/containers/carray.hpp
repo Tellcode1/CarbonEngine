@@ -1,7 +1,7 @@
 #ifndef __C_ARRAY_HPP__
 #define __C_ARRAY_HPP__
 
-#include "defines.h"
+#include "../defines.h"
 #include <string.h>
 
 template <typename T, u64 m_size>

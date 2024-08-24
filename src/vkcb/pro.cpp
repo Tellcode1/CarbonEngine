@@ -1,4 +1,4 @@
-#include "pro.hpp"
+#include "../../include/vkcb/pro.hpp"
 
 typedef unsigned u32;
 typedef unsigned short u16;
@@ -248,9 +248,11 @@ void pro::CreateRenderPass(VkDevice device, RenderPassCreateInfo const *pCreateI
 	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
 	dependency.dstSubpass = 0;
 
+	VkAttachmentDescription depthAttachment{};
+	VkAttachmentReference depthAttachmentRef{};
+
     if (flags & PIPELINE_CREATE_FLAGS_ENABLE_DEPTH_CHECK)
     {
-        VkAttachmentDescription depthAttachment{};
         depthAttachment.format = pCreateInfo->depthBufferFormat;
         depthAttachment.samples = (flags & PIPELINE_CREATE_FLAGS_ENABLE_MULTISAMPLING) ? pCreateInfo->samples : VK_SAMPLE_COUNT_1_BIT;
         depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -260,25 +262,24 @@ void pro::CreateRenderPass(VkDevice device, RenderPassCreateInfo const *pCreateI
         depthAttachment.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
         depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-        VkAttachmentReference depthAttachmentRef{};
         depthAttachmentRef.attachment = curr_attachment;
         depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
         subpass.pDepthStencilAttachment = &depthAttachmentRef;
 
-        dependency.srcStageMask  = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-        dependency.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-        dependency.dstStageMask  = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-        dependency.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        dependency.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        dependency.srcAccessMask = 0;
+        dependency.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
         attachments.push_back(depthAttachment);
 		curr_attachment++;
     }
 
 	VkAttachmentReference colorAttachmentResolveRef{};
+	VkAttachmentDescription colorAttachmentResolve{};
     if (flags & PIPELINE_CREATE_FLAGS_ENABLE_MULTISAMPLING)
     {
-        VkAttachmentDescription colorAttachmentResolve{};
         colorAttachmentResolve.format = pCreateInfo->format;
         colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
         colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;

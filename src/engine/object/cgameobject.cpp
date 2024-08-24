@@ -1,10 +1,11 @@
-#include "engine/object/cgameobject.hpp"
-#include "epichelperlib.hpp"
+#include "../../../include/engine/object/cgameobject.hpp"
+#include "../../../include/vkcb/epichelperlib.hpp"
 
 csquare_t *ccreate_square()
 {
     csquare_t *new_square = (csquare_t *)malloc(sizeof(csquare_t));
-    memset(new_square, 0, sizeof(csquare_t));
+    // memset(new_square, 0, sizeof(csquare_t));
+    *new_square = {};
 
     help::Buffers::CreateBuffer(
         sizeof(csquare_t::vertices), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
@@ -27,5 +28,6 @@ void crender_square(csquare_t *shape, VkCommandBuffer buf) {
 }
 
 cpipeline_t *ccreate_pipeline() {
-    
+    // FIXME: Implement
+    return nullptr;
 }

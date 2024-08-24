@@ -1,8 +1,7 @@
 #ifndef __C_LINKED_LIST_HPP__
 #define __C_LINKED_LIST_HPP__
 
-#include "defines.h"
-
+#include "../defines.h"
 /*
     Just a whole lot of shifting first and last
 */

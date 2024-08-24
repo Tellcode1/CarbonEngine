@@ -4,7 +4,7 @@ layout(location=0) out
 vec4 outColor;
 
 layout(location=0) in
-vec2 texCoords;
+vec2 f_uv;
 
 layout (location=1) in flat
 float scale;// pxRange * scale
@@ -18,7 +18,7 @@ float median(float r, float g, float b) {
 
 float screen_px_range() {
     vec2 unit_range = vec2(scale)/vec2(textureSize(bitmap, 0));
-    vec2 screen_tex_size = vec2(1.0)/fwidth(texCoords);
+    vec2 screen_tex_size = vec2(1.0)/fwidth(f_uv);
     return max(0.5 * dot(unit_range, screen_tex_size), 1.0);
 }
 
@@ -27,7 +27,7 @@ float contour(in float d, in float w) {
 }
 
 void main() {
-    vec4 samp = texture(bitmap, texCoords).rgba;
+    vec4 samp = texture(bitmap, f_uv).rgba;
     float msdf_dist = median(samp.r, samp.g, samp.b);    
     float distance = mix(msdf_dist, samp.a, 0.5);
 

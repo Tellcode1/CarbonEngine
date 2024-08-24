@@ -1,7 +1,7 @@
 #ifndef __C_GAMEOBJECT_HPP__
 #define __C_GAMEOBJECT_HPP__
 
-#include "stdafx.hpp"
+#include "../../stdafx.hpp"
 
 struct cgameobject_t;
 struct csprite_t;

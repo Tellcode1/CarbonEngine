@@ -66,7 +66,7 @@ namespace help
 
         // incomplete = true = the command will be recorded to the active command buffer
         void TransitionImageLayout(
-            VkCommandBuffer cmd, VkImage image, u32 mipLevels,
+            VkCommandBuffer cmd, VkImage image, u32 mipLevels, VkImageAspectFlagBits aspect,
             VkImageLayout oldLayout, VkImageLayout newLayout,
             VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
             VkPipelineStageFlags sourceStage, VkPipelineStageFlags destinationStage

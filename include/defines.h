@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <cstring>
 
+// Reddit doin more programmin than me :>
+
 // OS defs
 #if defined(_WIN32) || defined(_WIN64) || defined(__WIN32__) || defined(__TOS_WIN__) || defined(__WINDOWS__)
 #    define CB_OS_WINDOWS
@@ -148,7 +150,7 @@ typedef int32_t i32;
 typedef int16_t i16;
 typedef int8_t i8;
 
-// These aren't guranteed to be 32/64 bits.
+// These aren't guranteed to be 32/64 bits. (I think so, I may be wrong)
 typedef float f32;
 typedef double f64;
 
@@ -159,12 +161,12 @@ constexpr static inline u32 reverse_find(const char *begin, const char *end, cha
             return iterator - begin;
         iterator--;
     }
-    return (u32)-1;
+    return UINT32_MAX;
 }
 
 constexpr static const char *get_filename(const char *path) {
     u32 pos = reverse_find(path, path + strlen(path), '/');
-    if (pos != (u32)-1)
+    if (pos != UINT32_MAX)
         return path + pos + 1;
     return path;
 }

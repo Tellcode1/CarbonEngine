@@ -1,7 +1,7 @@
 #ifndef __CARRAY_HPP__
 #define __CARRAY_HPP__
 
-#include "defines.h"
+#include "../defines.h"
 #include <string.h>
 
 template<typename T>
@@ -42,6 +42,14 @@ struct cvector
 
     constexpr CARBON_FORCE_INLINE bool empty() const {
         return m_count == 0;
+    }
+
+    T &front() const noexcept {
+        return m_data[0];
+    }
+
+    T &back() const noexcept {
+        return m_data[m_count];
     }
 
     constexpr void reallocate(u32 new_capacity) {
@@ -90,7 +98,7 @@ struct cvector
     constexpr void push_set(const T *elements, int count) {
         int required_capacity = m_count + count;
         if (required_capacity >= max_capacity())
-            reallocate(max(required_capacity, m_capacity * 2));
+            reallocate(required_capacity);
         memcpy(&m_data[m_count], elements, count * sizeof(T));
         m_count += count;
     }
@@ -147,7 +155,7 @@ struct cvector
     }
 
     constexpr CARBON_FORCE_INLINE void clear() {
-        if (m_data)
+        if (m_data && m_count > 0)
             free(m_data);
         m_data = nullptr;
         m_count = 0;
@@ -160,7 +168,7 @@ struct cvector
 
     constexpr CARBON_FORCE_INLINE void resize(u32 new_size) {
         if (new_size == 0)
-            LOG_ERROR("Request array resize to 0");
+            LOG_ERROR("Request array resize to 0. Use clear() instead.");
 
         T *new_data = (T *)malloc(sizeof(T) * new_size);
 

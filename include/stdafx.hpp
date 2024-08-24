@@ -7,44 +7,7 @@
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 
-#include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
-
-using glm::vec2;
-using glm::ivec2;
-using glm::uvec2;
-using glm::dvec2;
-
-using glm::vec3;
-using glm::ivec3;
-using glm::uvec3;
-using glm::dvec3;
-
-using glm::vec4;
-using glm::ivec4;
-using glm::uvec4;
-using glm::dvec4;
-
-typedef glm::vec<2, i16> i16vec2;
-typedef glm::vec<3, i16> i16vec3;
-typedef glm::vec<4, i16> i16vec4;
-
-typedef glm::vec<2, i8> i8vec2;
-typedef glm::vec<3, i8> i8vec3;
-typedef glm::vec<4, i8> i8vec4;
-
-// A vec2 of u16's, etc.
-typedef glm::vec<2, u16> u16vec2;
-typedef glm::vec<3, u16> u16vec3;
-typedef glm::vec<4, u16> u16vec4;
-
-typedef glm::vec<2, u8> u8vec2;
-typedef glm::vec<3, u8> u8vec3;
-typedef glm::vec<4, u8> u8vec4;
-
-using glm::mat2;
-using glm::mat3;
 using glm::mat4;
 
 #include <iostream>

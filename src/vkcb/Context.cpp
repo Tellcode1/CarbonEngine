@@ -1,4 +1,4 @@
-#include "Context.hpp"
+#include "../../include/vkcb/Context.hpp"
 #include <set>
 
 VkInstance 							 Context::instance;
@@ -146,7 +146,7 @@ VkInstance CreateInstance(const char* title, cvector<cstring_view>& availableExt
 			else
 				LOG_DEBUG("Debug messenger successfully set up.");
 		}
-		else if (!_CreateDebugUtilsMessenger)
+		else
 			LOG_ERROR("vkCreateDebugUtilsMessengerEXT proc address not found");
 	}
 	#endif
