@@ -1,7 +1,9 @@
 #include "../include/cengine.hpp"
 #include "../include/vkcb/Renderer.hpp"
-#include "../include/engine/ctext/ctext.hpp"
+#include "../include/ctext.hpp"
 #include "../include/cinput.hpp"
+
+#include <SDL2/SDL.h>
 
 u8 cengine::current_frame = 0;
 f64 cengine::delta_time = 0.0;
@@ -20,7 +22,7 @@ void cengine::initialize(const renderer_config *conf) {
 }
 
 void cengine::consume_event(const SDL_Event *event) {
-    if ((event->type == SDL_QUIT) || (event->type == SDL_KEYDOWN && event->key.keysym.scancode == SDL_SCANCODE_ESCAPE))
+    if ((event->type == SDL_QUIT) || ((event->type == SDL_WINDOWEVENT) && (event->window.event == SDL_WINDOWEVENT_CLOSE)) || (event->type == SDL_KEYDOWN && event->key.keysym.scancode == SDL_SCANCODE_ESCAPE))
         application_running = false;
 
     if (event->type == SDL_WINDOWEVENT && (event->window.event == SDL_WINDOWEVENT_RESIZED || event->window.event == SDL_WINDOWEVENT_SIZE_CHANGED))
@@ -30,16 +32,19 @@ void cengine::consume_event(const SDL_Event *event) {
 void cengine::update() {
     time = (f64)SDL_GetTicks64() * (1.0 / 1000.0);
 
-    u64 curr_time = SDL_GetPerformanceCounter();
-    delta_time = fdiv(curr_time - last_frame_time, SDL_GetPerformanceFrequency());
-    last_frame_time = curr_time;
+    // This fixes really large values of delta time for the first frame.
+    static u64 currtime = SDL_GetPerformanceCounter();
+    last_frame_time = currtime;
+    currtime = SDL_GetPerformanceCounter();
+    delta_time = fdiv(currtime - last_frame_time, SDL_GetPerformanceFrequency());
 
-    if (static_cast<double>(SDL_GetTicks64() - fixed_frame_start) >= fixed_frame_delay) {
+    if (static_cast<double>(SDL_GetTicks64() - fixed_frame_start) >= FIXED_TICK_RATE) {
         // fixed update
         fixed_frame_start = SDL_GetTicks64();
     }
 
     cinput::update();
+    camera.update();
 }
 
 void cengine::begin_frame() {

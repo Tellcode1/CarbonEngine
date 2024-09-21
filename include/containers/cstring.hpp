@@ -73,7 +73,7 @@ struct cstring_view {
     constexpr cstring_view substr(u32 pos, u32 len) const {
         if (pos > m_count)
             LOG_ERROR("Trying to substr at pos %u >= size %u", pos, m_count);
-        return cstring_view(m_data + pos, std::min(len, m_count - pos));
+        return cstring_view(m_data + pos, cmmin(len, m_count - pos));
     }
 
     constexpr inline u32 find(const unicode &c, u32 begin = 0) const {
@@ -264,29 +264,16 @@ struct cstring_base : public cvector<char_type> {
         return npos;
     }
 
-    // constexpr inline u32 rfind(const unicode &c, u32 begin = npos) const {
-    //     if (begin != npos && (this->begin() + begin) >= this->end())
-    //         return npos;
-
-    //     u32 i = (begin == npos) ? this->size() - 1 : begin;
-    //     for (auto iter = this->begin() + i; iter >= this->begin(); iter--) {
-    //         if (*iter == c)
-    //             return iter - this->begin();
-    //         if (iter == this->begin()) break;
-    //     }
-    //     return npos;
-    // }
-
     constexpr inline u32 rfind(const char_type &c) const {
         if (m_count == 0)
             return npos;
 
-        u32 i = m_count - 1;
-        for (auto iter = end()-1; iter != begin()-1; iter--) {
+        auto iter = end()-1;
+        for (u32 i = m_count - 1; iter != begin()-1; iter--, i--) {
             if ((*iter) == c)
                 return i;
-            i--;
         }
+
         return npos;
     }
 
@@ -310,10 +297,6 @@ struct cstring_base : public cvector<char_type> {
 
 typedef cstring_base<unicode> cstring;
 typedef cstring_base<char> crawstring;
-
-// inline cstring_view::operator cstring_base<unicode>() {
-//     return cstring_base(m_data, m_count);
-// }
 
 constexpr cstring_view &cstring_view::operator=(const cstring_base<unicode> &other)
 {

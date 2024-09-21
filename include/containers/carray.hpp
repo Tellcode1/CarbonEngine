@@ -2,20 +2,20 @@
 #define __C_ARRAY_HPP__
 
 #include "../defines.h"
-#include <string.h>
+#include <cstring>
 
-template <typename T, u64 m_size>
+template <typename T, u32 m_size>
 struct carray
 {
     private:
     T *m_data;
 
     public:
-    CARBON_FORCE_INLINE u64 size() const {
+    CARBON_FORCE_INLINE u32 size() const {
         return m_size;
     }
 
-    constexpr CARBON_FORCE_INLINE u64 length() const {
+    constexpr CARBON_FORCE_INLINE u32 length() const {
         return m_size;
     }
 
@@ -24,6 +24,8 @@ struct carray
     }
 
     CARBON_FORCE_INLINE T &at(u32 index) const {
+        if (index >= m_size)
+            LOG_ERROR("out of range at() in carray");
         return m_data[index];
     }
 

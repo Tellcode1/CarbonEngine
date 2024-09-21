@@ -15,10 +15,17 @@ compile_shader(){
 
 mkdir -p $1/Shaders
 mkdir -p $1/Shaders/ctext
+mkdir -p $1/Shaders/Generic
 
 echo Shader Compilation start
     compile_shader $1/Shaders/vert.spv ./vert.glsl vert
     compile_shader $1/Shaders/frag.spv ./frag.glsl frag
+
+    compile_shader $1/Shaders/shadow.vert.spv ./shadow.glsl.vert vert
+    compile_shader $1/Shaders/shadow.frag.spv ./shadow.glsl.frag frag
+
+    compile_shader $1/Shaders/Generic/Unlit.vert.spv ./Generic/Unlit.vert vert
+    compile_shader $1/Shaders/Generic/Unlit.frag.spv ./Generic/Unlit.frag frag
 
     compile_shader $1/Shaders/vert.text.spv ./vert.text.glsl vert
     compile_shader $1/Shaders/comp.text.spv ./text.comp      comp

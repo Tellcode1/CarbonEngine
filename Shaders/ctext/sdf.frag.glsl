@@ -1,3 +1,5 @@
+// output: Shaders/ctext/sdf.frag.spv stage: frag name: ctext/sdf
+
 #version 450
 
 layout(location=0) out
@@ -22,5 +24,7 @@ void main() {
     float contour_width = (sqrt(0.5)) / screen_px_range(); // u can adjust this a little
     float distance = texture(bitmap, texCoords).r;
     float alpha = smoothstep(0.5 - contour_width, 0.5 + contour_width, distance);
+    if (alpha <= 0.1)
+        discard;
     outColor = vec4(vec3(1.0), alpha);
 }

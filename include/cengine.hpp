@@ -1,6 +1,7 @@
 #ifndef __C_ENGINE_HPP__
 #define __C_ENGINE_HPP__
 
+#include "vkcb/Context.hpp"
 #include "defines.h"
 
 struct renderer_config;
@@ -43,7 +44,7 @@ public:
     }
 
     constexpr static u32 FIXED_FRAME_RATE = 30;
-    constexpr static f64 fixed_frame_delay = 1000.0 / (f64)FIXED_FRAME_RATE;
+    constexpr static f64 FIXED_TICK_RATE = 1000.0 / (f64)FIXED_FRAME_RATE; // 1000 milliseconds
 
     static void initialize(const renderer_config *conf);
     static void consume_event(const SDL_Event *event);

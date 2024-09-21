@@ -1,15 +1,30 @@
 #ifndef __CONTEXT_HPP__
 #define __CONTEXT_HPP__
 
-#include "vkcbstdafx.hpp"
-#include "containers/cvector.hpp"
-#include "containers/cstring.hpp"
+struct ctx;
 
-#include <vector>
+#include "stdafx.h"
+#include "vkcb/stdafx.h"
+#include "../../external/volk/volk.h"
+#include "../containers/cvector.hpp"
+#include "../containers/cstring.hpp"
+
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_vulkan.h>
+
+struct ctx {
+	static cvector<cstring_view> availableDeviceExtensions;
+	static cvector<cstring_view> availableInstanceExtensions;
+	static VkPhysicalDeviceFeatures availableFeatures;
+	
+	static void Initialize(const char* title, u32 windowWidth, u32 windowHeight);
+};
+
 
 const cvector<const char*> ValidationLayers = {  
 	"VK_LAYER_KHRONOS_validation",
 };
+
 const cvector<const char*> RequiredInstanceExtensions = {
 	VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
 	VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
@@ -30,7 +45,6 @@ const cvector<const char*> RequiredDeviceExtensions = {
 // ! FIND A WAY TO CHECK IF FEATURE IS AVAILABLE
 
 constexpr static VkPhysicalDeviceFeatures WantedFeatures = {
-	.multiDrawIndirect = VK_TRUE,
 	.samplerAnisotropy = VK_TRUE,
 };
 
@@ -85,28 +99,5 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessengerCallback(
 
     return VK_FALSE;
 }
-
-struct Context {
-    static VkInstance instance;
-    static VkDevice device;
-    static VkPhysicalDevice physDevice;
-    static VkSurfaceKHR surface;
-    static SDL_Window* window;
-
-	static VkDebugUtilsMessengerEXT debugMessenger;
-
-	static cvector<cstring_view> availableDeviceExtensions;
-	static cvector<cstring_view> availableInstanceExtensions;
-	static VkPhysicalDeviceFeatures availableFeatures;
-
-	static void Initialize(const char* title, u32 windowWidth, u32 windowHeight);
-};
-using ctx = Context; // ctx is much easier to use
-
-static VkInstance& instance = ctx::instance;
-static VkDevice& device = ctx::device;
-static VkPhysicalDevice& physDevice = ctx::physDevice;
-static VkSurfaceKHR& surface = ctx::surface;
-static SDL_Window*& window = ctx::window;
 
 #endif

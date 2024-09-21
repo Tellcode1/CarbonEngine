@@ -1,95 +1,87 @@
 #ifndef __C_CAMERA_HPP__
 #define __C_CAMERA_HPP__
 
-#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-
-#include "../stdafx.hpp"
+#include "../stdafx.h"
+#include "../vkcb/stdafx.h"
 #include "../math/math.h"
-#include "../math/vec3.h"
-
-#define test_d3toglm(v) glm::vec3(v.x, v.y, v.z)
+#include "../math/mat.hpp"
+#include "../math/vec3.hpp"
 
 struct ccamera {
     // TODO: move to uniform buffer with data like current app time, delta time, etc.
-    mat4 projection;
-    mat4 view;
+    // To be honest i dont know what delta time is supposed to be
+    // doing on the GPU except for particle simulations but you ought to
+    // use something like push constants for that. Not my fault ;D
+    cm::mat4 projection;
+    cm::mat4 view;
 
-    vec3 position = vec3(0.0f, 0.0f, 3.0f);
-    vec3 front = vec3(0.0f, 0.0f, -1.0f);
-    vec3 up = vec3(0.0f, 1.0f, 0.0f);
-    vec3 right;
-    float yaw = mdeg2rad(-90.0);
-    float pitch = 0.0;
+    cm::vec3 position = cm::vec3(0.0f, 0.0f, 3.0f);
+    cm::vec3 front = cm::vec3(0.0f, 0.0f,  1.0f);
+    cm::vec3 up = cm::vec3(0.0f, 1.0f, 0.0f);
+    cm::vec3 right;
+    f32 yaw = cmdeg2rad(-90.0);
+    f32 pitch = 0.0;
 
-    const float fov;
-    const float near_clip = 0.1f;
-    const float far_clip = 1000.0f;
+    const f32 fov;
+    const f32 near_clip = 0.1f;
+    const f32 far_clip = 1000.0f;
 
-    ccamera(float FOV = mdeg2rad(45.0))
-        : fov(FOV) {
-        update_vectors(true);
-    }
+    ccamera(f32 FOV = cmdeg2rad(90.0))
+        : fov(FOV) {}
 
-    const mat4 get_projection() const {
+    const cm::mat4 get_projection() const {
         return projection;
     }
 
-    const mat4 get_view() const {
+    const cm::mat4 get_view() const {
         return view;
     }
 
-    inline const vec3 &get_up() const {
+    inline const cm::vec3 &get_up() const {
         return up;
     }
 
-    inline const vec3 &get_front() const {
+    inline const cm::vec3 &get_front() const {
         return front;
     }
 
-    inline void rotate(float yaw_, float pitch_) {
-        yaw += mdeg2rad(yaw_);
-        pitch += mdeg2rad(pitch_);
+    inline void rotate(f32 yaw_, f32 pitch_) {
+        yaw += yaw_;
+        pitch -= pitch_;
 
-        // If you're wondering why pitch isn't subtracted, vulkan uses reverse y axis.
-        // I'm too used to vulkan now :<
+        yaw = fmodf(yaw, 360.0f);
 
-        yaw = fmodf(yaw, mdeg2rad(360.0f));
-
-        const float bound = mdeg2rad(89.9f);
-        pitch = mclamp( pitch, -bound, bound );
+        const f32 bound = 89.9f;
+        pitch = cmclamp( pitch, -bound, bound );
     }
 
-    inline void move(const vec3 &amt) {
-        position = v3add(position, v3mul(right, amt.x));
-        position = v3add(position, v3mul(up   , amt.y));
-        position = v3add(position, v3mul(front, amt.z));
+    inline void move(const cm::vec3 &amt) {
+        position += cm::mul(right, amt.x);
+        position += cm::mul(up   , amt.y);
+        position += cm::mul(front, amt.z);
     }
 
-    inline void set_position(const vec3 &pos) {
+    inline void set_position(const cm::vec3 &pos) {
         position = pos;
     }
 
 // private:
-    void update_vectors(bool first) {
-        vec3 new_ront;
-        new_ront.x = cosf(yaw) * cosf(pitch);
-        new_ront.y = sinf(pitch);
-        new_ront.z = sinf(yaw) * cosf(pitch);
+    void update() {
+        cm::vec3 new_front;
+        new_front.x = cosf(cmdeg2rad(yaw)) * cosf(cmdeg2rad(pitch));
+        new_front.y = sinf(cmdeg2rad(pitch));
+        new_front.z = sinf(cmdeg2rad(yaw)) * cosf(cmdeg2rad(pitch));
 
-        const vec3 world_up = vec3(0.0f, 1.0f, 0.0f);
+        const cm::vec3 world_up = cm::vec3(0.0f, 1.0f, 0.0f);
 
-        this->front = v3normalize(new_ront);
-        this->right = v3normalize(v3cross(this->front, world_up));
-        this->up = v3normalize(v3cross(this->right, this->front));
+        this->front = cm::normalize(new_front);
+        this->right = cm::normalize(cm::cross(this->front, world_up));
+        this->up = cm::normalize(cm::cross(this->right, this->front));
 
-        view = glm::lookAt(test_d3toglm(position), test_d3toglm(position) + test_d3toglm(front), test_d3toglm((up)));
+        view = cm::lookat(position, cm::add(position, front), up);
 
-        if (!first) {
-            const float aspect = (f32)vctx::RenderExtent.width / (f32)vctx::RenderExtent.height;
-            projection = glm::perspective(fov, aspect, near_clip, far_clip);
-        }
+        const f32 aspect = (f32)RenderExtent.width / (f32)RenderExtent.height;
+        projection = cm::perspective(fov, aspect, near_clip, far_clip);
     }
 };
 

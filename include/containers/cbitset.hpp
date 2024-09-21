@@ -2,6 +2,7 @@
 #define __C_BITSET_HPP__
 
 #include "../defines.h"
+#include "../stdafx.h"
 
 template <u32 _size>
 struct cbitset {

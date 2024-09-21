@@ -1,10 +1,10 @@
 #ifndef __EPIC_HELPER_LIBRARY_HPP__
 #define __EPIC_HELPER_LIBRARY_HPP__
 
-#include "vkcbstdafx.hpp"
+#include "stdafx.h"
 #include "Context.hpp"
 #include "Renderer.hpp"
-#include "containers/cvector.hpp"
+#include "../containers/cvector.hpp"
 
 namespace help
 {
@@ -35,7 +35,7 @@ namespace help
         VkCommandBuffer BeginSingleTimeCommands();
         
         /* WARNING: waitForExecution = false implies you take responsibility of freeing the commandBuffer! */
-        VkResult EndSingleTimeCommands(VkCommandBuffer cmd, VkQueue queue = vctx::GraphicsAndComputeQueue, bool waitForExecution = true);
+        VkResult EndSingleTimeCommands(VkCommandBuffer cmd, VkQueue queue = GraphicsAndComputeQueue, bool waitForExecution = true);
     }
     namespace Images
     {

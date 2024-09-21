@@ -1,3 +1,5 @@
+// output: Shaders/vert.text.spv stage: vert name: ctext/vert
+
 #version 450
 
 layout(location=0) in

@@ -1,35 +1,54 @@
 #include "../../include/vkcb/Context.hpp"
-#include <set>
+#include "../../include/containers/cvector.hpp"
 
-VkInstance 							 Context::instance;
-VkDevice 							 Context::device;
-VkPhysicalDevice 					 Context::physDevice;
-VkSurfaceKHR 				         Context::surface;
-SDL_Window* 				         Context::window;
-VkDebugUtilsMessengerEXT 			 Context::debugMessenger;
-cvector<cstring_view> 			 Context::availableDeviceExtensions;
-cvector<cstring_view> 			 Context::availableInstanceExtensions;
-VkPhysicalDeviceFeatures 			 Context::availableFeatures;
+#include <cassert>
 
-VkSampleCountFlagBits                device_info::MAX_SAMPLES;
-bool 				                 device_info::SUPPORTS_MULTISAMPLING;
-f32 				                 device_info::MAX_ANISOTROPY;
+VkInstance 							 instance = VK_NULL_HANDLE;
+VkDevice 							 device = VK_NULL_HANDLE;
+VkPhysicalDevice 					 physDevice = VK_NULL_HANDLE;
+VkSurfaceKHR 				         surface = VK_NULL_HANDLE;
+struct SDL_Window* 				     window = nullptr;
+VkDebugUtilsMessengerEXT 			 debugMessenger = VK_NULL_HANDLE;
+cvector<cstring_view> 			     ctx::availableDeviceExtensions;
+cvector<cstring_view> 			     ctx::availableInstanceExtensions;
+VkPhysicalDeviceFeatures 			 ctx::availableFeatures;
+
+VkSampleCountFlagBits                MAX_SAMPLES;
+unsigned char 				         SUPPORTS_MULTISAMPLING;
+f32 				                 MAX_ANISOTROPY;
+
+cvector<u32> setify(const cvector<u32> &in) {
+	cvector<u32> ret(in.size());
+	for (const auto &e : in) {
+		bool already_in = false;
+		for (const auto &i : ret)
+			if (e == i)
+				already_in = true;
+		if (!already_in)
+			ret.push_back(e);
+	}
+	return ret;
+}
 
 VkInstance CreateInstance(const char* title, cvector<cstring_view>& availableExtensions) {
+	if (volkInitialize() != VK_SUCCESS) {
+		LOG_AND_ABORT("Volk could not initialize. You probably don't have the vulkan loader installed. I can't do anything about that.");
+	}
+
     VkApplicationInfo appInfo{};
 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	appInfo.applicationVersion = VK_API_VERSION_1_0;
 	appInfo.apiVersion = VK_API_VERSION_1_0;
 	appInfo.pApplicationName = title;
-	appInfo.pEngineName = "Carbon Engine";
+	appInfo.pEngineName = "Carbon";
 	appInfo.engineVersion = 0;
 
 	uint32_t SDLExtensionCount = 0;
-	SDL_Vulkan_GetInstanceExtensions(ctx::window, &SDLExtensionCount, nullptr);
-	const char** SDLExtensions = new const char *[SDLExtensionCount];
-	SDL_Vulkan_GetInstanceExtensions(ctx::window, &SDLExtensionCount, SDLExtensions);
+	SDL_Vulkan_GetInstanceExtensions(window, &SDLExtensionCount, nullptr);
+	cvector<const char*> SDLExtensions(SDLExtensionCount);
+	SDL_Vulkan_GetInstanceExtensions(window, &SDLExtensionCount, SDLExtensions.data());
 
-	cvector<const char*> enabledExtensions;
+	cvector<const char*> enabledExtensions(RequiredInstanceExtensions.size());
 
 	for (const auto& ext : RequiredInstanceExtensions)
 		enabledExtensions.push_back(ext);
@@ -37,12 +56,12 @@ VkInstance CreateInstance(const char* title, cvector<cstring_view>& availableExt
 	// I honestly don't know why the debugger doesn't like it when I copy it over in a loop, sorry.
 	const u32 prevSize = RequiredInstanceExtensions.size();
 	enabledExtensions.resize(enabledExtensions.size() + SDLExtensionCount);
-	memcpy(enabledExtensions.data() + prevSize, SDLExtensions, SDLExtensionCount * sizeof(const char*));
+	memcpy(enabledExtensions.data() + prevSize, SDLExtensions.data(), SDLExtensionCount * sizeof(const char*));
 
 	u32 extensionCount = 0;
 	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
-	VkExtensionProperties *extensions = new VkExtensionProperties[extensionCount];
-	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions);
+	cvector<VkExtensionProperties> extensions(extensionCount);
+	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
 
 	for (u32 i = 0; i < extensionCount; i++) {
 		const char* name = extensions[i].extensionName;
@@ -66,8 +85,8 @@ VkInstance CreateInstance(const char* title, cvector<cstring_view>& availableExt
 	uint32_t layerCount = 0;
 
 	vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
-	VkLayerProperties *layerProperties = new VkLayerProperties[layerCount];
-	vkEnumerateInstanceLayerProperties(&layerCount, layerProperties);
+	cvector<VkLayerProperties> layerProperties(layerCount);
+	vkEnumerateInstanceLayerProperties(&layerCount, layerProperties.data());
 
 	if(ValidationLayers.size() != 0)
 	{
@@ -113,8 +132,6 @@ VkInstance CreateInstance(const char* title, cvector<cstring_view>& availableExt
 		instanceCreateinfo.ppEnabledLayerNames = ValidationLayers.data();
 	}
 
-	delete[] layerProperties;
-	delete[] extensions;
 	#else
 
 	instanceCreateinfo.enabledLayerCount = 0;
@@ -141,7 +158,7 @@ VkInstance CreateInstance(const char* title, cvector<cstring_view>& availableExt
 		auto _CreateDebugUtilsMessenger = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
 
 		if (_CreateDebugUtilsMessenger) {
-			if (_CreateDebugUtilsMessenger(instance, &createInfo, nullptr, &ctx::debugMessenger) != VK_SUCCESS)
+			if (_CreateDebugUtilsMessenger(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS)
 				LOG_ERROR("Debug messenger failed to initialize");
 			else
 				LOG_DEBUG("Debug messenger successfully set up.");
@@ -151,6 +168,7 @@ VkInstance CreateInstance(const char* title, cvector<cstring_view>& availableExt
 	}
 	#endif
 
+	volkLoadInstance(instance);
     return instance;
 }
 
@@ -177,7 +195,7 @@ void PrintDeviceInfo(VkPhysicalDevice device)
 
 	// I think it looks cleaner this way
 	LOG_INFO(
-		"(%s) %s Vulkan API Version %d.%d",
+		"(%s) %s VK API Version %d.%d",
 		deviceTypeStr, properties.deviceName,
 		properties.apiVersion >> 22, (properties.apiVersion >> 12) & 0x3FF
 	);
@@ -189,11 +207,11 @@ VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR surface)
 	vkEnumeratePhysicalDevices(instance, &physDeviceCount, nullptr);
 	
 	if(physDeviceCount == 0) {
-		LOG_AND_ABORT("No physical devices found\n");
+		LOG_AND_ABORT("Huuuhhh??? No physical devices found? Are you running this on a banana???\n");
 	}
 
-	VkPhysicalDevice *physicalDevices = new VkPhysicalDevice[physDeviceCount];
-	vkEnumeratePhysicalDevices(instance, &physDeviceCount, physicalDevices);
+	cvector<VkPhysicalDevice> physicalDevices(physDeviceCount);
+	vkEnumeratePhysicalDevices(instance, &physDeviceCount, physicalDevices.data());
 
 	for(u32 i = 0; i < physDeviceCount; i++) {
 		const auto& device = physicalDevices[i];
@@ -208,8 +226,8 @@ VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR surface)
 
 		uint32_t extensionCount = 0;
 		vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
-		VkExtensionProperties *availableExtensions = new VkExtensionProperties[extensionCount];
-		vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions);
+		cvector<VkExtensionProperties> availableExtensions(extensionCount);
+		vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
 
 		for (const auto& extension : RequiredDeviceExtensions) {
 			bool validated = false;
@@ -224,17 +242,10 @@ VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR surface)
 		}
 
 		if (extensionsAvailable && formatCount > 0 && presentModeCount > 0) {
-			VkPhysicalDevice selected = device; // Need to do this because the physical devices array will be deleted.
-
-			delete[] availableExtensions;
-			delete[] physicalDevices;
-
 			LOG_INFO("Found device!");
-			PrintDeviceInfo(selected);
-			return selected;
+			PrintDeviceInfo(device);
+			return device;
 		}
-
-		delete[] availableExtensions;
 	}
 
 	VkPhysicalDeviceProperties properties;
@@ -242,33 +253,15 @@ VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR surface)
 
 	LOG_ERROR("Could not find an appropriate device. Falling back to device 0: %s\n", properties.deviceName);
 
-	VkPhysicalDevice fallback = physicalDevices[0];
-	PrintDeviceInfo(fallback);
-	delete[] physicalDevices;
-	return fallback;
+	PrintDeviceInfo(physicalDevices[0]);
+	return physicalDevices[0];
 }
 
-void Context::Initialize(const char* title, u32 windowWidth, u32 windowHeight) {
-	ctx::window = SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, windowWidth, windowHeight, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
-	if(ctx::window == nullptr) {
-		std::cout << ANSI_FORMAT_RED << "Window creation failed.\nSDL reports: " << ANSI_FORMAT_RESET << SDL_GetError() << "\n";
-		exit(-1);
-	}
-
-	ctx::instance = CreateInstance(title, ctx::availableInstanceExtensions);
-	assert(ctx::instance != nullptr);
-	
-	if(SDL_Vulkan_CreateSurface(ctx::window, ctx::instance, &ctx::surface) != SDL_TRUE) {
-		std::cout << ANSI_FORMAT_RED << "Surface creation failed.\nSDL reports: " << ANSI_FORMAT_RESET << SDL_GetError() << "\n";
-		exit(-1);
-	}
-	
-	ctx::physDevice = ChoosePhysicalDevice(ctx::instance, ctx::surface);
-
+VkDevice CreateDevice() {
 	u32 queueCount = 0;
-	vkGetPhysicalDeviceQueueFamilyProperties(ctx::physDevice, &queueCount, nullptr);
-	VkQueueFamilyProperties queueFamilies[queueCount];
-	vkGetPhysicalDeviceQueueFamilyProperties(ctx::physDevice, &queueCount, queueFamilies);
+	vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, nullptr);
+	cvector<VkQueueFamilyProperties> queueFamilies(queueCount);
+	vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, queueFamilies.data());
 
 	// Clang loves complaining about these.
 	u32 graphicsFamily = 0, presentFamily = 0, computeFamily = 0, transferFamily = 0;
@@ -279,7 +272,7 @@ void Context::Initialize(const char* title, u32 windowWidth, u32 windowHeight) {
 	u32 i = 0;
 	for (const auto& queueFamily : queueFamilies) {
 		VkBool32 presentSupport = false;
-		vkGetPhysicalDeviceSurfaceSupportKHR(ctx::physDevice, i, ctx::surface, &presentSupport);
+		vkGetPhysicalDeviceSurfaceSupportKHR(physDevice, i, surface, &presentSupport);
 	
 		if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
 			graphicsFamily = i;
@@ -303,8 +296,8 @@ void Context::Initialize(const char* title, u32 windowWidth, u32 windowHeight) {
 		i++;
 	}
 	
-	const std::set<u32> uniqueQueueFamilies = {graphicsFamily, presentFamily, computeFamily, transferFamily};
-	VkDeviceQueueCreateInfo *queueCreateInfos = new VkDeviceQueueCreateInfo[uniqueQueueFamilies.size()];
+	const cvector<u32> uniqueQueueFamilies = setify({graphicsFamily, presentFamily, computeFamily, transferFamily});
+	const cvector<VkDeviceQueueCreateInfo> queueCreateInfos(uniqueQueueFamilies.size());
 
 	constexpr float queuePriority = 1.0f;
 
@@ -320,12 +313,12 @@ void Context::Initialize(const char* title, u32 windowWidth, u32 windowHeight) {
 		j++;
 	}
 
-	const char** enabledExtensions = new const char*[array_len(WantedDeviceExtensions) + RequiredDeviceExtensions.size()];
+	cvector<const char*> enabledExtensions(array_len(WantedDeviceExtensions) + RequiredDeviceExtensions.size());
 
 	u32 extensionCount;
-	vkEnumerateDeviceExtensionProperties(ctx::physDevice, nullptr, &extensionCount, nullptr);
-	VkExtensionProperties *extensions = new VkExtensionProperties[extensionCount];
-	vkEnumerateDeviceExtensionProperties(ctx::physDevice, nullptr, &extensionCount, extensions);
+	vkEnumerateDeviceExtensionProperties(physDevice, nullptr, &extensionCount, nullptr);
+	cvector<VkExtensionProperties> extensions(extensionCount);
+	vkEnumerateDeviceExtensionProperties(physDevice, nullptr, &extensionCount, extensions.data());
 
 	for(u32 i = 0; i < extensionCount; i++)
 		ctx::availableDeviceExtensions.push_back((unicode *)extensions[i].extensionName);
@@ -354,46 +347,64 @@ void Context::Initialize(const char* title, u32 windowWidth, u32 windowHeight) {
 	}
 
 	VkPhysicalDeviceFeatures availableFeatures{};
-	vkGetPhysicalDeviceFeatures(ctx::physDevice, &availableFeatures);
+	vkGetPhysicalDeviceFeatures(physDevice, &availableFeatures);
 
-	ctx::availableFeatures = availableFeatures;
+	availableFeatures = availableFeatures;
 
 	VkDeviceCreateInfo deviceCreateInfo{};
 	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 	deviceCreateInfo.queueCreateInfoCount = uniqueQueueFamilies.size();
-	deviceCreateInfo.pQueueCreateInfos = queueCreateInfos;
+	deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
 	deviceCreateInfo.enabledExtensionCount = enabledIterator;
-	deviceCreateInfo.ppEnabledExtensionNames = enabledExtensions;
+	deviceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
 	deviceCreateInfo.pEnabledFeatures = &WantedFeatures;
 
-	if (vkCreateDevice(ctx::physDevice, &deviceCreateInfo, nullptr, &ctx::device) != VK_SUCCESS) {
+	if (vkCreateDevice(physDevice, &deviceCreateInfo, nullptr, &device) != VK_SUCCESS) {
 		LOG_AND_ABORT("Failed to create device");
 	}
 
-	VkPhysicalDeviceProperties props;
-	vkGetPhysicalDeviceProperties(ctx::physDevice, &props);
+	return device;
+}
 
-	device_info::MAX_ANISOTROPY = props.limits.maxSamplerAnisotropy;
-	device_info::SUPPORTS_MULTISAMPLING = true;
+void ctx::Initialize(const char* title, u32 windowWidth, u32 windowHeight) {
+	window = SDL_CreateWindow(title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, windowWidth, windowHeight, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
+	cassert(window != NULL);
+
+	instance = CreateInstance(title, ctx::availableInstanceExtensions);
+	cassert(instance != NULL);
+	
+	if(SDL_Vulkan_CreateSurface(window, instance, &surface) != SDL_TRUE) {
+		LOG_AND_ABORT("Surface creation failed.\nSDL reports: %s", SDL_GetError());
+	}
+	
+	physDevice = ChoosePhysicalDevice(instance, surface);
+
+	device = CreateDevice();
+	cassert(device != NULL);
+
+	volkLoadDevice(device);
+
+	VkPhysicalDeviceProperties props;
+	vkGetPhysicalDeviceProperties(physDevice, &props);
+
+	MAX_ANISOTROPY = props.limits.maxSamplerAnisotropy;
+	SUPPORTS_MULTISAMPLING = true;
 
 	const VkSampleCountFlags samples = props.limits.framebufferColorSampleCounts;
     if (samples & VK_SAMPLE_COUNT_64_BIT)
-		device_info::MAX_SAMPLES = VK_SAMPLE_COUNT_64_BIT;
+		MAX_SAMPLES = VK_SAMPLE_COUNT_64_BIT;
     else if (samples & VK_SAMPLE_COUNT_32_BIT)
-		device_info::MAX_SAMPLES = VK_SAMPLE_COUNT_32_BIT;
+		MAX_SAMPLES = VK_SAMPLE_COUNT_32_BIT;
     else if (samples & VK_SAMPLE_COUNT_16_BIT)
-		device_info::MAX_SAMPLES = VK_SAMPLE_COUNT_16_BIT;
+		MAX_SAMPLES = VK_SAMPLE_COUNT_16_BIT;
     else if (samples & VK_SAMPLE_COUNT_8_BIT)
-		device_info::MAX_SAMPLES = VK_SAMPLE_COUNT_8_BIT;
+		MAX_SAMPLES = VK_SAMPLE_COUNT_8_BIT;
     else if (samples & VK_SAMPLE_COUNT_4_BIT)
-		device_info::MAX_SAMPLES = VK_SAMPLE_COUNT_4_BIT;
+		MAX_SAMPLES = VK_SAMPLE_COUNT_4_BIT;
     else if (samples & VK_SAMPLE_COUNT_2_BIT)
-		device_info::MAX_SAMPLES = VK_SAMPLE_COUNT_2_BIT;
+		MAX_SAMPLES = VK_SAMPLE_COUNT_2_BIT;
 	else {
-		device_info::MAX_SAMPLES = VK_SAMPLE_COUNT_1_BIT;
-		device_info::SUPPORTS_MULTISAMPLING = false;
+		MAX_SAMPLES = VK_SAMPLE_COUNT_1_BIT;
+		SUPPORTS_MULTISAMPLING = false;
 	}
-
-	delete[] queueCreateInfos;
-	delete[] enabledExtensions;
 }

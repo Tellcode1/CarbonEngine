@@ -1,28 +1,30 @@
 #include "../../include/vkcb/Renderer.hpp"
-#include "../../include/engine/ctext/ctext.hpp"
+#include "../../include/ctext.hpp"
 
-#include "../../include/stdafx.hpp"
-#include "../../include/vkcb/pro.hpp"
-#include "../../include/vkcb/Bootstrap.hpp"
+#include "../../include/stdafx.h"
+#include "../../include/vkcb/cvk.hpp"
 #include "../../include/vkcb/epichelperlib.hpp"
 
-VkFormat VulkanContextSingleton::SwapChainImageFormat;
-VkColorSpaceKHR VulkanContextSingleton::SwapChainColorSpace;
-u32 VulkanContextSingleton::SwapChainImageCount = 0;
-VkRenderPass VulkanContextSingleton::GlobalRenderPass = VK_NULL_HANDLE;
-VkExtent2D VulkanContextSingleton::RenderExtent = { 0, 0 };
-u32 VulkanContextSingleton::GraphicsFamilyIndex = 0;
-u32 VulkanContextSingleton::PresentFamilyIndex = 0;
-u32 VulkanContextSingleton::ComputeFamilyIndex = 0;
-u32 VulkanContextSingleton::TransferQueueIndex = 0;
-u32 VulkanContextSingleton::GraphicsAndComputeFamilyIndex = 0;
-VkQueue VulkanContextSingleton::GraphicsQueue = VK_NULL_HANDLE;
-VkQueue VulkanContextSingleton::GraphicsAndComputeQueue = VK_NULL_HANDLE;
-VkQueue VulkanContextSingleton::PresentQueue = VK_NULL_HANDLE;
-VkQueue VulkanContextSingleton::ComputeQueue = VK_NULL_HANDLE;
-VkQueue VulkanContextSingleton::TransferQueue = VK_NULL_HANDLE;
-csignal VulkanContextSingleton::OnWindowResized;
-VkSampleCountFlagBits VulkanContextSingleton::Samples = VK_SAMPLE_COUNT_1_BIT;
+#include "../../include/containers/csignal.hpp"
+
+VkFormat SwapChainImageFormat;
+VkColorSpaceKHR SwapChainColorSpace;
+u32 SwapChainImageCount = 0;
+VkRenderPass GlobalRenderPass = VK_NULL_HANDLE;
+// VkRenderPass ShadowPass = VK_NULL_HANDLE;
+VkExtent2D RenderExtent = { 0, 0 };
+u32 GraphicsFamilyIndex = 0;
+u32 PresentFamilyIndex = 0;
+u32 ComputeFamilyIndex = 0;
+u32 TransferQueueIndex = 0;
+u32 GraphicsAndComputeFamilyIndex = 0;
+VkQueue GraphicsQueue = VK_NULL_HANDLE;
+VkQueue GraphicsAndComputeQueue = VK_NULL_HANDLE;
+VkQueue PresentQueue = VK_NULL_HANDLE;
+VkQueue ComputeQueue = VK_NULL_HANDLE;
+VkQueue TransferQueue = VK_NULL_HANDLE;
+csignal OnWindowResized;
+VkSampleCountFlagBits Samples = VK_SAMPLE_COUNT_1_BIT;
 
 VkSwapchainKHR Renderer::swapchain = VK_NULL_HANDLE;
 u32 Renderer::attachment_count = 1;
@@ -40,32 +42,24 @@ VkDeviceMemory Renderer::color_image_memory = VK_NULL_HANDLE;
 VkImageView Renderer::color_image_view = VK_NULL_HANDLE;
 
 VkFormat Renderer::depth_buffer_format = VK_FORMAT_UNDEFINED;
-VkImage Renderer::depth_image = VK_NULL_HANDLE;
-VkImageView Renderer::depth_image_view = VK_NULL_HANDLE;
-VkDeviceMemory Renderer::depth_image_memory = VK_NULL_HANDLE;
 
-ccamera camera(glm::radians(45.0f));
+ccamera camera(cmdeg2rad(45.0f));
 
 void Renderer::initialize(const renderer_config *conf) {
     Renderer::empty_array = calloc(1, 256);
     memcpy(&config, conf, sizeof(renderer_config));
 
-    SDL_PumpEvents();
-    i32 w, h;
-    SDL_Vulkan_GetDrawableSize(window, &w, &h);
-    vctx::RenderExtent = { (u32)w, (u32)h };
-
     /* Initialize graphics singleton */
     {
-        if (!help::Images::GetSupportedFormat(device, physDevice, surface, &vctx::SwapChainImageFormat, &vctx::SwapChainColorSpace)) {
+        if (!help::Images::GetSupportedFormat(device, physDevice, surface, &SwapChainImageFormat, &SwapChainColorSpace)) {
             LOG_AND_ABORT("No supported format for display.");
         }
-        vctx::SwapChainImageCount = help::Images::GetImageCount(physDevice, surface);
+        SwapChainImageCount = help::Images::GetImageCount(physDevice, surface);
 
         u32 queueCount = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, nullptr);
-        VkQueueFamilyProperties *queueFamilies = new VkQueueFamilyProperties[queueCount];
-        vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, queueFamilies);
+        cvector<VkQueueFamilyProperties> queueFamilies(queueCount);
+        vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, queueFamilies.data());
 
         u32 graphicsFamily = 0, graphicsAndComputeFamily = 0, presentFamily = 0, computeFamily = 0, transferFamily = 0;
         bool foundGraphicsFamily = false, foundGraphicsAndComputeFamily = false, foundPresentFamily = false, foundComputeFamily = false, foundTransferFamily = false;
@@ -102,77 +96,108 @@ void Renderer::initialize(const renderer_config *conf) {
             i++;
         }
 
-        delete[] queueFamilies;
+        GraphicsFamilyIndex = graphicsFamily;
+        ComputeFamilyIndex = computeFamily;
+        TransferQueueIndex = transferFamily;
+        PresentFamilyIndex = presentFamily;
+        GraphicsAndComputeFamilyIndex = graphicsAndComputeFamily;
 
-        vctx::GraphicsFamilyIndex = graphicsFamily;
-        vctx::ComputeFamilyIndex = computeFamily;
-        vctx::TransferQueueIndex = transferFamily;
-        vctx::PresentFamilyIndex = presentFamily;
-        vctx::GraphicsAndComputeFamilyIndex = graphicsAndComputeFamily;
-
-        vkGetDeviceQueue(device, vctx::GraphicsFamilyIndex, 0, &vctx::GraphicsQueue);
-        vkGetDeviceQueue(device, vctx::ComputeFamilyIndex, 0, &vctx::ComputeQueue);
-        vkGetDeviceQueue(device, vctx::TransferQueueIndex, 0, &vctx::TransferQueue);
-        vkGetDeviceQueue(device, vctx::PresentFamilyIndex, 0, &vctx::PresentQueue);
-        vkGetDeviceQueue(device, vctx::GraphicsAndComputeFamilyIndex, 0, &vctx::GraphicsAndComputeQueue);
+        vkGetDeviceQueue(device, GraphicsFamilyIndex, 0, &GraphicsQueue);
+        vkGetDeviceQueue(device, ComputeFamilyIndex, 0, &ComputeQueue);
+        vkGetDeviceQueue(device, TransferQueueIndex, 0, &TransferQueue);
+        vkGetDeviceQueue(device, PresentFamilyIndex, 0, &PresentQueue);
+        vkGetDeviceQueue(device, GraphicsAndComputeFamilyIndex, 0, &GraphicsAndComputeQueue);
     }
 
-    pro::SwapchainCreateInfo scio{};
-    scio.extent = vctx::RenderExtent;
-    scio.ePresentMode = config.present_mode;
-    scio.physDevice = physDevice;
-    scio.surface = surface;
-    scio.format = vctx::SwapChainImageFormat;
-    scio.eColorSpace = vctx::SwapChainColorSpace;
-    scio.requestedImageCount = vctx::SwapChainImageCount;
-    pro::CreateSwapChain(device, &scio, &swapchain);
+    RenderExtent.width = conf->window_size.width;
+    RenderExtent.height = conf->window_size.height;
+
+    cvk_swapchain_create_info scio{};
+    scio.extent = RenderExtent;
+    scio.present_mode = config.present_mode;
+    scio.format = SwapChainImageFormat;
+    scio.color_space = SwapChainColorSpace;
+    scio.image_count = SwapChainImageCount;
+    cvk_create_swapchain(device, &scio, &swapchain);
 
     const VkSampleCountFlagBits samples = config.multisampling_enable ? config.samples : VK_SAMPLE_COUNT_1_BIT;
-    vctx::Samples = config.samples;
-
-    PipelineCreateFlags renderpass_create_flags = 0;
+    Samples = samples;
 
     if (config.multisampling_enable) {
-        renderpass_create_flags |= PIPELINE_CREATE_FLAGS_ENABLE_MULTISAMPLING;
+        cvk_flag_register |= CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING;
         attachment_count++;
     }
-    if (config.depth_buffer_enable) {
-        renderpass_create_flags |= PIPELINE_CREATE_FLAGS_ENABLE_DEPTH_CHECK;
-        attachment_count++;
-    }
+    cvk_flag_register |= CVK_PIPELINE_FLAGS_FORCE_DEPTH_CHECK;
+    cvk_flag_register |= CVK_PIPELINE_FLAGS_FORCE_CULLING;
+    attachment_count++;
 
     VkCommandPoolCreateInfo cmdPoolCreateInfo{};
 	cmdPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    cmdPoolCreateInfo.queueFamilyIndex = vctx::GraphicsFamilyIndex;
+    cmdPoolCreateInfo.queueFamilyIndex = GraphicsFamilyIndex;
     cmdPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;    
 	if(vkCreateCommandPool(device, &cmdPoolCreateInfo, nullptr, &commandPool) != VK_SUCCESS) {
 		LOG_ERROR("Failed to create command pool");
 	}
 
-    drawBuffers.resize(config.max_frames_in_flight);
+    // how many frames the renderer will render at once
+    const int frames_in_flight = 1 + (int)config.buffer_mode;
+
+    drawBuffers.resize(frames_in_flight);
 
     VkCommandBufferAllocateInfo cmdAllocInfo{};
     cmdAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     cmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    cmdAllocInfo.commandBufferCount = config.max_frames_in_flight;
+    cmdAllocInfo.commandBufferCount = frames_in_flight;
     cmdAllocInfo.commandPool = commandPool;
     vkAllocateCommandBuffers(device, &cmdAllocInfo, drawBuffers.data());
 
-    depth_buffer_format = VK_FORMAT_D32_SFLOAT; // replace (probably)
-    vctx::RenderExtent.width = conf->window_size.width;
-    vctx::RenderExtent.height = conf->window_size.height;
-    _create_optional_images();
+    depth_buffer_format = VK_FORMAT_D16_UNORM; // replace (probably)
 
-    pro::RenderPassCreateInfo rpi{};
-    rpi.format = vctx::SwapChainImageFormat;
+    cvk_render_pass_create_info rpi{};
+    rpi.format = SwapChainImageFormat;
     rpi.depthBufferFormat = depth_buffer_format;
     rpi.subpass = 0;
     rpi.samples = samples;
-    pro::CreateRenderPass(device, &rpi, &vctx::GlobalRenderPass, renderpass_create_flags);
+    cvk_create_render_pass(device, &rpi, &GlobalRenderPass, cvk_flag_register);
 
+    // cvk_render_pass_create_info depth_render_pass_info{};
+    // depth_render_pass_info.format = VK_FORMAT_D16_UNORM;
+    // depth_render_pass_info.depthBufferFormat = depth_buffer_format;
+    // depth_render_pass_info.subpass = 0;
+    // depth_render_pass_info.samples = VK_SAMPLE_COUNT_1_BIT;
+    // cvk_create_render_pass(device, &depth_render_pass_info, &ShadowPass, cvk_flag_register);
+    // {
+    //     VkAttachmentDescription depthAttachment{};
+    //     depthAttachment.format = VK_FORMAT_D16_UNORM;
+    //     depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    //     depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    //     depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    //     depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    //     depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    //     depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    //     depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    //     VkAttachmentReference depthref{};
+    //     depthref.attachment = 0;
+    //     depthref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    //     VkSubpassDescription subpass{};
+    //     subpass.colorAttachmentCount = 0;
+    //     subpass.pDepthStencilAttachment = &depthref;
+
+    //     VkRenderPassCreateInfo depth_pass{};
+    //     depth_pass.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    //     depth_pass.attachmentCount = 1;
+    //     depth_pass.pAttachments = &depthAttachment;
+    //     depth_pass.subpassCount = 1;
+    //     depth_pass.pSubpasses = &subpass;
+    //     vkCreateRenderPass(device, &depth_pass, nullptr, &ShadowPass);
+    // }
+
+    _create_optional_images();
     _create_framebuffers_and_swapchain_image_views();
 
-    for(u32 i = 0; i < config.max_frames_in_flight; i++)
+    for(int i = 0; i < frames_in_flight; i++)
 	{
         constexpr VkSemaphoreCreateInfo semaphoreCreateInfo{
             VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, nullptr, 0
@@ -210,19 +235,19 @@ bool Renderer::BeginRender()
     vkResetFences(device, 1, &renderData.at(renderer_frame).inFlightFence);
 
     VkClearValue clearValues[2];
-    clearValues[0].color = { 0.0f, 0.0f, 0.0f, 1.0f};
-    clearValues[1].depthStencil = { 1.0, 0 };
+    clearValues[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
+    clearValues[1].depthStencil = { 1.0f, 0 };
  
     static VkRenderPassBeginInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassInfo.framebuffer = renderData.at(imageIndex).framebuffer;
-    renderPassInfo.renderArea.extent = vctx::RenderExtent;
+    renderPassInfo.framebuffer = renderData[imageIndex].color_framebuffer;
+    renderPassInfo.renderArea.extent = RenderExtent;
     renderPassInfo.renderArea.offset = {0, 0};
-    renderPassInfo.renderPass = vctx::GlobalRenderPass;
-    renderPassInfo.clearValueCount = config.depth_buffer_enable ? 2 : 1;
+    renderPassInfo.renderPass = GlobalRenderPass;
+    renderPassInfo.clearValueCount = 2;
     renderPassInfo.pClearValues = clearValues;
 
-    constexpr static VkCommandBufferBeginInfo beginInfo = {
+    constexpr VkCommandBufferBeginInfo beginInfo = {
         VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr, 0, nullptr
     };
 
@@ -232,15 +257,15 @@ bool Renderer::BeginRender()
     VkViewport viewport = {};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
-    viewport.width = vctx::RenderExtent.width;
-    viewport.height = vctx::RenderExtent.height;
+    viewport.width = RenderExtent.width;
+    viewport.height = RenderExtent.height;
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
     vkCmdSetViewport(drawBuffer, 0, 1, &viewport);
 
     VkRect2D scissor = {};
     scissor.offset = { 0, 0 };
-    scissor.extent = { vctx::RenderExtent.width, vctx::RenderExtent.height };
+    scissor.extent = { RenderExtent.width, RenderExtent.height };
     vkCmdSetScissor(drawBuffer, 0, 1, &scissor);
 
     return true;
@@ -272,7 +297,7 @@ void Renderer::EndRender()
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    vkQueueSubmit(vctx::PresentQueue, 1, &submitInfo, renderData.at(renderer_frame).inFlightFence);
+    vkQueueSubmit(PresentQueue, 1, &submitInfo, renderData.at(renderer_frame).inFlightFence);
 
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -282,11 +307,11 @@ void Renderer::EndRender()
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = &swapchain;
 
-    const VkResult result = vkQueuePresentKHR(vctx::PresentQueue, &presentInfo);
+    const VkResult result = vkQueuePresentKHR(PresentQueue, &presentInfo);
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || cengine::get_frame_buffer_resized())
         _SignalResize();
 
-    renderer_frame = (renderer_frame + 1) % config.max_frames_in_flight;
+    renderer_frame = (renderer_frame + 1) % (1 + (int)config.buffer_mode);
 }
 
 void Renderer::_SignalResize()
@@ -302,15 +327,15 @@ void Renderer::_SignalResize()
     };
     
     // adhoc method of resetting them
-    for (u32 i = 0; i < config.max_frames_in_flight; i++) {
+    for (int i = 0; i < (1 + (int)config.buffer_mode); i++) {
         vkDestroySemaphore(device, renderData[i].imageAvailableSemaphore, nullptr);
         vkDestroySemaphore(device, renderData[i].renderingFinishedSemaphore, nullptr);
         vkDestroyFence(device, renderData[i].inFlightFence, nullptr);
     }
-    for (u32 i = 0; i < vctx::SwapChainImageCount; i++)
+    for (u32 i = 0; i < SwapChainImageCount; i++)
     {
         vkDestroyImageView(device, renderData[i].swapchainImageView, nullptr);
-        vkDestroyFramebuffer(device, renderData[i].framebuffer, nullptr);
+        vkDestroyFramebuffer(device, renderData[i].color_framebuffer, nullptr);
     }
     renderData.clear();
 
@@ -326,34 +351,30 @@ void Renderer::_SignalResize()
     const u32 max_width = surface_capabilities.maxImageExtent.width;
     const u32 max_height = surface_capabilities.maxImageExtent.height;
 
-    w = std::clamp((u32)w, min_width, max_width);
-    h = std::clamp((u32)h, min_height, max_height);
+    w = cmclamp((u32)w, min_width, max_width);
+    h = cmclamp((u32)h, min_height, max_height);
 
-    vctx::RenderExtent = { (u32)w, (u32)h };
+    RenderExtent = { (u32)w, (u32)h };
 
     VkSwapchainKHR old_swapchain = swapchain;
 
-    pro::SwapchainCreateInfo scio{};
-    scio.extent = vctx::RenderExtent;
-    scio.ePresentMode = config.present_mode;
-    scio.physDevice = physDevice;
-    scio.surface = surface;
-    scio.format = vctx::SwapChainImageFormat;
-    scio.requestedImageCount = vctx::SwapChainImageCount;
-    scio.eColorSpace = vctx::SwapChainColorSpace;
-    scio.pOldSwapchain = swapchain;
-    pro::CreateSwapChain(device, &scio, &swapchain);
+    cvk_swapchain_create_info scio{};
+    scio.extent = RenderExtent;
+    scio.present_mode = config.present_mode;
+    scio.format = SwapChainImageFormat;
+    scio.color_space = SwapChainColorSpace;
+    scio.image_count = SwapChainImageCount;
+    scio.old_swapchain = old_swapchain;
+    cvk_create_swapchain(device, &scio, &swapchain);
     vkDestroySwapchainKHR(device, old_swapchain, nullptr);
 
     vkDestroyImage(device, color_image, nullptr);
-    vkDestroyImage(device, depth_image, nullptr);
     vkDestroyImageView(device, color_image_view, nullptr);
-    vkDestroyImageView(device, depth_image_view, nullptr);
 
     _create_optional_images();
     _create_framebuffers_and_swapchain_image_views();
 
-    for (u32 i = 0; i < vctx::SwapChainImageCount; i++)
+    for (u32 i = 0; i < SwapChainImageCount; i++)
     {
         vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &renderData[i].renderingFinishedSemaphore);
         vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &renderData[i].imageAvailableSemaphore);
@@ -362,16 +383,21 @@ void Renderer::_SignalResize()
 
     cengine::_reset_frame_buffer_resized();
 
-    vctx::OnWindowResized.signal();
+    OnWindowResized.signal();
 }
 
 void Renderer::_create_optional_images()
 {
+    vkGetSwapchainImagesKHR(device, swapchain, &SwapChainImageCount, nullptr);
+    VkImage swapchainImages[SwapChainImageCount];
+    renderData.resize(SwapChainImageCount);
+	vkGetSwapchainImagesKHR(device, swapchain, &SwapChainImageCount, swapchainImages);
+
     if (config.multisampling_enable) {
         help::Images::create_empty(
-            vctx::RenderExtent.width, vctx::RenderExtent.height,
-            vctx::SwapChainImageFormat,
-            config.samples,
+            RenderExtent.width, RenderExtent.height,
+            SwapChainImageFormat,
+            Samples,
             4,
             VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
             &color_image, &color_image_memory
@@ -381,7 +407,7 @@ void Renderer::_create_optional_images()
         resolve_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         resolve_view_create_info.image = color_image;
         resolve_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        resolve_view_create_info.format = vctx::SwapChainImageFormat;
+        resolve_view_create_info.format = SwapChainImageFormat;
         resolve_view_create_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
         resolve_view_create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
         resolve_view_create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -397,63 +423,58 @@ void Renderer::_create_optional_images()
     }
 
     // attachment vector will be like <color resolve, depth attachment, swapchain image>
-    if (config.depth_buffer_enable) {
-        help::Images::create_empty(
-            vctx::RenderExtent.width, vctx::RenderExtent.height,
-            depth_buffer_format,
-            config.samples,
-            1,
-            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-            &depth_image, &depth_image_memory
-        );
+    for (int i = 0; i < SwapChainImageCount; i++) {
+        renderData[i].swapchainImage = swapchainImages[i];
 
-        VkCommandBuffer cmd = help::Commands::BeginSingleTimeCommands();
-        help::Images::TransitionImageLayout(
-            cmd, depth_image, 1, VK_IMAGE_ASPECT_DEPTH_BIT,
-            VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-            0, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT
-        );
-        help::Commands::EndSingleTimeCommands(cmd);
+        VkImageCreateInfo image{};
+        image.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        image.imageType = VK_IMAGE_TYPE_2D;
+        image.extent.width = RenderExtent.width;
+        image.extent.height = RenderExtent.height;
+        image.extent.depth = 1;
+        image.mipLevels = 1;
+        image.arrayLayers = 1;
+        image.samples = Samples;
+        image.tiling = VK_IMAGE_TILING_OPTIMAL;
+        image.format = VK_FORMAT_D16_UNORM;
+        image.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ;
+        vkCreateImage(device, &image, nullptr, &renderData[i].depth_image);
 
-        VkImageViewCreateInfo depth_view_create_info{};
-        depth_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        depth_view_create_info.image = depth_image;
-        depth_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        depth_view_create_info.format = depth_buffer_format;
-        depth_view_create_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-        depth_view_create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-        depth_view_create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-        depth_view_create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-        depth_view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-        depth_view_create_info.subresourceRange.baseMipLevel = 0;
-        depth_view_create_info.subresourceRange.levelCount = 1;
-        depth_view_create_info.subresourceRange.baseArrayLayer = 0;
-        depth_view_create_info.subresourceRange.layerCount = 1;
-        if (vkCreateImageView(device, &depth_view_create_info, nullptr, &depth_image_view) != VK_SUCCESS) {
-            LOG_ERROR("Failed to create view for depth image");
-        }
+        VkMemoryRequirements memReqs;
+        vkGetImageMemoryRequirements(device, renderData[i].depth_image, &memReqs);
+
+        VkMemoryAllocateInfo memAlloc{};
+        memAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        memAlloc.allocationSize = memReqs.size;
+        memAlloc.memoryTypeIndex = help::GetMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+        vkAllocateMemory(device, &memAlloc, nullptr, &renderData[i].shadow_image_memory);
+        vkBindImageMemory(device, renderData[i].depth_image, renderData[i].shadow_image_memory, 0);
+
+        VkImageViewCreateInfo depthStencilView{};
+        depthStencilView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        depthStencilView.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        depthStencilView.format = VK_FORMAT_D16_UNORM;
+        depthStencilView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        depthStencilView.subresourceRange.baseMipLevel = 0;
+        depthStencilView.subresourceRange.levelCount = 1;
+        depthStencilView.subresourceRange.baseArrayLayer = 0;
+        depthStencilView.subresourceRange.layerCount = 1;
+        depthStencilView.image = renderData[i].depth_image;
+        vkCreateImageView(device, &depthStencilView, nullptr, &renderData[i].depth_image_view);
     }
 }
 
 void Renderer::_create_framebuffers_and_swapchain_image_views()
 {
-    u32 requestedImageCount = 0;
-    vkGetSwapchainImagesKHR(device, swapchain, &requestedImageCount, nullptr);
-    VkImage swapchainImages[requestedImageCount];
-    renderData.resize(requestedImageCount);
-	vkGetSwapchainImagesKHR(device, swapchain, &requestedImageCount, swapchainImages);
-
     cvector<VkImageView> attachments(3);
 
-    for (int i = 0; i < (int)requestedImageCount; i++) {
-        renderData[i].swapchainImage = swapchainImages[i];
-
+    for (int i = 0; i < (int)SwapChainImageCount; i++) {
         VkImageViewCreateInfo imageViewCreateInfo{};
         imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        imageViewCreateInfo.image = swapchainImages[i];
+        imageViewCreateInfo.image = renderData[i].swapchainImage;
         imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        imageViewCreateInfo.format = vctx::SwapChainImageFormat;
+        imageViewCreateInfo.format = SwapChainImageFormat;
         imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
         imageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
         imageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -468,27 +489,22 @@ void Renderer::_create_framebuffers_and_swapchain_image_views()
         }
 
         const VkImageView &swapchain_image_view = renderData[i].swapchainImageView;
+        const VkImageView &depth_image_view = renderData[i].depth_image_view;
 
-        if (config.depth_buffer_enable) {
-            if (config.multisampling_enable)
-                attachments = { color_image_view, depth_image_view, swapchain_image_view };
-            else
-                attachments = { swapchain_image_view, depth_image_view };
-        }
-        else if (config.multisampling_enable)
-            attachments = { color_image_view, swapchain_image_view };
+        if (config.multisampling_enable)
+            attachments = { color_image_view, depth_image_view, swapchain_image_view };
         else
-            attachments = { swapchain_image_view };
+            attachments = { swapchain_image_view, depth_image_view };
 
         VkFramebufferCreateInfo framebufferInfo{};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        framebufferInfo.renderPass = vctx::GlobalRenderPass;
+        framebufferInfo.renderPass = GlobalRenderPass;
         framebufferInfo.attachmentCount = attachments.length();
         framebufferInfo.pAttachments = attachments.data();
-        framebufferInfo.width = vctx::RenderExtent.width;
-        framebufferInfo.height = vctx::RenderExtent.height;
+        framebufferInfo.width = RenderExtent.width;
+        framebufferInfo.height = RenderExtent.height;
         framebufferInfo.layers = 1;
-        if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &renderData[i].framebuffer) != VK_SUCCESS)
+        if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &renderData[i].color_framebuffer) != VK_SUCCESS)
             LOG_ERROR("Failed to create framebuffer for swapchain image %d", i);
     }
 }

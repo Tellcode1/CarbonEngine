@@ -1,8 +1,13 @@
+
 #ifndef __CARRAY_HPP__
 #define __CARRAY_HPP__
 
 #include "../defines.h"
-#include <string.h>
+#include "../stdafx.h"
+#include "../math/math.h"
+
+#include <cstdlib>
+#include <initializer_list>
 
 template<typename T>
 struct cvector
@@ -14,7 +19,7 @@ struct cvector
 
     public:
 
-    constexpr static u32 npos = UINT32_MAX;
+    constexpr static u32 npos = -1;
 
     constexpr CARBON_FORCE_INLINE u32 size() const {
         return m_count;
@@ -66,10 +71,10 @@ struct cvector
         reallocate(this->max_capacity() + amt);
     }
 
-    constexpr cvector() : m_count(0), m_data(nullptr), m_capacity(0) {}
-    constexpr cvector(u32 init_capacity) : m_count(0), m_data(nullptr), m_capacity(0) { reserve(init_capacity); }
+    constexpr cvector() : m_count(0), m_capacity(0), m_data(nullptr) {}
+    constexpr cvector(u32 init_capacity) : m_count(0), m_capacity(0), m_data(nullptr) { reserve(init_capacity); }
     
-    constexpr cvector(const std::initializer_list<T>& init_list) : m_capacity(0), m_data(nullptr) {
+    constexpr cvector(const std::initializer_list<T>& init_list) : m_count(0), m_capacity(0), m_data(nullptr) {
         reallocate(init_list.size());
         memcpy(m_data, init_list.begin(), init_list.size() * sizeof(T));
         m_count = init_list.size();
@@ -80,23 +85,19 @@ struct cvector
             free(m_data);
     }
 
-    protected:
-    static CARBON_FORCE_INLINE int max(int a, int b) {
-        return  a < b ? b : a;
-    }
     public:
 
     // copies an element into array
     constexpr void push_back(const T& element) {
         if ((m_count + 1) >= m_capacity)
-            reallocate(max(1, m_capacity * 2));
+            reallocate(cmmax(1, m_capacity * 2));
         memcpy(&m_data[m_count], &element, sizeof(T));
         m_count++;
     }
 
     // copies multiple elements into the array
-    constexpr void push_set(const T *elements, int count) {
-        int required_capacity = m_count + count;
+    constexpr void push_set(const T *elements, u32 count) {
+        u32 required_capacity = m_count + count;
         if (required_capacity >= max_capacity())
             reallocate(required_capacity);
         memcpy(&m_data[m_count], elements, count * sizeof(T));
@@ -119,8 +120,8 @@ struct cvector
     constexpr cvector<T> & operator=(const cvector<T> &other) {
         if (&other == this)
             return *this;
-        clear();
-        reallocate(other.size());
+        if (size() < other.size())
+            reallocate(other.size());
         memcpy(m_data, other.data(), other.size() * sizeof(T));
         m_count = other.size();
         return *this;
@@ -128,7 +129,7 @@ struct cvector
 
     constexpr void insert(u32 index, const T& element) {
         if (index >= m_capacity)
-            reallocate(max(1, index * 2)); // linear allocator. i could probably implement more but i don't have time rn
+            reallocate(cmmax(1, index * 2)); // linear allocator. i could probably implement more but i don't have time rn
         if (index >= m_count)
             m_count = index + 1;
         m_data[index] = element;
@@ -172,7 +173,7 @@ struct cvector
 
         T *new_data = (T *)malloc(sizeof(T) * new_size);
 
-        u32 move_size = std::min(new_size, m_count) * sizeof(T);
+        u32 move_size = cmmin(new_size, m_count) * sizeof(T);
 
         if (m_data) {
             memcpy(new_data, m_data, move_size);

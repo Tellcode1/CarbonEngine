@@ -1,52 +1,54 @@
-#ifndef __C_GAMEOBJECT_HPP__
-#define __C_GAMEOBJECT_HPP__
+// #ifndef __C_GAMEOBJECT_HPP__
+// #define __C_GAMEOBJECT_HPP__
 
-#include "../../stdafx.hpp"
+// #include "../../stdafx.h"
+// #include "../../vkcb/stdafx.h"
+// #include "../../math/vec2.hpp"
 
-struct cgameobject_t;
-struct csprite_t;
+// struct cgameobject_t;
+// struct csprite_t;
 
-struct VkBuffer_T;
-struct VkDeviceMemory_T;
+// struct VkBuffer_T;
+// struct VkDeviceMemory_T;
 
-typedef VkBuffer_T *VkBuffer;
-typedef VkDeviceMemory_T *VkDeviceMemory;
+// typedef VkBuffer_T *VkBuffer;
+// typedef VkDeviceMemory_T *VkDeviceMemory;
 
-struct ctransform {
-    vec2 position;
-    float rotation;
-};
+// struct ctransform {
+//     cm::vec2 position;
+//     float rotation;
+// };
 
-struct cpipeline_t {
-    VkPipeline pipeline;
-};
+// struct cpipeline_t {
+//     VkPipeline pipeline;
+// };
 
-struct cgameobject_t {
-    const char *name;
-    ctransform transform;
+// struct cgameobject_t {
+//     const char *name;
+//     ctransform transform;
 
-    VkBuffer vertex_buffer;
-    VkDeviceMemory vertex_buffer_memory;
+//     VkBuffer vertex_buffer;
+//     VkDeviceMemory vertex_buffer_memory;
 
-    cpipeline_t *pipeline;
+//     cpipeline_t *pipeline;
 
-    vec2 *vertex_data;
-    int vertex_count;
-};
+//     cm::vec2 *vertex_data;
+//     int vertex_count;
+// };
 
-struct csquare_t : cgameobject_t{
-    constexpr static float vertices[] = {
-        -0.5f,  0.5f, // 0
-        -0.5f, -0.5f, // 1
-         0.5f, -0.5f, // 2
-         0.5f, -0.5f, // 2
-         0.5f,  0.5f  // 3
-        -0.5f,  0.5f, // 0
-    };
-};
+// struct csquare_t : cgameobject_t{
+//     constexpr static float vertices[] = {
+//         -0.5f,  0.5f, // 0
+//         -0.5f, -0.5f, // 1
+//          0.5f, -0.5f, // 2
+//          0.5f, -0.5f, // 2
+//          0.5f,  0.5f  // 3
+//         -0.5f,  0.5f, // 0
+//     };
+// };
 
-extern csquare_t *ccreate_square();
-extern cpipeline_t *ccreate_pipeline();
-extern void crender_square(csquare_t *shape, VkCommandBuffer buf);
+// extern csquare_t *ccreate_square();
+// extern cpipeline_t *ccreate_pipeline();
+// extern void crender_square(csquare_t *shape, VkCommandBuffer buf);
 
-#endif//__C_GAMEOBJECT_HPP__
+// #endif//__C_GAMEOBJECT_HPP__

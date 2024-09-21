@@ -1,7 +1,7 @@
 #ifndef __C_TEXTURES_HPP__
 #define __C_TEXTURES_HPP__
 
-#include "stdafx.hpp"
+#include "stdafx.h"
 
 struct ctex2D {
     const u8 *get_image_data() const {

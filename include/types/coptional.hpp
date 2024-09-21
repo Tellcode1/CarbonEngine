@@ -1,7 +1,12 @@
 #ifndef __C_OPTIONAL_HPP__
 #define __C_OPTIONAL_HPP__
 
-#include "../include/defines.h"
+#include "../../include/defines.h"
+#include <cassert>
+
+template <typename Tp>
+struct coptional;
+
 struct nullopt_t { constexpr inline nullopt_t(int _) {} };
 static const nullopt_t nullopt = nullopt_t(0);
 
@@ -17,7 +22,7 @@ struct coptional {
     }
 
     constexpr CARBON_FORCE_INLINE const Tp &get() const {
-        assert(m_has_value);
+        cassert(m_has_value);
         return m_val;
     }
 

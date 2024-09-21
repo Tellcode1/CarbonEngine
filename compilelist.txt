@@ -1,0 +1,16 @@
+../Shaders/vert.glsl
+../Shaders/frag.glsl
+
+../Shaders/Generic/Unlit.vert
+../Shaders/Generic/Unlit.frag
+
+../Shaders/ctext/sdf.frag.glsl
+../Shaders/ctext/msdf.frag.glsl
+../Shaders/ctext/mtsdf.frag.glsl
+../Shaders/ctext/test.comp.glsl
+
+../Shaders/shadow.glsl.vert
+../Shaders/shadow.glsl.frag
+
+../Shaders/vert.text.glsl
+../Shaders/text.comp

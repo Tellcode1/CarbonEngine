@@ -1,14 +1,19 @@
 #ifndef __RENDERER__
 #define __RENDERER__
 
-#include "defines.h"
-#include "stdafx.hpp"
-#include "cengine.hpp"
-#include "containers/cvector.hpp"
-#include "containers/carray.hpp"
-#include "containers/chashmap.hpp"
+#include "../defines.h"
+#include "../stdafx.h"
 
-#include "engine/camera.hpp"
+#include "../../external/volk/volk.h"
+
+#include "../cengine.hpp"
+#include "../containers/cvector.hpp"
+#include "../containers/carray.hpp"
+#include "../containers/chashmap.hpp"
+
+#include "../engine/camera.hpp"
+
+#include <SDL2/SDL.h>
 
 // The camera should also own the output texture, etc.
 // Basically, the camera should be the first parameter that the renderer needs.
@@ -22,21 +27,29 @@ struct FrameRenderData
 {
     VkImage         swapchainImage;
     VkImageView     swapchainImageView;
-    VkFramebuffer   framebuffer;
+    VkFramebuffer   color_framebuffer;
+    VkImage         depth_image;
+    VkImageView     depth_image_view;
+    VkDeviceMemory  shadow_image_memory; // FIXME: move to Renderer struct to allocate all at once
     VkSemaphore     imageAvailableSemaphore;
     VkSemaphore     renderingFinishedSemaphore;
     VkFence         inFlightFence;
+};
+
+enum buffering_mode {
+    BUFFER_MODE_NONE = 0,
+    BUFFER_MODE_DOUBLE_BUFFERED = 1,
+    BUFFER_MODE_TRIPLE_BUFFERED = 2,
 };
 
 struct renderer_config
 {
     VkSampleCountFlagBits  samples = VK_SAMPLE_COUNT_1_BIT;
     bool                   multisampling_enable = false;
-    VkFormat               depth_buffer_format = VK_FORMAT_D32_SFLOAT;
-    bool                   depth_buffer_enable = false;
     VkExtent2D             window_size = { 800, 600 };
     bool                   window_resizable = false;
-    u8                     max_frames_in_flight = 1;
+    // u8                     max_frames_in_flight = 1;
+    enum buffering_mode    buffer_mode;
     SDL_Scancode           exit_key = SDL_SCANCODE_ESCAPE;
     VkPresentModeKHR       present_mode = VK_PRESENT_MODE_FIFO_KHR;
 };
@@ -61,21 +74,16 @@ struct Renderer
     static VkImageView color_image_view;
 
     static VkFormat depth_buffer_format;
-    static VkImage depth_image;
-    static VkImageView depth_image_view;
-    static VkDeviceMemory depth_image_memory;
 
     static cvector<FrameRenderData> renderData;
     static cvector<VkCommandBuffer> drawBuffers;
 
     static void initialize(const renderer_config *conf);
 
-    static VkCommandBuffer CARBON_FORCE_INLINE GetDrawBuffer() { return drawBuffers.at(renderer_frame); }
+    static VkCommandBuffer CARBON_FORCE_INLINE GetDrawBuffer() { return drawBuffers[renderer_frame]; }
     static bool BeginRender();
     static void EndRender();
-    // static void render(cobject_sprite_renderer *render);
 
-    private:
     static void _create_optional_images();
     static void _create_framebuffers_and_swapchain_image_views();
     static void _SignalResize();

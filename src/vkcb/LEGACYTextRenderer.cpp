@@ -1,5 +1,5 @@
 #include "TextRenderer.hpp"
-#include "pro.hpp"
+#include "cvk.hpp"
 #include "Renderer.hpp"
 #include "epichelperlib.hpp"
 #include <boost/filesystem.hpp>
@@ -640,7 +640,7 @@ void TextRendererSingleton::CreatePipeline() {
     *   PIPELINE CREATION
     */
 
-    pro::PipelineBlendState blendState(pro::BlendPreset::PRO_BLEND_PRESET_ALPHA);
+    pro::pipeline_blend_state blendState(pro::cvk_blend_preset::PRO_BLEND_PRESET_ALPHA);
 
     pro::PipelineCreateInfo pc{};
     pc.format = vctx::SwapChainImageFormat;

@@ -1,8 +1,9 @@
 #ifndef __C_INPUT_HPP__
 #define __C_INPUT_HPP__
 
-#include "../include/vkcb/vkcbstdafx.hpp"
-#include "../include/math/vec2.h"
+#include <SDL2/SDL.h>
+#include "../include/vkcb/stdafx.h"
+#include "../include/math/vec2.hpp"
 #include "../include/containers/cbitset.hpp"
 
 struct cinput
@@ -11,8 +12,8 @@ struct cinput
     static cbitset<SDL_NUM_SCANCODES> kb_state;
     static cbitset<SDL_NUM_SCANCODES> last_frame_kb_state;
 
-    static vec2 mouse_position;
-    static vec2 last_frame_mouse_position;
+    static cm::vec2 mouse_position;
+    static cm::vec2 last_frame_mouse_position;
 
     public:
     enum key_state : int
@@ -25,28 +26,28 @@ struct cinput
     };
     
     static void CARBON_FORCE_INLINE initialize() {
-        mouse_position = vec2(0.0f, 0.0f);
-        last_frame_mouse_position = vec2(0.0f, 0.0f);
+        mouse_position = cm::vec2(0.0f, 0.0f);
+        last_frame_mouse_position = cm::vec2(0.0f, 0.0f);
     }
 
-    static vec2 CARBON_FORCE_INLINE get_mouse_position() {
+    static cm::vec2 CARBON_FORCE_INLINE get_mouse_position() {
         return mouse_position;
     }
 
-    static vec2 CARBON_FORCE_INLINE get_last_frame_mouse_position() {
+    static cm::vec2 CARBON_FORCE_INLINE get_last_frame_mouse_position() {
         return last_frame_mouse_position;
     }
 
     static void CARBON_FORCE_INLINE update() {
-        i32 mx, my;
-        SDL_GetMouseState(&mx, &my);
+        // i32 mx, my;
+        // SDL_GetMouseState(&mx, &my);
 
-        const f32 width = (f32)vctx::RenderExtent.width;
-        const f32 height = (f32)vctx::RenderExtent.height;
+        // const f32 width = (f32)vctx::RenderExtent.width;
+        // const f32 height = (f32)vctx::RenderExtent.height;
 
-        last_frame_mouse_position = mouse_position;
-        mouse_position.x = (f32(mx) / width)  * 2.0f - 1.0f;
-        mouse_position.y = (f32(my) / height) * 2.0f - 1.0f;
+        // last_frame_mouse_position = mouse_position;
+        // mouse_position.x = (f32(mx) / width)  * 2.0f - 1.0f;
+        // mouse_position.y = (f32(my) / height) * 2.0f - 1.0f;
 
         const u8 *const sdl_kb_state = SDL_GetKeyboardState(NULL);
         last_frame_kb_state = kb_state;

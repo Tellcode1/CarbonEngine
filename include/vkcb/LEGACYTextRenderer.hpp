@@ -1,9 +1,9 @@
 #ifndef __NANO_TEXT_RENDERER_HPP__
 #define __NANO_TEXT_RENDERER_HPP__
 
-#include "vkcbstdafx.hpp"
+#include "vkcbstdafx.h"
 #include "Bootstrap.hpp"
-#include "pro.hpp"
+#include "cvk.hpp"
 #include <glm/packing.hpp>
 #include <future>
 

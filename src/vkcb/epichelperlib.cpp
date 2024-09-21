@@ -1,9 +1,8 @@
 #include "../../include/vkcb/epichelperlib.hpp"
-#include <fstream>
+#include "../../include/vkcb/cvk.hpp"
+#include <iostream>
 
 // stb loves to kick compilers in the liver so it shouldn't be put in the precompiled header
-#define STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "../../external/stb/stb_image.h"
 #include "../../external/stb/stb_image_write.h"
 
@@ -178,160 +177,38 @@ VkResult help::Commands::EndSingleTimeCommands(VkCommandBuffer cmd, VkQueue queu
 
 void help::Files::LoadBinary(const char * path, cvector<u8>* dst)
 {
-    std::ifstream instream(path, std::ios::ate | std::ios::binary);
-    if (!instream.is_open()) {
-        LOG_ERROR("Failed to open file at path %s", path);
-        instream.close(); // I think instream automatically closes when it goes out of scope but I don't want to find out
-        return;
-    }
+    FILE *f = fopen(path, "rb");
+    cassert(f != NULL);
 
-    const std::streampos file_size = instream.tellg();
-    if (file_size == -1)
-        LOG_ERROR("Invalid file size? %s", path);
+    fseek(f, 0, SEEK_END);
+    int file_size = ftell(f);
+    rewind(f);
 
-    dst->resize(file_size);
-    instream.seekg(0);
-    instream.read(reinterpret_cast<char *>(dst->data()), file_size);
+    dst->resize( file_size );
+    fread(dst->data(), 1, file_size, f);
 
-    instream.close();
+    fclose(f);
 }
 
 void help::Files::LoadBinary(const char* path, u8* dst, u32* dstSize) {
-    std::ifstream instream(path, std::ios::ate | std::ios::binary);
-    if (!instream.is_open()) {
-        printf("Failed to open file at path %s\n", path);
-        *dstSize = 0;
-        instream.close(); // I think instream automatically closes when it goes out of scope but I don't want to find out
+    FILE *f = fopen(path, "rb");
+    cassert(f != NULL);
+
+    fseek(f, 0, SEEK_END);
+    int file_size = ftell(f);
+
+    if (dst == NULL) {
+        *dstSize = file_size;
+        fclose(f);
         return;
     }
 
-    *dstSize = (u32)instream.tellg();
-    if (!dst) {
-        instream.close();
-        return;
-    }
-    instream.seekg(0);
-    instream.read(reinterpret_cast<char*>(dst), *dstSize);
+    rewind(f);
 
-    instream.close();
+    fread(dst, 1, file_size, f);
+
+    fclose(f);
 }
-
-// See epichelperlib.hpp
-// void help::Images::LoadVulkanImage(u8 *buffer,
-//                                   u32 width, u32 height,
-//                                   VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
-//                                   VkMemoryPropertyFlags properties, VkSampleCountFlagBits samples, u32 mipLevels,
-//                                   VkImage *dstImage, VkDeviceMemory *dstMemory, bool externallyAllocated)
-// {
-//     VkImage retval;
-//     VkDeviceMemory retMem = *dstMemory;
-
-//     VkImageCreateInfo imageCreateInfo{};
-//     imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-//     imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-//     imageCreateInfo.extent = VkExtent3D{ width, height, 1 };
-//     imageCreateInfo.mipLevels = mipLevels;
-//     imageCreateInfo.arrayLayers = 1;
-//     imageCreateInfo.format = format;
-//     imageCreateInfo.tiling = tiling;
-//     imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-//     imageCreateInfo.usage = usage;
-//     imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-//     imageCreateInfo.samples = samples;
-//     if (vkCreateImage(device, &imageCreateInfo, nullptr, &retval) != VK_SUCCESS)
-//         printf("Failed to create image");
-
-//     VkMemoryRequirements imageMemoryRequirements;
-//     vkGetImageMemoryRequirements(device, retval, &imageMemoryRequirements);
-
-//     if (!externallyAllocated)
-//     {
-//         VkMemoryAllocateInfo allocInfo{};
-//         allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-//         allocInfo.allocationSize = imageMemoryRequirements.size;
-//         allocInfo.memoryTypeIndex = pro::GetMemoryType(physDevice, imageMemoryRequirements.memoryTypeBits, properties);
-//         if(vkAllocateMemory(device, &allocInfo, nullptr, &retMem) != VK_SUCCESS) {
-//             printf("Failed to allocate memory");
-//         }
-//         vkBindImageMemory(device, retval, retMem, 0);
-//     }
-    
-//     VkBuffer stagingBuffer = VK_NULL_HANDLE;
-//     VkDeviceMemory stagingBufferMemory = VK_NULL_HANDLE;
-
-//     uchar stagingBufferBacking[512];
-
-//     VkAllocationCallbacks temporaryAllocator{};
-//     temporaryAllocator.pfnAllocation = tempAlloc;
-//     temporaryAllocator.pfnReallocation = tempRealloc;
-//     temporaryAllocator.pfnFree = tempFree;
-//     temporaryAllocator.pUserData = reinterpret_cast<void*>(stagingBufferBacking);
-
-//     VkBufferCreateInfo stagingBufferInfo{};
-//     stagingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-//     stagingBufferInfo.size = imageMemoryRequirements.size;
-//     stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-//     stagingBufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-//     vkCreateBuffer(device, &stagingBufferInfo, &temporaryAllocator, &stagingBuffer);
-
-//     VkMemoryRequirements stagingBufferRequirements;
-//     vkGetBufferMemoryRequirements(device, stagingBuffer, &stagingBufferRequirements);
-
-//     VkMemoryAllocateInfo stagingBufferAllocInfo{};
-//     stagingBufferAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-//     stagingBufferAllocInfo.allocationSize = stagingBufferRequirements.size;
-//     stagingBufferAllocInfo.memoryTypeIndex = pro::GetMemoryType(physDevice, stagingBufferRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-//     if(vkAllocateMemory(device, &stagingBufferAllocInfo, &temporaryAllocator, &stagingBufferMemory) != VK_SUCCESS) {
-//         printf("Failed to allocate memory");
-//     }
-
-//     vkBindBufferMemory(device, stagingBuffer, stagingBufferMemory, 0);
-
-//     void *stagingBufferMapped;
-//     if (vkMapMemory(device, stagingBufferMemory, 0, width * height, 0, &stagingBufferMapped) != VK_SUCCESS)
-//     {
-//         printf("failed to map staging buffer memory!");
-//     }
-//     memcpy(stagingBufferMapped, buffer, width * height);
-//     vkUnmapMemory(device, stagingBufferMemory);                                                
-    
-//     // Image layout transition : UNDEFINED -> TRANSFER_DST_OPTIMAL
-//     const VkCommandBuffer cmd = help::Commands::BeginSingleTimeCommands();
-
-//     TransitionImageLayout(
-//         cmd, retval, mipLevels,
-//         VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-//         0, VK_ACCESS_TRANSFER_WRITE_BIT,
-//         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT
-//     );
-
-//     VkBufferImageCopy region{};
-//     region.imageExtent = { width, height, 1 };
-//     region.imageOffset = { 0, 0, 0 };
-//     region.bufferOffset = 0;
-//     region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-//     region.imageSubresource.layerCount = 1;
-//     region.imageSubresource.baseArrayLayer = 0;
-//     region.imageSubresource.mipLevel = 0;
-//     vkCmdCopyBufferToImage(cmd, stagingBuffer, retval, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-
-//     if(mipLevels == 1) {
-//         TransitionImageLayout(
-//             cmd, retval, mipLevels,
-//             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-//             0, VK_ACCESS_TRANSFER_WRITE_BIT,
-//             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT
-//         );
-//     }
-
-//     help::Commands::EndSingleTimeCommands(cmd);
-
-//     vkDestroyBuffer(device, stagingBuffer, &temporaryAllocator);
-//     vkFreeMemory(device, stagingBufferMemory, &temporaryAllocator);
-
-//     *dstImage = retval;
-// }
 
 void help::Images::StageImageTransfer(VkImage dst, void *data, u32 width, u32 height, u32 channels)
 {
@@ -389,7 +266,7 @@ void help::Images::StageImageTransfer(VkImage dst, void *data, u32 width, u32 he
             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT
         );
 
-    help::Commands::EndSingleTimeCommands(cmd, vctx::TransferQueue);
+    help::Commands::EndSingleTimeCommands(cmd, TransferQueue);
 
     vkDestroyBuffer(device, stagingBuffer, nullptr);
     vkFreeMemory(device, stagingBufferMemory, nullptr);
@@ -397,7 +274,7 @@ void help::Images::StageImageTransfer(VkImage dst, void *data, u32 width, u32 he
 
 void help::Images::killme(u8 *buffer, u32 width, u32 height, VkFormat format, u32 channels, VkImage *dst, VkDeviceMemory *dstMem)
 {
-    create_empty(width, height, format, VK_SAMPLE_COUNT_1_BIT, channels, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, dst, dstMem);
+    create_empty(width, height, format, VK_SAMPLE_COUNT_1_BIT, channels, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, dst, dstMem);
     StageImageTransfer(*dst, buffer, width, height, channels);
 }
 
@@ -437,7 +314,9 @@ void help::Images::create_empty(u32 width, u32 height, VkFormat format, VkSample
 u8* help::Images::killme(const char *path, u32 *width, u32 *height, VkFormat *channels, VkImage *dst, VkDeviceMemory *dstMem)
 {
     i32 w, h, c;
-    u8 *buffer = stbi_load(path, &w, &h, &c, 3);
+    u8 *buffer = stbi_load(path, &w, &h, &c, 4);
+
+    assert(buffer != NULL);
 
     *width = w;
     *height = h;
@@ -507,16 +386,16 @@ void help::Images::LoadFromDisk(const char *path, u8 channels, u8 **dst, u32 *ds
 
 bool help::Images::GetSupportedFormat(VkDevice device, VkPhysicalDevice physDevice, VkSurfaceKHR surface, VkFormat *dstFormat, VkColorSpaceKHR *dstColorSpace)
 {
-	REQUIRED_PTR(device);
-	REQUIRED_PTR(physDevice);
-	REQUIRED_PTR(surface);
-	REQUIRED_PTR(dstFormat);
-	REQUIRED_PTR(dstColorSpace);
+	CVK_REQUIRED_PTR(device);
+	CVK_REQUIRED_PTR(physDevice);
+	CVK_REQUIRED_PTR(surface);
+	CVK_REQUIRED_PTR(dstFormat);
+	CVK_REQUIRED_PTR(dstColorSpace);
 
     u32 formatCount = 0;
 	vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, VK_NULL_HANDLE);
-	VkSurfaceFormatKHR *surfaceFormats = new VkSurfaceFormatKHR[formatCount];
-	vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, surfaceFormats);
+	cvector<VkSurfaceFormatKHR> surfaceFormats(formatCount);
+	vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, surfaceFormats.data());
 
 	VkSurfaceFormatKHR selectedFormat = { VK_FORMAT_MAX_ENUM, VK_COLOR_SPACE_MAX_ENUM_KHR };
 
@@ -548,14 +427,13 @@ bool help::Images::GetSupportedFormat(VkDevice device, VkPhysicalDevice physDevi
 		return VK_TRUE;
 	}
 
-	delete[] surfaceFormats;
 	return VK_FALSE;
 }
 
 u32 help::Images::GetImageCount(VkPhysicalDevice physDevice, VkSurfaceKHR surface)
 {
-	REQUIRED_PTR(physDevice);
-	REQUIRED_PTR(surface);
+	CVK_REQUIRED_PTR(physDevice);
+	CVK_REQUIRED_PTR(surface);
 
     VkSurfaceCapabilitiesKHR surfaceCapabilities;
 	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physDevice, surface, &surfaceCapabilities);
@@ -569,8 +447,8 @@ u32 help::Images::GetImageCount(VkPhysicalDevice physDevice, VkSurfaceKHR surfac
 
 u32 help::Memory::GetMemoryType(VkPhysicalDevice physDevice, const u32 memoryTypeBits, const VkMemoryPropertyFlags properties)
 {
-	REQUIRED_PTR(physDevice);
-	NOT_EQUAL_TO(properties, 0);
+	CVK_REQUIRED_PTR(physDevice);
+	CVK_NOT_EQUAL_TO(properties, 0);
 
     VkPhysicalDeviceMemoryProperties memoryProperties;
 	vkGetPhysicalDeviceMemoryProperties(physDevice, &memoryProperties);

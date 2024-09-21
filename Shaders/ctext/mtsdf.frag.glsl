@@ -1,3 +1,5 @@
+// output: Shaders/ctext/mtsdf.frag.spv stage: frag name: ctext/mtsdf
+
 #version 450
 
 layout(location=0) out
@@ -33,6 +35,8 @@ void main() {
 
     float contour_width = (0.7) / screen_px_range(); // u can adjust this a little
     float alpha = contour(distance, contour_width);
+    if (alpha <= 0.1)
+        discard;
 
     outColor = vec4(vec3(1.0), alpha);
 }

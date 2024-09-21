@@ -1,3 +1,5 @@
+// output: Shaders/ctext/msdf.frag.spv stage: frag name: ctext/msdf
+
 #version 450
 
 layout(location=0) out
@@ -28,9 +30,11 @@ float contour(in float d, in float w) {
 
 void main() {
     // Request the devil for cleaner text
-    float contour_width = (0.666) / screen_px_range(); // u can adjust this a little
     vec3 distance = texture(bitmap, f_uv).rgb;
     float dist = median(distance.r, distance.g, distance.b);
+    float contour_width = (0.666) / screen_px_range(); // u can adjust this a little
     float alpha = contour(dist, contour_width);
+    if (alpha <= 0.0)
+        discard;
     o_color = vec4(vec3(1.0), alpha);
 }
