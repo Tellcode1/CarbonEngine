@@ -2,7 +2,7 @@
 #define __C_CAMERA_HPP__
 
 #include "../stdafx.h"
-#include "../vkcb/stdafx.h"
+#include "../vkstdafx.h"
 #include "../math/math.h"
 #include "../math/mat.hpp"
 #include "../math/vec3.hpp"

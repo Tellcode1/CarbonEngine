@@ -6,10 +6,10 @@
 #include "math/vec2.hpp"
 
 #include "stdafx.h"
-#include "vkcb/stdafx.h"
+#include "vkstdafx.h"
 
 #include "containers/cstring.hpp"
-#include "containers/chashmap.hpp"
+#include "containers/chashmap.h"
 
 enum HoriAlignment
 {
@@ -64,6 +64,10 @@ enum ccharset {
     CHARSET_PRIVATE_USE_AREA_A,
     CHARSET_PRIVATE_USE_AREA_B
 };
+
+static inline unsigned ctext_hash(const void *key, int nbytes) {
+    return *(unicode *)key;
+}
 
 struct ctext
 {
@@ -170,16 +174,9 @@ struct ctext
         int index_count;
         bool to_render;
 
-        template <typename T>
-        struct ctext_hasher {
-            constexpr static inline u32 hash(const T& key) {
-                return key;
-            }
-        };
-
         u32 chars_drawn;
         cvector<text_drawcall_t> drawcalls;
-        chashmap<unicode, CFGlyph, ctext_hasher<unicode>> glyph_map;
+        chashmap_t * /* unicode, CFGlyph ctext_hasher<unicode>> */ glyph_map;
 
         friend void ctext::load_font(const CFontLoadInfo* pInfo, cfont_t **dst);
     };
@@ -202,7 +199,7 @@ struct ctext
         }
         else
         {
-            int first_bits = 6; 
+            int first_bits = 6;
             const int other_bits = 6;
             int first_val = 0xC0;
             int t = 0;
@@ -218,7 +215,7 @@ struct ctext
             }
             t = first_val | charcode;
             d.push_back(t);
-            
+
             int start = 0;
             int end = d.size() - 1;
 
@@ -263,12 +260,12 @@ struct ctext
             t <<= 1;
             t &= 0xff;
             total_bits += 6;
-            high_bit_mask >>= 1; 
+            high_bit_mask >>= 1;
             high_bit_shift++;
             charcode <<= other_bits;
             charcode |= coded[i] & ((1 << other_bits)-1);
             i++;
-        } 
+        }
         charcode |= ((t >> high_bit_shift) & high_bit_mask) << total_bits;
         return charcode;
     }

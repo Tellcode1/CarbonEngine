@@ -1,18 +1,17 @@
 #ifndef __CVK_HPP__
 #define __CVK_HPP__
 
-#include "../../external/volk/volk.h"
+#include "../external/volk/volk.h"
 
-#include "../defines.h"
-#include "../containers/cvector.hpp"
-#include "stdafx.h"
+#include "defines.h"
+#include "vkstdafx.h"
 
 struct csm_shader_t;
 
-typedef void (*cvk_result_check_func) (const VkResult result, const char *FILE, const char *FUNC, size_t LINE);
+typedef void (*cvk_result_check_func) (const VkResult result, const char *FILE, const char *FUNC, unsigned long LINE);
 
-#define CVK_REQUIRED_PTR(ptr) if(ptr == nullptr) LOG_AND_ABORT(#ptr" :  Required parameter '"#ptr"' specified as nullptr.\n", basename(__FILE__), __LINE__, __PRETTY_FUNCTION__)
-#define CVK_NOT_EQUAL_TO(val, to) if(val == to) LOG_AND_ABORT(#val" == "#to". Value "#val" must not be equal to "#to".\n", basename(__FILE__), __LINE__, __PRETTY_FUNCTION__)
+#define CVK_REQUIRED_PTR(ptr) if(ptr == nullptr) LOG_AND_ABORT(#ptr" :  Required parameter '"#ptr"' specified as nullptr.\n", __basename(__FILE__), __LINE__, __PRETTY_FUNCTION__)
+#define CVK_NOT_EQUAL_TO(val, to) if(val == to) LOG_AND_ABORT(#val" == "#to". Value "#val" must not be equal to "#to".\n", __basename(__FILE__), __LINE__, __PRETTY_FUNCTION__)
 
 #define __cvk_to_bit(n) (1 << n)
 
@@ -30,9 +29,9 @@ enum cvk_pipeline_flags_bits
 };
 typedef u32 cvk_pipeline_flags;
 
-#define CVK_ResultCheck(func) __cvk_resultFunc(func, basename(__FILE__), __PRETTY_FUNCTION__, __LINE__)
+#define CVK_ResultCheck(func) __cvk_resultFunc(func, __basename(__FILE__), __PRETTY_FUNCTION__, __LINE__)
 
-inline void __cvk_defaultResultCheckFunc(const VkResult result, const char *FILE, const char *FUNC, size_t LINE) {
+inline void __cvk_defaultResultCheckFunc(const VkResult result, const char *FILE, const char *FUNC, unsigned long LINE) {
 	(result != VK_SUCCESS) ? LOG_ERROR("In file %s:\n        In function %s at line %lu:\n        Function returned error code %i", FILE, FUNC, LINE, result) : void(0);
 }
 
@@ -111,11 +110,17 @@ struct cvk_pipeline_create_info
 	/*
 	*	Array pointers are allowed to be nullptr
 	*/
-	cvector<VkVertexInputAttributeDescription> pAttributeDescriptions;
-	cvector<VkVertexInputBindingDescription> pBindingDescriptions;
-	cvector<VkDescriptorSetLayout> pDescriptorLayouts;
-	cvector<VkPushConstantRange> pPushConstants;
-	cvector<csm_shader_t *> pShaders;
+	VkVertexInputAttributeDescription *pAttributeDescriptions;
+	VkVertexInputBindingDescription *pBindingDescriptions;
+	VkDescriptorSetLayout *pDescriptorLayouts;
+	VkPushConstantRange *pPushConstants;
+	csm_shader_t **pShaders;
+
+	int nAttributeDescriptions;
+	int nBindingDescriptions;
+	int nDescriptorLayouts;
+	int nPushConstants;
+	int nShaders;
 
 	cvk_pipeline_create_info() = default;
 	~cvk_pipeline_create_info() = default;

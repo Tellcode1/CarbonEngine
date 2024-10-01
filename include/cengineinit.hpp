@@ -1,13 +1,13 @@
-#ifndef __CONTEXT_HPP__
-#define __CONTEXT_HPP__
+#ifndef __CENGINE_INIT_HPP
+#define __CENGINE_INIT_HPP
 
 struct ctx;
 
 #include "stdafx.h"
-#include "vkcb/stdafx.h"
-#include "../../external/volk/volk.h"
-#include "../containers/cvector.hpp"
-#include "../containers/cstring.hpp"
+#include "vkstdafx.h"
+#include "../external/volk/volk.h"
+#include "containers/cvector.hpp"
+#include "containers/cstring.hpp"
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
@@ -19,7 +19,6 @@ struct ctx {
 	
 	static void Initialize(const char* title, u32 windowWidth, u32 windowHeight);
 };
-
 
 const cvector<const char*> ValidationLayers = {  
 	"VK_LAYER_KHRONOS_validation",
@@ -48,7 +47,7 @@ constexpr static VkPhysicalDeviceFeatures WantedFeatures = {
 	.samplerAnisotropy = VK_TRUE,
 };
 
-static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessengerCallback(
+static __attribute_maybe_unused__ VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessengerCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
     VkDebugUtilsMessageTypeFlagsEXT messageType,
     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
@@ -100,4 +99,4 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessengerCallback(
     return VK_FALSE;
 }
 
-#endif
+#endif//__CENGINE_INIT_HPP

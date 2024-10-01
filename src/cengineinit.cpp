@@ -1,4 +1,4 @@
-#include "../../include/vkcb/Context.hpp"
+#include "../../include/cengineinit.hpp"
 #include "../../include/containers/cvector.hpp"
 
 #include <cassert>
@@ -17,9 +17,10 @@ VkSampleCountFlagBits                MAX_SAMPLES;
 unsigned char 				         SUPPORTS_MULTISAMPLING;
 f32 				                 MAX_ANISOTROPY;
 
-cvector<u32> setify(const cvector<u32> &in) {
-	cvector<u32> ret(in.size());
-	for (const auto &e : in) {
+cvector<u32> setify(u32 i1, u32 i2, u32 i3, u32 i4) {
+	cvector<u32> ret(4);
+    u32 nums[4] = {i1, i2, i3, i4};
+	for (const auto &e : nums) {
 		bool already_in = false;
 		for (const auto &i : ret)
 			if (e == i)
@@ -99,7 +100,7 @@ VkInstance CreateInstance(const char* title, cvector<cstring_view>& availableExt
 
 		if (!validationLayersAvailable)
 		{
-			LOG_ERROR("VALIDTATION LAYERS COULD NOT BE LOADED\nRequested layers:\n");
+			LOG_ERROR("VALIDATION LAYERS COULD NOT BE LOADED\nRequested layers:\n");
 			for(const char* layer : ValidationLayers)
 				printf("\t%s\n", layer);
 
@@ -128,7 +129,7 @@ VkInstance CreateInstance(const char* title, cvector<cstring_view>& availableExt
 			abort();
 		}
 
-		instanceCreateinfo.enabledLayerCount = ValidationLayers.size();
+		instanceCreateinfo.enabledLayerCount = ValidationLayers.max_capacity();
 		instanceCreateinfo.ppEnabledLayerNames = ValidationLayers.data();
 	}
 
@@ -296,7 +297,7 @@ VkDevice CreateDevice() {
 		i++;
 	}
 	
-	const cvector<u32> uniqueQueueFamilies = setify({graphicsFamily, presentFamily, computeFamily, transferFamily});
+	const cvector<u32> uniqueQueueFamilies = setify(graphicsFamily, presentFamily, computeFamily, transferFamily);
 	const cvector<VkDeviceQueueCreateInfo> queueCreateInfos(uniqueQueueFamilies.size());
 
 	constexpr float queuePriority = 1.0f;

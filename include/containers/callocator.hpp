@@ -11,8 +11,6 @@ template <typename tp, callocator_allocate_fn alloc, callocator_free_fn free>
 struct callocator {
     void *memory;
     int size, capacity;
-
-    
 };
 
 #endif//__C_ALLOCATOR_H

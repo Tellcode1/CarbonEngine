@@ -1,6 +1,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 
+#include "../include/Renderer.hpp"
 #include "../../external/stb/stb_image.h"
 #include "../../external/stb/stb_image_write.h"
 
@@ -20,6 +21,9 @@
 
 #include "../include/cshadermanager.h"
 
+#include "../include/containers/cvector.h"
+#include "../include/containers/chashmap.h"
+
 int main(int argc, char *argv[]) {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);
 
@@ -28,11 +32,11 @@ int main(int argc, char *argv[]) {
     TIME_FUNCTION(cengine::initialize_context("kilometers per second (edgy)(im cool now ok?)", 800, 600));
 
     renderer_config rdconf{};
-    rdconf.present_mode = VK_PRESENT_MODE_FIFO_KHR;
+    rdconf.present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
     rdconf.buffer_mode = BUFFER_MODE_NONE;
     rdconf.window_resizable = false;
-    rdconf.multisampling_enable = true;
-    rdconf.samples = MAX_SAMPLES;
+    rdconf.multisampling_enable = false;
+    rdconf.samples = VK_SAMPLE_COUNT_1_BIT;
     cengine::initialize(&rdconf);
 
     csm_compile_updated();
@@ -53,11 +57,16 @@ int main(int argc, char *argv[]) {
 
     cassert(SDL_SetRelativeMouseMode(SDL_TRUE) == 0);
 
-    cmesh_t *light = load_mesh("../Assets/model/3DBread007_HQ-1K-JPG.obj", "../Assets/model/3DBread007_HQ-1K-JPG_Color.jpg", "../Assets/model/3DBread007_HQ-1K-JPG_NormalGL.jpg");
-    cmesh_t *mesh = load_mesh("../Assets/model/3DBread007_HQ-1K-JPG.obj", "../Assets/model/3DBread007_HQ-1K-JPG_Color.jpg", "../Assets/model/3DBread007_HQ-1K-JPG_NormalGL.jpg");
+    cmesh_t *light;
+    cmesh_t *mesh;
+    cmesh_t *block = load_mesh("../Assets/cube.obj", "../Assets/model/3DBread007_HQ-1K-JPG_Color.jpg", "../Assets/empty.png");
+    block->transform.position = cm::vec3(0.0f);
+    block->transform.scale = cm::vec3(1.0f);
 
-    csquare_t square;
-    ccreate_cube(&square);
+    TIME_FUNCTION(
+        light = load_mesh("../Assets/model/3DBread007_HQ-1K-JPG.obj", "../Assets/model/3DBread007_HQ-1K-JPG_Color.jpg", "../Assets/model/3DBread007_HQ-1K-JPG_NormalGL.jpg");
+        mesh = load_mesh("../Assets/model/3DBread007_HQ-1K-JPG.obj", "../Assets/model/3DBread007_HQ-1K-JPG_Color.jpg", "../Assets/model/3DBread007_HQ-1K-JPG_NormalGL.jpg");
+    );
 
     // What in the unholy f%$ where you doing
     LOG_DEBUG("Initialized in %ld ms (%.3f s)", SDL_GetTicks64(), SDL_GetTicks64() / 1000.0f);
@@ -112,7 +121,8 @@ int main(int argc, char *argv[]) {
         if (cinput::is_key_held(SDL_SCANCODE_L))
             mesh->transform.position.x += speed;
 
-        light->transform.position = cm::vec3((0.5f, 1.0f, 0.3f));
+        // light->transform.position = cm::vec3(0.5f, 1.0f, 0.3f);
+        light->transform.position = cm::vec3(0.0f);
         mesh->transform.position = cm::vec3(sinf(cengine::get_time() / 3.0f) / 3.0f, 0.0f, cosf(cengine::get_time() / 3.0f) / 3.0f);
         mesh->transform.scale = cm::vec3(10.0f);
         light->transform.scale = cm::vec3(10.0f);
@@ -136,9 +146,11 @@ int main(int argc, char *argv[]) {
 
             ctext::end_render(amongus, cm::mat4(1.0f));
 
+            block->transform.rotation.y += cmdeg2rad(360.0f * 16.0f) * dt;
+
             render(light, light->transform.position);
             render(mesh, light->transform.position);
-            render_cube(&square);
+            render(block, light->transform.position);
 
             RD::EndRender();
         } else {

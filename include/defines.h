@@ -1,6 +1,10 @@
 #ifndef __DEFINES_H__
 #define __DEFINES_H__
 
+#ifdef __cplusplus
+    extern "C" {
+#endif
+
 #include <stdint.h>
 #include <string.h>
 
@@ -99,11 +103,22 @@
 
 #define array_len(arr) (sizeof(arr) / sizeof(arr[0]))
 
-#define cassert_and_ret(expr) if (!static_cast<bool>(expr)) { LOG_ERROR("[%s : %u] Assertion %s failed", basename(__FILE__), __LINE__, #expr); return; }
-#define cassert(expr) (!static_cast<bool>(expr) ? LOG_ERROR("[%s : %u] Assertion %s failed", basename(__FILE__), __LINE__, #expr) : void(0))
+#include "stdafx.h"
+#include <libgen.h>
+#include <stdlib.h>
+
+//  ISO C++ doesn't allow conversion of __FILE__ to a char * (its a const char *).
+static const char *__basename(const char *path) {
+    char *cpath = strdup(path);
+    const char *out = basename(cpath);
+    free(cpath);
+    return out;
+}
+
+#define cassert_and_ret(expr) if (!((unsigned char)(expr))) { LOG_ERROR("[%s : %u] Assertion %s failed", __basename(__FILE__), __LINE__, #expr); return; }
+#define cassert(expr) (!((unsigned char)(expr)) ? LOG_AND_ABORT("[%s : ln %u] Assertion \"%s\" failed", __basename(__FILE__), __LINE__, #expr) : (void)(0))
 
 typedef uint64_t u64;
-typedef uint64_t size_t; // vscode somtimes complains so I just have this here.
 typedef uint32_t u32;
 typedef uint16_t u16;
 typedef uint8_t u8;
@@ -119,5 +134,9 @@ typedef int8_t i8;
 // These aren't guranteed to be 32/64 bits. (I think so, I may be wrong)
 typedef float f32;
 typedef double f64;
+
+#ifdef __cplusplus
+    }
+#endif
 
 #endif

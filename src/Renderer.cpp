@@ -1,11 +1,11 @@
-#include "../../include/vkcb/Renderer.hpp"
-#include "../../include/ctext.hpp"
+#include "../include/Renderer.hpp"
+#include "../include/ctext.hpp"
 
-#include "../../include/stdafx.h"
-#include "../../include/vkcb/cvk.hpp"
-#include "../../include/vkcb/epichelperlib.hpp"
+#include "../include/stdafx.h"
+#include "../include/cvk.hpp"
+#include "../../include/vkhelper.hpp"
 
-#include "../../include/containers/csignal.hpp"
+#include "../include/containers/csignal.hpp"
 
 VkFormat SwapChainImageFormat;
 VkColorSpaceKHR SwapChainColorSpace;
@@ -31,8 +31,8 @@ u32 Renderer::attachment_count = 1;
 u32 Renderer::renderer_frame = 0;
 u32 Renderer::imageIndex = 0;
 VkCommandPool Renderer::commandPool = VK_NULL_HANDLE;
-cvector<FrameRenderData> Renderer::renderData;
-cvector<VkCommandBuffer> Renderer::drawBuffers;
+cvector_t *Renderer::renderData;
+cvector_t *Renderer::drawBuffers;
 renderer_config Renderer::config;
 
 const void *Renderer::empty_array;
@@ -142,14 +142,15 @@ void Renderer::initialize(const renderer_config *conf) {
     // how many frames the renderer will render at once
     const int frames_in_flight = 1 + (int)config.buffer_mode;
 
-    drawBuffers.resize(frames_in_flight);
+    drawBuffers = cvector_init(sizeof(VkCommandBuffer), frames_in_flight);
+    renderData = cvector_init(sizeof(FrameRenderData), frames_in_flight);
 
     VkCommandBufferAllocateInfo cmdAllocInfo{};
     cmdAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     cmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     cmdAllocInfo.commandBufferCount = frames_in_flight;
     cmdAllocInfo.commandPool = commandPool;
-    vkAllocateCommandBuffers(device, &cmdAllocInfo, drawBuffers.data());
+    vkAllocateCommandBuffers(device, &cmdAllocInfo, (VkCommandBuffer *)cvector_data(drawBuffers));
 
     depth_buffer_format = VK_FORMAT_D16_UNORM; // replace (probably)
 
@@ -207,19 +208,22 @@ void Renderer::initialize(const renderer_config *conf) {
             VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, nullptr, VK_FENCE_CREATE_SIGNALED_BIT
         };
 
-        vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &renderData[i].renderingFinishedSemaphore);
-        vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &renderData[i].imageAvailableSemaphore);
-        vkCreateFence(device, &fenceCreateInfo, nullptr, &renderData[i].inFlightFence);
+        FrameRenderData &data = *(FrameRenderData *)cvector_get(renderData, i);
+        vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &data.renderingFinishedSemaphore);
+        vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &data.imageAvailableSemaphore);
+        vkCreateFence(device, &fenceCreateInfo, nullptr, &data.inFlightFence);
 	}
 }
 
 bool Renderer::BeginRender()
 {
-    vkWaitForFences(device, 1, &renderData.at(renderer_frame).inFlightFence, VK_TRUE, UINT64_MAX);
+    FrameRenderData &data = *(FrameRenderData *)cvector_get(renderData, renderer_frame);
 
-    const VkResult imageAcquireResult = vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, renderData.at(renderer_frame).imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+    vkWaitForFences(device, 1, &data.inFlightFence, VK_TRUE, UINT64_MAX);
 
-    const VkCommandBuffer& drawBuffer = drawBuffers.at(renderer_frame);
+    const VkResult imageAcquireResult = vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, data.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+
+    const VkCommandBuffer& drawBuffer = *(VkCommandBuffer *)cvector_get(drawBuffers, renderer_frame);
 
 	if(imageAcquireResult == VK_ERROR_OUT_OF_DATE_KHR || imageAcquireResult == VK_SUBOPTIMAL_KHR || cengine::get_frame_buffer_resized())
 	{
@@ -232,15 +236,17 @@ bool Renderer::BeginRender()
 		return false;
     }
 
-    vkResetFences(device, 1, &renderData.at(renderer_frame).inFlightFence);
+    vkResetFences(device, 1, &data.inFlightFence);
 
     VkClearValue clearValues[2];
     clearValues[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
     clearValues[1].depthStencil = { 1.0f, 0 };
+
+    VkFramebuffer &fb = (*(FrameRenderData *)(cvector_get(renderData, imageIndex))).color_framebuffer;
  
     static VkRenderPassBeginInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassInfo.framebuffer = renderData[imageIndex].color_framebuffer;
+    renderPassInfo.framebuffer = fb;
     renderPassInfo.renderArea.extent = RenderExtent;
     renderPassInfo.renderArea.offset = {0, 0};
     renderPassInfo.renderPass = GlobalRenderPass;
@@ -273,7 +279,7 @@ bool Renderer::BeginRender()
 
 void Renderer::EndRender()
 {
-    const auto& drawBuffer = drawBuffers.at(renderer_frame);
+    const VkCommandBuffer& drawBuffer = *(VkCommandBuffer *)cvector_get(drawBuffers, renderer_frame);
 
     vkCmdEndRenderPass(drawBuffer);
     vkEndCommandBuffer(drawBuffer);
@@ -281,8 +287,9 @@ void Renderer::EndRender()
 	VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-    const VkSemaphore waitSemaphores[] = {renderData[renderer_frame].imageAvailableSemaphore};
-    const VkSemaphore signalSemaphores[] = {renderData[renderer_frame].renderingFinishedSemaphore};
+    FrameRenderData &data = *(FrameRenderData *)cvector_get(renderData, renderer_frame);
+    const VkSemaphore waitSemaphores[] = {data.imageAvailableSemaphore};
+    const VkSemaphore signalSemaphores[] = {data.renderingFinishedSemaphore};
 
     VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
     submitInfo.pWaitDstStageMask = waitStages;
@@ -297,7 +304,7 @@ void Renderer::EndRender()
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    vkQueueSubmit(PresentQueue, 1, &submitInfo, renderData.at(renderer_frame).inFlightFence);
+    vkQueueSubmit(PresentQueue, 1, &submitInfo, data.inFlightFence);
 
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -328,16 +335,18 @@ void Renderer::_SignalResize()
     
     // adhoc method of resetting them
     for (int i = 0; i < (1 + (int)config.buffer_mode); i++) {
-        vkDestroySemaphore(device, renderData[i].imageAvailableSemaphore, nullptr);
-        vkDestroySemaphore(device, renderData[i].renderingFinishedSemaphore, nullptr);
-        vkDestroyFence(device, renderData[i].inFlightFence, nullptr);
+        FrameRenderData &data = *(FrameRenderData *)cvector_get(renderData, i);
+        vkDestroySemaphore(device, data.imageAvailableSemaphore, nullptr);
+        vkDestroySemaphore(device, data.renderingFinishedSemaphore, nullptr);
+        vkDestroyFence(device, data.inFlightFence, nullptr);
     }
     for (u32 i = 0; i < SwapChainImageCount; i++)
     {
-        vkDestroyImageView(device, renderData[i].swapchainImageView, nullptr);
-        vkDestroyFramebuffer(device, renderData[i].color_framebuffer, nullptr);
+        FrameRenderData &data = *(FrameRenderData *)cvector_get(renderData, i);
+        vkDestroyImageView(device, data.swapchainImageView, nullptr);
+        vkDestroyFramebuffer(device, data.color_framebuffer, nullptr);
     }
-    renderData.clear();
+    cvector_clear(renderData);
 
     i32 w, h;
     SDL_Vulkan_GetDrawableSize(window, &w, &h);
@@ -376,9 +385,10 @@ void Renderer::_SignalResize()
 
     for (u32 i = 0; i < SwapChainImageCount; i++)
     {
-        vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &renderData[i].renderingFinishedSemaphore);
-        vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &renderData[i].imageAvailableSemaphore);
-        vkCreateFence(device, &fenceCreateInfo, nullptr, &renderData[i].inFlightFence);
+        FrameRenderData &data = *(FrameRenderData *)cvector_get(renderData, i);
+        vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &data.renderingFinishedSemaphore);
+        vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &data.imageAvailableSemaphore);
+        vkCreateFence(device, &fenceCreateInfo, nullptr, &data.inFlightFence);
     }
 
     cengine::_reset_frame_buffer_resized();
@@ -390,7 +400,7 @@ void Renderer::_create_optional_images()
 {
     vkGetSwapchainImagesKHR(device, swapchain, &SwapChainImageCount, nullptr);
     VkImage swapchainImages[SwapChainImageCount];
-    renderData.resize(SwapChainImageCount);
+    cvector_resize(renderData, SwapChainImageCount);
 	vkGetSwapchainImagesKHR(device, swapchain, &SwapChainImageCount, swapchainImages);
 
     if (config.multisampling_enable) {
@@ -424,7 +434,8 @@ void Renderer::_create_optional_images()
 
     // attachment vector will be like <color resolve, depth attachment, swapchain image>
     for (int i = 0; i < SwapChainImageCount; i++) {
-        renderData[i].swapchainImage = swapchainImages[i];
+        FrameRenderData &data = *(FrameRenderData *)cvector_get(renderData, i);
+        data.swapchainImage = swapchainImages[i];
 
         VkImageCreateInfo image{};
         image.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -438,18 +449,18 @@ void Renderer::_create_optional_images()
         image.tiling = VK_IMAGE_TILING_OPTIMAL;
         image.format = VK_FORMAT_D16_UNORM;
         image.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ;
-        vkCreateImage(device, &image, nullptr, &renderData[i].depth_image);
+        vkCreateImage(device, &image, nullptr, &data.depth_image);
 
         VkMemoryRequirements memReqs;
-        vkGetImageMemoryRequirements(device, renderData[i].depth_image, &memReqs);
+        vkGetImageMemoryRequirements(device, data.depth_image, &memReqs);
 
         VkMemoryAllocateInfo memAlloc{};
         memAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         memAlloc.allocationSize = memReqs.size;
         memAlloc.memoryTypeIndex = help::GetMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-        vkAllocateMemory(device, &memAlloc, nullptr, &renderData[i].shadow_image_memory);
-        vkBindImageMemory(device, renderData[i].depth_image, renderData[i].shadow_image_memory, 0);
+        vkAllocateMemory(device, &memAlloc, nullptr, &data.shadow_image_memory);
+        vkBindImageMemory(device, data.depth_image, data.shadow_image_memory, 0);
 
         VkImageViewCreateInfo depthStencilView{};
         depthStencilView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -460,8 +471,8 @@ void Renderer::_create_optional_images()
         depthStencilView.subresourceRange.levelCount = 1;
         depthStencilView.subresourceRange.baseArrayLayer = 0;
         depthStencilView.subresourceRange.layerCount = 1;
-        depthStencilView.image = renderData[i].depth_image;
-        vkCreateImageView(device, &depthStencilView, nullptr, &renderData[i].depth_image_view);
+        depthStencilView.image = data.depth_image;
+        vkCreateImageView(device, &depthStencilView, nullptr, &data.depth_image_view);
     }
 }
 
@@ -470,9 +481,10 @@ void Renderer::_create_framebuffers_and_swapchain_image_views()
     cvector<VkImageView> attachments(3);
 
     for (int i = 0; i < (int)SwapChainImageCount; i++) {
+        FrameRenderData &data = *(FrameRenderData *)cvector_get(renderData, i);
         VkImageViewCreateInfo imageViewCreateInfo{};
         imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        imageViewCreateInfo.image = renderData[i].swapchainImage;
+        imageViewCreateInfo.image = data.swapchainImage;
         imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
         imageViewCreateInfo.format = SwapChainImageFormat;
         imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -484,12 +496,12 @@ void Renderer::_create_framebuffers_and_swapchain_image_views()
         imageViewCreateInfo.subresourceRange.levelCount = 1;
         imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
         imageViewCreateInfo.subresourceRange.layerCount = 1;
-        if (vkCreateImageView(device, &imageViewCreateInfo, nullptr, &renderData[i].swapchainImageView) != VK_SUCCESS) {
+        if (vkCreateImageView(device, &imageViewCreateInfo, nullptr, &data.swapchainImageView) != VK_SUCCESS) {
             LOG_ERROR("Failed to create view for swapchain image %d", i);
         }
 
-        const VkImageView &swapchain_image_view = renderData[i].swapchainImageView;
-        const VkImageView &depth_image_view = renderData[i].depth_image_view;
+        const VkImageView &swapchain_image_view = data.swapchainImageView;
+        const VkImageView &depth_image_view = data.depth_image_view;
 
         if (config.multisampling_enable)
             attachments = { color_image_view, depth_image_view, swapchain_image_view };
@@ -504,7 +516,7 @@ void Renderer::_create_framebuffers_and_swapchain_image_views()
         framebufferInfo.width = RenderExtent.width;
         framebufferInfo.height = RenderExtent.height;
         framebufferInfo.layers = 1;
-        if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &renderData[i].color_framebuffer) != VK_SUCCESS)
+        if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &data.color_framebuffer) != VK_SUCCESS)
             LOG_ERROR("Failed to create framebuffer for swapchain image %d", i);
     }
 }

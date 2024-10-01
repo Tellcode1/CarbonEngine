@@ -1,5 +1,5 @@
-#include "../../include/vkcb/cvk.hpp"
-#include "../../include/vkcb/Context.hpp"
+#include "../../include/cvk.hpp"
+#include "../../include/cengineinit.hpp"
 #include "../../include/cshadermanagerdev.h"
 
 cvk_result_check_func __cvk_resultFunc = __cvk_defaultResultCheckFunc; // To not cause nullptr dereference. SetResultCheckFunc also checks for nullptr and handles it.
@@ -18,7 +18,7 @@ void cvk_create_graphics_pipeline(VkDevice device,  const cvk_pipeline_create_in
 	CVK_REQUIRED_PTR(pCreateInfo);
 	CVK_REQUIRED_PTR(dstPipeline);
 	CVK_REQUIRED_PTR(pCreateInfo->render_pass);
-	CVK_NOT_EQUAL_TO(pCreateInfo->pShaders.size(), 0);
+	CVK_NOT_EQUAL_TO(pCreateInfo->nShaders, 0);
 	CVK_NOT_EQUAL_TO(pCreateInfo->format, VK_FORMAT_UNDEFINED);
 	CVK_NOT_EQUAL_TO(pCreateInfo->extent.width, 0);
 	CVK_NOT_EQUAL_TO(pCreateInfo->extent.height, 0);
@@ -28,10 +28,10 @@ void cvk_create_graphics_pipeline(VkDevice device,  const cvk_pipeline_create_in
 
 	VkPipelineVertexInputStateCreateInfo vertexInputState{};
 	vertexInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;	
-	vertexInputState.vertexAttributeDescriptionCount = pCreateInfo->pAttributeDescriptions.size();
-	vertexInputState.vertexBindingDescriptionCount = pCreateInfo->pBindingDescriptions.size();
-	vertexInputState.pVertexAttributeDescriptions = pCreateInfo->pAttributeDescriptions.data();
-	vertexInputState.pVertexBindingDescriptions = pCreateInfo->pBindingDescriptions.data();
+	vertexInputState.vertexAttributeDescriptionCount = pCreateInfo->nAttributeDescriptions;
+	vertexInputState.vertexBindingDescriptionCount = pCreateInfo->nBindingDescriptions;
+	vertexInputState.pVertexAttributeDescriptions = pCreateInfo->pAttributeDescriptions;
+	vertexInputState.pVertexBindingDescriptions = pCreateInfo->pBindingDescriptions;
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssemblyState{};
 	inputAssemblyState.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -119,10 +119,10 @@ void cvk_create_graphics_pipeline(VkDevice device,  const cvk_pipeline_create_in
 	colorblendState.blendConstants[2] = 0.0f;
 	colorblendState.blendConstants[3] = 0.0f;
 
-	VkPipelineShaderStageCreateInfo *shader_infos = (VkPipelineShaderStageCreateInfo *)malloc(pCreateInfo->pShaders.size() * sizeof(VkPipelineShaderStageCreateInfo));
-	memset(shader_infos, 0, pCreateInfo->pShaders.size() * sizeof(VkPipelineShaderStageCreateInfo));
+	VkPipelineShaderStageCreateInfo *shader_infos = (VkPipelineShaderStageCreateInfo *)malloc(pCreateInfo->nShaders * sizeof(VkPipelineShaderStageCreateInfo));
+	memset(shader_infos, 0, pCreateInfo->nShaders * sizeof(VkPipelineShaderStageCreateInfo));
 
-	for (int i = 0; i < pCreateInfo->pShaders.size(); i++) {
+	for (int i = 0; i < pCreateInfo->nShaders; i++) {
 		shader_infos[i].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		shader_infos[i].stage = (VkShaderStageFlagBits)pCreateInfo->pShaders[i]->stage;
 		shader_infos[i].module = (VkShaderModule)pCreateInfo->pShaders[i]->shader_module;
@@ -131,7 +131,7 @@ void cvk_create_graphics_pipeline(VkDevice device,  const cvk_pipeline_create_in
 
 	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo{};
 	graphicsPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	graphicsPipelineCreateInfo.stageCount = static_cast<u32>(pCreateInfo->pShaders.size());
+	graphicsPipelineCreateInfo.stageCount = static_cast<u32>(pCreateInfo->nShaders);
 	graphicsPipelineCreateInfo.pStages = shader_infos;
 	graphicsPipelineCreateInfo.pVertexInputState = &vertexInputState;
 	graphicsPipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
@@ -210,21 +210,6 @@ void cvk_create_render_pass(VkDevice device, cvk_render_pass_create_info const *
     cvector<VkAttachmentDescription> attachments(5);
 	attachments.push_back(colorAttachmentDescription);
 
-	VkSubpassDependency dependencies[2] = {};
-	dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
-	dependencies[0].dstSubpass = 0;
-	dependencies[0].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependencies[0].srcAccessMask = 0;
-	dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-	dependencies[1].srcSubpass = VK_SUBPASS_EXTERNAL;
-	dependencies[1].dstSubpass = 0;
-	dependencies[1].srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-	dependencies[1].srcAccessMask = 0;
-	dependencies[1].dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-	dependencies[1].dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
 	VkAttachmentDescription depthAttachment{};
 	VkAttachmentReference depthAttachmentRef{};
     if (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_DEPTH_CHECK) && !(flags & CVK_PIPELINE_FLAGS_UNFORCE_DEPTH_CHECK))
@@ -299,10 +284,10 @@ void cvk_create_pipeline_layout(VkDevice device, cvk_pipeline_create_info const 
 
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
 	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutCreateInfo.setLayoutCount = pCreateInfo->pDescriptorLayouts.size();
-	pipelineLayoutCreateInfo.pSetLayouts = pCreateInfo->pDescriptorLayouts.data();
-	pipelineLayoutCreateInfo.pushConstantRangeCount = pCreateInfo->pPushConstants.size();
-	pipelineLayoutCreateInfo.pPushConstantRanges = pCreateInfo->pPushConstants.data();
+	pipelineLayoutCreateInfo.setLayoutCount = pCreateInfo->nDescriptorLayouts;
+	pipelineLayoutCreateInfo.pSetLayouts = pCreateInfo->pDescriptorLayouts;
+	pipelineLayoutCreateInfo.pushConstantRangeCount = pCreateInfo->nPushConstants;
+	pipelineLayoutCreateInfo.pPushConstantRanges = pCreateInfo->pPushConstants;
 
 	CVK_ResultCheck(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, VK_NULL_HANDLE, dstLayout));
 }

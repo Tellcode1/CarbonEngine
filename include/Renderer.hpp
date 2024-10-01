@@ -1,17 +1,16 @@
 #ifndef __RENDERER__
 #define __RENDERER__
 
-#include "../defines.h"
-#include "../stdafx.h"
+#include "defines.h"
+#include "stdafx.h"
+#include "vkstdafx.h"
 
-#include "../../external/volk/volk.h"
+#include "../external/volk/volk.h"
 
-#include "../cengine.hpp"
-#include "../containers/cvector.hpp"
-#include "../containers/carray.hpp"
-#include "../containers/chashmap.hpp"
+#include "cengine.hpp"
+#include "containers/cvector.h"
 
-#include "../engine/camera.hpp"
+#include "engine/camera.hpp"
 
 #include <SDL2/SDL.h>
 
@@ -75,12 +74,12 @@ struct Renderer
 
     static VkFormat depth_buffer_format;
 
-    static cvector<FrameRenderData> renderData;
-    static cvector<VkCommandBuffer> drawBuffers;
+    static cvector_t *renderData;
+    static cvector_t *drawBuffers;
 
     static void initialize(const renderer_config *conf);
 
-    static VkCommandBuffer CARBON_FORCE_INLINE GetDrawBuffer() { return drawBuffers[renderer_frame]; }
+    static VkCommandBuffer CARBON_FORCE_INLINE GetDrawBuffer() { return *(VkCommandBuffer *)cvector_get(drawBuffers, renderer_frame); }
     static bool BeginRender();
     static void EndRender();
 

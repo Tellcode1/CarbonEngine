@@ -1,7 +1,7 @@
 #ifndef __C_ENGINE_HPP__
 #define __C_ENGINE_HPP__
 
-#include "vkcb/Context.hpp"
+#include "cengineinit.hpp"
 #include "defines.h"
 
 struct renderer_config;
@@ -14,9 +14,8 @@ public:
         return application_running;
     }
 
-    static bool CARBON_FORCE_INLINE _reset_frame_buffer_resized() {
+    static void CARBON_FORCE_INLINE _reset_frame_buffer_resized() {
         framebuffer_resized = false;
-        return framebuffer_resized;
     }
 
     static bool CARBON_FORCE_INLINE get_frame_buffer_resized() {

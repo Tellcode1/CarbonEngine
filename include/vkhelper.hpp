@@ -1,10 +1,10 @@
-#ifndef __EPIC_HELPER_LIBRARY_HPP__
-#define __EPIC_HELPER_LIBRARY_HPP__
+#ifndef __VKH_HPP
+#define __VKH_HPP
 
-#include "stdafx.h"
-#include "Context.hpp"
-#include "Renderer.hpp"
-#include "../containers/cvector.hpp"
+#include "vkstdafx.h"
+
+template <typename T>
+struct cvector;
 
 namespace help
 {
@@ -88,4 +88,4 @@ namespace help
     }
 }
 
-#endif
+#endif//__VKH_HPP

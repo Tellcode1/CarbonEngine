@@ -2,7 +2,6 @@
 #define __C_OPTIONAL_HPP__
 
 #include "../../include/defines.h"
-#include <cassert>
 
 template <typename Tp>
 struct coptional;
@@ -15,7 +14,7 @@ struct coptional {
     public:
     constexpr CARBON_FORCE_INLINE coptional() : m_has_value(false) {  }
     constexpr CARBON_FORCE_INLINE coptional(const Tp &val) : m_val(val), m_has_value(true) {  }
-    constexpr CARBON_FORCE_INLINE coptional(nullopt_t) : m_has_value(false) {  }
+    constexpr CARBON_FORCE_INLINE coptional(const nullopt_t) : m_has_value(false) {  }
 
     constexpr CARBON_FORCE_INLINE bool has_value() const {
         return m_has_value;

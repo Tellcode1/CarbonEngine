@@ -2,7 +2,7 @@
 #define __C_INPUT_HPP__
 
 #include <SDL2/SDL.h>
-#include "../include/vkcb/stdafx.h"
+#include "../include/vkstdafx.h"
 #include "../include/math/vec2.hpp"
 #include "../include/containers/cbitset.hpp"
 

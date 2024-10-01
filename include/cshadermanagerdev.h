@@ -1,8 +1,6 @@
 #ifndef __CSM_DEV_H
 #define __CSM_DEV_H
 
-#include <stdlib.h>
-
 extern const char *shader_compiler;
 extern const char *shader_compiler_args;
 extern const char *list;

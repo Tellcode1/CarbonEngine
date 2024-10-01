@@ -1,8 +1,9 @@
 #include "../../../include/ctext.hpp"
+#include "../../../include/Renderer.hpp"
 
 #include "../../../include/cshadermanager.h"
-#include "../../../include/vkcb/cvk.hpp"
-#include "../../../include/vkcb/epichelperlib.hpp"
+#include "../../../include/cvk.hpp"
+#include "../../../include/vkhelper.hpp"
 
 #define MSDFGEN_PUBLIC // ?
 #include "../../../external/msdf-atlas-gen/msdf-atlas-gen/msdf-atlas-gen.h"
@@ -145,6 +146,8 @@ void ctext::load_font(const CFontLoadInfo *__restrict pInfo, cfont_t **dst)
         LOG_AND_ABORT("Invalid channel count");
     }
 
+    (*dst)->glyph_map = chashmap_init(16, sizeof(unicode), sizeof(CFGlyph), NULL, NULL);
+
     for (const msdf_atlas::GlyphGeometry& glyph : glyphs) {
         if (glyph.isWhitespace()) {
             (*dst)->space_width = glyph.getAdvance();
@@ -161,7 +164,7 @@ void ctext::load_font(const CFontLoadInfo *__restrict pInfo, cfont_t **dst)
         f32 r = (f32(r_)) / f32(height);
         f32 b  =(1.0f - (f32)b_) / f32(width);
         f32 t  =(1.0f - (f32)t_) / f32(height);
-        
+
         f32 x0 = f32(x0_);
         f32 x1 = f32(x1_);
         f32 y0 = (f32)y0_;
@@ -190,7 +193,8 @@ void ctext::load_font(const CFontLoadInfo *__restrict pInfo, cfont_t **dst)
         (*dst)->line_height = f32(metrics.lineHeight) / f32(metrics.emSize);
 
         mogus.advance = static_cast<f32>(glyph.getAdvance());
-        (*dst)->glyph_map.insert(glyph.getCodepoint(), mogus);
+        const unicode codepoint = glyph.getCodepoint();
+        chashmap_insert((*dst)->glyph_map, &codepoint, &mogus);
     }
 
     (*dst)->atlas_width = width;
@@ -256,7 +260,7 @@ void ctext::load_font(const CFontLoadInfo *__restrict pInfo, cfont_t **dst)
         { 0, sizeof(cm::vec3) + sizeof(cm::vec2), VK_VERTEX_INPUT_RATE_VERTEX }
     };
 
-    const cvector<VkPushConstantRange> pushConstants = { 
+    const cvector<VkPushConstantRange> pushConstants = {
         // stageFlags, offset, size
         { VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(cm::mat4) + sizeof(f32) },
     };
@@ -285,11 +289,22 @@ void ctext::load_font(const CFontLoadInfo *__restrict pInfo, cfont_t **dst)
     pc.subpass = 0;
     pc.render_pass = GlobalRenderPass;
     pc.pipeline_layout = (*dst)->pipeline_layout;
-    pc.pAttributeDescriptions = attributeDescriptions;
-    pc.pBindingDescriptions = bindingDescriptions;
-    pc.pPushConstants = pushConstants;
-    pc.pDescriptorLayouts = layouts;
-    pc.pShaders = shaders;
+    
+    pc.nAttributeDescriptions = attributeDescriptions.size();
+    pc.pAttributeDescriptions = attributeDescriptions.data();
+
+    pc.nPushConstants = pushConstants.size();
+    pc.pPushConstants = pushConstants.data();
+
+    pc.nBindingDescriptions = bindingDescriptions.size();
+    pc.pBindingDescriptions = bindingDescriptions.data();
+
+    pc.nShaders = shaders.size();
+    pc.pShaders = shaders.data();
+
+    pc.pDescriptorLayouts = layouts.data();
+    pc.nDescriptorLayouts = layouts.size();
+
     pc.extent.width = RenderExtent.width;
     pc.extent.height = RenderExtent.height;
     pc.blend_state = &blend;
@@ -404,7 +419,7 @@ static void render_line(
     const ctext::text_render_info *pInfo,
     const f32 &y,
     const cvector<ctext::CFGlyph *> &glyph_table,
-    const chashmap<unicode, int> &index_table,
+    const chashmap_t /* <unicode, int> */ *index_table,
     int &glyph_iter
 ) {
 
@@ -417,8 +432,9 @@ static void render_line(
 
     f32 width = 0.0f;
     int local_glyph_iter = glyph_iter;
-    for (int i = 0; i < (int)str.size(); i++)
-        switch (str[i]) {
+    for (int i = 0; i < (int)str.size(); i++) {
+        const unicode c = str[i];
+        switch (c) {
             case U' ':
                 width += scaled_space_width;
                 continue;
@@ -426,10 +442,11 @@ static void render_line(
                 width += scaled_tab_width;
                 continue;
             default:
-                width += glyph_table[index_table.at(str[i])]->advance * pInfo->scale;
+                width += glyph_table[ *(int *)chashmap_find(index_table, &c) ]->advance * pInfo->scale;
                 local_glyph_iter++;
                 continue;
         }
+    }
 
     f32 x =
     (pInfo->horizontal == CTEXT_HORI_ALIGN_CENTER) ?
@@ -449,7 +466,7 @@ static void render_line(
                 x += scaled_tab_width;
                 continue;
             default:
-                const ctext::CFGlyph &glyph = *(glyph_table[index_table.at(str[i])]);
+                const ctext::CFGlyph &glyph = *(glyph_table[*(u32 *)chashmap_find(index_table, str.data() + i)]);
 
                 const f32 glyph_x0 = glyph.positions[0] * pInfo->scale + x;
                 const f32 glyph_x1 = glyph.positions[1] * pInfo->scale + x;
@@ -503,7 +520,7 @@ void gen_vertices(
     const cstring_view &str,
     const u32 effective_length,
     const cvector<ctext::CFGlyph *> &glyph_table,
-    const chashmap<unicode, int> &index_table
+    const chashmap_t /* <unicode, int> */ *index_table
 ) {
     if (str.empty())
         return;
@@ -589,13 +606,13 @@ int normalize(double *val) {
     return exponent;
 }
 
-static unicode *ftoa_fixed(unicode *buffer, double value) {  
-    /* carry out a fixed conversion of a double value to a string, with a precision of 5 decimal digits. 
+static unicode *ftoa_fixed(unicode *buffer, double value) {
+    /* carry out a fixed conversion of a double value to a string, with a precision of 5 decimal digits.
      * Values with absolute values less than 0.000001 are rounded to 0.0
      * Note: this blindly assumes that the buffer will be large enough to hold the largest possible result.
      * The largest value we expect is an IEEE 754 double precision real, with maximum magnitude of approximately
-     * e+308. The C standard requires an implementation to allow a single conversion to produce up to 512 
-     * characters, so that's what we really expect as the buffer size.     
+     * e+308. The C standard requires an implementation to allow a single conversion to produce up to 512
+     * characters, so that's what we really expect as the buffer size.
      */
 
     int exponent = 0;
@@ -606,7 +623,7 @@ static unicode *ftoa_fixed(unicode *buffer, double value) {
         buffer[0] = '0';
         buffer[1] = '\0';
         return buffer;
-    }         
+    }
 
     if (value < 0.0) {
         *buffer++ = '-';
@@ -782,7 +799,7 @@ void ctext::render(cfont_t *fnt, const text_render_info *pInfo, const unicode *f
     drawcall.indices = (u32 *)((uchar *)allocation + drawcall.index_offset);
 
     cvector<ctext::CFGlyph *> glyph_table(effective_length);
-    chashmap<unicode, int> index_table(effective_length);
+    chashmap_t * /*<unicode, int>*/ index_table = chashmap_init(effective_length, sizeof(unicode), sizeof(int), ctext_hash, NULL);
 
     int pen = 0;
     for (const unicode &c : str) {
@@ -790,14 +807,18 @@ void ctext::render(cfont_t *fnt, const text_render_info *pInfo, const unicode *f
             break;
         else if (c == U' ' || c == U'\t' || c == U'\n')
             continue;
-        else if (!index_table.find(c).has_value()) {
-            glyph_table.push_back( &fnt->glyph_map.at(c) );
-            index_table.insert(c, pen);
+        else if (chashmap_find(index_table, &c) == NULL) {
+            CFGlyph *glyph = (CFGlyph *)chashmap_find(fnt->glyph_map, &c);
+            cassert(glyph != NULL);
+            glyph_table.push_back( glyph );
+            chashmap_insert(index_table, &c, &pen);
             pen++;
         }
     }
 
     gen_vertices(fnt, &drawcall, pInfo, str, effective_length, glyph_table, index_table);
+
+    chashmap_destroy(index_table);
 
     drawcall.vertex_count = effective_length * 4;
     drawcall.index_count = effective_length * 6;

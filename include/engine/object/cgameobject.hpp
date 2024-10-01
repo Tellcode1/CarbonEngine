@@ -2,7 +2,7 @@
 // #define __C_GAMEOBJECT_HPP__
 
 // #include "../../stdafx.h"
-// #include "../../vkcb/stdafx.h"
+// #include "../../vkstdafx.h"
 // #include "../../math/vec2.hpp"
 
 // struct cgameobject_t;

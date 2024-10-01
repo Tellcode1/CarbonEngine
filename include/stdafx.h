@@ -24,41 +24,37 @@
                     vfprintf(stderr, succeeder, args); \
                     va_end(args)
 
-inline void LOG_ERROR(const char * fmt, ...) {
+static void LOG_ERROR(const char * fmt, ...) {
     const char * preceder = "error: ";
     const char * succeeder = "\n";
     __LOG();
 }
 
-inline void LOG_AND_ABORT(const char * fmt, ...) {
+static void LOG_AND_ABORT(const char * fmt, ...) {
     const char * preceder = "fatal error: ";
     const char * succeeder = "\nabort.\n";
     __LOG();
     abort();
 }
 
-inline void LOG_WARNING(const char * fmt, ...) {
+static void LOG_WARNING(const char * fmt, ...) {
     const char * preceder =  "warning: ";
     const char * succeeder = "\n";
     __LOG();
 }
 
-inline void LOG_INFO(const char * fmt, ...) {
+static void LOG_INFO(const char * fmt, ...) {
     const char * preceder =  "info: ";
     const char * succeeder = "\n";
     __LOG();
 }
 
-inline void LOG_DEBUG(const char * fmt, ...) {
+static void LOG_DEBUG(const char * fmt, ...) {
     const char * preceder =  "debug: ";
     const char * succeeder = "\n";
     __LOG();
 }
 
 #undef __LOG
-
-inline u32 align(u32 size, u32 alignment) {
-    return (size + alignment - 1) & ~(alignment - 1);
-}
 
 #endif

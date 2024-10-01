@@ -1,7 +1,7 @@
 #ifndef __STDAFX_HPP__
 #define __STDAFX_HPP__
 
-#include "../defines.h"
+#include "defines.h"
 
 #if defined(CB_OS_WINDOWS)
     #define VK_USE_PLATFORM_WIN32_KHR

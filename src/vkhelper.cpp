@@ -1,5 +1,6 @@
-#include "../../include/vkcb/epichelperlib.hpp"
-#include "../../include/vkcb/cvk.hpp"
+#include "../include/vkhelper.hpp"
+#include "../include/cvk.hpp"
+#include "../include/Renderer.hpp"
 #include <iostream>
 
 // stb loves to kick compilers in the liver so it shouldn't be put in the precompiled header

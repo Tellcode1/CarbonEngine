@@ -1,6 +1,8 @@
 #ifndef __C_HASHMAP_HPP__
 #define __C_HASHMAP_HPP__
 
+#pragma  error "kys"
+
 #include "../types/coptional.hpp"
 
 template <typename key>
@@ -35,10 +37,19 @@ struct chashmap {
         bool is_occupied;
     };
 
-    chashmap(int capacity = 16) 
+    chashmap(int capacity = 16)
         : entries(capacity), count(0) {
         nodes = (cht_node **)malloc(entries * sizeof(cht_node));
         memset(nodes, 0, entries * sizeof(cht_node));
+    }
+
+    void clear() {
+        if (!nodes)
+            return;
+        for (int i = 0; i < entries; i++)
+            if (nodes[i])
+                free(nodes[i]);
+        count = 0;
     }
 
     ~chashmap() {
@@ -59,7 +70,7 @@ struct chashmap {
         while (nodes[index] && nodes[index]->is_occupied) {
             index = (index + 1) % entries;
         }
-        
+
         if (!nodes[index])
             nodes[index] = (cht_node *)malloc(sizeof(cht_node));
 
@@ -74,8 +85,10 @@ struct chashmap {
         coptional<value> retval = nullopt;
         int index = hash_fn::hash(k) % entries;
         while (nodes[index]) {
-            if (nodes[index]->is_occupied && nodes[index]->k == k) // you have to use == instead of memcmp because cstring and other structs
+            if (nodes[index]->is_occupied && nodes[index]->k == k) { // you have to use == instead of memcmp because cstring and other structs
                 retval.set(nodes[index]->v);
+                break;
+            }
             ++index;
             index %= entries;;
         }

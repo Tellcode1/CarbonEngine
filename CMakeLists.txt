@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.10)
 project(main)
 
 find_package(Vulkan REQUIRED)
@@ -10,9 +10,6 @@ include_directories(${SDL2_INCLUDE_DIRS})
 find_package(Freetype REQUIRED)
 include_directories(${FREETYPE_INCLUDE_DIRS})
 
-include_directories(${CMAKE_SOURCE_DIR}/src)
-include_directories(${CMAKE_SOURCE_DIR}/include)
-
 # The name of the output
 set(OUTPUT
     main
@@ -21,15 +18,18 @@ set(OUTPUT
 set(SOURCES
     src/main.cpp
     src/cengine.cpp
+    src/cengineinit.cpp
     src/cinput.cpp
-
+    
     src/ctext.cpp
     src/cshadermanager.c
+    
+    src/cvk.cpp
+    src/Renderer.cpp
+    src/vkhelper.cpp
 
-    src/vkcb/cvk.cpp
-    src/vkcb/Context.cpp
-    src/vkcb/Renderer.cpp
-    src/vkcb/epichelperlib.cpp
+    src/containers/cvectornew.c
+    src/containers/chashmap.c
 )
 
 set(MSDFGEN_CORE_ONLY OFF)
@@ -61,7 +61,7 @@ set(LIBS
     freetype
 )
 
-target_link_options(${OUTPUT} PRIVATE -g -Wall -fopenmp)
-target_compile_options(${OUTPUT} PRIVATE -g -Wall -fopenmp)
+target_link_options(${OUTPUT} PRIVATE -g -Wall -fopenmp -Wno-sign-compare -Wno-unused-function)
+target_compile_options(${OUTPUT} PRIVATE -g -Wall -fopenmp -Wno-sign-compare -Wno-unused-function)
 target_compile_definitions(${OUTPUT} PRIVATE CSM_EXECUTABLE=0) # avoid making multiple main's 
 target_link_libraries(${OUTPUT} ${LIBS})

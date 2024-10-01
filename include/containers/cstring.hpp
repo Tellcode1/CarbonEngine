@@ -268,7 +268,7 @@ struct cstring_base : public cvector<char_type> {
         if (m_count == 0)
             return npos;
 
-        auto iter = end()-1;
+        const char_type * iter = end()-1;
         for (u32 i = m_count - 1; iter != begin()-1; iter--, i--) {
             if ((*iter) == c)
                 return i;

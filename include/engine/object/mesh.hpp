@@ -7,14 +7,12 @@
 #include <iostream>
 #include "../../defines.h"
 
-#include "../../vkcb/cvk.hpp"
-#include "../../vkcb/epichelperlib.hpp"
+#include "../../cvk.hpp"
+#include "../../vkhelper.hpp"
 #include "../../cshadermanager.h"
 
 #include "../../math/vec3.hpp"
 #include "../../math/vec2.hpp"
-
-#include "../../containers/chashmap.hpp"
 
 #include "../../../external/tinyobjloader/tiny_obj_loader.h"
 
@@ -87,19 +85,24 @@ struct vertex {
 };
 
 struct soosydata {
-    cvector<vertex> vertices;
-    cvector<u32> indices;
+    cvector_t * /* vertex */ vertices;
+    cvector_t * /* u32 */    indices;
 };
 
-struct hash_vertex {
-    static u32 hash(const vertex &v) {
-        u32 h = cdefault_hash<cm::vec3>::hash(v.position);
-        h ^= (cdefault_hash<cm::vec3>::hash(v.normal) + 0x9e3779b9 + (h << 6) + (h >> 2));
-        h ^= (cdefault_hash<cm::vec3>::hash(v.tangent) + 0x9e3779b9 + (h << 6) + (h >> 2));
-        h ^= (cdefault_hash<cm::vec2>::hash(v.texcoord) + 0x9e3779b9 + (h << 6) + (h >> 2));
-        return h;
-    }
+static chashmap_bool_t eq_vertex(const void *key1, const void *key2, unsigned long) {
+    const vertex *v1 = (vertex *)key1;
+    const vertex *v2 = (vertex *)key2;
+    return v1->position == v2->position && v1->texcoord == v2->texcoord && v1->normal == v2->normal;
 };
+
+static u32 hash_vertex(const void *in, int nbytes) {
+    const vertex *v = (vertex *)in;
+    u32 h = chashmap_std_hash(&v->position, sizeof(cm::vec3));
+    h ^= (chashmap_std_hash(&v->normal, sizeof(cm::vec3)) + 0x9e3779b9 + (h << 6) + (h >> 2));
+    h ^= (chashmap_std_hash(&v->tangent, sizeof(cm::vec3)) + 0x9e3779b9 + (h << 6) + (h >> 2));
+    h ^= (chashmap_std_hash(&v->texcoord, sizeof(cm::vec2)) + 0x9e3779b9 + (h << 6) + (h >> 2));
+    return h;
+}
 
 static soosydata loadmdl(const char *mdlpath, bool to_retrieve_normals) {
     tinyobj::attrib_t attrib;
@@ -108,11 +111,17 @@ static soosydata loadmdl(const char *mdlpath, bool to_retrieve_normals) {
     std::string warn, err;
 
     soosydata ret{};
+    ret.vertices = cvector_init(sizeof(vertex), 0);
+    ret.indices = cvector_init(sizeof(u32), 0);
 
     if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, mdlpath))
         LOG_ERROR((warn + err).c_str());
 
-    chashmap<vertex, u32, hash_vertex> unique_vertices;
+    int v_count = 0;
+    for (const auto &shape : shapes) {
+        v_count += shape.mesh.indices.size();
+    }
+    chashmap_t *unique_vertices = chashmap_init(v_count, sizeof(vertex), sizeof(unsigned), hash_vertex, eq_vertex);
 
     for (const auto& shape : shapes) {
         for (const auto& index : shape.mesh.indices) {
@@ -137,32 +146,36 @@ static soosydata loadmdl(const char *mdlpath, bool to_retrieve_normals) {
                 1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
             };
 
-            coptional exists = unique_vertices.find(vertex);
+            u32 *exists = (u32 *)chashmap_find(unique_vertices, &vertex);
 
-            if (!exists.has_value()) {
-                unique_vertices.insert( vertex, ret.vertices.size() );
-                ret.indices.push_back(ret.vertices.size());
-                ret.vertices.push_back(vertex);
+            if (!exists) {
+                unsigned idx = cvector_size(ret.vertices);
+                chashmap_insert(unique_vertices, &vertex, &idx);
+                cvector_push_back(ret.indices, &idx);
+                cvector_push_back(ret.vertices, &vertex);
             } else {
-                ret.indices.push_back(unique_vertices.at(vertex));
+                cvector_push_back(ret.indices, exists);
             }
         }
     }
 
     // calcula tangents
     // you can look at how it's claculated at https://learnopengl.com/Advanced-Lighting/Normal-Mapping
-    for (int i = 0; i < ret.indices.size(); i += 3) {
-        u32 i0 = ret.indices[i];
-        u32 i1 = ret.indices[i + 1];
-        u32 i2 = ret.indices[i + 2];
+    for (int i = 0; i < cvector_size(ret.indices); i += 3) {
+        const u32 *indices = (u32 *)cvector_data(ret.indices);
+        vertex *vertices = (vertex *)cvector_data(ret.vertices);
 
-        const cm::vec3 &pos1 = ret.vertices[i0].position;
-        const cm::vec3 &pos2 = ret.vertices[i1].position;
-        const cm::vec3 &pos3 = ret.vertices[i2].position;
+        u32 i0 = indices[i];
+        u32 i1 = indices[i + 1];
+        u32 i2 = indices[i + 2];
 
-        const cm::vec2 &uv1 = ret.vertices[i0].texcoord;
-        const cm::vec2 &uv2 = ret.vertices[i1].texcoord;
-        const cm::vec2 &uv3 = ret.vertices[i2].texcoord;
+        const cm::vec3 &pos1 = vertices[i0].position;
+        const cm::vec3 &pos2 = vertices[i1].position;
+        const cm::vec3 &pos3 = vertices[i2].position;
+
+        const cm::vec2 &uv1 = vertices[i0].texcoord;
+        const cm::vec2 &uv2 = vertices[i1].texcoord;
+        const cm::vec2 &uv3 = vertices[i2].texcoord;
 
         cm::vec3 edge1 = pos2 - pos1;
         cm::vec3 edge2 = pos3 - pos1;
@@ -176,21 +189,21 @@ static soosydata loadmdl(const char *mdlpath, bool to_retrieve_normals) {
             f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y),
             f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z)
         };
-        ret.vertices[i0].tangent = tangent;
-        ret.vertices[i1].tangent = tangent;
-        ret.vertices[i2].tangent = tangent;
+        vertices[i0].tangent += tangent;
+        vertices[i1].tangent += tangent;
+        vertices[i2].tangent += tangent;
 
         cm::vec3 bitangent = (cm::vec3){
             f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x),
             f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y),
             f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z)
         };
-        ret.vertices[i0].bitangent = bitangent;
-        ret.vertices[i1].bitangent = bitangent;
-        ret.vertices[i2].bitangent = bitangent;
+        vertices[i0].bitangent = bitangent;
+        vertices[i1].bitangent = bitangent;
+        vertices[i2].bitangent = bitangent;
     }
 
-    printf("%u\n", ret.vertices.size());
+    chashmap_destroy(unique_vertices);
 
     return ret;
 }
@@ -200,12 +213,12 @@ struct cmesh_t *load_mesh(const char *mdlpath, const char *texpath, const char *
 
     cmesh_t *mesh = (cmesh_t *)malloc(sizeof(cmesh_t));
     memset(mesh, 0, sizeof(cmesh_t));
-    mesh->index_count = data.indices.size();
+    mesh->index_count = cvector_size(data.indices);
 
     mesh->transform = Transform();
 
-    const int vertexsize = sizeof(data.vertices[0]) * data.vertices.size();
-    const int indexsize = sizeof(data.indices[0]) * data.indices.size();
+    const int vertexsize = sizeof(vertex) * cvector_size(data.vertices);
+    const int indexsize = sizeof(u32) * cvector_size(data.indices);
 
     help::Buffers::CreateBuffer(
         vertexsize,
@@ -231,36 +244,12 @@ struct cmesh_t *load_mesh(const char *mdlpath, const char *texpath, const char *
 
     void *mapped;
     vkMapMemory(device, mesh->vbm, 0, vertexsize, 0, &mapped);
-    memcpy(mapped, data.vertices.data(), vertexsize);
+    memcpy(mapped, cvector_data(data.vertices), vertexsize);
     vkUnmapMemory(device, mesh->vbm);
 
     vkMapMemory(device, mesh->ibm, 0, indexsize, 0, &mapped);
-    memcpy(mapped, data.indices.data(), indexsize);
+    memcpy(mapped, cvector_data(data.indices), indexsize);
     vkUnmapMemory(device, mesh->ibm);
-
-    cvector<u8> vshader_binary;
-    cvector<u8> fshader_binary;
-
-    VkShaderModule vshader, fshader;
-
-    help::Files::LoadBinary("./Shaders/vert.spv", &vshader_binary);
-    help::Files::LoadBinary("./Shaders/frag.spv", &fshader_binary);
-
-    VkShaderModuleCreateInfo vertexShaderModuleInfo{};
-    vertexShaderModuleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    vertexShaderModuleInfo.codeSize = vshader_binary.size();
-    vertexShaderModuleInfo.pCode = reinterpret_cast<const u32*>(vshader_binary.data());
-    if (vkCreateShaderModule(device, &vertexShaderModuleInfo, nullptr, &vshader) != VK_SUCCESS) {
-        LOG_ERROR("ctext failed to create vertex shader module");
-    }
-
-    VkShaderModuleCreateInfo fragmentShaderModuleInfo{};
-    fragmentShaderModuleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    fragmentShaderModuleInfo.codeSize = fshader_binary.size();
-    fragmentShaderModuleInfo.pCode = reinterpret_cast<const u32*>(fshader_binary.data());
-    if (vkCreateShaderModule(device, &fragmentShaderModuleInfo, nullptr, &fshader) != VK_SUCCESS) {
-        LOG_ERROR("ctext failed to create fragment shader module");
-    }
 
     const cvector<VkVertexInputAttributeDescription> attributeDescriptions = {
         // location; binding; format; offset;
@@ -280,18 +269,6 @@ struct cmesh_t *load_mesh(const char *mdlpath, const char *texpath, const char *
         // stageFlags, offset, size
         {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(cm::vec3)}
     };
-
-    VkPipelineShaderStageCreateInfo vertexShaderInfo{};
-    vertexShaderInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    vertexShaderInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    vertexShaderInfo.module = vshader;
-    vertexShaderInfo.pName = "main";
-
-    VkPipelineShaderStageCreateInfo fragmentShaderInfo{};
-    fragmentShaderInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    fragmentShaderInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    fragmentShaderInfo.module = fshader;
-    fragmentShaderInfo.pName = "main";
 
     int w, h, c;
     VkFormat channels;
@@ -407,6 +384,8 @@ struct cmesh_t *load_mesh(const char *mdlpath, const char *texpath, const char *
     csm_load_shader("test/vert", &vertex);
     csm_load_shader("test/frag", &fragment);
 
+    assert(vertex != NULL && fragment != NULL);
+
     const cvector<csm_shader_t *> shaders = { vertex, fragment };
     const cvector<VkDescriptorSetLayout> layouts = { mesh->setlayout };
 
@@ -414,11 +393,22 @@ struct cmesh_t *load_mesh(const char *mdlpath, const char *texpath, const char *
     pc.format = SwapChainImageFormat;
     pc.subpass = 0;
     pc.render_pass = GlobalRenderPass;
-    pc.pAttributeDescriptions = attributeDescriptions;
-    pc.pBindingDescriptions = bindingDescriptions;
-    pc.pPushConstants = pushConstants;
-    pc.pDescriptorLayouts = layouts;
-    pc.pShaders = shaders;
+
+    pc.nAttributeDescriptions = attributeDescriptions.size();
+    pc.pAttributeDescriptions = attributeDescriptions.data();
+
+    pc.nPushConstants = pushConstants.size();
+    pc.pPushConstants = pushConstants.data();
+
+    pc.nBindingDescriptions = bindingDescriptions.size();
+    pc.pBindingDescriptions = bindingDescriptions.data();
+
+    pc.nShaders = shaders.size();
+    pc.pShaders = shaders.data();
+
+    pc.pDescriptorLayouts = layouts.data();
+    pc.nDescriptorLayouts = layouts.size();
+
     pc.extent.width = RenderExtent.width;
     pc.extent.height = RenderExtent.height;
     pc.samples = Samples;
@@ -435,7 +425,7 @@ static void render(cmesh_t *mesh, cm::vec3 lightposition) {
     cm::mat4 rotation = cm::rotate(cm::mat4(1.0f), rotationradians);
     cm::mat4 translation = cm::translate(cm::mat4(1.0f), mesh->transform.position);
     ubdata ub{};
-    ub.model = scaling  * translation;
+    ub.model = scaling * rotation  * translation;
     ub.projection = camera.get_projection();
     ub.view = camera.get_view();
     ub.cameraposition = camera.position;

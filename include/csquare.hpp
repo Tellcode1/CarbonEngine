@@ -1,9 +1,9 @@
 #ifndef __SQUARE_HPP_
 #define __SQUARE_HPP_
 
-#include "vkcb/stdafx.h"
-#include "vkcb/epichelperlib.hpp"
-#include "vkcb/cvk.hpp"
+#include "vkstdafx.h"
+#include "vkhelper.hpp"
+#include "cvk.hpp"
 #include "math/vec3.hpp"
 #include "math/vec2.hpp"
 #include "math/mat.hpp"
@@ -101,20 +101,29 @@ int ccreate_cube(csquare_t *dst) {
     };
 
     csm_shader_t *vertex, *fragment;
-    csm_load_shader("Unlit/vert", &vertex);
-    csm_load_shader("Unlit/frag", &fragment);
+    assert(csm_load_shader("Unlit/vert", &vertex) != -1);
+    assert(csm_load_shader("Unlit/frag", &fragment) != -1);
     const cvector<csm_shader_t *> shaders = { vertex, fragment };
 
     cvk_pipeline_create_info pc{};
     pc.format = SwapChainImageFormat;
     pc.subpass = 0;
     pc.render_pass = GlobalRenderPass;
-    pc.pAttributeDescriptions = attributeDescriptions;
-    pc.pBindingDescriptions = bindingDescriptions;
-    pc.pPushConstants = pushConstants;
+
+    pc.nAttributeDescriptions = attributeDescriptions.size();
+    pc.pAttributeDescriptions = attributeDescriptions.data();
+
+    pc.nPushConstants = pushConstants.size();
+    pc.pPushConstants = pushConstants.data();
+
+    pc.nBindingDescriptions = bindingDescriptions.size();
+    pc.pBindingDescriptions = bindingDescriptions.data();
+
+    pc.nShaders = shaders.size();
+    pc.pShaders = shaders.data();
+
     pc.extent.width = RenderExtent.width;
     pc.extent.height = RenderExtent.height;
-    pc.pShaders = shaders;
     pc.samples = Samples;
     cvk_create_pipeline_layout(device, &pc, &dst->pipeline.pipeline_layout);
     pc.pipeline_layout = dst->pipeline.pipeline_layout;
@@ -123,7 +132,7 @@ int ccreate_cube(csquare_t *dst) {
     return 0;
 }
 
-void render_cube(csquare_t *cube) {
+void render_cube(const csquare_t *cube) {
     struct push_constants {
         cm::mat4 view;
         cm::mat4 projection;

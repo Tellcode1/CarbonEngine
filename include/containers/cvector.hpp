@@ -1,12 +1,16 @@
 
-#ifndef __CARRAY_HPP__
-#define __CARRAY_HPP__
+#ifndef __CVECTOR_HPP__
+#define __CVECTOR_HPP__
+
+template<typename T>
+struct cvector;
 
 #include "../defines.h"
 #include "../stdafx.h"
 #include "../math/math.h"
 
 #include <cstdlib>
+#include <cassert>
 #include <initializer_list>
 
 template<typename T>
@@ -19,7 +23,7 @@ struct cvector
 
     public:
 
-    constexpr static u32 npos = -1;
+    constexpr static u32 npos = UINT32_MAX;
 
     constexpr CARBON_FORCE_INLINE u32 size() const {
         return m_count;
@@ -58,11 +62,16 @@ struct cvector
     }
 
     constexpr void reallocate(u32 new_capacity) {
-        void *new_data = malloc(sizeof(T) * new_capacity);
+        void *new_data = NULL;
+
+        // realloc crashes if m_data is NULL.
         if (m_data) {
-            memcpy(new_data, m_data, sizeof(T) * m_capacity);
-            free(m_data);
+            new_data = realloc(m_data, sizeof(T) * new_capacity);
+        } else {
+            new_data = malloc(sizeof(T) * new_capacity);
         }
+        assert(new_data != NULL);
+
         m_capacity = new_capacity;
         m_data = reinterpret_cast<T*>(new_data);
     }
@@ -171,13 +180,11 @@ struct cvector
         if (new_size == 0)
             LOG_ERROR("Request array resize to 0. Use clear() instead.");
 
-        T *new_data = (T *)malloc(sizeof(T) * new_size);
-
-        u32 move_size = cmmin(new_size, m_count) * sizeof(T);
-
+        T *new_data = NULL;
         if (m_data) {
-            memcpy(new_data, m_data, move_size);
-            free(m_data);
+            new_data = (T *)realloc(m_data, sizeof(T) * new_size);
+        } else {
+            new_data = (T *)malloc(sizeof(T) * new_size);
         }
 
         m_data = new_data;
@@ -205,4 +212,4 @@ struct cvector
     }
 };
 
-#endif
+#endif//__CVECTOR_HPP__
