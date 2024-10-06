@@ -5,11 +5,11 @@ extern const char *shader_compiler;
 extern const char *shader_compiler_args;
 extern const char *list;
 
-struct csm_shader_t {
+typedef struct csm_shader_t {
     char name[128];
     void *shader_module;
     unsigned stage;
-};
+} csm_shader_t;
 
 extern struct csm_shader_t *shader_map;
 extern int nshaders;

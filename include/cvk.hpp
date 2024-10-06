@@ -8,10 +8,10 @@
 
 struct csm_shader_t;
 
-typedef void (*cvk_result_check_func) (const VkResult result, const char *FILE, const char *FUNC, unsigned long LINE);
+typedef void (*cvk_result_check_fn) (const VkResult result, const char *__restrict__ FILE, const char *__restrict__ FUNC, unsigned long LINE);
 
-#define CVK_REQUIRED_PTR(ptr) if(ptr == nullptr) LOG_AND_ABORT(#ptr" :  Required parameter '"#ptr"' specified as nullptr.\n", __basename(__FILE__), __LINE__, __PRETTY_FUNCTION__)
-#define CVK_NOT_EQUAL_TO(val, to) if(val == to) LOG_AND_ABORT(#val" == "#to". Value "#val" must not be equal to "#to".\n", __basename(__FILE__), __LINE__, __PRETTY_FUNCTION__)
+#define CVK_REQUIRED_PTR(ptr) if(ptr == nullptr) LOG_AND_ABORT(#ptr" :  Required parameter \""#ptr"\" specified as nullptr.\n", __basename(__FILE__), __LINE__, __PRETTY_FUNCTION__)
+#define CVK_NOT_EQUAL_TO(val, to) if(val == to) LOG_AND_ABORT(#val" == "#to". Value \""#val"\" must not be equal to "#to".\n", __basename(__FILE__), __LINE__, __PRETTY_FUNCTION__)
 
 #define __cvk_to_bit(n) (1 << n)
 
@@ -38,13 +38,13 @@ inline void __cvk_defaultResultCheckFunc(const VkResult result, const char *FILE
 /*
 	Used internally. Do NOT modify by yourselves! Use SetResultCheckFunc instead.
 */
-extern cvk_result_check_func __cvk_resultFunc;
+extern cvk_result_check_fn __cvk_resultFunc;
 
 /*
 	Set the result checking function for the API. This is called every time the program requests something in the order of vkCreate* that this namespace has a hold of.
 	Use nullptr to deattach the function.
 */
-inline void SetResultCheckFunc(cvk_result_check_func func)
+inline void cvk_set_result_check_fn(cvk_result_check_fn func)
 {
 	if (func != nullptr)
 		__cvk_resultFunc = func;
@@ -110,11 +110,11 @@ struct cvk_pipeline_create_info
 	/*
 	*	Array pointers are allowed to be nullptr
 	*/
-	VkVertexInputAttributeDescription *pAttributeDescriptions;
-	VkVertexInputBindingDescription *pBindingDescriptions;
-	VkDescriptorSetLayout *pDescriptorLayouts;
-	VkPushConstantRange *pPushConstants;
-	csm_shader_t **pShaders;
+	const VkVertexInputAttributeDescription *pAttributeDescriptions;
+	const VkVertexInputBindingDescription *pBindingDescriptions;
+	const VkDescriptorSetLayout *pDescriptorLayouts;
+	const VkPushConstantRange *pPushConstants;
+	const csm_shader_t * const *pShaders;
 
 	int nAttributeDescriptions;
 	int nBindingDescriptions;

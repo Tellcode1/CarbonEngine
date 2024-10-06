@@ -15,7 +15,7 @@
 // typedef VkDeviceMemory_T *VkDeviceMemory;
 
 // struct ctransform {
-//     cm::vec2 position;
+//     vec2 position;
 //     float rotation;
 // };
 
@@ -32,7 +32,7 @@
 
 //     cpipeline_t *pipeline;
 
-//     cm::vec2 *vertex_data;
+//     vec2 *vertex_data;
 //     int vertex_count;
 // };
 

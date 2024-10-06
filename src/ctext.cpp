@@ -1,5 +1,5 @@
 #include "../../../include/ctext.hpp"
-#include "../../../include/Renderer.hpp"
+#include "../../../include/cgfx.h"
 
 #include "../../../include/cshadermanager.h"
 #include "../../../include/cvk.hpp"
@@ -7,6 +7,8 @@
 
 #define MSDFGEN_PUBLIC // ?
 #include "../../../external/msdf-atlas-gen/msdf-atlas-gen/msdf-atlas-gen.h"
+
+#define MAX(a,b) ({ __typeof__(a) a_ = a; __typeof__(a) b_ = b; (a_ > b_) ? a_ : b_; })
 
 struct cglyph_vertex_t {
     cm::vec3 pos;
@@ -47,7 +49,7 @@ u8 *i_hate_my_life(u32 width, u32 height, T &generator, std::vector<msdf_atlas::
     return pixelBuffer;
 }
 
-void ctext::load_font(const CFontLoadInfo *__restrict pInfo, cfont_t **dst)
+void ctext::load_font(crenderer_t *rd, const CFontLoadInfo *__restrict pInfo, cfont_t **dst)
 {
 	if (!pInfo || !dst)
 	{
@@ -75,12 +77,7 @@ void ctext::load_font(const CFontLoadInfo *__restrict pInfo, cfont_t **dst)
     std::vector<msdf_atlas::GlyphGeometry> glyphs;
     msdf_atlas::FontGeometry fontGeometry(&glyphs);
 
-    msdf_atlas::Charset msdfcharset;
-
-    const ccharset_block &block = ccharsets_range[ pInfo->chset ];
-    for (unicode ch = block.begin; ch < block.end; ch++)
-        msdfcharset.add(ch);
-    fontGeometry.loadCharset(fnt, 1.0f, msdfcharset);
+    fontGeometry.loadCharset(fnt, 1.0f, msdf_atlas::Charset::ASCII);
 
     constexpr double maxCornerAngle = 3.0;
     for (msdf_atlas::GlyphGeometry& glyph : glyphs)
@@ -146,7 +143,8 @@ void ctext::load_font(const CFontLoadInfo *__restrict pInfo, cfont_t **dst)
         LOG_AND_ABORT("Invalid channel count");
     }
 
-    (*dst)->glyph_map = chashmap_init(16, sizeof(unicode), sizeof(CFGlyph), NULL, NULL);
+    (*dst)->glyph_map = chashmap_init(16, sizeof(char), sizeof(CFGlyph), NULL, NULL);
+    (*dst)->drawcalls = cvector_init(sizeof(text_drawcall_t), 4);
 
     for (const msdf_atlas::GlyphGeometry& glyph : glyphs) {
         if (glyph.isWhitespace()) {
@@ -193,7 +191,7 @@ void ctext::load_font(const CFontLoadInfo *__restrict pInfo, cfont_t **dst)
         (*dst)->line_height = f32(metrics.lineHeight) / f32(metrics.emSize);
 
         mogus.advance = static_cast<f32>(glyph.getAdvance());
-        const unicode codepoint = glyph.getCodepoint();
+        const char codepoint = glyph.getCodepoint();
         chashmap_insert((*dst)->glyph_map, &codepoint, &mogus);
     }
 
@@ -249,18 +247,18 @@ void ctext::load_font(const CFontLoadInfo *__restrict pInfo, cfont_t **dst)
     msdfgen::destroyFont(fnt);
     msdfgen::deinitializeFreetype(ft);
 
-    const cvector<VkVertexInputAttributeDescription> attributeDescriptions = {
+    VkVertexInputAttributeDescription attributeDescriptions[] = {
         // location; binding; format; offset;
         { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0 }, // pos
         { 1, 0, VK_FORMAT_R32G32_SFLOAT, sizeof(cm::vec3) }, // uv
     };
 
-    const cvector<VkVertexInputBindingDescription> bindingDescriptions = {
+    VkVertexInputBindingDescription bindingDescriptions[] = {
         // binding; stride; inputRate
         { 0, sizeof(cm::vec3) + sizeof(cm::vec2), VK_VERTEX_INPUT_RATE_VERTEX }
     };
 
-    const cvector<VkPushConstantRange> pushConstants = {
+    VkPushConstantRange pushConstants[] = {
         // stageFlags, offset, size
         { VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(cm::mat4) + sizeof(f32) },
     };
@@ -279,32 +277,33 @@ void ctext::load_font(const CFontLoadInfo *__restrict pInfo, cfont_t **dst)
 
     csm_load_shader(fshader_path, &fragment);
 
-    const cvector<csm_shader_t *> shaders = { vertex, fragment };
-    const cvector<VkDescriptorSetLayout> layouts = { desc_Layout };
+    csm_shader_t * shaders[] = { vertex, fragment };
+    VkDescriptorSetLayout layouts[] = { desc_Layout };
 
     const cvk_pipeline_blend_state blend = cvk_pipeline_blend_state(CVK_BLEND_PRESET_ALPHA);
 
     cvk_pipeline_create_info pc{};
     pc.format = SwapChainImageFormat;
     pc.subpass = 0;
-    pc.render_pass = GlobalRenderPass;
+    pc.render_pass = crenderer_get_render_pass(rd);
     pc.pipeline_layout = (*dst)->pipeline_layout;
     
-    pc.nAttributeDescriptions = attributeDescriptions.size();
-    pc.pAttributeDescriptions = attributeDescriptions.data();
+    pc.nAttributeDescriptions = array_len(attributeDescriptions);
+    pc.pAttributeDescriptions = attributeDescriptions;
 
-    pc.nPushConstants = pushConstants.size();
-    pc.pPushConstants = pushConstants.data();
+    pc.nPushConstants = array_len(pushConstants);
+    pc.pPushConstants = pushConstants;
 
-    pc.nBindingDescriptions = bindingDescriptions.size();
-    pc.pBindingDescriptions = bindingDescriptions.data();
+    pc.nBindingDescriptions = array_len(bindingDescriptions);
+    pc.pBindingDescriptions = bindingDescriptions;
 
-    pc.nShaders = shaders.size();
-    pc.pShaders = shaders.data();
+    pc.nShaders = array_len(shaders);
+    pc.pShaders = shaders;
 
-    pc.pDescriptorLayouts = layouts.data();
-    pc.nDescriptorLayouts = layouts.size();
+    pc.nDescriptorLayouts = array_len(layouts);
+    pc.pDescriptorLayouts = layouts;
 
+    const cengine_extent2d RenderExtent = crenderer_get_render_extent(rd);
     pc.extent.width = RenderExtent.width;
     pc.extent.height = RenderExtent.height;
     pc.blend_state = &blend;
@@ -317,12 +316,12 @@ void ctext::load_font(const CFontLoadInfo *__restrict pInfo, cfont_t **dst)
     vkDestroyShaderModule(device, (*dst)->fshader, nullptr);
 }
 
-void ctext::end_render(cfont_t *fnt, cm::mat4 model)
+void ctext::end_render(crenderer_t *rd, ccamera camera, cfont_t *fnt, cm::mat4 model)
 {
     if (!fnt->to_render)
         return;
 
-    const VkCommandBuffer cmd = Renderer::GetDrawBuffer();
+    const VkCommandBuffer cmd = crenderer_get_drawbuffer(rd);
     constexpr VkDeviceSize offsets[] = { 0 };
 
     struct push_constants {
@@ -349,29 +348,37 @@ void ctext::end_render(cfont_t *fnt, cm::mat4 model)
     vkCmdDrawIndexed(cmd, fnt->index_count, 1, 0, 0, 0);
 }
 
-static cvector<cstring_view> split_string(const cstring_view &str) {
-    cvector<cstring_view> result(16);
+#include <sstream>
 
-    // I got this from reddit.
+static cvector_t * /* cstring_t * */ split_string(const cstring_t *str) {
+    cstring_t *substr = NULL;
+    cvector_t *result = NULL;
     int i_start = 0;
-    for(int i = 0; i < (int)str.length(); i++)
+
+    result = cvector_init( sizeof(cstring_t *), 16 );
+
+    // // I got this from reddit.
+    for(int i = 0; i < cstring_length(str); i++)
     {
-        if(str[i] == U'\n')
+        if(cstring_data(str)[i] == '\n')
         {
-            result.push_back( str.substr( i_start, i - i_start ) );
+            substr = cstring_substring(str, i_start, i - i_start);
+            cassert(substr != NULL);
+            cvector_push_back( result, &substr );
             i_start = i + 1;
         }
     }
 
     // add the remaining str
-    result.push_back( str.substr( i_start, str.size() ) );
+    substr = cstring_substring(str, i_start, cstring_length(str));
+    cvector_push_back( result, &substr );
 
     return result;
 }
 
 void ctext::begin_render(cfont_t *fnt)
 {
-    if (fnt->drawcalls.size() == 0) {
+    if (cvector_size(fnt->drawcalls) == 0) {
         fnt->to_render = false;
         return;
     }
@@ -379,7 +386,8 @@ void ctext::begin_render(cfont_t *fnt)
     u32 total_vertex_byte_size = 0;
     u32 total_index_count = 0;
 
-    for (const text_drawcall_t &drawcall : fnt->drawcalls) {
+    for (int i = 0; i < cvector_size(fnt->drawcalls); i++) {
+        const text_drawcall_t &drawcall = ((text_drawcall_t *)cvector_data(fnt->drawcalls))[i];
         total_vertex_byte_size += drawcall.vertex_count * sizeof(cglyph_vertex_t);
         total_index_count += drawcall.index_count;
     }
@@ -394,7 +402,8 @@ void ctext::begin_render(cfont_t *fnt)
 
     u32 vertex_copy_iterator = 0;
     u32 index_copy_iterator = 0;
-    for (const text_drawcall_t &drawcall : fnt->drawcalls) {
+    for (int i = 0; i < cvector_size(fnt->drawcalls); i++) {
+        const text_drawcall_t &drawcall = ((text_drawcall_t *)cvector_data(fnt->drawcalls))[i];
         memcpy(static_cast<u8 *>(mapped) + vertex_copy_iterator, drawcall.vertices, drawcall.vertex_count * sizeof(cglyph_vertex_t));
         memcpy(static_cast<u8 *>(mapped) + total_vertex_byte_size + index_copy_iterator, drawcall.indices, drawcall.index_count * sizeof(u32));
         vertex_copy_iterator += drawcall.vertex_count * sizeof(cglyph_vertex_t);
@@ -407,19 +416,21 @@ void ctext::begin_render(cfont_t *fnt)
     fnt->to_render = true;
 
     fnt->chars_drawn = 0;
-    for (text_drawcall_t &drawcall : fnt->drawcalls)
+    for (int i = 0; i < cvector_size(fnt->drawcalls); i++) {
+        text_drawcall_t &drawcall = ((text_drawcall_t *)cvector_data(fnt->drawcalls))[i];
         free(drawcall.vertices);
-    fnt->drawcalls.reset();
+    }
+    cvector_clear(fnt->drawcalls);
 }
 
 static void render_line(
     const ctext::cfont_t *fnt,
-    const cstring_view &str,
+    const cstring_t *str,
     const ctext::text_drawcall_t* drawcall,
     const ctext::text_render_info *pInfo,
     const f32 &y,
-    const cvector<ctext::CFGlyph *> &glyph_table,
-    const chashmap_t /* <unicode, int> */ *index_table,
+    const cvector_t * /* ctext::CFGlyph * */ glyph_table,
+    const chashmap_t * /* <char, int> */ index_table,
     int &glyph_iter
 ) {
 
@@ -432,17 +443,21 @@ static void render_line(
 
     f32 width = 0.0f;
     int local_glyph_iter = glyph_iter;
-    for (int i = 0; i < (int)str.size(); i++) {
-        const unicode c = str[i];
+    for (int i = 0; i < cstring_length(str); i++) {
+        const char c = cstring_data(str)[i];
         switch (c) {
-            case U' ':
+            case ' ':
                 width += scaled_space_width;
                 continue;
-            case U'\t':
+            case '\t':
                 width += scaled_tab_width;
                 continue;
+            case '\n':
+                continue;
             default:
-                width += glyph_table[ *(int *)chashmap_find(index_table, &c) ]->advance * pInfo->scale;
+                int index = *(int *)chashmap_find(index_table, &c);
+                ctext::CFGlyph *glyph = ((ctext::CFGlyph **)cvector_data(glyph_table))[ index ];
+                width += glyph->advance * pInfo->scale;
                 local_glyph_iter++;
                 continue;
         }
@@ -457,16 +472,16 @@ static void render_line(
                     :
                     pInfo->position.x;
 
-    for (int i = 0; i < (int)str.size(); i++) {
-        switch (str[i]) {
-            case U' ':
+    for (int i = 0; i < cstring_length(str); i++) {
+        switch (cstring_data(str)[i]) {
+            case ' ':
                 x += scaled_space_width;
                 continue;
-            case U'\t':
+            case '\t':
                 x += scaled_tab_width;
                 continue;
             default:
-                const ctext::CFGlyph &glyph = *(glyph_table[*(u32 *)chashmap_find(index_table, str.data() + i)]);
+                const ctext::CFGlyph &glyph = *(((ctext::CFGlyph **)cvector_data(glyph_table))[*(u32 *)chashmap_find(index_table, cstring_data(str) + i)]);
 
                 const f32 glyph_x0 = glyph.positions[0] * pInfo->scale + x;
                 const f32 glyph_x1 = glyph.positions[1] * pInfo->scale + x;
@@ -505,11 +520,14 @@ static void render_line(
     }
 }
 
-constexpr inline int get_effective_length(const cstring_view &str) {
+inline int get_effective_length(const char *buf, int buflen) {
     int len = 0;
-    for (const unicode &c : str)
-        if (c != U' ' && c != U'\t' && c != U'\n')
+    for (int i = 0; i < buflen; i++) {
+        const char c = buf[i];
+        if (c != ' ' && c != '\t' && c != '\n') {
             len++;
+        }
+    }
     return len;
 }
 
@@ -517,20 +535,20 @@ void gen_vertices(
     ctext::cfont_t *fnt,
     ctext::text_drawcall_t* drawcall,
     const ctext::text_render_info *pInfo,
-    const cstring_view &str,
+    const cstring_t *str,
     const u32 effective_length,
-    const cvector<ctext::CFGlyph *> &glyph_table,
-    const chashmap_t /* <unicode, int> */ *index_table
+    const cvector_t * /* ctext::CFGlyph * */ glyph_table,
+    const chashmap_t * /* <char, int> */ index_table
 ) {
-    if (str.empty())
+    if (cstring_length(str) == 0)
         return;
 
-    const cvector<cstring_view> splitted_strings = split_string(str);
+    cvector_t *splitted_strings = split_string(str);
 
     const f32 scaled_line_height = fnt->line_height * pInfo->scale;
 
     f32 y = pInfo->position.y;
-    const f32 text_size = ((fnt->line_height * pInfo->scale) * splitted_strings.size());
+    const f32 text_size = ((fnt->line_height * pInfo->scale) * cvector_size(splitted_strings));
     switch(pInfo->vertical)
     {
         case CTEXT_VERT_ALIGN_CENTER:
@@ -553,238 +571,32 @@ void gen_vertices(
 
     const i32 old_chars_drawn = fnt->chars_drawn;
     int glyph_iter = 0;
-    for (int i = 0; i < (int)splitted_strings.size(); i++) {;
-        render_line(fnt, splitted_strings[i], drawcall, pInfo, y + i * scaled_line_height, glyph_table, index_table, glyph_iter);
+    for (int i = 0; i < cvector_size(splitted_strings); i++) {;
+        render_line(fnt, *(cstring_t **)cvector_get(splitted_strings, i), drawcall, pInfo, y + i * scaled_line_height, glyph_table, index_table, glyph_iter);
         fnt->chars_drawn = old_chars_drawn + glyph_iter;
     }
+
+    for (int i = 0; i < cvector_size(splitted_strings); i++) {
+        cstring_destroy( ((cstring_t **)cvector_data(splitted_strings))[i] );
+    }
+    cvector_destroy(splitted_strings);
 }
 
-/**
- * C++ version 0.4 char* style "itoa":
- * Written by Lukás Chmela
- * Released under GPLv3.
-
-*/
-unicode* itoa(int value, unicode* result, int base) {
-    // check that the base if valid
-    if (base < 2 || base > 36) { *result = U'\0'; return result; }
-
-    unicode* ptr = result, *ptr1 = result, tmp_char;
-    int tmp_value;
-
-    do {
-        tmp_value = value;
-        value /= base;
-        *ptr++ = "zyxwvutsrqponmlkjihgfedcba9876543210123456789abcdefghijklmnopqrstuvwxyz" [35 + (tmp_value - value * base)];
-    } while ( value );
-
-    // Apply negative sign
-    if (tmp_value < 0) *ptr++ = '-';
-    *ptr-- = '\0';
-    while(ptr1 < ptr) {
-        tmp_char = *ptr;
-        *ptr--= *ptr1;
-        *ptr1++ = tmp_char;
-    }
-    return result;
-}
-
-int normalize(double *val) {
-    int exponent = 0;
-    double value = *val;
-
-    while (value >= 1.0) {
-        value /= 10.0;
-        ++exponent;
-    }
-
-    while (value < 0.1) {
-        value *= 10.0;
-        --exponent;
-    }
-    *val = value;
-    return exponent;
-}
-
-static unicode *ftoa_fixed(unicode *buffer, double value) {
-    /* carry out a fixed conversion of a double value to a string, with a precision of 5 decimal digits.
-     * Values with absolute values less than 0.000001 are rounded to 0.0
-     * Note: this blindly assumes that the buffer will be large enough to hold the largest possible result.
-     * The largest value we expect is an IEEE 754 double precision real, with maximum magnitude of approximately
-     * e+308. The C standard requires an implementation to allow a single conversion to produce up to 512
-     * characters, so that's what we really expect as the buffer size.
-     */
-
-    int exponent = 0;
-    int places = 0;
-    static const int width = 4;
-
-    if (value == 0.0) {
-        buffer[0] = '0';
-        buffer[1] = '\0';
-        return buffer;
-    }
-
-    if (value < 0.0) {
-        *buffer++ = '-';
-        value = -value;
-    }
-
-    exponent = normalize(&value);
-
-    while (exponent > 0) {
-        int digit = value * 10;
-        *buffer++ = digit + '0';
-        value = value * 10 - digit;
-        ++places;
-        --exponent;
-    }
-
-    if (places == 0)
-        *buffer++ = '0';
-
-    *buffer++ = '.';
-
-    while (exponent < 0 && places < width) {
-        *buffer++ = '0';
-        --exponent;
-        ++places;
-    }
-
-    while (places < width) {
-        int digit = value * 10.0;
-        *buffer++ = digit + U'0';
-        value = value * 10.0 - digit;
-        ++places;
-    }
-    *buffer = '\0';
-    return buffer;
-}
-
-unicode *ftoa_sci(unicode *buffer, double value) {
-    int exponent = 0;
-    static const int width = 4;
-
-    if (value == 0.0) {
-        buffer[0] = '0';
-        buffer[1] = '\0';
-        return buffer;
-    }
-
-    if (value < 0.0) {
-        *buffer++ = '-';
-        value = -value;
-    }
-
-    exponent = normalize(&value);
-
-    int digit = value * 10.0;
-    *buffer++ = digit + '0';
-    value = value * 10.0 - digit;
-    --exponent;
-
-    *buffer++ = '.';
-
-    for (int i = 0; i < width; i++) {
-        int digit = value * 10.0;
-        *buffer++ = digit + '0';
-        value = value * 10.0 - digit;
-    }
-
-    *buffer++ = 'e';
-    itoa(exponent, buffer, 10);
-
-    return buffer;
-}
-
-void ctext::render(cfont_t *fnt, const text_render_info *pInfo, const unicode *fmt, ...)
+void ctext::render(cfont_t *fnt, const text_render_info *pInfo, const char *fmt, ...)
 {
-    if (!fmt)
+    char buffer[512] = {};
+
+    va_list arg;
+    va_start(arg, fmt);
+    vsprintf(buffer, fmt, arg);
+    va_end(arg);
+
+    const u32 effective_length = get_effective_length(buffer, strlen(buffer));
+    if (effective_length == 0) {
         return;
-
-    cstring str;
-    {
-        unicode c;
-
-        int int_temp;
-        double double_temp;
-        const unicode *str_temp;
-
-        unicode buffer[512];
-        memset(buffer, 0, 512 * sizeof(unicode));
-
-        va_list arg;
-        va_start(arg, fmt);
-        while ((c = *fmt++)) {
-            if (c != U'%') {
-                str += c;
-            } else {
-                switch((c = *fmt++))
-                {
-                    case U'%':
-                        str += U'%';
-                        break;
-
-                    /* %c: print out a character    */
-                    case U'c':
-                        str += va_arg(arg, int);
-                        break;
-
-                    /* %s: print out a string       */
-                    case U's':
-                        str_temp = va_arg(arg, unicode *);
-                        str.push_set( str_temp );
-                        break;
-
-                    /* %d: print out an int         */
-                    case U'i':
-                    case U'd':
-                        int_temp = va_arg(arg, int);
-                        itoa(int_temp, buffer, 10);
-                        str.push_set(buffer);
-                        break;
-
-                    case U'u':
-                        int_temp = va_arg(arg, unsigned);
-                        itoa(int_temp, buffer, 10);
-                        str.push_set(buffer);
-                        break;
-
-                    /* %x: print out an int in hex  */
-                    case U'x':
-                        int_temp = va_arg(arg, int);
-                        itoa(int_temp, buffer, 16);
-                        str.push_set(buffer);
-                        break;
-                    /* %o: octal */
-                    case U'o':
-                        int_temp = va_arg(arg, int);
-                        itoa(int_temp, buffer, 8);
-                        str.push_set(buffer);
-                        break;
-
-                    case 'f':
-                        double_temp = va_arg(arg, double);
-                        ftoa_fixed(buffer, double_temp);
-                        str.push_set(buffer);
-                        break;
-
-                    case U'e':
-                        double_temp = va_arg(arg, double);
-                        ftoa_sci(buffer, double_temp);
-                        str.push_set(buffer);
-                        break;
-                }
-            }
-        }
-
-        va_end(arg);
     }
 
-    const u32 effective_length = get_effective_length(str);
-
-    if (effective_length == 0)
-        return;
+    cstring_t *str = cstring_init_str(buffer);
 
     const u32 vertex_count = effective_length * 4;
     const u32 index_count = effective_length * 6;
@@ -798,19 +610,19 @@ void ctext::render(cfont_t *fnt, const text_render_info *pInfo, const unicode *f
     drawcall.index_offset = (vertex_count * sizeof(cglyph_vertex_t));
     drawcall.indices = (u32 *)((uchar *)allocation + drawcall.index_offset);
 
-    cvector<ctext::CFGlyph *> glyph_table(effective_length);
-    chashmap_t * /*<unicode, int>*/ index_table = chashmap_init(effective_length, sizeof(unicode), sizeof(int), ctext_hash, NULL);
+    cvector_t * /* ctext::CFGlyph * */ glyph_table = cvector_init(sizeof(ctext::CFGlyph *), effective_length);
+    chashmap_t * /*<char, int>*/ index_table = chashmap_init(effective_length, sizeof(char), sizeof(int), ctext_hash, NULL);
 
     int pen = 0;
-    for (const unicode &c : str) {
-        if (c == U'\000')
+    for (int i = 0; i < cstring_length(str); i++) {
+        const char c = cstring_data(str)[i];
+        if (c == '\000')
             break;
-        else if (c == U' ' || c == U'\t' || c == U'\n')
+        else if (c == ' ' || c == '\t' || c == '\n')
             continue;
         else if (chashmap_find(index_table, &c) == NULL) {
             CFGlyph *glyph = (CFGlyph *)chashmap_find(fnt->glyph_map, &c);
-            cassert(glyph != NULL);
-            glyph_table.push_back( glyph );
+            cvector_push_back(glyph_table, &glyph);
             chashmap_insert(index_table, &c, &pen);
             pen++;
         }
@@ -818,12 +630,14 @@ void ctext::render(cfont_t *fnt, const text_render_info *pInfo, const unicode *f
 
     gen_vertices(fnt, &drawcall, pInfo, str, effective_length, glyph_table, index_table);
 
+    cvector_destroy(glyph_table);
     chashmap_destroy(index_table);
+    cstring_destroy(str);
 
     drawcall.vertex_count = effective_length * 4;
     drawcall.index_count = effective_length * 6;
 
-    fnt->drawcalls.push_back(drawcall);
+    cvector_push_back(fnt->drawcalls, &drawcall);
 }
 
 void ctext::init()
@@ -917,10 +731,10 @@ void ctext::cfont_t::resize_buffer(u32 new_buffer_size, u32 index_buffer_offset)
     u32 new_allocation_size;
 
     if (allocated_size < new_buffer_size) {
-        new_allocation_size = fmax(allocated_size * 2, new_buffer_size);
+        new_allocation_size = MAX(allocated_size * 2, new_buffer_size);
     }
     else if (new_buffer_size < (allocated_size / 3)) {
-        new_allocation_size = fmax(allocated_size / 3, new_buffer_size);
+        new_allocation_size = MAX(allocated_size / 3, new_buffer_size);
     }
     else
         return;

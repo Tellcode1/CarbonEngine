@@ -1,15 +1,20 @@
 #ifndef __C_TEXT_HPP__
 #define __C_TEXT_HPP__
 
-#include "math/mat.hpp"
-#include "math/vec3.hpp"
-#include "math/vec2.hpp"
+#include "../../../include/engine/camera.hpp"
+
+#include "../include/math/vec3.hpp"
+#include "../include/math/vec2.hpp"
+#include "../include/math/mat.hpp"
 
 #include "stdafx.h"
 #include "vkstdafx.h"
 
-#include "containers/cstring.hpp"
+#include "containers/cvector.h"
+#include "containers/cstring.h"
 #include "containers/chashmap.h"
+
+typedef struct crenderer_t crenderer_t;
 
 enum HoriAlignment
 {
@@ -23,28 +28,6 @@ enum VertAlignment
     CTEXT_VERT_ALIGN_TOP = 0,
     CTEXT_VERT_ALIGN_CENTER = 1,
     CTEXT_VERT_ALIGN_BOTTOM = 2,
-};
-
-typedef struct ccharset_block {
-    unicode begin, end;
-} ccharset_block;
-
-static const ccharset_block ccharsets_range[] = {
-    { /* Basic Latin (ASCII) */ 0x0000, 0x007F},
-    { /* Latin-1 Supplement */ 0x0080, 0x00FF},
-    { /* Latin Extended-A */ 0x0100, 0x017F},
-    { /* Latin Extended-B */ 0x0180, 0x024F},
-    { /* Greek and Coptic */ 0x0370, 0x03FF},
-    { /* Cyrillic */ 0x0400, 0x04FF},
-    { /* Hebrew */ 0x0590, 0x05FF},
-    { /* Arabic */ 0x0600, 0x06FF},
-    { /* Devanagari */ 0x0900, 0x097F},
-    { /* Chinese, Japanese, and Korean (CJK) */ 0x4E00, 0x9FFF},
-    { /* Hangul Syllables */ 0xAC00, 0xD7AF},
-    { /* Emoji (Basic Emoji Block) */ 0x1F600, 0x1F64F},
-    { /* Mathematical Alphanumeric Symbols */ 0x1D400, 0x1D7FF},
-    { /* Supplementary Private Use Area-A */ 0xF0000, 0xFFFFF},
-    { /* Supplementary Private Use Area-B */ 0x100000, 0x10FFFF}
 };
 
 enum ccharset {
@@ -66,7 +49,7 @@ enum ccharset {
 };
 
 static inline unsigned ctext_hash(const void *key, int nbytes) {
-    return *(unicode *)key;
+    return *(char *)key;
 }
 
 struct ctext
@@ -89,7 +72,7 @@ struct ctext
 
     // Hmm.. sprintf doesn't work with unicode I guess.
     // I'll figure out what to do later.
-    static void render(cfont_t *fnt, const text_render_info *pInfo, const unicode *fmt, ...);
+    static void render(cfont_t *fnt, const text_render_info *pInfo, const char *fmt, ...);
     static void init();
 
     static VkDescriptorPool desc_pool;
@@ -114,10 +97,10 @@ struct ctext
     */
     constexpr static const char *CFontRegistryPath = "./CFont/Registry.txt";
 
-    static void load_font(const CFontLoadInfo* pInfo, cfont_t **dst);
+    static void load_font(struct crenderer_t *rd, const CFontLoadInfo* pInfo, cfont_t **dst);
 
     static void begin_render(cfont_t *fnt);
-    static void end_render(cfont_t *fnt, cm::mat4 model);
+    static void end_render(crenderer_t *rd, ccamera camera, cfont_t *fnt, cm::mat4 model);
 
     static inline void set_model_matrix(const cm::mat4 &new_matrix) {
         model_matrix = new_matrix;
@@ -175,10 +158,10 @@ struct ctext
         bool to_render;
 
         u32 chars_drawn;
-        cvector<text_drawcall_t> drawcalls;
+        cvector_t * /* text_drawcall_t */  drawcalls;
         chashmap_t * /* unicode, CFGlyph ctext_hasher<unicode>> */ glyph_map;
 
-        friend void ctext::load_font(const CFontLoadInfo* pInfo, cfont_t **dst);
+        friend void ctext::load_font(struct crenderer_t *rd, const CFontLoadInfo* pInfo, cfont_t **dst);
     };
 
     struct CFontLoadInfo
@@ -188,87 +171,6 @@ struct ctext
         ccharset chset = CHARSET_ASCII;
         BitmapChannels channel_count = CHANNELS_SDF;
     };
-
-    // reddit saves the day
-    static cvector<unicode> unicode_to_utf8(unicode charcode)
-    {
-        cvector<unicode> d;
-        if (charcode < 128)
-        {
-            d.push_back(charcode);
-        }
-        else
-        {
-            int first_bits = 6;
-            const int other_bits = 6;
-            int first_val = 0xC0;
-            int t = 0;
-            while ((int)charcode >= (1 << first_bits))
-            {
-                {
-                    t = 128 | (charcode & ((1 << other_bits)-1));
-                    charcode >>= other_bits;
-                    first_val |= 1 << (first_bits);
-                    first_bits--;
-                }
-                d.push_back(t);
-            }
-            t = first_val | charcode;
-            d.push_back(t);
-
-            int start = 0;
-            int end = d.size() - 1;
-
-            for (;start < end;) {
-                int temp = d[start];
-                d[start] = d[end];
-                d[end] = temp;
-                start++; end--;
-            }
-        }
-        return d;
-    };
-
-    static cvector<unicode> utf32_to_utf8_str(const char *str) {
-        cvector<unicode> ret;
-        cvector<char> unicode_points;
-        unicode_points.push_set(str, strlen(str));
-        for (auto node : unicode_points) {
-            const cvector<unicode> utf8 = unicode_to_utf8(node);
-            for (const unicode &uc : utf8) {
-                ret.push_back(uc);
-            }
-        }
-        return ret;
-    }
-
-    static unicode utf8_to_unicode(const cvector<unicode> &coded)
-    {
-        int i = 0;
-        unicode charcode = 0;
-        int t = coded[0]; i++;
-        if (t < 128)
-        {
-            return t;
-        }
-        int high_bit_mask = (1 << 6) -1;
-        int high_bit_shift = 0;
-        int total_bits = 0;
-        constexpr int other_bits = 6;
-        while((t & 0xC0) == 0xC0)
-        {
-            t <<= 1;
-            t &= 0xff;
-            total_bits += 6;
-            high_bit_mask >>= 1;
-            high_bit_shift++;
-            charcode <<= other_bits;
-            charcode |= coded[i] & ((1 << other_bits)-1);
-            i++;
-        }
-        charcode |= ((t >> high_bit_shift) & high_bit_mask) << total_bits;
-        return charcode;
-    }
 };
 
 #endif

@@ -34,7 +34,7 @@ extern cvector_bool_t cvector_empty(const cvector_t *vec);
 extern cvector_bool_t cvector_equal(const cvector_t *vec1, const cvector_t *vec2);
 
 // WARNING: sizeof(*elem) != vec->typesize is UNDEFINED!
-extern void cvector_push_back(cvector_t *vec, void *elem);
+extern void cvector_push_back(cvector_t *vec, const void *elem);
 extern void cvector_push_set(cvector_t *vec, void *arr, int count);
 
 extern void cvector_pop_back(cvector_t *vec);

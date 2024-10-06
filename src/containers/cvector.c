@@ -15,16 +15,16 @@ cvector_t *cvector_init(int typesize, int init_size)
 {
     cvector_t *vec = malloc(sizeof(struct cvector_t));
     cassert(vec != NULL);
-    memset(vec, 0, sizeof(struct cvector_t));
 
-    vec->m_size = init_size;
+    vec->m_size = 0;
     vec->m_typesize = typesize;
     vec->m_capacity = init_size;
 
     if (init_size > 0) {
-        vec->m_data = malloc(init_size * typesize);
+        vec->m_data = calloc(init_size, typesize);
         cassert(vec->m_data != NULL);
-        memset(vec->m_data, 0, init_size * typesize);
+    } else {
+        vec->m_data = NULL;
     }
 
     return vec;
@@ -33,20 +33,16 @@ cvector_t *cvector_init(int typesize, int init_size)
 void cvector_destroy(cvector_t *vec)
 {
     if (vec) {
-        if (vec->m_data)
+        if (vec->m_data) {
             free(vec->m_data);
+        }
         free(vec);
     }
 }
 
 void cvector_clear(cvector_t *vec)
 {
-    if (vec->m_data && vec->m_size > 0)
-        free(vec->m_data);
-    vec->m_data = NULL;
     vec->m_size = 0;
-    vec->m_capacity = 0;
-    /* vec->m_typesize must not be touched */
 }
 
 int cvector_size(const cvector_t *vec)
@@ -113,25 +109,23 @@ cvector_bool_t cvector_equal(const cvector_t *vec1, const cvector_t *vec2)
 
 void cvector_resize(cvector_t *vec, int new_size)
 {
-    void *new_data = NULL;
-
     // realloc crashes if m_data is NULL.
     if (vec->m_data) {
-        new_data = realloc(vec->m_data, vec->m_typesize * new_size);
+        vec->m_data = realloc(vec->m_data, vec->m_typesize * new_size);
     } else {
-        new_data = malloc(vec->m_typesize * new_size);
+        vec->m_data = calloc(vec->m_typesize, new_size);
         /* vec->m_data is NULL so we don't really have anything to copy */
     }
-    cassert(new_data != NULL);
+    cassert(vec->m_data != NULL);
 
     vec->m_capacity = new_size;
-    vec->m_data = new_data;
 }
 
-void cvector_push_back(cvector_t *vec, void *elem)
+void cvector_push_back(cvector_t *vec, const void *elem)
 {
-    if ((vec->m_size + 1) >= vec->m_capacity)
+    if ((vec->m_size + 1) >= vec->m_capacity) {
         cvector_resize(vec, cmmax(1, vec->m_capacity * 2));
+    }
     memcpy((uchar *)vec->m_data + (vec->m_size * vec->m_typesize), elem, vec->m_typesize);
     vec->m_size++;
 }
@@ -147,8 +141,9 @@ void cvector_push_set(cvector_t *vec, void *arr, int count)
 
 void cvector_pop_back(cvector_t *vec)
 {
-    if (vec->m_size > 0)
-            vec->m_size--;
+    if (vec->m_size > 0) {
+        vec->m_size--;
+    }
 }
 
 void cvector_pop_front(cvector_t *vec)
@@ -161,10 +156,12 @@ void cvector_pop_front(cvector_t *vec)
 
 void cvector_insert(cvector_t *vec, int index, void *elem)
 {
-    if (index >= vec->m_capacity)
+    if (index >= vec->m_capacity) {
         cvector_resize(vec, cmmax(1, index * 2)); // linear allocator. i could probably implement more but i don't have time rn
-    if (index >= vec->m_size)
+    }
+    if (index >= vec->m_size) {
         vec->m_size = index + 1;
+    }
     memcpy((uchar *)vec->m_data + (vec->m_typesize * index), elem, vec->m_typesize);
 }
 
@@ -172,8 +169,14 @@ void cvector_remove(cvector_t *vec, int index)
 {
     if (index >= vec->m_size)
         return;
-    else if (vec->m_size - index - 1)
-        memcpy((uchar *)vec->m_data + (index * vec->m_typesize), (uchar *)vec->m_data + ((index + 1) * vec->m_typesize), (vec->m_size - index - 1) * vec->m_typesize); // please don't ask me what this is
+    else if (vec->m_size - index - 1) {
+        // please don't ask me what this is
+        memcpy(
+            (uchar *)vec->m_data + (index * vec->m_typesize),
+            (uchar *)vec->m_data + ((index + 1) * vec->m_typesize),
+            (vec->m_size - index - 1) * vec->m_typesize
+        );
+    }
     vec->m_size--;
 }
 

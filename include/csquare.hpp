@@ -68,9 +68,7 @@ struct csquare_t {
     VkDeviceMemory mem;
 };
 
-int ccreate_cube(csquare_t *dst) {
-    memset(dst, 0, sizeof(csquare_t));
-
+int ccreate_cube(crenderer_t *rd, csquare_t *dst) {
     help::Buffers::CreateBuffer(
         ccube_total_data_size,
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
@@ -84,18 +82,18 @@ int ccreate_cube(csquare_t *dst) {
     memcpy((char *)mapped + ccube_index_offset, ccube_indices, sizeof(u32) * 36);
     vkUnmapMemory(device, dst->mem);
 
-    const cvector<VkVertexInputAttributeDescription> attributeDescriptions = {
+    const VkVertexInputAttributeDescription attributeDescriptions[] = {
         // location; binding; format; offset;
         { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0 }, // pos
         { 1, 0, VK_FORMAT_R32G32_SFLOAT,    sizeof(cm::vec3) }, // uv
     };
 
-    const cvector<VkVertexInputBindingDescription> bindingDescriptions = {
+    const VkVertexInputBindingDescription bindingDescriptions[] = {
         // binding; stride; inputRate
         { 0, sizeof(cvertex), VK_VERTEX_INPUT_RATE_VERTEX }
     };
 
-    const cvector<VkPushConstantRange> pushConstants = { 
+    const VkPushConstantRange pushConstants[] = { 
         // stageFlags, offset, size
         { VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(cm::mat4) * 2 }
     };
@@ -103,25 +101,26 @@ int ccreate_cube(csquare_t *dst) {
     csm_shader_t *vertex, *fragment;
     assert(csm_load_shader("Unlit/vert", &vertex) != -1);
     assert(csm_load_shader("Unlit/frag", &fragment) != -1);
-    const cvector<csm_shader_t *> shaders = { vertex, fragment };
+    const csm_shader_t * shaders[] = { vertex, fragment };
 
     cvk_pipeline_create_info pc{};
     pc.format = SwapChainImageFormat;
     pc.subpass = 0;
-    pc.render_pass = GlobalRenderPass;
+    pc.render_pass = crenderer_get_render_pass(rd);
 
-    pc.nAttributeDescriptions = attributeDescriptions.size();
-    pc.pAttributeDescriptions = attributeDescriptions.data();
+    pc.nAttributeDescriptions = array_len(attributeDescriptions);
+    pc.pAttributeDescriptions = attributeDescriptions;
 
-    pc.nPushConstants = pushConstants.size();
-    pc.pPushConstants = pushConstants.data();
+    pc.nPushConstants = array_len(pushConstants);
+    pc.pPushConstants = pushConstants;
 
-    pc.nBindingDescriptions = bindingDescriptions.size();
-    pc.pBindingDescriptions = bindingDescriptions.data();
+    pc.nBindingDescriptions = array_len(bindingDescriptions);
+    pc.pBindingDescriptions = bindingDescriptions;
 
-    pc.nShaders = shaders.size();
-    pc.pShaders = shaders.data();
+    pc.nShaders = array_len(shaders);
+    pc.pShaders = shaders;
 
+    const cengine_extent2d RenderExtent = crenderer_get_render_extent(rd);
     pc.extent.width = RenderExtent.width;
     pc.extent.height = RenderExtent.height;
     pc.samples = Samples;
@@ -132,7 +131,7 @@ int ccreate_cube(csquare_t *dst) {
     return 0;
 }
 
-void render_cube(const csquare_t *cube) {
+void render_cube(crenderer_t *rd, ccamera camera, const csquare_t *cube) {
     struct push_constants {
         cm::mat4 view;
         cm::mat4 projection;
@@ -141,8 +140,10 @@ void render_cube(const csquare_t *cube) {
     pc.view = camera.get_view();
     pc.projection = camera.get_projection();
 
-    const VkCommandBuffer cmd = Renderer::GetDrawBuffer();
-    vkCmdBindVertexBuffers(cmd, 0, 1, &cube->buf, (const VkDeviceSize *)Renderer::empty_array);
+    const VkDeviceSize offsets[1] = {};
+
+    const VkCommandBuffer cmd = crenderer_get_drawbuffer(rd);
+    vkCmdBindVertexBuffers(cmd, 0, 1, &cube->buf, offsets);
     vkCmdPushConstants(cmd, cube->pipeline.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push_constants), &pc);
     vkCmdBindIndexBuffer(cmd, cube->buf, ccube_index_offset, VK_INDEX_TYPE_UINT32);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, cube->pipeline.pipeline);

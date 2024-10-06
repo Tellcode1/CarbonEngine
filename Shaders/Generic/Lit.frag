@@ -19,8 +19,6 @@ vec3 TangentLightPos;
 layout (location = 4) in
 vec3 TangentViewPos;
 
-#define M_PI 3.1415926535897932384626433832795
-
 struct Material {
     vec3 ambient;
     vec3 diffuse;
@@ -46,7 +44,7 @@ layout (push_constant) uniform push_constants {
 layout (set = 0, binding = 1) uniform sampler2D image; // descriptor image
 layout (set = 0, binding = 2) uniform sampler2D normalmap;
 
-const float ambientStrength = 0.1;
+const float ambientStrength = 0.02;
 
 void main() {
     vec3 normal = texture(normalmap, f_tex_coords).rgb;

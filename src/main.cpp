@@ -1,43 +1,32 @@
-#define STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-
-#include "../include/Renderer.hpp"
-#include "../../external/stb/stb_image.h"
-#include "../../external/stb/stb_image_write.h"
-
 #include "../include/defines.h"
-#include "../include/math/vec3.hpp"
 #include "../include/math/vec2.hpp"
+#include "../include/math/vec3.hpp"
 #include "../include/stdafx.h"
 #include "../include/cengine.hpp"
 #include "../include/ctext.hpp"
-#include "../include/cinput.hpp"
-#include "../include/containers/cvector.hpp"
-#include "../include/containers/cstring.hpp"
+#include "../include/cinput.h"
+#include "../include/containers/cstring.h"
 
 #include "../include/engine/object/cgameobject.hpp"
+#include "../include/engine/camera.hpp"
 #include "../include/engine/object/mesh.hpp"
 #include "../include/csquare.hpp"
 
-#include "../include/cshadermanager.h"
-
-#include "../include/containers/cvector.h"
-#include "../include/containers/chashmap.h"
+#include "../include/cimageload.h"
 
 int main(int argc, char *argv[]) {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);
 
-    using RD = Renderer;
-
     TIME_FUNCTION(cengine::initialize_context("kilometers per second (edgy)(im cool now ok?)", 800, 600));
 
-    renderer_config rdconf{};
-    rdconf.present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
-    rdconf.buffer_mode = BUFFER_MODE_NONE;
-    rdconf.window_resizable = false;
+    crenderer_config rdconf = crender_config_init();
+    rdconf.vsync_enabled = 1;
+    rdconf.buffer_mode = CGFX_BUFFER_MODE_SINGLE_BUFFERED;
+    rdconf.window_resizable = 0;
     rdconf.multisampling_enable = false;
     rdconf.samples = VK_SAMPLE_COUNT_1_BIT;
-    cengine::initialize(&rdconf);
+    crenderer_t *rd = crenderer_init(&rdconf);
+    cengine::initialize();
 
     csm_compile_updated();
 
@@ -51,22 +40,25 @@ int main(int argc, char *argv[]) {
     infoo.chset = CHARSET_ASCII;
     infoo.scale = 32.0f;
     infoo.channel_count = ctext::CHANNELS_MSDF;
-    ctext::load_font(&infoo, &amongus);
+    ctext::load_font(rd, &infoo, &amongus);
 
     int curr_showing_fps = 0;
 
-    cassert(SDL_SetRelativeMouseMode(SDL_TRUE) == 0);
+    bool relmodeon = true;
+    cassert(SDL_SetRelativeMouseMode(SDL_TRUE) != -1);
 
     cmesh_t *light;
     cmesh_t *mesh;
-    cmesh_t *block = load_mesh("../Assets/cube.obj", "../Assets/model/3DBread007_HQ-1K-JPG_Color.jpg", "../Assets/empty.png");
+    cmesh_t *block = load_mesh(rd, "../Assets/cube.obj", "../Assets/model/3DBread007_HQ-1K-JPG_Color.jpg", "../Assets/empty.png");
     block->transform.position = cm::vec3(0.0f);
     block->transform.scale = cm::vec3(1.0f);
 
     TIME_FUNCTION(
-        light = load_mesh("../Assets/model/3DBread007_HQ-1K-JPG.obj", "../Assets/model/3DBread007_HQ-1K-JPG_Color.jpg", "../Assets/model/3DBread007_HQ-1K-JPG_NormalGL.jpg");
-        mesh = load_mesh("../Assets/model/3DBread007_HQ-1K-JPG.obj", "../Assets/model/3DBread007_HQ-1K-JPG_Color.jpg", "../Assets/model/3DBread007_HQ-1K-JPG_NormalGL.jpg");
+        light = load_mesh(rd, "../Assets/barrel.obj", "../Assets/barrel.png", "../Assets/model/3DBread007_HQ-1K-JPG_NormalGL.jpg");
+        mesh = load_mesh(rd, "../Assets/model/3DBread007_HQ-1K-JPG.obj", "../Assets/model/3DBread007_HQ-1K-JPG_Color.jpg", "../Assets/model/3DBread007_HQ-1K-JPG_NormalGL.jpg");
     );
+
+    ccamera camera{};
 
     // What in the unholy f%$ where you doing
     LOG_DEBUG("Initialized in %ld ms (%.3f s)", SDL_GetTicks64(), SDL_GetTicks64() / 1000.0f);
@@ -86,20 +78,25 @@ int main(int argc, char *argv[]) {
 
         const float speed = 16.6f * dt;
         cm::vec3 cam_pos_add = cm::vec3(0.0f);
-        if (cinput::is_key_held(SDL_SCANCODE_W))
+        if (cinput_is_key_held(SDL_SCANCODE_W))
             cam_pos_add.z += speed;
-        if (cinput::is_key_held(SDL_SCANCODE_S))
+        if (cinput_is_key_held(SDL_SCANCODE_S))
             cam_pos_add.z -= speed;
-        if (cinput::is_key_held(SDL_SCANCODE_A))
+        if (cinput_is_key_held(SDL_SCANCODE_A))
             cam_pos_add.x -= speed;
-        if (cinput::is_key_held(SDL_SCANCODE_D))
+        if (cinput_is_key_held(SDL_SCANCODE_D))
             cam_pos_add.x += speed;
-        if (cinput::is_key_held(SDL_SCANCODE_SPACE))
+        if (cinput_is_key_held(SDL_SCANCODE_SPACE))
             cam_pos_add.y += speed;
-        if (cinput::is_key_held(SDL_SCANCODE_LALT))
+        if (cinput_is_key_held(SDL_SCANCODE_LALT))
             cam_pos_add.y -= speed;
         if (cam_pos_add.x != 0.0f || cam_pos_add.y != 0.0f || cam_pos_add.z != 0.0f) {
             camera.move(cam_pos_add);
+        }
+
+        if (cinput_is_key_pressed(SDL_SCANCODE_TAB)) {
+            relmodeon = !relmodeon;
+            SDL_SetRelativeMouseMode((SDL_bool)relmodeon);
         }
 
         // Profiling code
@@ -112,13 +109,13 @@ int main(int argc, char *argv[]) {
             totalTime = 0.0;
         }
 
-        if (cinput::is_key_held(SDL_SCANCODE_I))
+        if (cinput_is_key_held(SDL_SCANCODE_I))
             mesh->transform.position.y += speed;
-        if (cinput::is_key_held(SDL_SCANCODE_K))
+        if (cinput_is_key_held(SDL_SCANCODE_K))
             mesh->transform.position.y -= speed;
-        if (cinput::is_key_held(SDL_SCANCODE_J))
+        if (cinput_is_key_held(SDL_SCANCODE_J))
             mesh->transform.position.x -= speed;
-        if (cinput::is_key_held(SDL_SCANCODE_L))
+        if (cinput_is_key_held(SDL_SCANCODE_L))
             mesh->transform.position.x += speed;
 
         // light->transform.position = cm::vec3(0.5f, 1.0f, 0.3f);
@@ -127,9 +124,9 @@ int main(int argc, char *argv[]) {
         mesh->transform.scale = cm::vec3(10.0f);
         light->transform.scale = cm::vec3(10.0f);
 
-        if (RD::BeginRender()) {
-            const VkCommandBuffer cmd = Renderer::GetDrawBuffer();
+        camera.update(rd);
 
+        if (crenderer_begin_render(rd)) {
             ctext::begin_render(amongus);
 
             ctext::text_render_info info;
@@ -137,22 +134,22 @@ int main(int argc, char *argv[]) {
             info.vertical = CTEXT_VERT_ALIGN_TOP;
             info.scale = 1.0f;
             info.position = cm::vec3(-1.0f, -1.0f, -1.0f);
-            ctext::render(amongus, &info, U"%u %s frames", curr_showing_fps, U"joosy");
+            ctext::render(amongus, &info, "%u %s frames", curr_showing_fps, "joosy");
             
             info.horizontal = CTEXT_HORI_ALIGN_CENTER;
             info.vertical = CTEXT_VERT_ALIGN_CENTER;
             info.position = cm::vec3(0.0f, 0.0f, sinf(cengine::get_time()) * 5.0f);
-            ctext::render(amongus, &info, U"pootis");
+            ctext::render(amongus, &info, "pootis");
 
-            ctext::end_render(amongus, cm::mat4(1.0f));
+            ctext::end_render(rd, camera, amongus, cm::mat4(1.0f));
 
             block->transform.rotation.y += cmdeg2rad(360.0f * 16.0f) * dt;
 
-            render(light, light->transform.position);
-            render(mesh, light->transform.position);
-            render(block, light->transform.position);
+            render(rd, camera, light, light->transform.position);
+            render(rd, camera, mesh, light->transform.position);
+            render(rd, camera, block, light->transform.position);
 
-            RD::EndRender();
+            crenderer_end_render(rd);
         } else {
             LOG_INFO("Skipped a frame!");
         }

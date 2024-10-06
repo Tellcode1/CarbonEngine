@@ -1,14 +1,10 @@
 #include "../../include/cvk.hpp"
 #include "../../include/cengineinit.hpp"
 #include "../../include/cshadermanagerdev.h"
+#include "../../include/containers/cvector.h"
 
-cvk_result_check_func __cvk_resultFunc = __cvk_defaultResultCheckFunc; // To not cause nullptr dereference. SetResultCheckFunc also checks for nullptr and handles it.
+cvk_result_check_fn __cvk_resultFunc = __cvk_defaultResultCheckFunc; // To not cause nullptr dereference. SetResultCheckFunc also checks for nullptr and handles it.
 u32 cvk_flag_register = 0;
-
-// arrptr == pointer to array
-// These defines serve the core purpose of not causing nullptr dereferences because of dereferencing arrays.
-#define FALLBACK_SIZE(arrptr) (arrptr != VK_NULL_HANDLE) ? arrptr->size() : 0
-#define FALLBACK_PTR(arrptr) (arrptr != VK_NULL_HANDLE) ? arrptr->data() : VK_NULL_HANDLE
 
 #define HAS_FLAG(flag) ((cvk_flag_register & flag) || (flags & flag))
 
@@ -23,8 +19,10 @@ void cvk_create_graphics_pipeline(VkDevice device,  const cvk_pipeline_create_in
 	CVK_NOT_EQUAL_TO(pCreateInfo->extent.width, 0);
 	CVK_NOT_EQUAL_TO(pCreateInfo->extent.height, 0);
 
-	if(HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING))
+	if(HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING)) {
+		// Vulkan requires samples to not be 1.
 		CVK_NOT_EQUAL_TO(pCreateInfo->samples, VK_SAMPLE_COUNT_1_BIT);
+	}
 
 	VkPipelineVertexInputStateCreateInfo vertexInputState{};
 	vertexInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;	
@@ -154,9 +152,9 @@ void cvk_create_graphics_pipeline(VkDevice device,  const cvk_pipeline_create_in
 		graphicsPipelineCreateInfo.pDynamicState = &dynamicStateInfo;
 	}
 	
+	VkPipelineDepthStencilStateCreateInfo depthStencilState{};
 	if(HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_DEPTH_CHECK) && !(flags & CVK_PIPELINE_FLAGS_UNFORCE_DEPTH_CHECK))
 	{
-		VkPipelineDepthStencilStateCreateInfo depthStencilState{};
 		depthStencilState.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
 		depthStencilState.depthTestEnable = VK_TRUE;
 		depthStencilState.depthWriteEnable = VK_TRUE;
@@ -207,8 +205,8 @@ void cvk_create_render_pass(VkDevice device, cvk_render_pass_create_info const *
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorAttachmentReference;
 
-    cvector<VkAttachmentDescription> attachments(5);
-	attachments.push_back(colorAttachmentDescription);
+    cvector_t * /* VkAttachmentDescription */ attachments = cvector_init(sizeof(VkAttachmentDescription), 5);
+	cvector_push_back(attachments, &colorAttachmentDescription);
 
 	VkAttachmentDescription depthAttachment{};
 	VkAttachmentReference depthAttachmentRef{};
@@ -227,12 +225,12 @@ void cvk_create_render_pass(VkDevice device, cvk_render_pass_create_info const *
 		// else
 			depthAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-		depthAttachmentRef.attachment = attachments.size();
+		depthAttachmentRef.attachment = cvector_size(attachments);
 		depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
         subpass.pDepthStencilAttachment = &depthAttachmentRef;
 
-        attachments.push_back(depthAttachment);
+		cvector_push_back(attachments, &depthAttachment);
     }
 
 	VkAttachmentReference colorAttachmentResolveRef{};
@@ -248,10 +246,10 @@ void cvk_create_render_pass(VkDevice device, cvk_render_pass_create_info const *
         colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-        colorAttachmentResolveRef.attachment = attachments.size();
+        colorAttachmentResolveRef.attachment = cvector_size(attachments);
         colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-        attachments.push_back(colorAttachmentResolve);
+		cvector_push_back(attachments, &colorAttachmentResolve);
 
         subpass.pResolveAttachments = &colorAttachmentResolveRef;
     }
@@ -266,8 +264,8 @@ void cvk_create_render_pass(VkDevice device, cvk_render_pass_create_info const *
 
     VkRenderPassCreateInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderPassInfo.attachmentCount = attachments.size();
-    renderPassInfo.pAttachments = attachments.data();
+    renderPassInfo.attachmentCount = cvector_size(attachments);
+    renderPassInfo.pAttachments = (const VkAttachmentDescription *)cvector_data(attachments);
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpass;
     renderPassInfo.dependencyCount = 1;
@@ -281,6 +279,20 @@ void cvk_create_pipeline_layout(VkDevice device, cvk_pipeline_create_info const 
 	CVK_REQUIRED_PTR(device);
 	CVK_REQUIRED_PTR(pCreateInfo);
 	CVK_REQUIRED_PTR(dstLayout);
+
+    // int totalLayouts = 0;
+	// for (int i = 0; i < pCreateInfo->nShaders; i++) {
+	// 	totalLayouts += pCreateInfo->pShaders[i]->nsetlayouts;
+	// }
+
+	// cvector_t *sets = cvector_init(sizeof(VkDescriptorSetLayout), totalLayouts);
+
+	// for (int i = 0; i < pCreateInfo->nShaders; i++) {
+	// 	const csm_shader_t *shader = pCreateInfo->pShaders[i];
+	// 	for (int j = 0; j < shader->nsetlayouts; j++) {
+	// 		cvector_push_back(sets, &shader->setlayouts[j]);
+	// 	}
+	// }
 
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
 	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;

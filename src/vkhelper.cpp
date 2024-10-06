@@ -1,11 +1,11 @@
 #include "../include/vkhelper.hpp"
 #include "../include/cvk.hpp"
-#include "../include/Renderer.hpp"
+#include "../include/cgfx.h"
+#include "../include/cimageload.h"
 #include <iostream>
 
-// stb loves to kick compilers in the liver so it shouldn't be put in the precompiled header
-#include "../../external/stb/stb_image.h"
-#include "../../external/stb/stb_image_write.h"
+VkCommandPool pool = VK_NULL_HANDLE;
+VkCommandBuffer buffer = VK_NULL_HANDLE;
 
 void help::Buffers::CreateBuffer(u64 size, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags, VkBuffer *dstBuffer, VkDeviceMemory *retMem, bool externallyAllocated)
 {
@@ -113,22 +113,6 @@ u32 help::GetMemoryType(const u32 memoryTypeBits, const VkMemoryPropertyFlags me
     return UINT32_MAX;
 }
 
-VkCommandBuffer help::Commands::BeginSingleTimeCommands()
-{
-    VkCommandBufferAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandPool = Renderer::commandPool;
-    allocInfo.commandBufferCount = 1;
-
-    VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
-	if(vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer) != VK_SUCCESS) {
-		printf("Failed to allocate command buffer");
-	}
-
-    return BeginSingleTimeCommands(commandBuffer);
-}
-
 VkCommandBuffer help::Commands::BeginSingleTimeCommands(VkCommandBuffer src)
 {
     VkCommandBufferBeginInfo beginInfo{};
@@ -138,6 +122,28 @@ VkCommandBuffer help::Commands::BeginSingleTimeCommands(VkCommandBuffer src)
     vkBeginCommandBuffer(src, &beginInfo);
 
     return src;
+}
+
+VkCommandBuffer help::Commands::BeginSingleTimeCommands()
+{
+    if (!pool) {
+        VkCommandPoolCreateInfo cmdPoolCreateInfo{};
+        cmdPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        cmdPoolCreateInfo.queueFamilyIndex = GraphicsFamilyIndex;
+        cmdPoolCreateInfo.flags = 0;
+        if(vkCreateCommandPool(device, &cmdPoolCreateInfo, nullptr, &pool) != VK_SUCCESS) {
+            LOG_ERROR("Failed to create command pool");
+        }
+    }
+
+    VkCommandBufferAllocateInfo cmdAllocInfo{};
+    cmdAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    cmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    cmdAllocInfo.commandBufferCount = 1;
+    cmdAllocInfo.commandPool = pool;
+    vkAllocateCommandBuffers(device, &cmdAllocInfo, &buffer);
+
+    return help::Commands::BeginSingleTimeCommands(buffer);
 }
 
 VkResult help::Commands::EndSingleTimeCommands(VkCommandBuffer cmd, VkQueue queue, bool waitForExecution)
@@ -170,26 +176,27 @@ VkResult help::Commands::EndSingleTimeCommands(VkCommandBuffer cmd, VkQueue queu
             vkDestroyFence(device, fence, nullptr);
         }
         vkDeviceWaitIdle(device);
-        vkFreeCommandBuffers(device, Renderer::commandPool, 1, &cmd);
+        vkFreeCommandBuffers(device, pool, 1, &cmd);
+        buffer = NULL;
     }
 
     return VK_SUCCESS;
 }
 
-void help::Files::LoadBinary(const char * path, cvector<u8>* dst)
-{
-    FILE *f = fopen(path, "rb");
-    cassert(f != NULL);
+// void help::Files::LoadBinary(const char * path, cvector<u8>* dst)
+// {
+//     FILE *f = fopen(path, "rb");
+//     cassert(f != NULL);
 
-    fseek(f, 0, SEEK_END);
-    int file_size = ftell(f);
-    rewind(f);
+//     fseek(f, 0, SEEK_END);
+//     int file_size = ftell(f);
+//     rewind(f);
 
-    dst->resize( file_size );
-    fread(dst->data(), 1, file_size, f);
+//     dst->resize( file_size );
+//     fread(dst->data(), 1, file_size, f);
 
-    fclose(f);
-}
+//     fclose(f);
+// }
 
 void help::Files::LoadBinary(const char* path, u8* dst, u32* dstSize) {
     FILE *f = fopen(path, "rb");
@@ -314,30 +321,16 @@ void help::Images::create_empty(u32 width, u32 height, VkFormat format, VkSample
 
 u8* help::Images::killme(const char *path, u32 *width, u32 *height, VkFormat *channels, VkImage *dst, VkDeviceMemory *dstMem)
 {
-    i32 w, h, c;
-    u8 *buffer = stbi_load(path, &w, &h, &c, 4);
+    ctex2D tex = cimg_load(path);
 
-    assert(buffer != NULL);
+    cassert(tex.data != NULL);
 
-    *width = w;
-    *height = h;
+    *width = tex.w;
+    *height = tex.h;
+    *channels = cfmt_conv_cfmt_to_vkfmt(tex.fmt);
 
-    VkFormat fmt = VK_FORMAT_UNDEFINED;
-    if (c == 1)
-        fmt = VK_FORMAT_R8_SRGB;
-    else if (c == 2)
-        fmt = VK_FORMAT_R8G8_SRGB;
-    else if (c == 3)
-        fmt = VK_FORMAT_R8G8B8_SRGB;
-    else if (c == 4)
-        fmt = VK_FORMAT_R8G8B8A8_SRGB;
-    else
-        LOG_ERROR("Channels requested %i (\"%s\")", c, path);
-
-    *channels = fmt;
-
-    killme(buffer, w, h, fmt, c, dst, dstMem);
-    return buffer;
+    help::Images::killme(tex.data, tex.w, tex.h, *channels, cfmt_get_bytesperpixel(tex.fmt), dst, dstMem);
+    return tex.data;
 }
 
 void help::Images::TransitionImageLayout(VkCommandBuffer cmd, VkImage image,
@@ -366,23 +359,14 @@ void help::Images::TransitionImageLayout(VkCommandBuffer cmd, VkImage image,
     barrier.dstAccessMask = dstAccessMask;
     vkCmdPipelineBarrier(cmd, sourceStage, dstAccessMask, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 }
-// void help::Images::LoadFromDisk(const char *path, u32 channels, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkSampleCountFlagBits samples, u32 mipMapLevels, VkImage *dstImage, VkDeviceMemory *dstMemory, bool externallyAllocated)
-// {
-//     stbi_set_flip_vertically_on_load(false);
-//     i32 width, height, gotchannels;
-//     u8* buffer = stbi_load(path, &width, &height, &gotchannels, channels);
-//     if ((u32)gotchannels != channels)
-//         LOG_WARNING("Requested %u channels but got %i for image on path %s", channels, gotchannels, path);
-//     LoadVulkanImage(buffer, width, height, format, tiling, usage, properties, samples, mipMapLevels, dstImage, dstMemory, externallyAllocated);
-// }
 
 void help::Images::LoadFromDisk(const char *path, u8 channels, u8 **dst, u32 *dstWidth, u32 *dstHeight)
 {
-    i32 width, height;
-    u8* buffer = stbi_load(path, &width, &height, nullptr, channels);
-    *dst = buffer;
-    *dstWidth = width;
-    *dstHeight = height;
+    // {Chef's kiss}
+    ctex2D tex = cimg_load(path);
+    *dst = tex.data;
+    *dstWidth = tex.w;
+    *dstHeight = tex.h;
 }
 
 bool help::Images::GetSupportedFormat(VkDevice device, VkPhysicalDevice physDevice, VkSurfaceKHR surface, VkFormat *dstFormat, VkColorSpaceKHR *dstColorSpace)
@@ -395,8 +379,8 @@ bool help::Images::GetSupportedFormat(VkDevice device, VkPhysicalDevice physDevi
 
     u32 formatCount = 0;
 	vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, VK_NULL_HANDLE);
-	cvector<VkSurfaceFormatKHR> surfaceFormats(formatCount);
-	vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, surfaceFormats.data());
+	cvector_t * /* VkSurfaceFormatKHR */ surfaceFormats = cvector_init(sizeof(VkSurfaceFormatKHR), formatCount);
+	vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, (VkSurfaceFormatKHR *)cvector_data(surfaceFormats));
 
 	VkSurfaceFormatKHR selectedFormat = { VK_FORMAT_MAX_ENUM, VK_COLOR_SPACE_MAX_ENUM_KHR };
 
@@ -407,7 +391,7 @@ bool help::Images::GetSupportedFormat(VkDevice device, VkPhysicalDevice physDevi
 
 	for (u32 i = 0; i < formatCount; i++)
 	{
-		const auto& surfaceFormat = surfaceFormats[i];
+		const auto& surfaceFormat = ((VkSurfaceFormatKHR *)cvector_data(surfaceFormats))[i];
 		for (u32 j = 0; j < array_len(desired_formats); j++) {
 			if (surfaceFormat.format == desired_formats[j].format 
 				&&
@@ -419,6 +403,7 @@ bool help::Images::GetSupportedFormat(VkDevice device, VkPhysicalDevice physDevi
 		}
 	}
 
+    cvector_destroy(surfaceFormats);
 	if (selectedFormat.format == VK_FORMAT_MAX_ENUM || selectedFormat.colorSpace == VK_COLOR_SPACE_MAX_ENUM_KHR) {
 		return VK_FALSE;
 	} else {

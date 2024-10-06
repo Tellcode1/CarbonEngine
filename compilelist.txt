@@ -1,5 +1,5 @@
-../Shaders/vert.glsl
-../Shaders/frag.glsl
+../Shaders/Generic/Lit.vert
+../Shaders/Generic/Lit.frag
 
 ../Shaders/Generic/Unlit.vert
 ../Shaders/Generic/Unlit.frag
@@ -14,5 +14,3 @@
 
 ../Shaders/vert.text.glsl
 ../Shaders/text.comp
-
-../Shaders/piss.glsl

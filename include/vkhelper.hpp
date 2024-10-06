@@ -3,9 +3,6 @@
 
 #include "vkstdafx.h"
 
-template <typename T>
-struct cvector;
-
 namespace help
 {
     u32 GetMemoryType(const u32 memoryTypeBits, const VkMemoryPropertyFlags memoryProperties);
@@ -58,7 +55,7 @@ namespace help
 
         void StageImageTransfer(VkImage dst, void* data, u32 width, u32 height, u32 channels);
         
-        // makes image for vulkan by loading it with stb
+        // makes image for vulkan by loading it with MY OWN LIBRARY GET DUNKED ON STB
         // I'm the god of removing something, realising it was important and then adding it back again, just differently.
         void killme(u8 *buffer, u32 width, u32 height, VkFormat format, u32 channels, VkImage *dst, VkDeviceMemory *dstMem);
         void create_empty(u32 width, u32 height, VkFormat format, VkSampleCountFlagBits samples, u32 channels, VkImageUsageFlags usage, VkImage *dst, VkDeviceMemory *dstMem);
@@ -83,7 +80,7 @@ namespace help
         /*
         *   Calls resize on dst!
         */
-        void LoadBinary(const char *path, cvector<u8> *dst);
+        // void LoadBinary(const char *path, cvector<u8> *dst);
         void LoadBinary(const char* path, u8* dst, u32* dstSize);
     }
 }

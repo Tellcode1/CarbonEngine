@@ -47,7 +47,7 @@ unsigned chashmap_std_hash(const void *bytes, int nbytes) {
     return hash;
 };
 
-chashmap_bool_t chashmap_std_key_eq(const void *key1, const void *key2, unsigned long nbytes) {
+bool_t chashmap_std_key_eq(const void *key1, const void *key2, unsigned long nbytes) {
     if (key1 == key2) {
         return 1;
     } else {
@@ -200,6 +200,39 @@ void chashmap_insert(chashmap_t *map, const void *key, void *value)
     while (map->nodes[i] && map->nodes[i]->is_occupied) {
         i = power_of_two_mod((i + 1), map->entries);
         if (i == begin) {
+            break;
+        }
+    }
+
+    if (!map->nodes[i]) {
+        // Batch allocation for the entire node at once.
+        void *alloc = malloc(sizeof(ch_node_t) + map->keysize + map->valuesize);
+        map->nodes[i] = alloc;
+        map->nodes[i]->key = alloc + sizeof(ch_node_t);
+        map->nodes[i]->value = alloc + sizeof(ch_node_t) + map->keysize;
+    }
+
+    memcpy(map->nodes[i]->key, key, map->keysize);
+    memcpy(map->nodes[i]->value, value, map->valuesize);
+    map->nodes[i]->is_occupied = 1;
+    map->size++;
+}
+
+void chashmap_insert_or_replace(chashmap_t *map, const void *key, void *value)
+{
+    if (!map->nodes || map->size >= (map->entries * 3) / 4) {
+        // The check to whether map->entries is greater than 0 is already done in resize();
+        chashmap_resize(map, map->entries * 2);
+    }
+
+    const unsigned begin = power_of_two_mod(map->hash_fn(key, map->keysize), map->entries);
+    unsigned i = begin;
+    while (map->nodes[i] && map->nodes[i]->is_occupied) {
+        i = power_of_two_mod((i + 1), map->entries);
+        if (map->equal_fn(map->nodes[i]->key, key, map->keysize)) {
+            memcpy(map->nodes[i]->value, value, map->valuesize);
+        }
+        else if (i == begin) {
             break;
         }
     }

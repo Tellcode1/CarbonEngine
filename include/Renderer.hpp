@@ -14,6 +14,8 @@
 
 #include <SDL2/SDL.h>
 
+typedef bool_t cengine_bool_t;
+
 // The camera should also own the output texture, etc.
 // Basically, the camera should be the first parameter that the renderer needs.
 // Something like render_begin( renderer, camera )
@@ -35,57 +37,46 @@ struct FrameRenderData
     VkFence         inFlightFence;
 };
 
-enum buffering_mode {
-    BUFFER_MODE_NONE = 0,
-    BUFFER_MODE_DOUBLE_BUFFERED = 1,
-    BUFFER_MODE_TRIPLE_BUFFERED = 2,
-};
+typedef enum cengine_vsync_bits {
+    CENGINE_VSYNC_DISABLED = 0,
+    CENGINE_VSYNC_ENABLED = 1
+} cengine_vsync_bits;
+typedef unsigned char cengine_vsync;
 
-struct renderer_config
+typedef enum cengine_buffering_mode_bits {
+    CENGINE_BUFFER_MODE_SINGLE_BUFFERED = 0,
+    CENGINE_BUFFER_MODE_DOUBLE_BUFFERED = 1,
+    CENGINE_BUFFER_MODE_TRIPLE_BUFFERED = 2,
+} cengine_buffering_mode_bits;
+typedef unsigned cengine_buffering_mode;
+
+typedef enum cengine_sample_count_bits {
+    CENGINE_SAMPLE_COUNT_MAX_SUPPORTED = 0xFFFFFFFF,
+    CENGINE_SAMPLE_COUNT_NO_EXTRA_SAMPLES = 0,
+    CENGINE_SAMPLE_COUNT_1_SAMPLES = 0,
+    CENGINE_SAMPLE_COUNT_2_SAMPLES = 2,
+    CENGINE_SAMPLE_COUNT_4_SAMPLES = 4,
+    CENGINE_SAMPLE_COUNT_8_SAMPLES = 8,
+    CENGINE_SAMPLE_COUNT_16_SAMPLES = 16,
+    CENGINE_SAMPLE_COUNT_32_SAMPLES = 32,
+} cengine_sample_count_bits;
+typedef unsigned cengine_sample_count;
+
+typedef struct cengine_extent2d {
+    int width, height;
+} cengine_extent2d;
+
+struct crenderer_config
 {
-    VkSampleCountFlagBits  samples = VK_SAMPLE_COUNT_1_BIT;
-    bool                   multisampling_enable = false;
-    VkExtent2D             window_size = { 800, 600 };
-    bool                   window_resizable = false;
-    // u8                     max_frames_in_flight = 1;
-    enum buffering_mode    buffer_mode;
+    cengine_sample_count   samples = CENGINE_SAMPLE_COUNT_NO_EXTRA_SAMPLES;
+    cengine_bool_t         multisampling_enable = 0;
+    cengine_extent2d       window_size = { 800, 600 };
+    cengine_bool_t         window_resizable = 0;
+    cengine_buffering_mode buffer_mode;
+    cengine_vsync          vsync_enabled;
     SDL_Scancode           exit_key = SDL_SCANCODE_ESCAPE;
-    VkPresentModeKHR       present_mode = VK_PRESENT_MODE_FIFO_KHR;
 };
 
-struct Renderer
-{
-    Renderer() = default;
-    ~Renderer() = default;
-
-    static const void *empty_array; // you can use this for empty offset buffers, etc. it has 256 bytes of memory
-    static renderer_config config;
-
-    static VkSwapchainKHR swapchain;
-    static VkCommandPool commandPool;
-
-    static u32 attachment_count;
-    static u32 renderer_frame;
-    static u32 imageIndex;
-
-    static VkImage color_image;
-    static VkDeviceMemory color_image_memory;
-    static VkImageView color_image_view;
-
-    static VkFormat depth_buffer_format;
-
-    static cvector_t *renderData;
-    static cvector_t *drawBuffers;
-
-    static void initialize(const renderer_config *conf);
-
-    static VkCommandBuffer CARBON_FORCE_INLINE GetDrawBuffer() { return *(VkCommandBuffer *)cvector_get(drawBuffers, renderer_frame); }
-    static bool BeginRender();
-    static void EndRender();
-
-    static void _create_optional_images();
-    static void _create_framebuffers_and_swapchain_image_views();
-    static void _SignalResize();
-};
+typedef struct crenderer_t crenderer_t;
 
 #endif

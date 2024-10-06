@@ -1,7 +1,6 @@
 #include "../include/cengine.hpp"
-#include "../include/Renderer.hpp"
 #include "../include/ctext.hpp"
-#include "../include/cinput.hpp"
+#include "../include/cinput.h"
 
 #include <SDL2/SDL.h>
 
@@ -15,10 +14,9 @@ u64 cengine::frame_time = 0;
 bool cengine::framebuffer_resized = false;
 bool cengine::application_running = true;
 
-void cengine::initialize(const renderer_config *conf) {
-    Renderer::initialize(conf);
+void cengine::initialize() {
     ctext::init();
-    cinput::initialize();
+    cinput_initialize();
 }
 
 void cengine::consume_event(const SDL_Event *event) {
@@ -43,8 +41,7 @@ void cengine::update() {
         fixed_frame_start = SDL_GetTicks64();
     }
 
-    cinput::update();
-    camera.update();
+    cinput_update();
 }
 
 void cengine::begin_frame() {

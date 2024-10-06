@@ -4,8 +4,9 @@
 #include "../stdafx.h"
 #include "../vkstdafx.h"
 #include "../math/math.h"
-#include "../math/mat.hpp"
 #include "../math/vec3.hpp"
+#include "../math/mat.hpp"
+#include "../cgfx.h"
 
 struct ccamera {
     // TODO: move to uniform buffer with data like current app time, delta time, etc.
@@ -66,7 +67,7 @@ struct ccamera {
     }
 
 // private:
-    void update() {
+    void update(struct crenderer_t *rd) {
         cm::vec3 new_front;
         new_front.x = cosf(cmdeg2rad(yaw)) * cosf(cmdeg2rad(pitch));
         new_front.y = sinf(cmdeg2rad(pitch));
@@ -80,6 +81,7 @@ struct ccamera {
 
         view = cm::lookat(position, cm::add(position, front), up);
 
+        const struct cengine_extent2d RenderExtent = crenderer_get_render_extent(rd);
         const f32 aspect = (f32)RenderExtent.width / (f32)RenderExtent.height;
         projection = cm::perspective(fov, aspect, near_clip, far_clip);
     }

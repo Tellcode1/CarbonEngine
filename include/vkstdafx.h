@@ -13,7 +13,7 @@
     #error implement
 #endif
 
-#include "../../external/volk/volk.h"
+#include "../external/volk/volk.h"
 
 struct csignal;
 
@@ -21,10 +21,6 @@ extern VkFormat SwapChainImageFormat;
 extern VkColorSpaceKHR SwapChainColorSpace;
 extern u32 SwapChainImageCount;
 extern VkSampleCountFlagBits Samples;
-
-extern VkRenderPass GlobalRenderPass;
-
-extern VkExtent2D RenderExtent;
 
 extern u32 GraphicsFamilyIndex;
 extern u32 PresentFamilyIndex;
@@ -37,8 +33,6 @@ extern VkQueue GraphicsAndComputeQueue;
 extern VkQueue PresentQueue;
 extern VkQueue ComputeQueue;
 extern VkQueue TransferQueue;
-
-extern struct csignal OnWindowResized;
 
 extern VkInstance 							 instance;
 extern VkDevice 							 device;

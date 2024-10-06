@@ -16,6 +16,8 @@
 
 #include "../../../external/tinyobjloader/tiny_obj_loader.h"
 
+#include "../../cimageload.h"
+
 struct Transform {
     cm::vec3 position = cm::vec3(0.0f);
     cm::vec3 scale = cm::vec3(20.0f);
@@ -89,7 +91,7 @@ struct soosydata {
     cvector_t * /* u32 */    indices;
 };
 
-static chashmap_bool_t eq_vertex(const void *key1, const void *key2, unsigned long) {
+static bool_t eq_vertex(const void *key1, const void *key2, unsigned long) {
     const vertex *v1 = (vertex *)key1;
     const vertex *v2 = (vertex *)key2;
     return v1->position == v2->position && v1->texcoord == v2->texcoord && v1->normal == v2->normal;
@@ -208,11 +210,10 @@ static soosydata loadmdl(const char *mdlpath, bool to_retrieve_normals) {
     return ret;
 }
 
-struct cmesh_t *load_mesh(const char *mdlpath, const char *texpath, const char *normalmappath) {
+struct cmesh_t *load_mesh(crenderer_t *rd, const char *mdlpath, const char *texpath, const char *normalmappath) {
     soosydata data = loadmdl(mdlpath, (true));
 
     cmesh_t *mesh = (cmesh_t *)malloc(sizeof(cmesh_t));
-    memset(mesh, 0, sizeof(cmesh_t));
     mesh->index_count = cvector_size(data.indices);
 
     mesh->transform = Transform();
@@ -251,7 +252,7 @@ struct cmesh_t *load_mesh(const char *mdlpath, const char *texpath, const char *
     memcpy(mapped, cvector_data(data.indices), indexsize);
     vkUnmapMemory(device, mesh->ibm);
 
-    const cvector<VkVertexInputAttributeDescription> attributeDescriptions = {
+    const VkVertexInputAttributeDescription attributeDescriptions[] = {
         // location; binding; format; offset;
         { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0 }, // pos
         { 1, 0, VK_FORMAT_R32G32B32_SFLOAT, sizeof(cm::vec3) }, // normal
@@ -260,25 +261,24 @@ struct cmesh_t *load_mesh(const char *mdlpath, const char *texpath, const char *
         { 4, 0, VK_FORMAT_R32G32_SFLOAT,    4 * sizeof(cm::vec3) }, // uv
     };
 
-    const cvector<VkVertexInputBindingDescription> bindingDescriptions = {
+    const VkVertexInputBindingDescription bindingDescriptions[] = {
         // binding; stride; inputRate
         { 0, sizeof(vertex), VK_VERTEX_INPUT_RATE_VERTEX }
     };
 
-    const cvector<VkPushConstantRange> pushConstants = { 
+    const VkPushConstantRange pushConstants[] = { 
         // stageFlags, offset, size
         {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(cm::vec3)}
     };
 
-    int w, h, c;
-    VkFormat channels;
-    u8 *buffer = stbi_load(texpath, &w, &h, &c, STBI_rgb);
-    help::Images::killme(buffer, w, h, VK_FORMAT_R8G8B8_SRGB, 3, &mesh->texture, &mesh->texture_memory);
-    free(buffer);
+    ctex2D texture = cimg_load( texpath );
+    help::Images::killme(texture.data, texture.w, texture.h, cfmt_conv_cfmt_to_vkfmt(texture.fmt), cfmt_get_bytesperpixel(texture.fmt), &mesh->texture, &mesh->texture_memory);
 
-    buffer = stbi_load(normalmappath, &w, &h, &c, STBI_rgb);
-    help::Images::killme(buffer, w, h, VK_FORMAT_R8G8B8_UNORM, 3, &mesh->normalmap, &mesh->normalmap_memory);
-    free(buffer);
+    ctex2D normal = cimg_load( normalmappath );
+    help::Images::killme(normal.data, normal.w, normal.h, cfmt_conv_cfmt_to_vkfmt(normal.fmt), cfmt_get_bytesperpixel(normal.fmt), &mesh->normalmap, &mesh->normalmap_memory);
+
+    free(texture.data);
+    free(normal.data);
 
     VkSamplerCreateInfo sampler_info{};
     sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -294,7 +294,7 @@ struct cmesh_t *load_mesh(const char *mdlpath, const char *texpath, const char *
     VkImageViewCreateInfo view_info{};
     view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    view_info.format = VK_FORMAT_R8G8B8_SRGB;
+    view_info.format = cfmt_conv_cfmt_to_vkfmt(texture.fmt);
     view_info.image = mesh->texture;
     view_info.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
     view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -306,7 +306,7 @@ struct cmesh_t *load_mesh(const char *mdlpath, const char *texpath, const char *
         LOG_ERROR("Failed to create image view");
 
     view_info.image = mesh->normalmap;
-    view_info.format = VK_FORMAT_R8G8B8_UNORM;
+    view_info.format = cfmt_conv_cfmt_to_vkfmt(normal.fmt);
     if (vkCreateImageView(device, &view_info, nullptr, &mesh->normalmapview) != VK_SUCCESS)
         LOG_ERROR("Failed to create image view");
 
@@ -384,30 +384,31 @@ struct cmesh_t *load_mesh(const char *mdlpath, const char *texpath, const char *
     csm_load_shader("test/vert", &vertex);
     csm_load_shader("test/frag", &fragment);
 
-    assert(vertex != NULL && fragment != NULL);
+    cassert(vertex != NULL && fragment != NULL);
 
-    const cvector<csm_shader_t *> shaders = { vertex, fragment };
-    const cvector<VkDescriptorSetLayout> layouts = { mesh->setlayout };
+    const csm_shader_t *shaders[] = { vertex, fragment };
+    const VkDescriptorSetLayout layouts[] = { mesh->setlayout };
 
+    const cengine_extent2d RenderExtent = crenderer_get_render_extent(rd);
     cvk_pipeline_create_info pc{};
     pc.format = SwapChainImageFormat;
     pc.subpass = 0;
-    pc.render_pass = GlobalRenderPass;
+    pc.render_pass = crenderer_get_render_pass(rd);
 
-    pc.nAttributeDescriptions = attributeDescriptions.size();
-    pc.pAttributeDescriptions = attributeDescriptions.data();
+    pc.nAttributeDescriptions = array_len(attributeDescriptions);
+    pc.pAttributeDescriptions = attributeDescriptions;
 
-    pc.nPushConstants = pushConstants.size();
-    pc.pPushConstants = pushConstants.data();
+    pc.nPushConstants = array_len(pushConstants);
+    pc.pPushConstants = pushConstants;
 
-    pc.nBindingDescriptions = bindingDescriptions.size();
-    pc.pBindingDescriptions = bindingDescriptions.data();
+    pc.nBindingDescriptions = array_len(bindingDescriptions);
+    pc.pBindingDescriptions = bindingDescriptions;
 
-    pc.nShaders = shaders.size();
-    pc.pShaders = shaders.data();
+    pc.nShaders = array_len(shaders);
+    pc.pShaders = shaders;
 
-    pc.pDescriptorLayouts = layouts.data();
-    pc.nDescriptorLayouts = layouts.size();
+    pc.nDescriptorLayouts = array_len(layouts);
+    pc.pDescriptorLayouts = layouts;
 
     pc.extent.width = RenderExtent.width;
     pc.extent.height = RenderExtent.height;
@@ -419,11 +420,11 @@ struct cmesh_t *load_mesh(const char *mdlpath, const char *texpath, const char *
     return mesh;
 }
 
-static void render(cmesh_t *mesh, cm::vec3 lightposition) {
+static void render(crenderer_t *rd, ccamera camera, cmesh_t *mesh, cm::vec3 lightposition) {
     const cm::vec3 rotationradians = mesh->transform.rotation * (float)cmDEG2RAD_CONSTANT;
-    cm::mat4 scaling = cm::scale(cm::mat4(1.0f), mesh->transform.scale);
-    cm::mat4 rotation = cm::rotate(cm::mat4(1.0f), rotationradians);
-    cm::mat4 translation = cm::translate(cm::mat4(1.0f), mesh->transform.position);
+    cm::mat4 scaling = scale(cm::mat4(1.0f), mesh->transform.scale);
+    cm::mat4 rotation = rotate(cm::mat4(1.0f), rotationradians);
+    cm::mat4 translation = translate(cm::mat4(1.0f), mesh->transform.position);
     ubdata ub{};
     ub.model = scaling * rotation  * translation;
     ub.projection = camera.get_projection();
@@ -434,10 +435,12 @@ static void render(cmesh_t *mesh, cm::vec3 lightposition) {
     ub.lightcolor = cm::vec3(1.0f, 1.0f, 1.0f);
     memcpy(mesh->ubmapped, &ub, sizeof(ubdata));
 
-    const VkCommandBuffer cmd = Renderer::GetDrawBuffer();
+    const VkDeviceSize offsets[1] = {};
+
+    const VkCommandBuffer cmd = crenderer_get_drawbuffer(rd);
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, mesh->pipeline_layout, 0, 1, &mesh->set, 0, nullptr);
     vkCmdPushConstants(cmd, mesh->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(cm::vec3), &lightposition);
-    vkCmdBindVertexBuffers(cmd, 0, 1, &mesh->vb, (const VkDeviceSize *)Renderer::empty_array);
+    vkCmdBindVertexBuffers(cmd, 0, 1, &mesh->vb, offsets);
     vkCmdBindIndexBuffer(cmd, mesh->ib, 0, VK_INDEX_TYPE_UINT32);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, mesh->pipeline);
     vkCmdDrawIndexed(cmd, mesh->index_count, 1, 0, 0, 0);

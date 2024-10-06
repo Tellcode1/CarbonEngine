@@ -19,17 +19,19 @@ set(SOURCES
     src/main.cpp
     src/cengine.cpp
     src/cengineinit.cpp
-    src/cinput.cpp
+    src/cinput.c
     
     src/ctext.cpp
     src/cshadermanager.c
     
     src/cvk.cpp
-    src/Renderer.cpp
+    src/cgfx.cpp
     src/vkhelper.cpp
 
-    src/containers/cvectornew.c
-    src/containers/chashmap.c
+    src/containers/containersunity.c
+    src/containers/cbinarytree.c
+
+    src/cimageload.c
 )
 
 set(MSDFGEN_CORE_ONLY OFF)
@@ -46,6 +48,7 @@ add_executable(${OUTPUT} ${SOURCES})
 
 target_include_directories(${OUTPUT} PUBLIC ${CMAKE_SOURCE_DIR}/external/msdf-atlas-gen/msdfgen)
 target_include_directories(${OUTPUT} PUBLIC ${CMAKE_SOURCE_DIR}/external/msdf-atlas-gen/msdf-atlas-gen)
+target_include_directories(${OUTPUT} PUBLIC ${CMAKE_SOURCE_DIR}/external/SPIRV-Reflect)
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/external/msdf-atlas-gen)
 add_subdirectory(${CMAKE_SOURCE_DIR}/external/volk)
@@ -59,9 +62,10 @@ set(LIBS
     SDL2
     msdf-atlas-gen
     freetype
+    jpeg
 )
 
-target_link_options(${OUTPUT} PRIVATE -g -Wall -fopenmp -Wno-sign-compare -Wno-unused-function)
-target_compile_options(${OUTPUT} PRIVATE -g -Wall -fopenmp -Wno-sign-compare -Wno-unused-function)
+target_link_options(${OUTPUT} PRIVATE -g -Wall -fopenmp)
+target_compile_options(${OUTPUT} PRIVATE -g -Wall -fopenmp)
 target_compile_definitions(${OUTPUT} PRIVATE CSM_EXECUTABLE=0) # avoid making multiple main's 
 target_link_libraries(${OUTPUT} ${LIBS})

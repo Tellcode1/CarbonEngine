@@ -17,9 +17,11 @@ extern void csm_set_shader_compiler(const char *exec);
 extern void csm_set_shader_compiler_args(const char *args);
 extern char const *csm_get_shader_compiler_args(void);
 
-struct csm_shader_t;
+typedef struct csm_shader_t csm_shader_t; // You can still use struct csm_shader_t but it's less effort (Not neccessarily cleaner)
 
-extern int csm_load_shader(const char *name, struct csm_shader_t **out); // csm_shader_t *shader; csm_load_shader("Generic/Unlit.vert", &shader);
+/// @brief csm_shader_t *shadr; csm_load_shader("Unlit/vertex", &shadr);
+/// @return -1 on failure. 0 on success
+extern int csm_load_shader(const char *name, struct csm_shader_t **out);
 
 /*
     You can pass NULL to output_name to signify that no output file should be created and it should not be added to the cache.

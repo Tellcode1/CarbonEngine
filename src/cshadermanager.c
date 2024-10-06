@@ -15,6 +15,8 @@
     #define stat _stat
 #endif
 
+#include "../include/vkstdafx.h"
+
 #include "../include/cshadermanager.h"
 #include "../include/cshadermanagerdev.h"
 
@@ -35,11 +37,6 @@ int nshaders = 0;
     #define MKDIR(path) mkdir(path, 0777)
     #define PATH_SEP '/'
 #endif
-
-typedef enum chashmap_bool_t {
-    false = 0,
-    true = 1
-} chashmap_bool_t;
 
 #define HAS_FLAG(f) strcmp(argv[i], f) == 0
 
@@ -107,21 +104,11 @@ struct csm_shader_t *find_shader(const char *name) {
     return (struct csm_shader_t *)bsearch(&shader, shader_map, nshaders, sizeof(struct csm_shader_t), compare_shader_t);
 }
 
-chashmap_bool_t does_shader_exist(const char *name) {
+bool does_shader_exist(const char *name) {
     return find_shader(name) != NULL;
 }
 
 #if CSM_EXECUTABLE != 1
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include "../include/vkstdafx.h"
-
-#ifdef __cplusplus
-}
-#endif
 
 void read_shader_spirv(const char *output, unsigned **spirv, int *spirvsize) {
     FILE *f = fopen(output, "rb");
@@ -341,10 +328,8 @@ shader_entry * load_all_entries(const char *shader_list_file_path, int *count) {
 
         if (i >= currallocsize) {
             currallocsize *= 2;
-            shader_entry *copy = malloc(currallocsize * sizeof(shader_entry));
-            memcpy(copy, entries, currallocsize * sizeof(shader_entry));
-
-            entries = copy;
+            entries = realloc(entries, currallocsize * sizeof(shader_entry));
+            assert(entries != NULL);
         }
 
         shader_entry entry;
@@ -386,8 +371,6 @@ void compile_shader(char *buffer, const struct shader_entry *entry) {
     strncpy(copy, entry->output_path, 256);
     create_parent_dirs(copy);
 
-    memset(buffer, 0, 512);
-
     strcat(buffer, shader_compiler);
     strcat(buffer, " ");
     strcat(buffer, shader_compiler_args);
@@ -419,6 +402,8 @@ void csm_compile_updated()
     int cachecount = 0;
     shader_cache_entry *cacheentries = load_cache(&cachecount);
 
+    int was_any_shader_modified = 0;
+
     if (cacheentries != NULL) {
         for (int i = 0; i < count; i++) {
             for (int j = 0; j < cachecount; j++) {
@@ -427,6 +412,7 @@ void csm_compile_updated()
                         memset(buffer, 0, 512);
                         compile_shader(buffer, &entries[i]);
                         cacheentries[j].last_modified = entries[i].last_modified;
+                        was_any_shader_modified = 1;
                     }
                     break;
                 }
@@ -439,8 +425,8 @@ void csm_compile_updated()
         }
     }
 
-    if (!cacheentries) {
-        printf("csm :: No cache. Writing new cache file...\n");
+    if (!cacheentries || was_any_shader_modified) {
+        printf("csm :: No cache or modified cache. Writing new cache file...\n");
         write_new_cache(entries, count);
     } else {
         update_cache(cacheentries, count);

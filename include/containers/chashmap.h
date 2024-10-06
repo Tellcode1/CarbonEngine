@@ -7,10 +7,9 @@
 
 typedef struct chashmap_t chashmap_t;
 typedef unsigned (*chashmap_hash_fn)(const void *bytes, int nbytes);
-typedef unsigned char chashmap_bool_t;
-typedef chashmap_bool_t (*chashmap_key_equal_fn)(const void *key1, const void *key2, unsigned long keysize);
+typedef bool_t (*chashmap_key_equal_fn)(const void *key1, const void *key2, unsigned long keysize);
 
-extern chashmap_bool_t chashmap_std_key_eq(const void *key1, const void *key2, unsigned long nbytes);
+extern bool_t chashmap_std_key_eq(const void *key1, const void *key2, unsigned long nbytes);
 extern unsigned chashmap_std_hash(const void *bytes, int nbytes);
 
 /*
