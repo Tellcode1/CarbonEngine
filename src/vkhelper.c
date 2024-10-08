@@ -1,31 +1,29 @@
-#include "../include/vkhelper.hpp"
-#include "../include/cvk.hpp"
+#include "../include/vkhelper.h"
+#include "../include/cvk.h"
 #include "../include/cgfx.h"
-#include "../include/cimageload.h"
-#include <iostream>
+#include "../include/cimage.h"
+
+#include <stdio.h>
+#include <stdlib.h>
 
 VkCommandPool pool = VK_NULL_HANDLE;
 VkCommandBuffer buffer = VK_NULL_HANDLE;
 
-void help::Buffers::CreateBuffer(u64 size, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags, VkBuffer *dstBuffer, VkDeviceMemory *retMem, bool externallyAllocated)
+void vkh_buffer_create(u64 size, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags, VkBuffer *dstBuffer, VkDeviceMemory *retMem, bool externallyAllocated)
 {
     if(size == 0) {
-        #ifndef __EPIC_REMOVE_WARNINGS
-        std::cout << "Warning: Size specified as 0. Invalid value\n";
-        #endif
-        
         return;
     }
 
     VkBuffer newBuffer;
     VkDeviceMemory newMemory;
 
-    VkBufferCreateInfo bufferCreateInfo{};
+    VkBufferCreateInfo bufferCreateInfo = {};
     bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferCreateInfo.size = size;
     bufferCreateInfo.usage = usageFlags;
     bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    if (vkCreateBuffer(device, &bufferCreateInfo, nullptr, &newBuffer) != VK_SUCCESS)
+    if (vkCreateBuffer(device, &bufferCreateInfo, NULL, &newBuffer) != VK_SUCCESS)
     {
         printf("Renderer::failed to create staging buffer!");
     }
@@ -35,11 +33,11 @@ void help::Buffers::CreateBuffer(u64 size, VkBufferUsageFlags usageFlags, VkMemo
     
     if(!externallyAllocated)
     {
-        VkMemoryAllocateInfo allocInfo{};
+        VkMemoryAllocateInfo allocInfo = {};
         allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         allocInfo.allocationSize = bufferMemoryRequirements.size;
-        allocInfo.memoryTypeIndex = GetMemoryType(bufferMemoryRequirements.memoryTypeBits, propertyFlags);
-        if (vkAllocateMemory(device, &allocInfo, nullptr, &newMemory) != VK_SUCCESS)
+        allocInfo.memoryTypeIndex = vkh_get_mem_type(bufferMemoryRequirements.memoryTypeBits, propertyFlags);
+        if (vkAllocateMemory(device, &allocInfo, NULL, &newMemory) != VK_SUCCESS)
         {
             printf("Renderer::failed to allocate staging buffer memory!");
         }
@@ -51,7 +49,7 @@ void help::Buffers::CreateBuffer(u64 size, VkBufferUsageFlags usageFlags, VkMemo
     *dstBuffer = newBuffer;
 }
 
-void help::Buffers::StageBufferTransfer(VkBuffer dst, void *data, u64 size)
+void vkh_buffer_stage_transfer(VkBuffer dst, void *data, u64 size)
 {
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
@@ -61,7 +59,7 @@ void help::Buffers::StageBufferTransfer(VkBuffer dst, void *data, u64 size)
     stagingBufferInfo.size = size;
     stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
     stagingBufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    if (vkCreateBuffer(device, &stagingBufferInfo, nullptr, &stagingBuffer) != VK_SUCCESS)
+    if (vkCreateBuffer(device, &stagingBufferInfo, NULL, &stagingBuffer) != VK_SUCCESS)
     {
         printf("Failed to create staging buffer!");
     }
@@ -72,8 +70,8 @@ void help::Buffers::StageBufferTransfer(VkBuffer dst, void *data, u64 size)
     VkMemoryAllocateInfo stagingBufferAlloc = {};
     stagingBufferAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     stagingBufferAlloc.allocationSize = stagingBufferMemoryRequirements.size;
-    stagingBufferAlloc.memoryTypeIndex = GetMemoryType(stagingBufferMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    if (vkAllocateMemory(device, &stagingBufferAlloc, nullptr, &stagingBufferMemory) != VK_SUCCESS)
+    stagingBufferAlloc.memoryTypeIndex = vkh_get_mem_type(stagingBufferMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    if (vkAllocateMemory(device, &stagingBufferAlloc, NULL, &stagingBufferMemory) != VK_SUCCESS)
     {
         printf("Failed to allocate staging buffer memory!");
     }
@@ -85,21 +83,11 @@ void help::Buffers::StageBufferTransfer(VkBuffer dst, void *data, u64 size)
     memcpy(mapped, data, size);
     vkUnmapMemory(device, stagingBufferMemory);
 
-    vkDestroyBuffer(device, stagingBuffer, nullptr);
-    vkFreeMemory(device, stagingBufferMemory, nullptr);
+    vkDestroyBuffer(device, stagingBuffer, NULL);
+    vkFreeMemory(device, stagingBufferMemory, NULL);
 }
 
-void help::Memory::FlushMappedMemory(VkDeviceMemory memory, u64 size,u64 offset)
-{
-    VkMappedMemoryRange mappedRange = {};
-    mappedRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-    mappedRange.memory = memory;
-    mappedRange.offset = offset;
-    mappedRange.size = size;
-    vkFlushMappedMemoryRanges(device, 1, &mappedRange);
-}
-
-u32 help::GetMemoryType(const u32 memoryTypeBits, const VkMemoryPropertyFlags memoryProperties)
+u32 vkh_get_mem_type(const u32 memoryTypeBits, const VkMemoryPropertyFlags memoryProperties)
 {
     VkPhysicalDeviceMemoryProperties properties;
 	vkGetPhysicalDeviceMemoryProperties(physDevice, &properties);
@@ -113,9 +101,9 @@ u32 help::GetMemoryType(const u32 memoryTypeBits, const VkMemoryPropertyFlags me
     return UINT32_MAX;
 }
 
-VkCommandBuffer help::Commands::BeginSingleTimeCommands(VkCommandBuffer src)
+VkCommandBuffer vkh_cmd_begin_from(VkCommandBuffer src)
 {
-    VkCommandBufferBeginInfo beginInfo{};
+    VkCommandBufferBeginInfo beginInfo = {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
@@ -124,45 +112,45 @@ VkCommandBuffer help::Commands::BeginSingleTimeCommands(VkCommandBuffer src)
     return src;
 }
 
-VkCommandBuffer help::Commands::BeginSingleTimeCommands()
+VkCommandBuffer vkh_cmd_begin()
 {
     if (!pool) {
-        VkCommandPoolCreateInfo cmdPoolCreateInfo{};
+        VkCommandPoolCreateInfo cmdPoolCreateInfo = {};
         cmdPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         cmdPoolCreateInfo.queueFamilyIndex = GraphicsFamilyIndex;
         cmdPoolCreateInfo.flags = 0;
-        if(vkCreateCommandPool(device, &cmdPoolCreateInfo, nullptr, &pool) != VK_SUCCESS) {
+        if(vkCreateCommandPool(device, &cmdPoolCreateInfo, NULL, &pool) != VK_SUCCESS) {
             LOG_ERROR("Failed to create command pool");
         }
     }
 
-    VkCommandBufferAllocateInfo cmdAllocInfo{};
+    VkCommandBufferAllocateInfo cmdAllocInfo = {};
     cmdAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     cmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     cmdAllocInfo.commandBufferCount = 1;
     cmdAllocInfo.commandPool = pool;
     vkAllocateCommandBuffers(device, &cmdAllocInfo, &buffer);
 
-    return help::Commands::BeginSingleTimeCommands(buffer);
+    return vkh_cmd_begin_from(buffer);
 }
 
-VkResult help::Commands::EndSingleTimeCommands(VkCommandBuffer cmd, VkQueue queue, bool waitForExecution)
+VkResult vkh_cmd_end(VkCommandBuffer cmd, VkQueue queue, bool waitForExecution)
 {
     VkResult res = vkEndCommandBuffer(cmd);
     if (res != VK_SUCCESS) return res;
 
-    VkSubmitInfo submitInfo{};
+    VkSubmitInfo submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &cmd;
 
     VkFence fence = VK_NULL_HANDLE;
-    VkFenceCreateInfo fenceInfo{};
+    VkFenceCreateInfo fenceInfo = {};
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = 0;
 
     if (waitForExecution) {
-        res = vkCreateFence(device, &fenceInfo, nullptr, &fence);
+        res = vkCreateFence(device, &fenceInfo, NULL, &fence);
         if (res != VK_SUCCESS) return res;
     }
 
@@ -173,7 +161,7 @@ VkResult help::Commands::EndSingleTimeCommands(VkCommandBuffer cmd, VkQueue queu
         if (fence != VK_NULL_HANDLE) {
             res = vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX);
             if (res != VK_SUCCESS) return res;
-            vkDestroyFence(device, fence, nullptr);
+            vkDestroyFence(device, fence, NULL);
         }
         vkDeviceWaitIdle(device);
         vkFreeCommandBuffers(device, pool, 1, &cmd);
@@ -198,7 +186,7 @@ VkResult help::Commands::EndSingleTimeCommands(VkCommandBuffer cmd, VkQueue queu
 //     fclose(f);
 // }
 
-void help::Files::LoadBinary(const char* path, u8* dst, u32* dstSize) {
+void vkh_files_load_binary(const char* path, u8* dst, u32* dstSize) {
     FILE *f = fopen(path, "rb");
     cassert(f != NULL);
 
@@ -218,28 +206,28 @@ void help::Files::LoadBinary(const char* path, u8* dst, u32* dstSize) {
     fclose(f);
 }
 
-void help::Images::StageImageTransfer(VkImage dst, void *data, u32 width, u32 height, u32 channels)
+void vkh_stage_image_transfer(VkImage dst, void *data, u32 width, u32 height, u32 channels)
 {
     VkBuffer stagingBuffer = VK_NULL_HANDLE;
     VkDeviceMemory stagingBufferMemory = VK_NULL_HANDLE;
 
-    VkBufferCreateInfo stagingBufferInfo{};
+    VkBufferCreateInfo stagingBufferInfo = {};
     stagingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     stagingBufferInfo.size = width * height * channels;
     stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     stagingBufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    vkCreateBuffer(device, &stagingBufferInfo, nullptr, &stagingBuffer);
+    vkCreateBuffer(device, &stagingBufferInfo, NULL, &stagingBuffer);
 
     VkMemoryRequirements stagingBufferRequirements;
     vkGetBufferMemoryRequirements(device, stagingBuffer, &stagingBufferRequirements);
 
-    VkMemoryAllocateInfo stagingBufferAllocInfo{};
+    VkMemoryAllocateInfo stagingBufferAllocInfo = {};
     stagingBufferAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     stagingBufferAllocInfo.allocationSize = stagingBufferRequirements.size;
-    stagingBufferAllocInfo.memoryTypeIndex = help::Memory::GetMemoryType(physDevice, stagingBufferRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    stagingBufferAllocInfo.memoryTypeIndex = vkh_get_mem_type(stagingBufferRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-    vkAllocateMemory(device, &stagingBufferAllocInfo, nullptr, &stagingBufferMemory);
+    vkAllocateMemory(device, &stagingBufferAllocInfo, NULL, &stagingBufferMemory);
     vkBindBufferMemory(device, stagingBuffer, stagingBufferMemory, 0);
 
     void *stagingBufferMapped;
@@ -248,18 +236,18 @@ void help::Images::StageImageTransfer(VkImage dst, void *data, u32 width, u32 he
     memcpy(stagingBufferMapped, data, width * height * channels);
     vkUnmapMemory(device, stagingBufferMemory);
 
-    const VkCommandBuffer cmd = help::Commands::BeginSingleTimeCommands();
+    const VkCommandBuffer cmd = vkh_cmd_begin();
 
-    help::Images::TransitionImageLayout(
+    vkh_transition_image_layout(
         cmd, dst, 1, VK_IMAGE_ASPECT_COLOR_BIT,
         VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
         0, VK_ACCESS_TRANSFER_WRITE_BIT,
         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT
     );
 
-    VkBufferImageCopy region{};
-    region.imageExtent = { width, height, 1 };
-    region.imageOffset = { 0, 0, 0 };
+    VkBufferImageCopy region = {};
+    region.imageExtent = (VkExtent3D){ width, height, 1 };
+    region.imageOffset =(VkOffset3D){ 0, 0, 0 };
     region.bufferOffset = 0;
     region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     region.imageSubresource.layerCount = 1;
@@ -267,28 +255,28 @@ void help::Images::StageImageTransfer(VkImage dst, void *data, u32 width, u32 he
     region.imageSubresource.mipLevel = 0;
     vkCmdCopyBufferToImage(cmd, stagingBuffer, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-    TransitionImageLayout(
+    vkh_transition_image_layout(
             cmd, dst, 1, VK_IMAGE_ASPECT_COLOR_BIT,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
             0, VK_ACCESS_TRANSFER_WRITE_BIT,
             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT
         );
 
-    help::Commands::EndSingleTimeCommands(cmd, TransferQueue);
+    vkh_cmd_end(cmd, TransferQueue, true);
 
-    vkDestroyBuffer(device, stagingBuffer, nullptr);
-    vkFreeMemory(device, stagingBufferMemory, nullptr);
+    vkDestroyBuffer(device, stagingBuffer, NULL);
+    vkFreeMemory(device, stagingBufferMemory, NULL);
 }
 
-void help::Images::killme(u8 *buffer, u32 width, u32 height, VkFormat format, u32 channels, VkImage *dst, VkDeviceMemory *dstMem)
+void vkh_image_from_mem(u8 *buffer, u32 width, u32 height, VkFormat format, u32 channels, VkImage *dst, VkDeviceMemory *dstMem)
 {
-    create_empty(width, height, format, VK_SAMPLE_COUNT_1_BIT, channels, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, dst, dstMem);
-    StageImageTransfer(*dst, buffer, width, height, channels);
+    vkh_image_create_empty(width, height, format, VK_SAMPLE_COUNT_1_BIT, channels, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, dst, dstMem);
+    vkh_stage_image_transfer(*dst, buffer, width, height, channels);
 }
 
-void help::Images::create_empty(u32 width, u32 height, VkFormat format, VkSampleCountFlagBits samples, u32 channels, VkImageUsageFlags usage, VkImage *dst, VkDeviceMemory *dstMem)
+void vkh_image_create_empty(u32 width, u32 height, VkFormat format, VkSampleCountFlagBits samples, u32 channels, VkImageUsageFlags usage, VkImage *dst, VkDeviceMemory *dstMem)
 {
-    VkImageCreateInfo imageCreateInfo{};
+    VkImageCreateInfo imageCreateInfo = {};
     imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
     imageCreateInfo.extent.width = width;
@@ -302,24 +290,24 @@ void help::Images::create_empty(u32 width, u32 height, VkFormat format, VkSample
     imageCreateInfo.usage = usage;
     imageCreateInfo.samples = samples;
     imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    if (vkCreateImage(device, &imageCreateInfo, nullptr, dst) != VK_SUCCESS)
+    if (vkCreateImage(device, &imageCreateInfo, NULL, dst) != VK_SUCCESS)
         LOG_ERROR("Failed to create image");
 
     VkMemoryRequirements imageMemoryRequirements;
     vkGetImageMemoryRequirements(device, *dst, &imageMemoryRequirements);
 
-    const u32 localDeviceMemoryIndex = help::Memory::GetMemoryType(physDevice, imageMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    const u32 localDeviceMemoryIndex = vkh_get_mem_type(imageMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    VkMemoryAllocateInfo allocInfo{};
+    VkMemoryAllocateInfo allocInfo = {};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = imageMemoryRequirements.size;
     allocInfo.memoryTypeIndex = localDeviceMemoryIndex;
 
-    vkAllocateMemory(device, &allocInfo, nullptr, dstMem);
+    vkAllocateMemory(device, &allocInfo, NULL, dstMem);
     vkBindImageMemory(device, *dst, *dstMem, 0);
 }
 
-u8* help::Images::killme(const char *path, u32 *width, u32 *height, VkFormat *channels, VkImage *dst, VkDeviceMemory *dstMem)
+u8* vkh_image_from_disk(const char *path, u32 *width, u32 *height, VkFormat *channels, VkImage *dst, VkDeviceMemory *dstMem)
 {
     ctex2D tex = cimg_load(path);
 
@@ -329,11 +317,11 @@ u8* help::Images::killme(const char *path, u32 *width, u32 *height, VkFormat *ch
     *height = tex.h;
     *channels = cfmt_conv_cfmt_to_vkfmt(tex.fmt);
 
-    help::Images::killme(tex.data, tex.w, tex.h, *channels, cfmt_get_bytesperpixel(tex.fmt), dst, dstMem);
+    vkh_image_from_mem(tex.data, tex.w, tex.h, *channels, cfmt_get_bytesperpixel(tex.fmt), dst, dstMem);
     return tex.data;
 }
 
-void help::Images::TransitionImageLayout(VkCommandBuffer cmd, VkImage image,
+void vkh_transition_image_layout(VkCommandBuffer cmd, VkImage image,
 										 u32 mipLevels,
                                          VkImageAspectFlagBits aspect,
 										 VkImageLayout oldLayout,
@@ -343,7 +331,7 @@ void help::Images::TransitionImageLayout(VkCommandBuffer cmd, VkImage image,
 										 VkPipelineStageFlags sourceStage,
 										 VkPipelineStageFlags destinationStage)
 {
-    VkImageMemoryBarrier barrier{};
+    VkImageMemoryBarrier barrier = {};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
     barrier.oldLayout = oldLayout;
     barrier.newLayout = newLayout;
@@ -357,19 +345,19 @@ void help::Images::TransitionImageLayout(VkCommandBuffer cmd, VkImage image,
     barrier.subresourceRange.layerCount = 1;
     barrier.srcAccessMask = srcAccessMask;
     barrier.dstAccessMask = dstAccessMask;
-    vkCmdPipelineBarrier(cmd, sourceStage, dstAccessMask, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+    vkCmdPipelineBarrier(cmd, sourceStage, dstAccessMask, 0, 0, NULL, 0, NULL, 1, &barrier);
 }
 
-void help::Images::LoadFromDisk(const char *path, u8 channels, u8 **dst, u32 *dstWidth, u32 *dstHeight)
-{
-    // {Chef's kiss}
-    ctex2D tex = cimg_load(path);
-    *dst = tex.data;
-    *dstWidth = tex.w;
-    *dstHeight = tex.h;
-}
+// void help::Images::LoadFromDisk(const char *path, u8 channels, u8 **dst, u32 *dstWidth, u32 *dstHeight)
+// {
+//     // {Chef's kiss}
+//     ctex2D tex = cimg_load(path);
+//     *dst = tex.data;
+//     *dstWidth = tex.w;
+//     *dstHeight = tex.h;
+// }
 
-bool help::Images::GetSupportedFormat(VkDevice device, VkPhysicalDevice physDevice, VkSurfaceKHR surface, VkFormat *dstFormat, VkColorSpaceKHR *dstColorSpace)
+bool vkh_get_supported_fmt(VkDevice device, VkPhysicalDevice physDevice, VkSurfaceKHR surface, VkFormat *dstFormat, VkColorSpaceKHR *dstColorSpace)
 {
 	CVK_REQUIRED_PTR(device);
 	CVK_REQUIRED_PTR(physDevice);
@@ -384,21 +372,21 @@ bool help::Images::GetSupportedFormat(VkDevice device, VkPhysicalDevice physDevi
 
 	VkSurfaceFormatKHR selectedFormat = { VK_FORMAT_MAX_ENUM, VK_COLOR_SPACE_MAX_ENUM_KHR };
 
-	constexpr VkSurfaceFormatKHR desired_formats[] = {
+	const VkSurfaceFormatKHR desired_formats[] = {
 		{ VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR },
 		{ VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR }
 	};
 
 	for (u32 i = 0; i < formatCount; i++)
 	{
-		const auto& surfaceFormat = ((VkSurfaceFormatKHR *)cvector_data(surfaceFormats))[i];
+		const VkSurfaceFormatKHR *surfaceFormat = (VkSurfaceFormatKHR *)cvector_get(surfaceFormats, i);
 		for (u32 j = 0; j < array_len(desired_formats); j++) {
-			if (surfaceFormat.format == desired_formats[j].format 
+			if (surfaceFormat->format == desired_formats[j].format 
 				&&
-				surfaceFormat.colorSpace == desired_formats[j].colorSpace
+				surfaceFormat->colorSpace == desired_formats[j].colorSpace
 			   ) {
-					selectedFormat.format = surfaceFormat.format;
-					selectedFormat.colorSpace = surfaceFormat.colorSpace;
+					selectedFormat.format = surfaceFormat->format;
+					selectedFormat.colorSpace = surfaceFormat->colorSpace;
 			   }
 		}
 	}
@@ -416,7 +404,7 @@ bool help::Images::GetSupportedFormat(VkDevice device, VkPhysicalDevice physDevi
 	return VK_FALSE;
 }
 
-u32 help::Images::GetImageCount(VkPhysicalDevice physDevice, VkSurfaceKHR surface)
+u32 vkh_get_image_count(VkPhysicalDevice physDevice, VkSurfaceKHR surface)
 {
 	CVK_REQUIRED_PTR(physDevice);
 	CVK_REQUIRED_PTR(surface);
@@ -429,19 +417,4 @@ u32 help::Images::GetImageCount(VkPhysicalDevice physDevice, VkSurfaceKHR surfac
 		requestedImageCount = surfaceCapabilities.maxImageCount;
 
 	return requestedImageCount;
-}
-
-u32 help::Memory::GetMemoryType(VkPhysicalDevice physDevice, const u32 memoryTypeBits, const VkMemoryPropertyFlags properties)
-{
-	CVK_REQUIRED_PTR(physDevice);
-	CVK_NOT_EQUAL_TO(properties, 0);
-
-    VkPhysicalDeviceMemoryProperties memoryProperties;
-	vkGetPhysicalDeviceMemoryProperties(physDevice, &memoryProperties);
-
-	for (u32 i = 0; i < memoryProperties.memoryTypeCount; i++) 
-    	if ((memoryTypeBits & (1 << i)) && (memoryProperties.memoryTypes[i].propertyFlags & properties) == properties)
-        	return i;
-
-	return -1;
 }

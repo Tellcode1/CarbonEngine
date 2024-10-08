@@ -2,31 +2,30 @@
 #include "../include/math/vec2.hpp"
 #include "../include/math/vec3.hpp"
 #include "../include/stdafx.h"
-#include "../include/cengine.hpp"
+#include "../include/cengine.h"
 #include "../include/ctext.hpp"
 #include "../include/cinput.h"
 #include "../include/containers/cstring.h"
 
-#include "../include/engine/object/cgameobject.hpp"
-#include "../include/engine/camera.hpp"
-#include "../include/engine/object/mesh.hpp"
+#include "../include/camera.hpp"
+#include "../include/mesh.hpp"
 #include "../include/csquare.hpp"
 
-#include "../include/cimageload.h"
+#include "../include/cimage.h"
+#include "../include/ctext.h"
 
 int main(int argc, char *argv[]) {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);
 
-    TIME_FUNCTION(cengine::initialize_context("kilometers per second (edgy)(im cool now ok?)", 800, 600));
+    TIME_FUNCTION(cg_initialize_context("kilometers per second (edgy)(im cool now ok?)", 800, 600));
 
     crenderer_config rdconf = crender_config_init();
     rdconf.vsync_enabled = 1;
     rdconf.buffer_mode = CGFX_BUFFER_MODE_SINGLE_BUFFERED;
     rdconf.window_resizable = 0;
-    rdconf.multisampling_enable = false;
-    rdconf.samples = VK_SAMPLE_COUNT_1_BIT;
+    rdconf.multisampling_enable = 0;
     crenderer_t *rd = crenderer_init(&rdconf);
-    cengine::initialize();
+    cg_initialize();
 
     csm_compile_updated();
 
@@ -44,7 +43,7 @@ int main(int argc, char *argv[]) {
 
     int curr_showing_fps = 0;
 
-    bool relmodeon = true;
+    bool relmodeon = 1;
     cassert(SDL_SetRelativeMouseMode(SDL_TRUE) != -1);
 
     cmesh_t *light;
@@ -62,14 +61,14 @@ int main(int argc, char *argv[]) {
 
     // What in the unholy f%$ where you doing
     LOG_DEBUG("Initialized in %ld ms (%.3f s)", SDL_GetTicks64(), SDL_GetTicks64() / 1000.0f);
-    while(cengine::running())
+    while(cg_running())
     {
-        cengine::update();
-        const double dt = cengine::get_delta_time();
+        cg_update();
+        const double dt = cg_get_delta_time();
 
         SDL_Event event;
         while(SDL_PollEvent(&event)) {
-            cengine::consume_event(&event);
+            cg_consume_event(&event);
             if (event.type == SDL_MOUSEMOTION) {
                 const float sensitivity = 10.0f;
                 camera.rotate(((float)event.motion.xrel) / sensitivity, ((float)event.motion.yrel) / sensitivity);
@@ -100,7 +99,7 @@ int main(int argc, char *argv[]) {
         }
 
         // Profiling code
-        totalTime += cengine::get_delta_time();
+        totalTime += cg_get_delta_time();
         numFrames++;
         if (totalTime >= updateTime) {
             curr_showing_fps = ceilf(numFrames / totalTime);
@@ -120,7 +119,7 @@ int main(int argc, char *argv[]) {
 
         // light->transform.position = cm::vec3(0.5f, 1.0f, 0.3f);
         light->transform.position = cm::vec3(0.0f);
-        mesh->transform.position = cm::vec3(sinf(cengine::get_time() / 3.0f) / 3.0f, 0.0f, cosf(cengine::get_time() / 3.0f) / 3.0f);
+        mesh->transform.position = cm::vec3(sinf(cg_get_time() / 3.0f) / 3.0f, 0.0f, cosf(cg_get_time() / 3.0f) / 3.0f);
         mesh->transform.scale = cm::vec3(10.0f);
         light->transform.scale = cm::vec3(10.0f);
 
@@ -138,7 +137,7 @@ int main(int argc, char *argv[]) {
             
             info.horizontal = CTEXT_HORI_ALIGN_CENTER;
             info.vertical = CTEXT_VERT_ALIGN_CENTER;
-            info.position = cm::vec3(0.0f, 0.0f, sinf(cengine::get_time()) * 5.0f);
+            info.position = cm::vec3(0.0f, 0.0f, sinf(cg_get_time()) * 5.0f);
             ctext::render(amongus, &info, "pootis");
 
             ctext::end_render(rd, camera, amongus, cm::mat4(1.0f));

@@ -1,12 +1,12 @@
 #ifndef __C_CAMERA_HPP__
 #define __C_CAMERA_HPP__
 
-#include "../stdafx.h"
-#include "../vkstdafx.h"
-#include "../math/math.h"
-#include "../math/vec3.hpp"
-#include "../math/mat.hpp"
-#include "../cgfx.h"
+#include "stdafx.h"
+#include "vkstdafx.h"
+#include "math/math.h"
+#include "math/vec3.hpp"
+#include "math/mat.hpp"
+#include "cgfx.h"
 
 struct ccamera {
     // TODO: move to uniform buffer with data like current app time, delta time, etc.

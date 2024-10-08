@@ -7,7 +7,7 @@
 
 #include "../external/volk/volk.h"
 
-#include "cengine.hpp"
+#include "cengine.h"
 #include "containers/cvector.h"
 
 #include "engine/camera.hpp"

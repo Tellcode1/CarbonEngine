@@ -2,11 +2,14 @@
 #include "../../../include/cgfx.h"
 
 #include "../../../include/cshadermanager.h"
-#include "../../../include/cvk.hpp"
-#include "../../../include/vkhelper.hpp"
+#include "../../../include/cvk.h"
+#include "../../../include/vkhelper.h"
 
 #define MSDFGEN_PUBLIC // ?
 #include "../../../external/msdf-atlas-gen/msdf-atlas-gen/msdf-atlas-gen.h"
+
+#include <freetype2/ft2build.h>
+#include FT_FREETYPE_H
 
 #define MAX(a,b) ({ __typeof__(a) a_ = a; __typeof__(a) b_ = b; (a_ > b_) ? a_ : b_; })
 
@@ -58,6 +61,14 @@ void ctext::load_font(crenderer_t *rd, const CFontLoadInfo *__restrict pInfo, cf
 	}
 
     cassert_and_ret(pInfo->scale > 0.0f);
+
+    FT_Library lib;
+    FT_Face face;
+
+    cassert(FT_Init_FreeType(&lib) == FT_Err_Ok);
+    cassert(FT_New_Face(lib, pInfo->fontPath, 0, &face) == FT_Err_Ok);
+
+    
 
     msdfgen::FreetypeHandle *ft = msdfgen::initializeFreetype();
     if (!ft) {
@@ -199,7 +210,7 @@ void ctext::load_font(crenderer_t *rd, const CFontLoadInfo *__restrict pInfo, cf
     (*dst)->atlas_height = height;
     (*dst)->atlas_data = pixelBuffer;
 
-    help::Images::killme(pixelBuffer, width, height, bitmap_fmt, pInfo->channel_count, &(*dst)->texture, &(*dst)->texture_memory);
+    vkh_image_from_mem(pixelBuffer, width, height, bitmap_fmt, pInfo->channel_count, &(*dst)->texture, &(*dst)->texture_memory);
 
     VkSamplerCreateInfo sampler_info{};
     sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -280,9 +291,9 @@ void ctext::load_font(crenderer_t *rd, const CFontLoadInfo *__restrict pInfo, cf
     csm_shader_t * shaders[] = { vertex, fragment };
     VkDescriptorSetLayout layouts[] = { desc_Layout };
 
-    const cvk_pipeline_blend_state blend = cvk_pipeline_blend_state(CVK_BLEND_PRESET_ALPHA);
+    const cvk_pipeline_blend_state blend = cvk_init_pipeline_blend_state(CVK_BLEND_PRESET_ALPHA);
 
-    cvk_pipeline_create_info pc{};
+    cvk_pipeline_create_info pc = cvk_init_pipeline_create_info();
     pc.format = SwapChainImageFormat;
     pc.subpass = 0;
     pc.render_pass = crenderer_get_render_pass(rd);
@@ -347,8 +358,6 @@ void ctext::end_render(crenderer_t *rd, ccamera camera, cfont_t *fnt, cm::mat4 m
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, fnt->pipeline);
     vkCmdDrawIndexed(cmd, fnt->index_count, 1, 0, 0, 0);
 }
-
-#include <sstream>
 
 static cvector_t * /* cstring_t * */ split_string(const cstring_t *str) {
     cstring_t *substr = NULL;
@@ -680,7 +689,7 @@ void ctext::init()
 
     // No need to store image memory because it won't ever be deleted (probably)
     VkDeviceMemory dummyImageMemory;;
-    free(help::Images::killme("../Assets/error.png", &width, &height, &dummyImageFmt, &error_image, &dummyImageMemory));
+    free(vkh_image_from_disk("../Assets/error.png", &width, &height, &dummyImageFmt, &error_image, &dummyImageMemory));
 
     VkSamplerCreateInfo samplerInfo{};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -744,12 +753,13 @@ void ctext::cfont_t::resize_buffer(u32 new_buffer_size, u32 index_buffer_offset)
     vkDestroyBuffer(device, buffer, nullptr);
     vkFreeMemory(device, buffer_memory, nullptr);
 
-    help::Buffers::CreateBuffer(
+    vkh_buffer_create(
         new_allocation_size,
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
         &buffer,
-        &buffer_memory
+        &buffer_memory,
+        0
     );
 
     allocated_size = new_allocation_size;

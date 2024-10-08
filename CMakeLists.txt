@@ -24,14 +24,15 @@ set(SOURCES
     src/ctext.cpp
     src/cshadermanager.c
     
-    src/cvk.cpp
-    src/cgfx.cpp
-    src/vkhelper.cpp
+    src/cvk.c
+    src/cgfx.c
+    src/vkhelper.c
 
     src/containers/containersunity.c
     src/containers/cbinarytree.c
 
-    src/cimageload.c
+    src/cimage.c
+    src/ctext.c
 )
 
 set(MSDFGEN_CORE_ONLY OFF)

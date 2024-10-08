@@ -1,10 +1,13 @@
 #include "../include/cgfx.h"
+#include "../include/cgfxdef.h"
 
 #include "../include/stdafx.h"
-#include "../include/cvk.hpp"
-#include "../include/cengine.hpp"
-#include "../../include/vkhelper.hpp"
+#include "../include/math/math.h"
+#include "../include/cvk.h"
+#include "../include/cengine.h"
+#include "../../include/vkhelper.h"
 
+// TODO: move to internal cengine struct owned by renderer. user should query from renderer for these
 VkFormat SwapChainImageFormat;
 VkColorSpaceKHR SwapChainColorSpace;
 u32 SwapChainImageCount = 0;
@@ -20,30 +23,6 @@ VkQueue ComputeQueue = VK_NULL_HANDLE;
 VkQueue TransferQueue = VK_NULL_HANDLE;
 VkSampleCountFlagBits Samples = VK_SAMPLE_COUNT_1_BIT;
 
-typedef struct crenderer_t
-{
-    crenderer_config config;
-
-    VkRenderPass render_pass;
-    cengine_extent2d render_extent;
-
-    VkSwapchainKHR swapchain;
-    VkCommandPool commandPool;
-
-    u32 attachment_count;
-    u32 renderer_frame;
-    u32 imageIndex;
-
-    VkImage color_image;
-    VkDeviceMemory color_image_memory;
-    VkImageView color_image_view;
-
-    VkFormat depth_buffer_format;
-
-    cvector_t *renderData;
-    cvector_t *drawBuffers;
-} crenderer_t;
-
 int crenderer_get_renderer_frame(const crenderer_t *rd)
 {
     return rd->renderer_frame;
@@ -54,7 +33,7 @@ VkCommandBuffer crenderer_get_drawbuffer(const crenderer_t *rd)
     return *(VkCommandBuffer *)cvector_get(rd->drawBuffers, rd->renderer_frame);
 }
 
-VkRenderPass_T *crenderer_get_render_pass(const crenderer_t *rd)
+VkRenderPass crenderer_get_render_pass(const crenderer_t *rd)
 {
     return rd->render_pass;
 }
@@ -66,14 +45,14 @@ cengine_extent2d crenderer_get_render_extent(const crenderer_t *rd)
 
 void create_optional_images(crenderer_t *rd)
 {
-    vkGetSwapchainImagesKHR(device, rd->swapchain, &SwapChainImageCount, nullptr);
+    vkGetSwapchainImagesKHR(device, rd->swapchain, &SwapChainImageCount, NULL);
     VkImage *swapchainImages = (VkImage *)malloc(SwapChainImageCount * sizeof(VkImage));
 	vkGetSwapchainImagesKHR(device, rd->swapchain, &SwapChainImageCount, swapchainImages);
 
     cvector_resize(rd->renderData, SwapChainImageCount);
 
     if (rd->config.multisampling_enable) {
-        help::Images::create_empty(
+        vkh_image_create_empty(
             rd->render_extent.width, rd->render_extent.height,
             SwapChainImageFormat,
             Samples,
@@ -82,7 +61,7 @@ void create_optional_images(crenderer_t *rd)
             &rd->color_image, &rd->color_image_memory
         );
 
-        VkImageViewCreateInfo resolve_view_create_info{};
+        VkImageViewCreateInfo resolve_view_create_info = {};
         resolve_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         resolve_view_create_info.image = rd->color_image;
         resolve_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -96,17 +75,17 @@ void create_optional_images(crenderer_t *rd)
         resolve_view_create_info.subresourceRange.levelCount = 1;
         resolve_view_create_info.subresourceRange.baseArrayLayer = 0;
         resolve_view_create_info.subresourceRange.layerCount = 1;
-        if (vkCreateImageView(device, &resolve_view_create_info, nullptr, &rd->color_image_view) != VK_SUCCESS) {
+        if (vkCreateImageView(device, &resolve_view_create_info, NULL, &rd->color_image_view) != VK_SUCCESS) {
             LOG_ERROR("Failed to create view for resolve image");
         }
     }
 
     // attachment vector will be like <color resolve, depth attachment, swapchain image>
     for (int i = 0; i < (int)SwapChainImageCount; i++) {
-        FrameRenderData *data = (FrameRenderData *)cvector_get(rd->renderData, i);
+        cg_framerender_data *data = (cg_framerender_data *)cvector_get(rd->renderData, i);
         data->swapchainImage = swapchainImages[i];
 
-        VkImageCreateInfo image{};
+        VkImageCreateInfo image = {};
         image.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         image.imageType = VK_IMAGE_TYPE_2D;
         image.extent.width = rd->render_extent.width;
@@ -118,20 +97,20 @@ void create_optional_images(crenderer_t *rd)
         image.tiling = VK_IMAGE_TILING_OPTIMAL;
         image.format = VK_FORMAT_D16_UNORM;
         image.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ;
-        vkCreateImage(device, &image, nullptr, &data->depth_image);
+        vkCreateImage(device, &image, NULL, &data->depth_image);
 
-        VkMemoryRequirements memReqs{};
+        VkMemoryRequirements memReqs = {};
         vkGetImageMemoryRequirements(device, data->depth_image, &memReqs);
 
-        VkMemoryAllocateInfo memAlloc{};
+        VkMemoryAllocateInfo memAlloc = {};
         memAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         memAlloc.allocationSize = memReqs.size;
-        memAlloc.memoryTypeIndex = help::GetMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        memAlloc.memoryTypeIndex = vkh_get_mem_type(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-        vkAllocateMemory(device, &memAlloc, nullptr, &data->shadow_image_memory);
+        vkAllocateMemory(device, &memAlloc, NULL, &data->shadow_image_memory);
         vkBindImageMemory(device, data->depth_image, data->shadow_image_memory, 0);
 
-        VkImageViewCreateInfo depthStencilView{};
+        VkImageViewCreateInfo depthStencilView = {};
         depthStencilView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         depthStencilView.viewType = VK_IMAGE_VIEW_TYPE_2D;
         depthStencilView.format = VK_FORMAT_D16_UNORM;
@@ -141,7 +120,7 @@ void create_optional_images(crenderer_t *rd)
         depthStencilView.subresourceRange.baseArrayLayer = 0;
         depthStencilView.subresourceRange.layerCount = 1;
         depthStencilView.image = data->depth_image;
-        vkCreateImageView(device, &depthStencilView, nullptr, &data->depth_image_view);
+        vkCreateImageView(device, &depthStencilView, NULL, &data->depth_image_view);
     }
 
     free(swapchainImages);
@@ -151,8 +130,8 @@ void create_framebuffers_and_swapchain_image_views(crenderer_t *rd) {
     cvector_t * /* VkImageView */ attachments = cvector_init(sizeof(VkImageView), 3);
 
     for (int i = 0; i < (int)SwapChainImageCount; i++) {
-        FrameRenderData *data = (FrameRenderData *)cvector_get(rd->renderData, i);
-        VkImageViewCreateInfo imageViewCreateInfo{};
+        cg_framerender_data *data = (cg_framerender_data *)cvector_get(rd->renderData, i);
+        VkImageViewCreateInfo imageViewCreateInfo = {};
         imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         imageViewCreateInfo.image = data->swapchainImage;
         imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -166,12 +145,12 @@ void create_framebuffers_and_swapchain_image_views(crenderer_t *rd) {
         imageViewCreateInfo.subresourceRange.levelCount = 1;
         imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
         imageViewCreateInfo.subresourceRange.layerCount = 1;
-        if (vkCreateImageView(device, &imageViewCreateInfo, nullptr, &data->swapchainImageView) != VK_SUCCESS) {
+        if (vkCreateImageView(device, &imageViewCreateInfo, NULL, &data->swapchainImageView) != VK_SUCCESS) {
             LOG_ERROR("Failed to create view for swapchain image %d", i);
         }
 
-        const VkImageView &swapchain_image_view = data->swapchainImageView;
-        const VkImageView &depth_image_view = data->depth_image_view;
+        const VkImageView swapchain_image_view = data->swapchainImageView;
+        const VkImageView depth_image_view = data->depth_image_view;
 
         cvector_clear(attachments);
         if (rd->config.multisampling_enable)
@@ -179,7 +158,7 @@ void create_framebuffers_and_swapchain_image_views(crenderer_t *rd) {
         else
             cvector_push_set(attachments, (VkImageView[]){ swapchain_image_view, depth_image_view }, 2);
 
-        VkFramebufferCreateInfo framebufferInfo{};
+        VkFramebufferCreateInfo framebufferInfo = {};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         framebufferInfo.renderPass = rd->render_pass;
         framebufferInfo.attachmentCount = cvector_size(attachments);
@@ -187,7 +166,7 @@ void create_framebuffers_and_swapchain_image_views(crenderer_t *rd) {
         framebufferInfo.width = rd->render_extent.width;
         framebufferInfo.height = rd->render_extent.height;
         framebufferInfo.layers = 1;
-        if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &data->color_framebuffer) != VK_SUCCESS)
+        if (vkCreateFramebuffer(device, &framebufferInfo, NULL, &data->color_framebuffer) != VK_SUCCESS)
             LOG_ERROR("Failed to create framebuffer for swapchain image %d", i);
     }
 
@@ -203,13 +182,13 @@ crenderer_t *crenderer_init(const crenderer_config *conf)
 
     /* Initialize graphics singleton */
     {
-        if (!help::Images::GetSupportedFormat(device, physDevice, surface, &SwapChainImageFormat, &SwapChainColorSpace)) {
+        if (!vkh_get_supported_fmt(device, physDevice, surface, &SwapChainImageFormat, &SwapChainColorSpace)) {
             LOG_AND_ABORT("No supported format for display.");
         }
-        SwapChainImageCount = help::Images::GetImageCount(physDevice, surface);
+        SwapChainImageCount = vkh_get_image_count(physDevice, surface);
 
         u32 queueCount = 0;
-        vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, nullptr);
+        vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, NULL);
         cvector_t * /* VkQueueFamilyProperties */ queueFamilies = cvector_init(sizeof(VkQueueFamilyProperties), queueCount);
         vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, (VkQueueFamilyProperties *)cvector_data(queueFamilies));
 
@@ -218,7 +197,7 @@ crenderer_t *crenderer_init(const crenderer_config *conf)
 
         u32 i = 0;
         for (u32 j = 0; j < queueCount; j++) {
-            const VkQueueFamilyProperties& queueFamily = ((VkQueueFamilyProperties *)cvector_data(queueFamilies))[j];
+            const VkQueueFamilyProperties queueFamily = ((VkQueueFamilyProperties *)cvector_data(queueFamilies))[j];
             VkBool32 presentSupport = false;
             vkGetPhysicalDeviceSurfaceSupportKHR(physDevice, i, surface, &presentSupport);
             
@@ -284,7 +263,7 @@ crenderer_t *crenderer_init(const crenderer_config *conf)
         present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
     }
 
-    cvk_swapchain_create_info scio{};
+    cvk_swapchain_create_info scio = {};
     scio.extent.width = rd->render_extent.width;
     scio.extent.height = rd->render_extent.height;
     scio.present_mode = present_mode;
@@ -310,11 +289,11 @@ crenderer_t *crenderer_init(const crenderer_config *conf)
     cvk_flag_register |= CVK_PIPELINE_FLAGS_FORCE_CULLING;
     rd->attachment_count++;
 
-    VkCommandPoolCreateInfo cmdPoolCreateInfo{};
+    VkCommandPoolCreateInfo cmdPoolCreateInfo = {};
 	cmdPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     cmdPoolCreateInfo.queueFamilyIndex = GraphicsFamilyIndex;
     cmdPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;    
-	if(vkCreateCommandPool(device, &cmdPoolCreateInfo, nullptr, &rd->commandPool) != VK_SUCCESS) {
+	if(vkCreateCommandPool(device, &cmdPoolCreateInfo, NULL, &rd->commandPool) != VK_SUCCESS) {
 		LOG_ERROR("Failed to create command pool");
 	}
 
@@ -322,15 +301,15 @@ crenderer_t *crenderer_init(const crenderer_config *conf)
     const int frames_in_flight = 1 + (int)conf->buffer_mode;
 
     rd->drawBuffers = cvector_init(sizeof(VkCommandBuffer), frames_in_flight);
-    rd->renderData = cvector_init(sizeof(FrameRenderData), frames_in_flight);
+    rd->renderData = cvector_init(sizeof(cg_framerender_data), frames_in_flight);
 
-    FrameRenderData data{};
+    cg_framerender_data data = {};
     for (int i = 0; i < frames_in_flight; i++) {
         cvector_push_back(rd->drawBuffers, &data);
         cvector_push_back(rd->renderData, &data);
     }
 
-    VkCommandBufferAllocateInfo cmdAllocInfo{};
+    VkCommandBufferAllocateInfo cmdAllocInfo = {};
     cmdAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     cmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     cmdAllocInfo.commandBufferCount = frames_in_flight;
@@ -339,21 +318,21 @@ crenderer_t *crenderer_init(const crenderer_config *conf)
 
     rd->depth_buffer_format = VK_FORMAT_D16_UNORM; // replace (probably)
 
-    cvk_render_pass_create_info rpi{};
+    cvk_render_pass_create_info rpi = {};
     rpi.format = SwapChainImageFormat;
     rpi.depthBufferFormat = rd->depth_buffer_format;
     rpi.subpass = 0;
     rpi.samples = samples;
     cvk_create_render_pass(device, &rpi, &rd->render_pass, cvk_flag_register);
 
-    // cvk_render_pass_create_info depth_render_pass_info{};
+    // cvk_render_pass_create_info depth_render_pass_info = {};
     // depth_render_pass_info.format = VK_FORMAT_D16_UNORM;
     // depth_render_pass_info.depthBufferFormat = depth_buffer_format;
     // depth_render_pass_info.subpass = 0;
     // depth_render_pass_info.samples = VK_SAMPLE_COUNT_1_BIT;
     // cvk_create_render_pass(device, &depth_render_pass_info, &ShadowPass, cvk_flag_register);
     // {
-    //     VkAttachmentDescription depthAttachment{};
+    //     VkAttachmentDescription depthAttachment = {};
     //     depthAttachment.format = VK_FORMAT_D16_UNORM;
     //     depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
     //     depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -363,21 +342,21 @@ crenderer_t *crenderer_init(const crenderer_config *conf)
     //     depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     //     depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-    //     VkAttachmentReference depthref{};
+    //     VkAttachmentReference depthref = {};
     //     depthref.attachment = 0;
     //     depthref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-    //     VkSubpassDescription subpass{};
+    //     VkSubpassDescription subpass = {};
     //     subpass.colorAttachmentCount = 0;
     //     subpass.pDepthStencilAttachment = &depthref;
 
-    //     VkRenderPassCreateInfo depth_pass{};
+    //     VkRenderPassCreateInfo depth_pass = {};
     //     depth_pass.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     //     depth_pass.attachmentCount = 1;
     //     depth_pass.pAttachments = &depthAttachment;
     //     depth_pass.subpassCount = 1;
     //     depth_pass.pSubpasses = &subpass;
-    //     vkCreateRenderPass(device, &depth_pass, nullptr, &ShadowPass);
+    //     vkCreateRenderPass(device, &depth_pass, NULL, &ShadowPass);
     // }
 
     create_optional_images(rd);
@@ -385,18 +364,18 @@ crenderer_t *crenderer_init(const crenderer_config *conf)
 
     for(int i = 0; i < frames_in_flight; i++)
 	{
-        constexpr VkSemaphoreCreateInfo semaphoreCreateInfo{
-            VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, nullptr, 0
+        const VkSemaphoreCreateInfo semaphoreCreateInfo = {
+            VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, NULL, 0
         };
 
-        constexpr VkFenceCreateInfo fenceCreateInfo{
-            VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, nullptr, VK_FENCE_CREATE_SIGNALED_BIT
+        const VkFenceCreateInfo fenceCreateInfo = {
+            VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, NULL, VK_FENCE_CREATE_SIGNALED_BIT
         };
 
-        FrameRenderData *data = (FrameRenderData *)cvector_get(rd->renderData, i);
-        vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &data->renderingFinishedSemaphore);
-        vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &data->imageAvailableSemaphore);
-        vkCreateFence(device, &fenceCreateInfo, nullptr, &data->inFlightFence);
+        cg_framerender_data *data = (cg_framerender_data *)cvector_get(rd->renderData, i);
+        vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->renderingFinishedSemaphore);
+        vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->imageAvailableSemaphore);
+        vkCreateFence(device, &fenceCreateInfo, NULL, &data->inFlightFence);
 	}
 
     return rd;
@@ -405,26 +384,26 @@ crenderer_t *crenderer_init(const crenderer_config *conf)
 void crenderer_resize(crenderer_t *rd) {
     vkDeviceWaitIdle(device);
 
-    constexpr VkSemaphoreCreateInfo semaphoreCreateInfo {
-        VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, nullptr, 0
+    const VkSemaphoreCreateInfo semaphoreCreateInfo = {
+        VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, NULL, 0
     };
 
-    constexpr VkFenceCreateInfo fenceCreateInfo {
-        VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, nullptr, VK_FENCE_CREATE_SIGNALED_BIT
+    const VkFenceCreateInfo fenceCreateInfo = {
+        VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, NULL, VK_FENCE_CREATE_SIGNALED_BIT
     };
     
     // adhoc method of resetting them
     for (int i = 0; i < (1 + (int)rd->config.buffer_mode); i++) {
-        FrameRenderData &data = *(FrameRenderData *)cvector_get(rd->renderData, i);
-        vkDestroySemaphore(device, data.imageAvailableSemaphore, nullptr);
-        vkDestroySemaphore(device, data.renderingFinishedSemaphore, nullptr);
-        vkDestroyFence(device, data.inFlightFence, nullptr);
+        cg_framerender_data *data = (cg_framerender_data *)cvector_get(rd->renderData, i);
+        vkDestroySemaphore(device, data->imageAvailableSemaphore, NULL);
+        vkDestroySemaphore(device, data->renderingFinishedSemaphore, NULL);
+        vkDestroyFence(device, data->inFlightFence, NULL);
     }
     for (u32 i = 0; i < SwapChainImageCount; i++)
     {
-        FrameRenderData &data = *(FrameRenderData *)cvector_get(rd->renderData, i);
-        vkDestroyImageView(device, data.swapchainImageView, nullptr);
-        vkDestroyFramebuffer(device, data.color_framebuffer, nullptr);
+        cg_framerender_data *data = (cg_framerender_data *)cvector_get(rd->renderData, i);
+        vkDestroyImageView(device, data->swapchainImageView, NULL);
+        vkDestroyFramebuffer(device, data->color_framebuffer, NULL);
     }
     cvector_clear(rd->renderData);
 
@@ -443,7 +422,7 @@ void crenderer_resize(crenderer_t *rd) {
     w = cmclamp((u32)w, min_width, max_width);
     h = cmclamp((u32)h, min_height, max_height);
 
-    rd->render_extent = { w, h };
+    rd->render_extent = (cengine_extent2d){ w, h };
 
     VkSwapchainKHR old_swapchain = rd->swapchain;
 
@@ -465,7 +444,7 @@ void crenderer_resize(crenderer_t *rd) {
         present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
     }
 
-    cvk_swapchain_create_info scio{};
+    cvk_swapchain_create_info scio = {};
     scio.extent.width = rd->render_extent.width;
     scio.extent.height = rd->render_extent.height;
     scio.present_mode = present_mode;
@@ -474,36 +453,36 @@ void crenderer_resize(crenderer_t *rd) {
     scio.image_count = SwapChainImageCount;
     scio.old_swapchain = old_swapchain;
     cvk_create_swapchain(device, &scio, &rd->swapchain);
-    vkDestroySwapchainKHR(device, old_swapchain, nullptr);
+    vkDestroySwapchainKHR(device, old_swapchain, NULL);
 
-    vkDestroyImage(device, rd->color_image, nullptr);
-    vkDestroyImageView(device, rd->color_image_view, nullptr);
+    vkDestroyImage(device, rd->color_image, NULL);
+    vkDestroyImageView(device, rd->color_image_view, NULL);
 
     create_optional_images(rd);
     create_framebuffers_and_swapchain_image_views(rd);
 
     for (u32 i = 0; i < SwapChainImageCount; i++)
     {
-        FrameRenderData &data = *(FrameRenderData *)cvector_get(rd->renderData, i);
-        vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &data.renderingFinishedSemaphore);
-        vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &data.imageAvailableSemaphore);
-        vkCreateFence(device, &fenceCreateInfo, nullptr, &data.inFlightFence);
+        cg_framerender_data *data = (cg_framerender_data *)cvector_get(rd->renderData, i);
+        vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->renderingFinishedSemaphore);
+        vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->imageAvailableSemaphore);
+        vkCreateFence(device, &fenceCreateInfo, NULL, &data->inFlightFence);
     }
 
-    cengine::_reset_frame_buffer_resized();
+    cg__reset_frame_buffer_resized();
 }
 
 bool_t crenderer_begin_render(crenderer_t *rd)
 {
-    FrameRenderData &data = *(FrameRenderData *)cvector_get(rd->renderData, rd->renderer_frame);
+    cg_framerender_data *data = (cg_framerender_data *)cvector_get(rd->renderData, rd->renderer_frame);
 
-    vkWaitForFences(device, 1, &data.inFlightFence, VK_TRUE, UINT64_MAX);
+    vkWaitForFences(device, 1, &data->inFlightFence, VK_TRUE, UINT64_MAX);
 
-    const VkResult imageAcquireResult = vkAcquireNextImageKHR(device, rd->swapchain, UINT64_MAX, data.imageAvailableSemaphore, VK_NULL_HANDLE, &rd->imageIndex);
+    const VkResult imageAcquireResult = vkAcquireNextImageKHR(device, rd->swapchain, UINT64_MAX, data->imageAvailableSemaphore, VK_NULL_HANDLE, &rd->imageIndex);
 
-    const VkCommandBuffer& drawBuffer = *(VkCommandBuffer *)cvector_get(rd->drawBuffers, rd->renderer_frame);
+    const VkCommandBuffer drawBuffer = *(VkCommandBuffer *)cvector_get(rd->drawBuffers, rd->renderer_frame);
 
-	if(imageAcquireResult == VK_ERROR_OUT_OF_DATE_KHR || imageAcquireResult == VK_SUBOPTIMAL_KHR || cengine::get_frame_buffer_resized())
+	if(imageAcquireResult == VK_ERROR_OUT_OF_DATE_KHR || imageAcquireResult == VK_SUBOPTIMAL_KHR || cg_get_frame_buffer_resized())
 	{
         crenderer_resize(rd);
 		return false;
@@ -514,26 +493,26 @@ bool_t crenderer_begin_render(crenderer_t *rd)
 		return false;
     }
 
-    vkResetFences(device, 1, &data.inFlightFence);
+    vkResetFences(device, 1, &data->inFlightFence);
 
     VkClearValue clearValues[2];
-    clearValues[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
-    clearValues[1].depthStencil = { 1.0f, 0 };
+    clearValues[0].color = (VkClearColorValue){ {0.0f, 0.0f, 0.0f, 1.0f} };
+    clearValues[1].depthStencil = (VkClearDepthStencilValue){ 1.0f, 0 };
 
-    VkFramebuffer &fb = (*(FrameRenderData *)(cvector_get(rd->renderData, rd->imageIndex))).color_framebuffer;
+    VkFramebuffer fb = (*(cg_framerender_data *)(cvector_get(rd->renderData, rd->imageIndex))).color_framebuffer;
  
-    static VkRenderPassBeginInfo renderPassInfo{};
+    static VkRenderPassBeginInfo renderPassInfo = {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     renderPassInfo.framebuffer = fb;
     renderPassInfo.renderArea.extent.width = rd->render_extent.width;
     renderPassInfo.renderArea.extent.height = rd->render_extent.height;
-    renderPassInfo.renderArea.offset = {0, 0};
+    renderPassInfo.renderArea.offset = (VkOffset2D){0, 0};
     renderPassInfo.renderPass = rd->render_pass;
     renderPassInfo.clearValueCount = 2;
     renderPassInfo.pClearValues = clearValues;
 
-    constexpr VkCommandBufferBeginInfo beginInfo = {
-        VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr, 0, nullptr
+    const VkCommandBufferBeginInfo beginInfo = {
+        VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, NULL, 0, NULL
     };
 
     vkBeginCommandBuffer(drawBuffer, &beginInfo);
@@ -549,8 +528,8 @@ bool_t crenderer_begin_render(crenderer_t *rd)
     vkCmdSetViewport(drawBuffer, 0, 1, &viewport);
 
     VkRect2D scissor = {};
-    scissor.offset = { 0, 0 };
-    scissor.extent = { (unsigned)rd->render_extent.width, (unsigned)rd->render_extent.height };
+    scissor.offset = (VkOffset2D){ 0, 0 };
+    scissor.extent = (VkExtent2D){ (unsigned)rd->render_extent.width, (unsigned)rd->render_extent.height };
     vkCmdSetScissor(drawBuffer, 0, 1, &scissor);
 
     return true;
@@ -558,17 +537,17 @@ bool_t crenderer_begin_render(crenderer_t *rd)
 
 void crenderer_end_render(crenderer_t *rd)
 {
-    const VkCommandBuffer& drawBuffer = *(VkCommandBuffer *)cvector_get(rd->drawBuffers, rd->renderer_frame);
+    const VkCommandBuffer drawBuffer = *(VkCommandBuffer *)cvector_get(rd->drawBuffers, rd->renderer_frame);
 
     vkCmdEndRenderPass(drawBuffer);
     vkEndCommandBuffer(drawBuffer);
 
-	VkSubmitInfo submitInfo{};
+	VkSubmitInfo submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-    FrameRenderData &data = *(FrameRenderData *)cvector_get(rd->renderData, rd->renderer_frame);
-    const VkSemaphore waitSemaphores[] = {data.imageAvailableSemaphore};
-    const VkSemaphore signalSemaphores[] = {data.renderingFinishedSemaphore};
+    cg_framerender_data *data = (cg_framerender_data *)cvector_get(rd->renderData, rd->renderer_frame);
+    const VkSemaphore waitSemaphores[] = {data->imageAvailableSemaphore};
+    const VkSemaphore signalSemaphores[] = {data->renderingFinishedSemaphore};
 
     VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
     submitInfo.pWaitDstStageMask = waitStages;
@@ -583,9 +562,9 @@ void crenderer_end_render(crenderer_t *rd)
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    vkQueueSubmit(PresentQueue, 1, &submitInfo, data.inFlightFence);
+    vkQueueSubmit(PresentQueue, 1, &submitInfo, data->inFlightFence);
 
-    VkPresentInfoKHR presentInfo{};
+    VkPresentInfoKHR presentInfo = {};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores = signalSemaphores; // This is signalSemaphores so that this starts as soon as the signaled semaphores are signaled.
@@ -594,7 +573,7 @@ void crenderer_end_render(crenderer_t *rd)
     presentInfo.pSwapchains = &rd->swapchain;
 
     const VkResult result = vkQueuePresentKHR(PresentQueue, &presentInfo);
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || cengine::get_frame_buffer_resized()) {
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || cg_get_frame_buffer_resized()) {
         crenderer_resize(rd);
     }
 

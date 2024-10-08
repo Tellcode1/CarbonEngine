@@ -5,18 +5,18 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 
 #include <iostream>
-#include "../../defines.h"
+#include "defines.h"
 
-#include "../../cvk.hpp"
-#include "../../vkhelper.hpp"
-#include "../../cshadermanager.h"
+#include "cvk.h"
+#include "vkhelper.h"
+#include "cshadermanager.h"
 
-#include "../../math/vec3.hpp"
-#include "../../math/vec2.hpp"
+#include "math/vec3.hpp"
+#include "math/vec2.hpp"
 
-#include "../../../external/tinyobjloader/tiny_obj_loader.h"
+#include "../external/tinyobjloader/tiny_obj_loader.h"
 
-#include "../../cimageload.h"
+#include "cimage.h"
 
 struct Transform {
     cm::vec3 position = cm::vec3(0.0f);
@@ -221,25 +221,25 @@ struct cmesh_t *load_mesh(crenderer_t *rd, const char *mdlpath, const char *texp
     const int vertexsize = sizeof(vertex) * cvector_size(data.vertices);
     const int indexsize = sizeof(u32) * cvector_size(data.indices);
 
-    help::Buffers::CreateBuffer(
+    vkh_buffer_create(
         vertexsize,
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-        &mesh->vb, &mesh->vbm
+        &mesh->vb, &mesh->vbm, 0
     );
 
-    help::Buffers::CreateBuffer(
+    vkh_buffer_create(
         indexsize,
         VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        &mesh->ib, &mesh->ibm
+        &mesh->ib, &mesh->ibm, 0
     );
 
-    help::Buffers::CreateBuffer(
+    vkh_buffer_create(
         sizeof(ubdata),
         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        &mesh->ub, &mesh->ubm
+        &mesh->ub, &mesh->ubm, 0
     );
     vkMapMemory(device, mesh->ubm, 0, sizeof(ubdata), 0, &mesh->ubmapped);
 
@@ -272,10 +272,10 @@ struct cmesh_t *load_mesh(crenderer_t *rd, const char *mdlpath, const char *texp
     };
 
     ctex2D texture = cimg_load( texpath );
-    help::Images::killme(texture.data, texture.w, texture.h, cfmt_conv_cfmt_to_vkfmt(texture.fmt), cfmt_get_bytesperpixel(texture.fmt), &mesh->texture, &mesh->texture_memory);
+    vkh_image_from_mem(texture.data, texture.w, texture.h, cfmt_conv_cfmt_to_vkfmt(texture.fmt), cfmt_get_bytesperpixel(texture.fmt), &mesh->texture, &mesh->texture_memory);
 
     ctex2D normal = cimg_load( normalmappath );
-    help::Images::killme(normal.data, normal.w, normal.h, cfmt_conv_cfmt_to_vkfmt(normal.fmt), cfmt_get_bytesperpixel(normal.fmt), &mesh->normalmap, &mesh->normalmap_memory);
+    vkh_image_from_mem(normal.data, normal.w, normal.h, cfmt_conv_cfmt_to_vkfmt(normal.fmt), cfmt_get_bytesperpixel(normal.fmt), &mesh->normalmap, &mesh->normalmap_memory);
 
     free(texture.data);
     free(normal.data);
@@ -390,7 +390,7 @@ struct cmesh_t *load_mesh(crenderer_t *rd, const char *mdlpath, const char *texp
     const VkDescriptorSetLayout layouts[] = { mesh->setlayout };
 
     const cengine_extent2d RenderExtent = crenderer_get_render_extent(rd);
-    cvk_pipeline_create_info pc{};
+    cvk_pipeline_create_info pc = cvk_init_pipeline_create_info();
     pc.format = SwapChainImageFormat;
     pc.subpass = 0;
     pc.render_pass = crenderer_get_render_pass(rd);

@@ -1,5 +1,4 @@
-#include "../../include/cvk.hpp"
-#include "../../include/cengineinit.hpp"
+#include "../../include/cvk.h"
 #include "../../include/cshadermanagerdev.h"
 #include "../../include/containers/cvector.h"
 
@@ -24,38 +23,38 @@ void cvk_create_graphics_pipeline(VkDevice device,  const cvk_pipeline_create_in
 		CVK_NOT_EQUAL_TO(pCreateInfo->samples, VK_SAMPLE_COUNT_1_BIT);
 	}
 
-	VkPipelineVertexInputStateCreateInfo vertexInputState{};
+	VkPipelineVertexInputStateCreateInfo vertexInputState = {};
 	vertexInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;	
 	vertexInputState.vertexAttributeDescriptionCount = pCreateInfo->nAttributeDescriptions;
 	vertexInputState.vertexBindingDescriptionCount = pCreateInfo->nBindingDescriptions;
 	vertexInputState.pVertexAttributeDescriptions = pCreateInfo->pAttributeDescriptions;
 	vertexInputState.pVertexBindingDescriptions = pCreateInfo->pBindingDescriptions;
 
-	VkPipelineInputAssemblyStateCreateInfo inputAssemblyState{};
+	VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = {};
 	inputAssemblyState.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 	inputAssemblyState.primitiveRestartEnable = VK_FALSE;
 	inputAssemblyState.topology = pCreateInfo->topology;
 
-	VkViewport viewportState{};
+	VkViewport viewportState = {};
 	viewportState.x = 0;
 	viewportState.y = 0;
-	viewportState.width = static_cast<f32>(pCreateInfo->extent.width);
-	viewportState.height = static_cast<f32>(pCreateInfo->extent.height);
+	viewportState.width = (f32)(pCreateInfo->extent.width);
+	viewportState.height = (f32)(pCreateInfo->extent.height);
 	viewportState.minDepth = 0.0f;
 	viewportState.maxDepth = 1.0f;
 
-	VkRect2D scissor{};
-	scissor.offset = {0, 0};
+	VkRect2D scissor = {};
+	scissor.offset = (VkOffset2D){0, 0};
 	scissor.extent = pCreateInfo->extent;
 
-	VkPipelineViewportStateCreateInfo viewportStateCreateInfo{};
+	VkPipelineViewportStateCreateInfo viewportStateCreateInfo = {};
 	viewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 	viewportStateCreateInfo.pViewports = &viewportState;
 	viewportStateCreateInfo.pScissors = &scissor;
 	viewportStateCreateInfo.scissorCount = 1;
 	viewportStateCreateInfo.viewportCount = 1;
 
-	VkPipelineRasterizationStateCreateInfo rasterizerPipelineStateCreateInfo{};
+	VkPipelineRasterizationStateCreateInfo rasterizerPipelineStateCreateInfo = {};
 	rasterizerPipelineStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 	rasterizerPipelineStateCreateInfo.depthClampEnable = VK_FALSE;
 	rasterizerPipelineStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
@@ -73,7 +72,7 @@ void cvk_create_graphics_pipeline(VkDevice device,  const cvk_pipeline_create_in
 	rasterizerPipelineStateCreateInfo.depthBiasSlopeFactor = 0.0f;
 	rasterizerPipelineStateCreateInfo.lineWidth = 1.0f;
 
-	VkPipelineMultisampleStateCreateInfo multisamplerPipelineStageCreateInfo{};
+	VkPipelineMultisampleStateCreateInfo multisamplerPipelineStageCreateInfo = {};
 	multisamplerPipelineStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 	multisamplerPipelineStageCreateInfo.sampleShadingEnable = VK_FALSE;
 	multisamplerPipelineStageCreateInfo.alphaToCoverageEnable = VK_FALSE;
@@ -86,11 +85,11 @@ void cvk_create_graphics_pipeline(VkDevice device,  const cvk_pipeline_create_in
 	else
 		multisamplerPipelineStageCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
-	VkPipelineColorBlendAttachmentState colorblendAttachmentState{};
+	VkPipelineColorBlendAttachmentState colorblendAttachmentState = {};
 
 	if(HAS_FLAG(CVK_PIPELINE_FLAGS_ENABLE_BLEND))
 	{
-		const auto& blendState = pCreateInfo->blend_state;
+		const cvk_pipeline_blend_state  *blendState = pCreateInfo->blend_state;
 
 		colorblendAttachmentState.blendEnable = VK_TRUE;
 		colorblendAttachmentState.srcColorBlendFactor = blendState->srcColorBlendFactor;
@@ -106,7 +105,7 @@ void cvk_create_graphics_pipeline(VkDevice device,  const cvk_pipeline_create_in
 		colorblendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 	}
 
-	VkPipelineColorBlendStateCreateInfo colorblendState{};
+	VkPipelineColorBlendStateCreateInfo colorblendState = {};
 	colorblendState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
 	colorblendState.attachmentCount = 1;
 	colorblendState.pAttachments = &colorblendAttachmentState;
@@ -127,9 +126,9 @@ void cvk_create_graphics_pipeline(VkDevice device,  const cvk_pipeline_create_in
 		shader_infos[i].pName = "main";
 	}
 
-	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo{};
+	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {};
 	graphicsPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	graphicsPipelineCreateInfo.stageCount = static_cast<u32>(pCreateInfo->nShaders);
+	graphicsPipelineCreateInfo.stageCount = (u32)(pCreateInfo->nShaders);
 	graphicsPipelineCreateInfo.pStages = shader_infos;
 	graphicsPipelineCreateInfo.pVertexInputState = &vertexInputState;
 	graphicsPipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
@@ -142,8 +141,8 @@ void cvk_create_graphics_pipeline(VkDevice device,  const cvk_pipeline_create_in
 	graphicsPipelineCreateInfo.subpass = pCreateInfo->subpass;
 	graphicsPipelineCreateInfo.basePipelineHandle = pCreateInfo->old_pipeline;
 
-	VkPipelineDynamicStateCreateInfo dynamicStateInfo{};
-	constexpr VkDynamicState dynamicStates[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+	VkPipelineDynamicStateCreateInfo dynamicStateInfo = {};
+	const VkDynamicState dynamicStates[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 	if (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_DYNAMIC_VIEWPORT) && !(flags & CVK_PIPELINE_FLAGS_UNFORCE_DYNAMIC_VIEWPORT)) {}
 	else  {
 		dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
@@ -152,7 +151,7 @@ void cvk_create_graphics_pipeline(VkDevice device,  const cvk_pipeline_create_in
 		graphicsPipelineCreateInfo.pDynamicState = &dynamicStateInfo;
 	}
 	
-	VkPipelineDepthStencilStateCreateInfo depthStencilState{};
+	VkPipelineDepthStencilStateCreateInfo depthStencilState = {};
 	if(HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_DEPTH_CHECK) && !(flags & CVK_PIPELINE_FLAGS_UNFORCE_DEPTH_CHECK))
 	{
 		depthStencilState.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
@@ -185,7 +184,7 @@ void cvk_create_render_pass(VkDevice device, cvk_render_pass_create_info const *
         CVK_NOT_EQUAL_TO(pCreateInfo->depthBufferFormat, VK_FORMAT_UNDEFINED);
     }
 
-    VkAttachmentDescription colorAttachmentDescription{};
+    VkAttachmentDescription colorAttachmentDescription = {};
     colorAttachmentDescription.format = pCreateInfo->format;
     colorAttachmentDescription.samples = (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING) && !(flags & CVK_PIPELINE_FLAGS_UNFORCE_MULTISAMPLING)) ? pCreateInfo->samples : VK_SAMPLE_COUNT_1_BIT;
     colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -196,11 +195,11 @@ void cvk_create_render_pass(VkDevice device, cvk_render_pass_create_info const *
 	colorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     // colorAttachmentDescription.finalLayout = (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING) && !(flags & CVK_PIPELINE_FLAGS_UNFORCE_MULTISAMPLING)) ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-    VkAttachmentReference colorAttachmentReference{};
+    VkAttachmentReference colorAttachmentReference = {};
     colorAttachmentReference.attachment = 0;
     colorAttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-    VkSubpassDescription subpass{};
+    VkSubpassDescription subpass = {};
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorAttachmentReference;
@@ -208,8 +207,8 @@ void cvk_create_render_pass(VkDevice device, cvk_render_pass_create_info const *
     cvector_t * /* VkAttachmentDescription */ attachments = cvector_init(sizeof(VkAttachmentDescription), 5);
 	cvector_push_back(attachments, &colorAttachmentDescription);
 
-	VkAttachmentDescription depthAttachment{};
-	VkAttachmentReference depthAttachmentRef{};
+	VkAttachmentDescription depthAttachment = {};
+	VkAttachmentReference depthAttachmentRef = {};
     if (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_DEPTH_CHECK) && !(flags & CVK_PIPELINE_FLAGS_UNFORCE_DEPTH_CHECK))
     {
 		depthAttachment.format = VK_FORMAT_D16_UNORM;
@@ -233,8 +232,8 @@ void cvk_create_render_pass(VkDevice device, cvk_render_pass_create_info const *
 		cvector_push_back(attachments, &depthAttachment);
     }
 
-	VkAttachmentReference colorAttachmentResolveRef{};
-	VkAttachmentDescription colorAttachmentResolve{};
+	VkAttachmentReference colorAttachmentResolveRef = {};
+	VkAttachmentDescription colorAttachmentResolve = {};
     if ((flags & CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING) && !(flags & CVK_PIPELINE_FLAGS_UNFORCE_MULTISAMPLING))
     {
         colorAttachmentResolve.format = pCreateInfo->format;
@@ -254,7 +253,7 @@ void cvk_create_render_pass(VkDevice device, cvk_render_pass_create_info const *
         subpass.pResolveAttachments = &colorAttachmentResolveRef;
     }
 
-	VkSubpassDependency depth_dependancy{};
+	VkSubpassDependency depth_dependancy = {};
 	depth_dependancy.srcSubpass = VK_SUBPASS_EXTERNAL;
 	depth_dependancy.dstSubpass = 0;
 	depth_dependancy.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
@@ -262,7 +261,7 @@ void cvk_create_render_pass(VkDevice device, cvk_render_pass_create_info const *
 	depth_dependancy.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
 	depth_dependancy.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
-    VkRenderPassCreateInfo renderPassInfo{};
+    VkRenderPassCreateInfo renderPassInfo = {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     renderPassInfo.attachmentCount = cvector_size(attachments);
     renderPassInfo.pAttachments = (const VkAttachmentDescription *)cvector_data(attachments);
@@ -294,7 +293,7 @@ void cvk_create_pipeline_layout(VkDevice device, cvk_pipeline_create_info const 
 	// 	}
 	// }
 
-	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
+	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
 	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutCreateInfo.setLayoutCount = pCreateInfo->nDescriptorLayouts;
 	pipelineLayoutCreateInfo.pSetLayouts = pCreateInfo->pDescriptorLayouts;
@@ -313,7 +312,7 @@ void cvk_create_swapchain(VkDevice device, cvk_swapchain_create_info const* pCre
 	CVK_NOT_EQUAL_TO(pCreateInfo->format, VK_FORMAT_UNDEFINED);
 	CVK_NOT_EQUAL_TO(pCreateInfo->image_count, 0);
 
-	VkSwapchainCreateInfoKHR swapChainCreateInfo{};
+	VkSwapchainCreateInfoKHR swapChainCreateInfo = {};
 	swapChainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 	swapChainCreateInfo.surface = surface;
 	swapChainCreateInfo.imageExtent = pCreateInfo->extent;
@@ -331,67 +330,69 @@ void cvk_create_swapchain(VkDevice device, cvk_swapchain_create_info const* pCre
 	CVK_ResultCheck(vkCreateSwapchainKHR(device, &swapChainCreateInfo, VK_NULL_HANDLE, dstSwapchain));
 }
 
-cvk_pipeline_blend_state::cvk_pipeline_blend_state(cvk_blend_preset preset)
+cvk_pipeline_blend_state cvk_init_pipeline_blend_state(cvk_blend_preset preset)
 {
-	colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	cvk_pipeline_blend_state ret = {};
+	ret.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
 	switch(preset)
 	{
 		case CVK_BLEND_PRESET_NONE:
-			srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-			dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-			colorBlendOp = VK_BLEND_OP_ADD;
-			srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-			dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-			alphaBlendOp = VK_BLEND_OP_ADD;
+			ret.srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+			ret.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+			ret.colorBlendOp = VK_BLEND_OP_ADD;
+			ret.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+			ret.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+			ret.alphaBlendOp = VK_BLEND_OP_ADD;
 			break;
 		case CVK_BLEND_PRESET_ALPHA:
-			srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-			dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-			colorBlendOp = VK_BLEND_OP_ADD;
-			srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-			dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-			alphaBlendOp = VK_BLEND_OP_ADD;
+			ret.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+			ret.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+			ret.colorBlendOp = VK_BLEND_OP_ADD;
+			ret.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+			ret.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+			ret.alphaBlendOp = VK_BLEND_OP_ADD;
 			break;
 		case CVK_BLEND_PRESET_ADDITIVE:
-			srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-			dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-			colorBlendOp = VK_BLEND_OP_ADD;
-			srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-			dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-			alphaBlendOp = VK_BLEND_OP_ADD;
+			ret.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+			ret.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+			ret.colorBlendOp = VK_BLEND_OP_ADD;
+			ret.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+			ret.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+			ret.alphaBlendOp = VK_BLEND_OP_ADD;
 			break;
 		case CVK_BLEND_PRESET_MULTIPLICATIVE:
-			srcColorBlendFactor = VK_BLEND_FACTOR_DST_COLOR;
-			dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-			colorBlendOp = VK_BLEND_OP_ADD;
-			srcAlphaBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;
-			dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-			alphaBlendOp = VK_BLEND_OP_ADD;
+			ret.srcColorBlendFactor = VK_BLEND_FACTOR_DST_COLOR;
+			ret.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+			ret.colorBlendOp = VK_BLEND_OP_ADD;
+			ret.srcAlphaBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;
+			ret.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+			ret.alphaBlendOp = VK_BLEND_OP_ADD;
 			break;
 		case CVK_BLEND_PRESET_PREMULTIPLIED_ALPHA:
-			srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-			dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-			colorBlendOp = VK_BLEND_OP_ADD;
-			srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-			dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-			alphaBlendOp = VK_BLEND_OP_ADD;
+			ret.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+			ret.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+			ret.colorBlendOp = VK_BLEND_OP_ADD;
+			ret.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+			ret.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+			ret.alphaBlendOp = VK_BLEND_OP_ADD;
 			break;
 		case CVK_BLEND_PRESET_SUBTRACTIVE:
-			srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-			dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-			colorBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;
-			srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-			dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-			alphaBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;
+			ret.srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+			ret.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+			ret.colorBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;
+			ret.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+			ret.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+			ret.alphaBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;
 			break;
 		default:
-			srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-			dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-			colorBlendOp = VK_BLEND_OP_ADD;
-			srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-			dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-			alphaBlendOp = VK_BLEND_OP_ADD;
+			ret.srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+			ret.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+			ret.colorBlendOp = VK_BLEND_OP_ADD;
+			ret.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+			ret.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+			ret.alphaBlendOp = VK_BLEND_OP_ADD;
 			break;
 	}
+	return ret;
 }

@@ -15,10 +15,14 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
 
-typedef bool_t cengine_bool_t;
+#ifdef bool_t
+    typedef bool_t cengine_bool_t;
+#else
+    typedef unsigned char cengine_bool_t;
+#endif
 
 // Move ownership to camera VV
-struct FrameRenderData
+typedef struct cg_framerender_data
 {
     VkImage         swapchainImage;
     VkImageView     swapchainImageView;
@@ -29,13 +33,13 @@ struct FrameRenderData
     VkSemaphore     imageAvailableSemaphore;
     VkSemaphore     renderingFinishedSemaphore;
     VkFence         inFlightFence;
-};
+} cg_framerender_data;
 
 typedef enum cengine_vsync_bits {
     CENGINE_VSYNC_DISABLED = 0,
     CENGINE_VSYNC_ENABLED = 1
 } cengine_vsync_bits;
-typedef bool_t cengine_vsync;
+typedef cengine_bool_t cengine_vsync;
 
 typedef enum cengine_buffering_mode_bits {
     CGFX_BUFFER_MODE_SINGLE_BUFFERED = 0,
@@ -62,29 +66,29 @@ typedef struct cengine_extent2d {
 
 typedef struct crenderer_config {
     cengine_sample_count   samples;
-    cengine_bool_t         multisampling_enable;
-    cengine_extent2d       initial_window_size;
-    cengine_bool_t         window_resizable;
     cengine_buffering_mode buffer_mode;
-    cengine_vsync          vsync_enabled;
+    cengine_extent2d       initial_window_size;
     SDL_Scancode           exit_key;
+    cengine_bool_t         multisampling_enable;
+    cengine_bool_t         window_resizable;
+    cengine_vsync          vsync_enabled;
 } crenderer_config;
 
 static inline crenderer_config crender_config_init() {
     return (crenderer_config) {
         .samples = CGFX_SAMPLE_COUNT_NO_EXTRA_SAMPLES,
-        .multisampling_enable = 0,
-        .initial_window_size = { 800, 600 },
-        .window_resizable = 0,
         .buffer_mode = CGFX_BUFFER_MODE_DOUBLE_BUFFERED,
-        .vsync_enabled = 1,
+        .initial_window_size = { 800, 600 },
         .exit_key = SDL_SCANCODE_ESCAPE,
+        .multisampling_enable = 0,
+        .window_resizable = 0,
+        .vsync_enabled = 1,
     };
 }
 
 typedef struct crenderer_t crenderer_t;
 extern crenderer_t *crenderer_init(const crenderer_config *conf);
-extern bool_t crenderer_begin_render(struct crenderer_t *rd);
+extern cengine_bool_t crenderer_begin_render(struct crenderer_t *rd);
 extern void crenderer_end_render(struct crenderer_t *rd);
 
 extern int crenderer_get_renderer_frame(const struct crenderer_t *rd);

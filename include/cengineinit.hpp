@@ -43,7 +43,7 @@ static SDL_UNUSED const char* RequiredDeviceExtensions[] = {
 
 // ! FIND A WAY TO CHECK IF FEATURE IS AVAILABLE
 
-constexpr static VkPhysicalDeviceFeatures WantedFeatures = {
+const static VkPhysicalDeviceFeatures WantedFeatures = {
 	.samplerAnisotropy = VK_TRUE,
 };
 

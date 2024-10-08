@@ -15,8 +15,6 @@
 
 #include "../external/volk/volk.h"
 
-struct csignal;
-
 extern VkFormat SwapChainImageFormat;
 extern VkColorSpaceKHR SwapChainColorSpace;
 extern u32 SwapChainImageCount;

@@ -1,4 +1,4 @@
-#include "../include/cimageload.h"
+#include "../include/cimage.h"
 #include "../include/defines.h"
 
 #include <stdlib.h>
@@ -147,4 +147,121 @@ ctex2D cimg_load_jpg(const char *path)
     fclose(f);
 
     return img;
+}
+
+void cimg_write_png(const ctex2D *tex, const char *path)
+{
+    FILE *f = fopen(path, "wb");
+    cassert(f != NULL);
+
+    png_struct *png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    cassert(png != NULL);
+
+    png_infop info = png_create_info_struct(png);
+    cassert(info != NULL);
+
+    if (setjmp(png_jmpbuf(png))) {
+        cassert(0);
+    }
+
+    png_init_io(png, f);
+
+    int coltype = -1;
+    switch (tex->fmt) {
+        case CFMT_R8_UNORM:
+        case CFMT_R8_SNORM:
+        case CFMT_R8_UINT:
+        case CFMT_R8_SINT:
+            coltype = PNG_COLOR_TYPE_GRAY;
+            break;
+        case CFMT_RG8_UNORM:
+        case CFMT_RG8_SNORM:
+        case CFMT_RG8_UINT:
+        case CFMT_RG8_SINT:
+            coltype = PNG_COLOR_TYPE_GA;
+            break;
+        case CFMT_RGB8_UNORM:
+        case CFMT_RGB8_SNORM:
+            coltype = PNG_COLOR_TYPE_RGB;
+            break;
+        case CFMT_RGBA8_UNORM:
+        case CFMT_RGBA8_SNORM:
+        case CFMT_RGBA8_UINT:
+        case CFMT_RGBA8_SINT:
+        case CFMT_SRGB8_ALPHA8:
+            coltype = PNG_COLOR_TYPE_RGBA;
+            break;
+        case CFMT_R16_UNORM:
+        case CFMT_R16_SNORM:
+        case CFMT_R16_UINT:
+        case CFMT_R16_SINT:
+        case CFMT_R16_FLOAT:
+            coltype = PNG_COLOR_TYPE_GRAY;
+            break;
+        case CFMT_RG16_UNORM:
+        case CFMT_RG16_SNORM:
+        case CFMT_RG16_UINT:
+        case CFMT_RG16_SINT:
+        case CFMT_RG16_FLOAT:
+            coltype = PNG_COLOR_TYPE_GA;
+            break;
+        case CFMT_RGB16_UNORM:
+        case CFMT_RGB16_SNORM:
+        case CFMT_RGB16_UINT:
+        case CFMT_RGB16_SINT:
+        case CFMT_RGB16_FLOAT:
+            coltype = PNG_COLOR_TYPE_RGB;
+            break;
+        case CFMT_RGBA16_UNORM:
+        case CFMT_RGBA16_SNORM:
+        case CFMT_RGBA16_UINT:
+        case CFMT_RGBA16_SINT:
+        case CFMT_RGBA16_FLOAT:
+            coltype = PNG_COLOR_TYPE_RGBA;
+            break;
+        case CFMT_R32_UINT:
+        case CFMT_R32_SINT:
+        case CFMT_R32_FLOAT:
+            coltype = PNG_COLOR_TYPE_GRAY;
+            break;
+        case CFMT_RG32_UINT:
+        case CFMT_RG32_SINT:
+        case CFMT_RG32_FLOAT:
+            coltype = PNG_COLOR_TYPE_GA;
+            break;
+        case CFMT_RGB32_UINT:
+        case CFMT_RGB32_SINT:
+        case CFMT_RGB32_FLOAT:
+            coltype = PNG_COLOR_TYPE_RGB;
+            break;
+        case CFMT_RGBA32_UINT:
+        case CFMT_RGBA32_SINT:
+        case CFMT_RGBA32_FLOAT:
+            coltype = PNG_COLOR_TYPE_RGBA;
+            break;
+        case CFMT_D16_UNORM:
+        case CFMT_D32_FLOAT:
+        case CFMT_D24_UNORM_S8_UINT:
+        case CFMT_D32_FLOAT_S8_UINT:
+        default:
+            coltype = -1;
+            break;
+        break;
+    }
+
+    const int bytesperpixel = cfmt_get_bytesperpixel(tex->fmt);
+    png_set_IHDR(png, info, tex->w, tex->h, bytesperpixel * 8, coltype, PNG_INTERLACE_ADAM7, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+
+    png_write_info(png, info);
+
+    png_bytep row_pointers[tex->h];
+    for (int y = 0; y < tex->h; y++) {
+        row_pointers[y] = tex->data + y * tex->w * bytesperpixel;
+    }
+    png_write_image(png, row_pointers);
+
+    png_write_end(png, NULL);
+
+    fclose(f);
+    png_destroy_write_struct(&png, &info);
 }

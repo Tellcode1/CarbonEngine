@@ -2,8 +2,8 @@
 #define __SQUARE_HPP_
 
 #include "vkstdafx.h"
-#include "vkhelper.hpp"
-#include "cvk.hpp"
+#include "vkhelper.h"
+#include "cvk.h"
 #include "math/vec3.hpp"
 #include "math/vec2.hpp"
 #include "math/mat.hpp"
@@ -69,11 +69,11 @@ struct csquare_t {
 };
 
 int ccreate_cube(crenderer_t *rd, csquare_t *dst) {
-    help::Buffers::CreateBuffer(
+    vkh_buffer_create(
         ccube_total_data_size,
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-        &dst->buf, &dst->mem
+        &dst->buf, &dst->mem, 0
     );
 
     void *mapped;

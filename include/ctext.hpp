@@ -1,7 +1,7 @@
 #ifndef __C_TEXT_HPP__
 #define __C_TEXT_HPP__
 
-#include "../../../include/engine/camera.hpp"
+#include "../../../include/camera.hpp"
 
 #include "../include/math/vec3.hpp"
 #include "../include/math/vec2.hpp"

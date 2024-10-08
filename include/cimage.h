@@ -17,6 +17,10 @@ extern ctex2D cimg_load(const char *path);
 extern ctex2D cimg_load_png(const char *path);
 extern ctex2D cimg_load_jpg(const char *path);
 
+extern void cimg_write(const ctex2D *tex, const char *path);
+extern void cimg_write_png(const ctex2D *tex, const char *path);
+extern void cimg_write_jpg(const ctex2D *tex, const char *path);
+
 #ifdef __cplusplus
     }
 #endif
