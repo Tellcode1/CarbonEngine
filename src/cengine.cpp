@@ -44,10 +44,9 @@ void cg_update() {
 
     if (static_cast<double>(SDL_GetTicks64() - cg_fixed_frame_start) >= FIXED_TICK_RATE) {
         // fixed update
+        cinput_update();
         cg_fixed_frame_start = SDL_GetTicks64();
     }
-
-    cinput_update();
 }
 
 void cg_begin_frame() {

@@ -16,9 +16,9 @@
 #include <SDL2/SDL_vulkan.h>
 
 #ifdef bool_t
-    typedef bool_t cengine_bool_t;
+    typedef bool_t cg_bool_t;
 #else
-    typedef unsigned char cengine_bool_t;
+    typedef unsigned char cg_bool_t;
 #endif
 
 // Move ownership to camera VV
@@ -39,7 +39,7 @@ typedef enum cengine_vsync_bits {
     CENGINE_VSYNC_DISABLED = 0,
     CENGINE_VSYNC_ENABLED = 1
 } cengine_vsync_bits;
-typedef cengine_bool_t cengine_vsync;
+typedef cg_bool_t cg_vsync;
 
 typedef enum cengine_buffering_mode_bits {
     CGFX_BUFFER_MODE_SINGLE_BUFFERED = 0,
@@ -60,18 +60,18 @@ typedef enum cengine_sample_count_bits {
 } cengine_sample_count_bits;
 typedef unsigned cengine_sample_count;
 
-typedef struct cengine_extent2d {
+typedef struct cg_extent2d {
     int width, height;
-} cengine_extent2d;
+} cg_extent2d;
 
 typedef struct crenderer_config {
     cengine_sample_count   samples;
     cengine_buffering_mode buffer_mode;
-    cengine_extent2d       initial_window_size;
+    cg_extent2d            initial_window_size;
     SDL_Scancode           exit_key;
-    cengine_bool_t         multisampling_enable;
-    cengine_bool_t         window_resizable;
-    cengine_vsync          vsync_enabled;
+    cg_bool_t              multisampling_enable;
+    cg_bool_t              window_resizable;
+    cg_vsync               vsync_enabled;
 } crenderer_config;
 
 static inline crenderer_config crender_config_init() {
@@ -87,14 +87,15 @@ static inline crenderer_config crender_config_init() {
 }
 
 typedef struct crenderer_t crenderer_t;
-extern crenderer_t *crenderer_init(const crenderer_config *conf);
-extern cengine_bool_t crenderer_begin_render(struct crenderer_t *rd);
-extern void crenderer_end_render(struct crenderer_t *rd);
 
-extern int crenderer_get_renderer_frame(const struct crenderer_t *rd);
-extern struct VkCommandBuffer_T *crenderer_get_drawbuffer(const struct crenderer_t *rd);
-extern struct VkRenderPass_T *crenderer_get_render_pass(const struct crenderer_t *rd);
-extern struct cengine_extent2d crenderer_get_render_extent(const struct crenderer_t *rd);
+extern crenderer_t *crenderer_init(const crenderer_config *conf);
+extern cg_bool_t crd_begin_render(struct crenderer_t *rd);
+extern void crd_end_render(struct crenderer_t *rd);
+
+extern int crd_get_renderer_frame(const struct crenderer_t *rd);
+extern struct VkCommandBuffer_T *crd_get_drawbuffer(const crenderer_t *rd);
+extern struct VkRenderPass_T *crd_get_render_pass(const crenderer_t *rd);
+extern struct cg_extent2d crd_get_render_extent(const crenderer_t *rd);
 
 extern void crenderer_destroy(struct crenderer_t *rd);
 

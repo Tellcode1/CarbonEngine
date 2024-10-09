@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
     infoo.fontPath = "../Assets/roboto.ttf";
     infoo.chset = CHARSET_ASCII;
     infoo.scale = 32.0f;
-    infoo.channel_count = ctext::CHANNELS_MSDF;
+    infoo.channel_count = ctext::CHANNELS_SDF;
     ctext::load_font(rd, &infoo, &amongus);
 
     int curr_showing_fps = 0;
@@ -93,7 +93,8 @@ int main(int argc, char *argv[]) {
             camera.move(cam_pos_add);
         }
 
-        if (cinput_is_key_pressed(SDL_SCANCODE_TAB)) {
+        if (cinput_is_key_pressed(SDL_SCANCODE_SPACE)) {
+            printf("space press\n");
             relmodeon = !relmodeon;
             SDL_SetRelativeMouseMode((SDL_bool)relmodeon);
         }
@@ -125,7 +126,7 @@ int main(int argc, char *argv[]) {
 
         camera.update(rd);
 
-        if (crenderer_begin_render(rd)) {
+        if (crd_begin_render(rd)) {
             ctext::begin_render(amongus);
 
             ctext::text_render_info info;
@@ -138,17 +139,17 @@ int main(int argc, char *argv[]) {
             info.horizontal = CTEXT_HORI_ALIGN_CENTER;
             info.vertical = CTEXT_VERT_ALIGN_CENTER;
             info.position = cm::vec3(0.0f, 0.0f, sinf(cg_get_time()) * 5.0f);
-            ctext::render(amongus, &info, "pootis");
+            ctext::render(amongus, &info, "POOTIS\nSPENCER\nHERE");
 
             ctext::end_render(rd, camera, amongus, cm::mat4(1.0f));
 
             block->transform.rotation.y += cmdeg2rad(360.0f * 16.0f) * dt;
 
-            render(rd, camera, light, light->transform.position);
-            render(rd, camera, mesh, light->transform.position);
+            // render(rd, camera, light, light->transform.position);
+            // render(rd, camera, mesh, light->transform.position);
             render(rd, camera, block, light->transform.position);
 
-            crenderer_end_render(rd);
+            crd_end_render(rd);
         } else {
             LOG_INFO("Skipped a frame!");
         }

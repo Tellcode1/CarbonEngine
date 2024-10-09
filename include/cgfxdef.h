@@ -10,12 +10,17 @@
 
 #include "../include/cgfx.h"
 
+// * it shold be like cg_init_ctext(rd); and then you can just do crd_render_text(&info);
+typedef struct cg_ctext_module {
+    // TODO Implement
+} cg_ctext_module;
+
 typedef struct crenderer_t
 {
     crenderer_config config;
 
     VkRenderPass render_pass;
-    cengine_extent2d render_extent;
+    cg_extent2d render_extent;
 
     VkSwapchainKHR swapchain;
     VkCommandPool commandPool;
@@ -32,6 +37,8 @@ typedef struct crenderer_t
 
     cvector_t *renderData;
     cvector_t *drawBuffers;
+
+    cg_ctext_module *ctext;
 } crenderer_t;
 
 #ifdef __cplusplus

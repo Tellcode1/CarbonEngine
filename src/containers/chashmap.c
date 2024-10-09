@@ -174,9 +174,9 @@ void *chashmap_find(const chashmap_t *map, const void *key)
         return NULL;
     }
 
-    const unsigned begin = power_of_two_mod(map->hash_fn(key, map->keysize), map->entries);
+    const unsigned begin = (map->hash_fn(key, map->keysize) % map->entries);
     unsigned i = begin;
-    while (map->nodes[i] && map->nodes[i]->is_occupied) {
+    while (map->nodes[i] != NULL && map->nodes[i]->is_occupied) {
         if (map->equal_fn(map->nodes[i]->key, key, map->keysize)) {
             return map->nodes[i]->value;
         }

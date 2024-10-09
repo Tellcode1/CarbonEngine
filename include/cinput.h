@@ -5,8 +5,10 @@
     extern "C" {
 #endif
 
+// !!!! Key presses are NOT working because cbitset_set_bit_to blindly sets bit value. FIX!
+
 #include <SDL2/SDL.h>
-#include "../include/vkstdafx.h"
+#include "../include/stdafx.h"
 #include "../include/containers/cbitset.h"
 
 typedef enum key_state

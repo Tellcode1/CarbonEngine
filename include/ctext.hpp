@@ -13,6 +13,7 @@
 #include "containers/cvector.h"
 #include "containers/cstring.h"
 #include "containers/chashmap.h"
+#include "containers/catlas.h"
 
 typedef struct crenderer_t crenderer_t;
 
@@ -108,8 +109,8 @@ struct ctext
 
     struct CFGlyph
     {
-        f32 positions[4];
-        f32 uv[4];
+        float x0,x1,y0,y1;
+        float l,r,b,t;
         f32 advance;
     };
 
@@ -129,8 +130,7 @@ struct ctext
     /* Internal CFont struct. Do not modify yourselves! */
     struct cfont_t
     {
-        u32 atlas_width, atlas_height;
-        u8 *atlas_data;
+        catlas_t atlas;
         f32 pixel_range;
 
         f32 line_height;

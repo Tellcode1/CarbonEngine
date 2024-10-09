@@ -81,7 +81,7 @@ struct ccamera {
 
         view = cm::lookat(position, cm::add(position, front), up);
 
-        const struct cengine_extent2d RenderExtent = crenderer_get_render_extent(rd);
+        const cg_extent2d RenderExtent = crd_get_render_extent(rd);
         const f32 aspect = (f32)RenderExtent.width / (f32)RenderExtent.height;
         projection = cm::perspective(fov, aspect, near_clip, far_clip);
     }

@@ -389,11 +389,11 @@ struct cmesh_t *load_mesh(crenderer_t *rd, const char *mdlpath, const char *texp
     const csm_shader_t *shaders[] = { vertex, fragment };
     const VkDescriptorSetLayout layouts[] = { mesh->setlayout };
 
-    const cengine_extent2d RenderExtent = crenderer_get_render_extent(rd);
+    const cg_extent2d RenderExtent = crd_get_render_extent(rd);
     cvk_pipeline_create_info pc = cvk_init_pipeline_create_info();
     pc.format = SwapChainImageFormat;
     pc.subpass = 0;
-    pc.render_pass = crenderer_get_render_pass(rd);
+    pc.render_pass = crd_get_render_pass(rd);
 
     pc.nAttributeDescriptions = array_len(attributeDescriptions);
     pc.pAttributeDescriptions = attributeDescriptions;
@@ -437,7 +437,7 @@ static void render(crenderer_t *rd, ccamera camera, cmesh_t *mesh, cm::vec3 ligh
 
     const VkDeviceSize offsets[1] = {};
 
-    const VkCommandBuffer cmd = crenderer_get_drawbuffer(rd);
+    const VkCommandBuffer cmd = crd_get_drawbuffer(rd);
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, mesh->pipeline_layout, 0, 1, &mesh->set, 0, nullptr);
     vkCmdPushConstants(cmd, mesh->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(cm::vec3), &lightposition);
     vkCmdBindVertexBuffers(cmd, 0, 1, &mesh->vb, offsets);

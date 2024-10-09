@@ -106,7 +106,7 @@ int ccreate_cube(crenderer_t *rd, csquare_t *dst) {
     cvk_pipeline_create_info pc{};
     pc.format = SwapChainImageFormat;
     pc.subpass = 0;
-    pc.render_pass = crenderer_get_render_pass(rd);
+    pc.render_pass = crd_get_render_pass(rd);
 
     pc.nAttributeDescriptions = array_len(attributeDescriptions);
     pc.pAttributeDescriptions = attributeDescriptions;
@@ -120,7 +120,7 @@ int ccreate_cube(crenderer_t *rd, csquare_t *dst) {
     pc.nShaders = array_len(shaders);
     pc.pShaders = shaders;
 
-    const cengine_extent2d RenderExtent = crenderer_get_render_extent(rd);
+    const cg_extent2d RenderExtent = crd_get_render_extent(rd);
     pc.extent.width = RenderExtent.width;
     pc.extent.height = RenderExtent.height;
     pc.samples = Samples;
@@ -142,7 +142,7 @@ void render_cube(crenderer_t *rd, ccamera camera, const csquare_t *cube) {
 
     const VkDeviceSize offsets[1] = {};
 
-    const VkCommandBuffer cmd = crenderer_get_drawbuffer(rd);
+    const VkCommandBuffer cmd = crd_get_drawbuffer(rd);
     vkCmdBindVertexBuffers(cmd, 0, 1, &cube->buf, offsets);
     vkCmdPushConstants(cmd, cube->pipeline.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push_constants), &pc);
     vkCmdBindIndexBuffer(cmd, cube->buf, ccube_index_offset, VK_INDEX_TYPE_UINT32);

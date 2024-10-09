@@ -4,12 +4,11 @@
 #include "../../../include/cshadermanager.h"
 #include "../../../include/cvk.h"
 #include "../../../include/vkhelper.h"
-
-#define MSDFGEN_PUBLIC // ?
-#include "../../../external/msdf-atlas-gen/msdf-atlas-gen/msdf-atlas-gen.h"
+#include "../../../include/cimage.h"
 
 #include <freetype2/ft2build.h>
 #include FT_FREETYPE_H
+#include FT_GLYPH_H
 
 #define MAX(a,b) ({ __typeof__(a) a_ = a; __typeof__(a) b_ = b; (a_ > b_) ? a_ : b_; })
 
@@ -35,23 +34,6 @@ VkSampler ctext::error_image_sampler = VK_NULL_HANDLE;
 
 /* I have no idea what any of this is */
 
-template <typename T, u32 channels>
-u8 *i_hate_my_life(u32 width, u32 height, T &generator, std::vector<msdf_atlas::GlyphGeometry> &glyphs) {
-    generator.setThreadCount(16);
-    generator.generate(glyphs.data(), glyphs.size());
-    msdfgen::BitmapConstRef<f32, channels> bitmap = generator.atlasStorage();
-
-    u8* pixelBuffer = reinterpret_cast<u8*>(malloc(width * height * channels));
-
-    // what the f(*(#$)*@#) is this
-    for (u32 y = 0; y < height; y++)
-        for (u32 x = 0; x < width; x++)
-            for (u32 c = 0; c < channels; c++)
-                pixelBuffer[(width * (height - y - 1) + x) * channels + c] = msdfgen::pixelFloatToByte(bitmap.pixels[(width * y + x) * channels + c]);
-
-    return pixelBuffer;
-}
-
 void ctext::load_font(crenderer_t *rd, const CFontLoadInfo *__restrict pInfo, cfont_t **dst)
 {
 	if (!pInfo || !dst)
@@ -62,155 +44,109 @@ void ctext::load_font(crenderer_t *rd, const CFontLoadInfo *__restrict pInfo, cf
 
     cassert_and_ret(pInfo->scale > 0.0f);
 
-    FT_Library lib;
-    FT_Face face;
-
-    cassert(FT_Init_FreeType(&lib) == FT_Err_Ok);
-    cassert(FT_New_Face(lib, pInfo->fontPath, 0, &face) == FT_Err_Ok);
-
-    
-
-    msdfgen::FreetypeHandle *ft = msdfgen::initializeFreetype();
-    if (!ft) {
-        LOG_ERROR("msdfgen<Freetype> failed to initialize");
-        return;
-    }
-
-    msdfgen::FontHandle *fnt = msdfgen::loadFont(ft, pInfo->fontPath);
-    if (!fnt) {
-        msdfgen::deinitializeFreetype(ft);
-        LOG_ERROR("Failed to load fnt. Is path (\"%s\") valid?", pInfo->fontPath);
-        return;
-    }
-
     *dst = new cfont_t();
-
-    std::vector<msdf_atlas::GlyphGeometry> glyphs;
-    msdf_atlas::FontGeometry fontGeometry(&glyphs);
-
-    fontGeometry.loadCharset(fnt, 1.0f, msdf_atlas::Charset::ASCII);
-
-    constexpr double maxCornerAngle = 3.0;
-    for (msdf_atlas::GlyphGeometry& glyph : glyphs)
-        glyph.edgeColoring(&msdfgen::edgeColoringByDistance, maxCornerAngle, 0);
-
     const f32 scale = ceilf(pInfo->scale);
-    msdf_atlas::TightAtlasPacker packer;
-    packer.setDimensionsConstraint(msdf_atlas::DimensionsConstraint::POWER_OF_TWO_SQUARE);
-    packer.setMinimumScale(pInfo->scale);
-    packer.setPixelRange(scale);
-    packer.setMiterLimit(scale);
-    packer.setSpacing(2);
-    packer.pack(glyphs.data(), glyphs.size());
-
     (*dst)->pixel_range = scale;
-
-    i32 width_ = 0, height_ = 0;
-    packer.getDimensions(width_, height_);
-    u32 width = width_, height = height_; // I hate people who use integers for no reason like bro an unsigned is obviously better here
-
-    const VkFormat bitmap_fmt =
-        (pInfo->channel_count == 4) ? VK_FORMAT_R8G8B8A8_UNORM :
-        (pInfo->channel_count == 3) ? VK_FORMAT_R8G8B8_UNORM :
-        (pInfo->channel_count == 1) ? VK_FORMAT_R8_UNORM :
-        VK_FORMAT_UNDEFINED;
-
-    using sdf_gen =  msdf_atlas::ImmediateAtlasGenerator<
-        f32,
-        1,
-        msdf_atlas::sdfGenerator,
-        msdf_atlas::BitmapAtlasStorage<f32, 1>
-    >;
-
-    using msdf_gen =  msdf_atlas::ImmediateAtlasGenerator<
-        f32,
-        3,
-        msdf_atlas::msdfGenerator,
-        msdf_atlas::BitmapAtlasStorage<f32, 3>
-    >;
-
-    using mtsdf_gen =  msdf_atlas::ImmediateAtlasGenerator<
-        f32,
-        4,
-        msdf_atlas::mtsdfGenerator,
-        msdf_atlas::BitmapAtlasStorage<f32, 4>
-    >;
-
-    u8 *pixelBuffer;
-    if (pInfo->channel_count == CHANNELS_1) {
-        sdf_gen gen(width, height);
-        pixelBuffer = i_hate_my_life<sdf_gen, 1>(width, height, gen, glyphs);
-    }
-    else if (pInfo->channel_count == CHANNELS_3) {
-        msdf_gen gen(width, height);
-        pixelBuffer = i_hate_my_life<msdf_gen, 3>(width, height, gen, glyphs);
-    }
-    else if (pInfo->channel_count == CHANNELS_4) {
-        mtsdf_gen gen(width, height);
-        pixelBuffer = i_hate_my_life<mtsdf_gen, 4>(width, height, gen, glyphs);
-    }
-    else {
-        __builtin_unreachable();
-        LOG_AND_ABORT("Invalid channel count");
-    }
-
     (*dst)->glyph_map = chashmap_init(16, sizeof(char), sizeof(CFGlyph), NULL, NULL);
     (*dst)->drawcalls = cvector_init(sizeof(text_drawcall_t), 4);
 
-    for (const msdf_atlas::GlyphGeometry& glyph : glyphs) {
-        if (glyph.isWhitespace()) {
-            (*dst)->space_width = glyph.getAdvance();
+    FT_Library lib; FT_Face face;
+    if (FT_Init_FreeType(&lib))
+    {
+        LOG_ERROR("failed to initialize ft\n");
+    }
+
+    if (FT_New_Face(lib, pInfo->fontPath, 0, &face))
+    {
+        LOG_ERROR("failed to load font file: %s\n", pInfo->fontPath);
+        FT_Done_FreeType(lib);
+    }
+    FT_Set_Pixel_Sizes(face, 0, 256);
+
+    if (face->size->metrics.height) {
+        (*dst)->line_height = -face->size->metrics.height / (f32)face->units_per_EM;
+    } else {
+        // ! This doesn't work. find out why
+        (*dst)->line_height = -(f32)(face->ascender - face->descender) / face->size->metrics.y_scale;
+    }
+    (*dst)->atlas = catlas_init(4096, 4096);
+
+    // ! WHAT THE FU IS THIS????
+    int xpositions[ 256 ];
+    int ypositions[ 256 ];
+    for (int i = 0; i < 256; ++i) {
+        FT_UInt glyph_index = FT_Get_Char_Index(face, i);
+
+        if (FT_Load_Glyph(face, glyph_index, FT_LOAD_DEFAULT)) {
             continue;
         }
 
-        f64 x0_, y0_, x1_, y1_;
-        glyph.getQuadPlaneBounds(x0_, y0_, x1_, y1_);
+        FT_Render_Glyph(face->glyph, FT_RENDER_MODE_NORMAL);
+        FT_GlyphSlot g = face->glyph;
 
-        f64 l_, b_, r_, t_;
-        glyph.getQuadAtlasBounds(l_, b_, r_, t_);
+        const int w = g->bitmap.width;
+        const int h = g->bitmap.rows;
+        const unsigned char *buffer = g->bitmap.buffer;
 
-        f32 l = (f32(l_)) / f32(width);
-        f32 r = (f32(r_)) / f32(height);
-        f32 b  =(1.0f - (f32)b_) / f32(width);
-        f32 t  =(1.0f - (f32)t_) / f32(height);
-
-        f32 x0 = f32(x0_);
-        f32 x1 = f32(x1_);
-        f32 y0 = (f32)y0_;
-        f32 y1 = (f32)y1_;
-
-        CFGlyph mogus;
-
-        const f32 positions[4] = {
-            x0, x1,
-            y0, y1,
-        };
-
-        const f32 uv_positions[4] = {
-            l, r,
-            b, t
-        };
-
-        for (int i = 0; i < 4; i++) {
-            mogus.positions[i] = positions[i];
-            mogus.uv[i] = uv_positions[i];
+        int x,y;
+        if (catlas_add_image(&(*dst)->atlas, w, h, buffer, &x, &y)) {
+            printf("atlas out of space???\n");
+            continue;
         }
-
-        msdfgen::FontMetrics metrics;
-        msdfgen::getFontMetrics(metrics, fnt);
-
-        (*dst)->line_height = f32(metrics.lineHeight) / f32(metrics.emSize);
-
-        mogus.advance = static_cast<f32>(glyph.getAdvance());
-        const char codepoint = glyph.getCodepoint();
-        chashmap_insert((*dst)->glyph_map, &codepoint, &mogus);
+        xpositions[i] = x;
+        ypositions[i] = y;
     }
 
-    (*dst)->atlas_width = width;
-    (*dst)->atlas_height = height;
-    (*dst)->atlas_data = pixelBuffer;
+    for (int i = 0; i < 256; ++i) {
+        FT_UInt glyph_index = FT_Get_Char_Index(face, i);
 
-    vkh_image_from_mem(pixelBuffer, width, height, bitmap_fmt, pInfo->channel_count, &(*dst)->texture, &(*dst)->texture_memory);
+        if (FT_Load_Glyph(face, glyph_index, FT_LOAD_BITMAP_METRICS_ONLY)) {
+            continue;
+        }
+
+        if (i == ' ') {
+            (*dst)->space_width = face->glyph->advance.x / (f32)face->units_per_EM;
+            printf("space w %f\n", (*dst)->space_width);
+            continue;
+        }
+        const int w = face->glyph->bitmap.width, h = face->glyph->bitmap.rows;
+        const int x = xpositions[i], y = ypositions[i];
+
+        CFGlyph retglyph = {};
+        retglyph.l = (float)(x) / (*dst)->atlas.width;
+        retglyph.r = (float)(x + w) / (*dst)->atlas.width;
+        retglyph.b = (float)(y + h) / (*dst)->atlas.height;
+        retglyph.t = (float)(y) / (*dst)->atlas.height;
+
+        FT_Glyph gl;
+        FT_Get_Glyph(face->glyph, &gl);
+
+        FT_BBox box;
+        FT_Glyph_Get_CBox(gl, FT_GLYPH_BBOX_UNSCALED, &box);
+
+        FT_Done_Glyph(gl);
+
+        retglyph.x0 = box.xMin / (f32)face->units_per_EM;
+        retglyph.x1 = box.xMax / (f32)face->units_per_EM;
+        retglyph.y0 = box.yMin / (f32)face->units_per_EM;
+        retglyph.y1 = box.yMax / (f32)face->units_per_EM;
+        retglyph.advance = (f32)face->glyph->metrics.horiAdvance / (f32)face->units_per_EM;
+
+        const char glyphi = i;
+        chashmap_insert((*dst)->glyph_map, &glyphi, &retglyph);
+    }
+
+    FT_Done_Face(face);
+    FT_Done_FreeType(lib);
+    
+    ctex2D tex = {};
+    tex.w = (*dst)->atlas.width;
+    tex.h = (*dst)->atlas.height;
+    tex.fmt = CFMT_R8_UINT;
+    tex.data = (*dst)->atlas.data;
+    printf("atlas width -> %i, atlas height -> %i", tex.w, tex.h);
+    cimg_write_png(&tex, "skdlfj.png");
+    vkh_image_from_mem((*dst)->atlas.data, (*dst)->atlas.width, (*dst)->atlas.height, VK_FORMAT_R8_UNORM, pInfo->channel_count, &(*dst)->texture, &(*dst)->texture_memory);
 
     VkSamplerCreateInfo sampler_info{};
     sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -226,7 +162,7 @@ void ctext::load_font(crenderer_t *rd, const CFontLoadInfo *__restrict pInfo, cf
     VkImageViewCreateInfo view_info{};
     view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    view_info.format = bitmap_fmt;
+    view_info.format = VK_FORMAT_R8_UNORM;
     view_info.image = (*dst)->texture;
     view_info.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
     view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -255,9 +191,6 @@ void ctext::load_font(crenderer_t *rd, const CFontLoadInfo *__restrict pInfo, cf
         vkUpdateDescriptorSets(device, 1, &writeSet, 0, nullptr);
     }
 
-    msdfgen::destroyFont(fnt);
-    msdfgen::deinitializeFreetype(ft);
-
     VkVertexInputAttributeDescription attributeDescriptions[] = {
         // location; binding; format; offset;
         { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0 }, // pos
@@ -276,17 +209,7 @@ void ctext::load_font(crenderer_t *rd, const CFontLoadInfo *__restrict pInfo, cf
 
     csm_shader_t *vertex, *fragment;
     csm_load_shader("ctext/vert", &vertex);
-
-    const char *fshader_path = "ctext/sdf";
-
-    if (pInfo->channel_count == CHANNELS_SDF)
-        fshader_path = "ctext/sdf";
-    else if (pInfo->channel_count == CHANNELS_MSDF)
-        fshader_path = "ctext/msdf";
-    else if (pInfo->channel_count == CHANNELS_MTSDF)
-        fshader_path = "ctext/mtsdf";
-
-    csm_load_shader(fshader_path, &fragment);
+    csm_load_shader("ctext/frag", &fragment);
 
     csm_shader_t * shaders[] = { vertex, fragment };
     VkDescriptorSetLayout layouts[] = { desc_Layout };
@@ -296,7 +219,7 @@ void ctext::load_font(crenderer_t *rd, const CFontLoadInfo *__restrict pInfo, cf
     cvk_pipeline_create_info pc = cvk_init_pipeline_create_info();
     pc.format = SwapChainImageFormat;
     pc.subpass = 0;
-    pc.render_pass = crenderer_get_render_pass(rd);
+    pc.render_pass = crd_get_render_pass(rd);
     pc.pipeline_layout = (*dst)->pipeline_layout;
     
     pc.nAttributeDescriptions = array_len(attributeDescriptions);
@@ -314,7 +237,7 @@ void ctext::load_font(crenderer_t *rd, const CFontLoadInfo *__restrict pInfo, cf
     pc.nDescriptorLayouts = array_len(layouts);
     pc.pDescriptorLayouts = layouts;
 
-    const cengine_extent2d RenderExtent = crenderer_get_render_extent(rd);
+    const cg_extent2d RenderExtent = crd_get_render_extent(rd);
     pc.extent.width = RenderExtent.width;
     pc.extent.height = RenderExtent.height;
     pc.blend_state = &blend;
@@ -332,7 +255,7 @@ void ctext::end_render(crenderer_t *rd, ccamera camera, cfont_t *fnt, cm::mat4 m
     if (!fnt->to_render)
         return;
 
-    const VkCommandBuffer cmd = crenderer_get_drawbuffer(rd);
+    const VkCommandBuffer cmd = crd_get_drawbuffer(rd);
     constexpr VkDeviceSize offsets[] = { 0 };
 
     struct push_constants {
@@ -359,28 +282,30 @@ void ctext::end_render(crenderer_t *rd, ccamera camera, cfont_t *fnt, cm::mat4 m
     vkCmdDrawIndexed(cmd, fnt->index_count, 1, 0, 0, 0);
 }
 
-static cvector_t * /* cstring_t * */ split_string(const cstring_t *str) {
+static cvector_t *split_string(const cstring_t *str) {
     cstring_t *substr = NULL;
     cvector_t *result = NULL;
     int i_start = 0;
 
-    result = cvector_init( sizeof(cstring_t *), 16 );
+    result = cvector_init(sizeof(cstring_t *), 16);
+    cassert(result != NULL);
 
-    // // I got this from reddit.
-    for(int i = 0; i < cstring_length(str); i++)
-    {
-        if(cstring_data(str)[i] == '\n')
-        {
-            substr = cstring_substring(str, i_start, i - i_start);
-            cassert(substr != NULL);
-            cvector_push_back( result, &substr );
+    for (int i = 0; i < cstring_length(str); i++) {
+        if (cstring_data(str)[i] == '\n') {
+            if (i > i_start) {
+                substr = cstring_substring(str, i_start, i - i_start);
+                cassert(substr != NULL);
+                cvector_push_back(result, &substr);
+            }
             i_start = i + 1;
         }
     }
 
-    // add the remaining str
-    substr = cstring_substring(str, i_start, cstring_length(str));
-    cvector_push_back( result, &substr );
+    if (i_start < cstring_length(str)) {
+        substr = cstring_substring(str, i_start, cstring_length(str) - i_start);
+        cassert(substr != NULL);
+        cvector_push_back(result, &substr);
+    }
 
     return result;
 }
@@ -452,7 +377,8 @@ static void render_line(
 
     f32 width = 0.0f;
     int local_glyph_iter = glyph_iter;
-    for (int i = 0; i < cstring_length(str); i++) {
+    const int len = cstring_length(str);
+    for (int i = 0; i < len; i++) {
         const char c = cstring_data(str)[i];
         switch (c) {
             case ' ':
@@ -464,7 +390,8 @@ static void render_line(
             case '\n':
                 continue;
             default:
-                int index = *(int *)chashmap_find(index_table, &c);
+                int *indexptr = (int *)chashmap_find(index_table, &c);
+                int index = *indexptr;
                 ctext::CFGlyph *glyph = ((ctext::CFGlyph **)cvector_data(glyph_table))[ index ];
                 width += glyph->advance * pInfo->scale;
                 local_glyph_iter++;
@@ -481,7 +408,7 @@ static void render_line(
                     :
                     pInfo->position.x;
 
-    for (int i = 0; i < cstring_length(str); i++) {
+    for (int i = 0; i < len; i++) {
         switch (cstring_data(str)[i]) {
             case ' ':
                 x += scaled_space_width;
@@ -490,18 +417,17 @@ static void render_line(
                 x += scaled_tab_width;
                 continue;
             default:
-                const ctext::CFGlyph &glyph = *(((ctext::CFGlyph **)cvector_data(glyph_table))[*(u32 *)chashmap_find(index_table, cstring_data(str) + i)]);
-
-                const f32 glyph_x0 = glyph.positions[0] * pInfo->scale + x;
-                const f32 glyph_x1 = glyph.positions[1] * pInfo->scale + x;
-                const f32 glyph_y0 = glyph.positions[2] * pInfo->scale + y;
-                const f32 glyph_y1 = glyph.positions[3] * pInfo->scale + y;
+                const ctext::CFGlyph *glyph = (const ctext::CFGlyph *)chashmap_find(fnt->glyph_map, &(cstring_data(str)[i]));
+                const f32 glyph_x0 = glyph->x0 * pInfo->scale + x;
+                const f32 glyph_x1 = glyph->x1 * pInfo->scale + x;
+                const f32 glyph_y0 = glyph->y0 * pInfo->scale + y;
+                const f32 glyph_y1 = glyph->y1 * pInfo->scale + y;
 
                 const cm::vec2 texture_coordinates[4] = {
-                    cm::vec2(glyph.uv[0], glyph.uv[2]),
-                    cm::vec2(glyph.uv[1], glyph.uv[2]),
-                    cm::vec2(glyph.uv[1], glyph.uv[3]),
-                    cm::vec2(glyph.uv[0], glyph.uv[3])
+                    cm::vec2(glyph->l, glyph->b),
+                    cm::vec2(glyph->r, glyph->b),
+                    cm::vec2(glyph->r, glyph->t),
+                    cm::vec2(glyph->l, glyph->t)
                 };
 
                 const f32 scaled_z = pInfo->position.z * pInfo->scale;
@@ -522,7 +448,7 @@ static void render_line(
                 index_output_data += 6;
                 index_offset += 4;
 
-                x += glyph.advance * pInfo->scale;
+                x += glyph->advance * pInfo->scale;
                 glyph_iter++;
                 continue;
         }
@@ -593,19 +519,20 @@ void gen_vertices(
 
 void ctext::render(cfont_t *fnt, const text_render_info *pInfo, const char *fmt, ...)
 {
-    char buffer[512] = {};
-
+    char buf[BUFSIZ] = {};
     va_list arg;
     va_start(arg, fmt);
-    vsprintf(buffer, fmt, arg);
+    int num = vsprintf(buf, fmt, arg);
     va_end(arg);
 
-    const u32 effective_length = get_effective_length(buffer, strlen(buffer));
+    const u32 effective_length = get_effective_length(buf, num);
     if (effective_length == 0) {
         return;
     }
 
-    cstring_t *str = cstring_init_str(buffer);
+    cstring_t *str = cstring_init_str(buf);
+
+    // free(buf);
 
     const u32 vertex_count = effective_length * 4;
     const u32 index_count = effective_length * 6;
@@ -620,7 +547,7 @@ void ctext::render(cfont_t *fnt, const text_render_info *pInfo, const char *fmt,
     drawcall.indices = (u32 *)((uchar *)allocation + drawcall.index_offset);
 
     cvector_t * /* ctext::CFGlyph * */ glyph_table = cvector_init(sizeof(ctext::CFGlyph *), effective_length);
-    chashmap_t * /*<char, int>*/ index_table = chashmap_init(effective_length, sizeof(char), sizeof(int), ctext_hash, NULL);
+    chashmap_t * /*<char, int>*/ index_table = chashmap_init(effective_length, sizeof(char), sizeof(int), NULL, NULL);
 
     int pen = 0;
     for (int i = 0; i < cstring_length(str); i++) {

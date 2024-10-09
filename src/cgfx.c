@@ -23,22 +23,22 @@ VkQueue ComputeQueue = VK_NULL_HANDLE;
 VkQueue TransferQueue = VK_NULL_HANDLE;
 VkSampleCountFlagBits Samples = VK_SAMPLE_COUNT_1_BIT;
 
-int crenderer_get_renderer_frame(const crenderer_t *rd)
+int crd_get_renderer_frame(const crenderer_t *rd)
 {
     return rd->renderer_frame;
 }
 
-VkCommandBuffer crenderer_get_drawbuffer(const crenderer_t *rd)
+VkCommandBuffer crd_get_drawbuffer(const crenderer_t *rd)
 {
     return *(VkCommandBuffer *)cvector_get(rd->drawBuffers, rd->renderer_frame);
 }
 
-VkRenderPass crenderer_get_render_pass(const crenderer_t *rd)
+VkRenderPass crd_get_render_pass(const crenderer_t *rd)
 {
     return rd->render_pass;
 }
 
-cengine_extent2d crenderer_get_render_extent(const crenderer_t *rd)
+cg_extent2d crd_get_render_extent(const crenderer_t *rd)
 {
     return rd->render_extent;
 }
@@ -422,7 +422,7 @@ void crenderer_resize(crenderer_t *rd) {
     w = cmclamp((u32)w, min_width, max_width);
     h = cmclamp((u32)h, min_height, max_height);
 
-    rd->render_extent = (cengine_extent2d){ w, h };
+    rd->render_extent = (cg_extent2d){ w, h };
 
     VkSwapchainKHR old_swapchain = rd->swapchain;
 
@@ -472,7 +472,7 @@ void crenderer_resize(crenderer_t *rd) {
     cg__reset_frame_buffer_resized();
 }
 
-bool_t crenderer_begin_render(crenderer_t *rd)
+bool_t crd_begin_render(crenderer_t *rd)
 {
     cg_framerender_data *data = (cg_framerender_data *)cvector_get(rd->renderData, rd->renderer_frame);
 
@@ -535,7 +535,7 @@ bool_t crenderer_begin_render(crenderer_t *rd)
     return true;
 }
 
-void crenderer_end_render(crenderer_t *rd)
+void crd_end_render(crenderer_t *rd)
 {
     const VkCommandBuffer drawBuffer = *(VkCommandBuffer *)cvector_get(rd->drawBuffers, rd->renderer_frame);
 

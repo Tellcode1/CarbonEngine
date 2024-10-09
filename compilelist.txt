@@ -4,13 +4,10 @@
 ../Shaders/Generic/Unlit.vert
 ../Shaders/Generic/Unlit.frag
 
-../Shaders/ctext/sdf.frag.glsl
-../Shaders/ctext/msdf.frag.glsl
-../Shaders/ctext/mtsdf.frag.glsl
-../Shaders/ctext/test.comp.glsl
+../Shaders/ctext/ctext.vert.glsl
+../Shaders/ctext/ctext.frag.glsl
 
 ../Shaders/shadow.glsl.vert
 ../Shaders/shadow.glsl.frag
 
-../Shaders/vert.text.glsl
 ../Shaders/text.comp

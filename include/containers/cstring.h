@@ -12,6 +12,7 @@ typedef struct cstring_t cstring_t;
 */
 extern cstring_t *cstring_init(int initial_size);
 extern cstring_t *cstring_init_str(const char *init);
+extern cstring_t *cstring_init_ptr(const char *begin, const char *end);
 extern cstring_t *cstring_substring(const cstring_t *str, int start, int length);
 extern void cstring_destroy(cstring_t *str);
 
