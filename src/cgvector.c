@@ -1,19 +1,19 @@
 #include <stdlib.h>
 
-#include "../../include/containers/cvector.h"
+#include "../../include/cgvector.h"
 #include "../../include/math/math.h"
 #include "../../include/defines.h"
 
-typedef struct cvector_t {
+typedef struct cg_vector_t {
     int m_size;
     int m_capacity;
     int m_typesize;
     void *m_data;
-} cvector_t;
+} cg_vector_t;
 
-cvector_t *cvector_init(int typesize, int init_size)
+cg_vector_t *cg_vector_init(int typesize, int init_size)
 {
-    cvector_t *vec = malloc(sizeof(struct cvector_t));
+    cg_vector_t *vec = malloc(sizeof(struct cg_vector_t));
     cassert(vec != NULL);
 
     vec->m_size = 0;
@@ -30,7 +30,7 @@ cvector_t *cvector_init(int typesize, int init_size)
     return vec;
 }
 
-void cvector_destroy(cvector_t *vec)
+void cg_vector_destroy(cg_vector_t *vec)
 {
     if (vec) {
         if (vec->m_data) {
@@ -40,51 +40,51 @@ void cvector_destroy(cvector_t *vec)
     }
 }
 
-void cvector_clear(cvector_t *vec)
+void cg_vector_clear(cg_vector_t *vec)
 {
     vec->m_size = 0;
 }
 
-int cvector_size(const cvector_t *vec)
+int cg_vector_size(const cg_vector_t *vec)
 {
     return vec->m_size;
 }
 
-int cvector_capacity(const cvector_t *vec)
+int cg_vector_capacity(const cg_vector_t *vec)
 {
     return vec->m_capacity;
 }
 
-int cvector_typesize(const cvector_t *vec)
+int cg_vector_typesize(const cg_vector_t *vec)
 {
     return vec->m_typesize;
 }
-void *cvector_data(const cvector_t *vec)
+void *cg_vector_data(const cg_vector_t *vec)
 {
     return vec->m_data;
 }
 
-void *cvector_get(const cvector_t *vec, int i)
+void *cg_vector_get(const cg_vector_t *vec, int i)
 {
     return (uchar *)vec->m_data + (vec->m_typesize * i);
 }
 
-void cvector_set(cvector_t *vec, int i, void *elem)
+void cg_vector_set(cg_vector_t *vec, int i, void *elem)
 {
-    memcpy(cvector_get(vec, i), elem, vec->m_typesize);
+    memcpy(cg_vector_get(vec, i), elem, vec->m_typesize);
 }
 
-void cvector_copy_from(const cvector_t *src, cvector_t *dst)
+void cg_vector_copy_from(const cg_vector_t *src, cg_vector_t *dst)
 {
     cassert(src->m_typesize == dst->m_typesize);
     if (src->m_size >= dst->m_capacity) {
-        cvector_resize(dst, src->m_size);
+        cg_vector_resize(dst, src->m_size);
     }
     dst->m_size = src->m_size;
     memcpy(dst->m_data, src->m_data, src->m_size * src->m_typesize);
 }
 
-void cvector_move_from(cvector_t *src, cvector_t *dst)
+void cg_vector_move_from(cg_vector_t *src, cg_vector_t *dst)
 {
     dst->m_size = src->m_size;
     dst->m_capacity = src->m_capacity;
@@ -95,19 +95,19 @@ void cvector_move_from(cvector_t *src, cvector_t *dst)
     src->m_data = NULL;
 }
 
-cvector_bool_t cvector_empty(const cvector_t *vec)
+cg_vector_bool_t cg_vector_empty(const cg_vector_t *vec)
 {
     return (vec->m_size == 0);
 }
 
-cvector_bool_t cvector_equal(const cvector_t *vec1, const cvector_t *vec2)
+cg_vector_bool_t cg_vector_equal(const cg_vector_t *vec1, const cg_vector_t *vec2)
 {
     if (vec1->m_size != vec2->m_size || vec1->m_typesize != vec2->m_typesize)
         return (memcmp(vec1->m_data, vec2->m_data, vec1->m_size * vec1->m_typesize) == 0);
     return 0;
 }
 
-void cvector_resize(cvector_t *vec, int new_size)
+void cg_vector_resize(cg_vector_t *vec, int new_size)
 {
     // realloc crashes if m_data is NULL.
     if (vec->m_data) {
@@ -121,32 +121,32 @@ void cvector_resize(cvector_t *vec, int new_size)
     vec->m_capacity = new_size;
 }
 
-void cvector_push_back(cvector_t *vec, const void *elem)
+void cg_vector_push_back(cg_vector_t *vec, const void *elem)
 {
     if ((vec->m_size + 1) >= vec->m_capacity) {
-        cvector_resize(vec, cmmax(1, vec->m_capacity * 2));
+        cg_vector_resize(vec, cmmax(1, vec->m_capacity * 2));
     }
     memcpy((uchar *)vec->m_data + (vec->m_size * vec->m_typesize), elem, vec->m_typesize);
     vec->m_size++;
 }
 
-void cvector_push_set(cvector_t *vec, void *arr, int count)
+void cg_vector_push_set(cg_vector_t *vec, void *arr, int count)
 {
     int required_capacity = vec->m_size + count;
     if (required_capacity >= vec->m_capacity)
-        cvector_resize(vec, required_capacity);
+        cg_vector_resize(vec, required_capacity);
     memcpy((uchar *)vec->m_data + (vec->m_size * vec->m_typesize), arr, count * vec->m_typesize);
     vec->m_size += count;
 }
 
-void cvector_pop_back(cvector_t *vec)
+void cg_vector_pop_back(cg_vector_t *vec)
 {
     if (vec->m_size > 0) {
         vec->m_size--;
     }
 }
 
-void cvector_pop_front(cvector_t *vec)
+void cg_vector_pop_front(cg_vector_t *vec)
 {
     if (vec->m_size > 0) {
         vec->m_size--;
@@ -154,10 +154,10 @@ void cvector_pop_front(cvector_t *vec)
     }
 }
 
-void cvector_insert(cvector_t *vec, int index, void *elem)
+void cg_vector_insert(cg_vector_t *vec, int index, void *elem)
 {
     if (index >= vec->m_capacity) {
-        cvector_resize(vec, cmmax(1, index * 2)); // linear allocator. i could probably implement more but i don't have time rn
+        cg_vector_resize(vec, cmmax(1, index * 2)); // linear allocator. i could probably implement more but i don't have time rn
     }
     if (index >= vec->m_size) {
         vec->m_size = index + 1;
@@ -165,7 +165,7 @@ void cvector_insert(cvector_t *vec, int index, void *elem)
     memcpy((uchar *)vec->m_data + (vec->m_typesize * index), elem, vec->m_typesize);
 }
 
-void cvector_remove(cvector_t *vec, int index)
+void cg_vector_remove(cg_vector_t *vec, int index)
 {
     if (index >= vec->m_size)
         return;
@@ -180,7 +180,7 @@ void cvector_remove(cvector_t *vec, int index)
     vec->m_size--;
 }
 
-int cvector_find(const cvector_t *vec, void *elem)
+int cg_vector_find(const cg_vector_t *vec, void *elem)
 {
     for (int i = 0; i < vec->m_size; i++) {
         if (memcmp(vec->m_data + (i * vec->m_typesize), elem, vec->m_typesize)) {

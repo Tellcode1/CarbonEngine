@@ -1,11 +1,9 @@
 #include "../include/defines.h"
-#include "../include/math/vec2.hpp"
-#include "../include/math/vec3.hpp"
 #include "../include/stdafx.h"
 #include "../include/cengine.h"
 #include "../include/ctext.hpp"
 #include "../include/cinput.h"
-#include "../include/containers/cstring.h"
+#include "../include/cgstring.h"
 
 #include "../include/camera.hpp"
 #include "../include/mesh.hpp"
@@ -23,10 +21,12 @@ int main(int argc, char *argv[]) {
     rdconf.vsync_enabled = 1;
     rdconf.buffer_mode = CGFX_BUFFER_MODE_SINGLE_BUFFERED;
     rdconf.window_resizable = 0;
-    rdconf.multisampling_enable = 0;
+    rdconf.multisampling_enable = 1;
+    rdconf.samples = CGFX_SAMPLE_COUNT_MAX_SUPPORTED;
     crenderer_t *rd = crenderer_init(&rdconf);
     cg_initialize();
 
+    // * get a better name for this
     csm_compile_updated();
 
     constexpr f32 updateTime = 3.0f; // seconds. 1.5f = 1.5 seconds
@@ -49,8 +49,8 @@ int main(int argc, char *argv[]) {
     cmesh_t *light;
     cmesh_t *mesh;
     cmesh_t *block = load_mesh(rd, "../Assets/cube.obj", "../Assets/model/3DBread007_HQ-1K-JPG_Color.jpg", "../Assets/empty.png");
-    block->transform.position = cm::vec3(0.0f);
-    block->transform.scale = cm::vec3(1.0f);
+    block->transform.position = (vec3){0.0f,0.0f,0.0f};
+    block->transform.scale = (vec3){1.0f,1.0f,1.0f};
 
     TIME_FUNCTION(
         light = load_mesh(rd, "../Assets/barrel.obj", "../Assets/barrel.png", "../Assets/model/3DBread007_HQ-1K-JPG_NormalGL.jpg");
@@ -76,7 +76,7 @@ int main(int argc, char *argv[]) {
         }
 
         const float speed = 16.6f * dt;
-        cm::vec3 cam_pos_add = cm::vec3(0.0f);
+        vec3 cam_pos_add = (vec3){0.0f,0.0f,0.0f};
         if (cinput_is_key_held(SDL_SCANCODE_W))
             cam_pos_add.z += speed;
         if (cinput_is_key_held(SDL_SCANCODE_S))
@@ -118,11 +118,11 @@ int main(int argc, char *argv[]) {
         if (cinput_is_key_held(SDL_SCANCODE_L))
             mesh->transform.position.x += speed;
 
-        // light->transform.position = cm::vec3(0.5f, 1.0f, 0.3f);
-        light->transform.position = cm::vec3(0.0f);
-        mesh->transform.position = cm::vec3(sinf(cg_get_time() / 3.0f) / 3.0f, 0.0f, cosf(cg_get_time() / 3.0f) / 3.0f);
-        mesh->transform.scale = cm::vec3(10.0f);
-        light->transform.scale = cm::vec3(10.0f);
+        // light->transform.position = vec3(0.5f, 1.0f, 0.3f);
+        light->transform.position = (vec3){0.0f,0.0f,0.0f};
+        mesh->transform.position = (vec3){sinf(cg_get_time() / 3.0f) / 3.0f, 0.0f, cosf(cg_get_time() / 3.0f) / 3.0f};
+        mesh->transform.scale = (vec3){10.0f,10.0f,10.0f};
+        light->transform.scale = (vec3){10.0f,10.0f,10.0f};
 
         camera.update(rd);
 
@@ -133,15 +133,15 @@ int main(int argc, char *argv[]) {
             info.horizontal = CTEXT_HORI_ALIGN_LEFT;
             info.vertical = CTEXT_VERT_ALIGN_TOP;
             info.scale = 1.0f;
-            info.position = cm::vec3(-1.0f, -1.0f, -1.0f);
+            info.position = (vec3){-1.0f, -1.0f, -1.0f};
             ctext::render(amongus, &info, "%u %s frames", curr_showing_fps, "joosy");
             
             info.horizontal = CTEXT_HORI_ALIGN_CENTER;
             info.vertical = CTEXT_VERT_ALIGN_CENTER;
-            info.position = cm::vec3(0.0f, 0.0f, sinf(cg_get_time()) * 5.0f);
+            info.position = (vec3){0.0f, 0.0f, sinf(cg_get_time()) * 5.0f};
             ctext::render(amongus, &info, "POOTIS\nSPENCER\nHERE");
 
-            ctext::end_render(rd, camera, amongus, cm::mat4(1.0f));
+            ctext::end_render(rd, camera, amongus, m4init(1.0f));
 
             block->transform.rotation.y += cmdeg2rad(360.0f * 16.0f) * dt;
 

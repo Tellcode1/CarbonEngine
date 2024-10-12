@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include "../../include/defines.h"
-#include "../../include/containers/credblacktree.h"
+#include "../../include/credblacktree.h"
 
 #define CRB_COL_R 1
 #define CRB_COL_B 0

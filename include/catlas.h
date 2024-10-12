@@ -5,7 +5,7 @@
     extern "C" {
 #endif
 
-#include "../defines.h"
+#include "defines.h"
 
 typedef struct catlas_t {
     int width, height, next_x, next_y, current_row_height;

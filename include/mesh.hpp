@@ -11,34 +11,34 @@
 #include "vkhelper.h"
 #include "cshadermanager.h"
 
-#include "math/vec3.hpp"
-#include "math/vec2.hpp"
+#include "math/vec3.h"
+#include "math/vec2.h"
 
 #include "../external/tinyobjloader/tiny_obj_loader.h"
 
 #include "cimage.h"
 
 struct Transform {
-    cm::vec3 position = cm::vec3(0.0f);
-    cm::vec3 scale = cm::vec3(20.0f);
-    cm::vec3 rotation = cm::vec3(0.0f);
+    vec3 position = (vec3){0.0f,0.0f,0.0f};
+    vec3 scale = (vec3){20.0f,20.0f,20.0f};
+    vec3 rotation = (vec3){0.0f,0.0f,0.0f};
 };
 
 struct Material {
-    alignas(sizeof(cm::vec4)) cm::vec3 ambient;
-    alignas(sizeof(cm::vec4)) cm::vec3 diffuse;
-    alignas(sizeof(cm::vec4)) cm::vec3 specular;
+    alignas(sizeof(vec4)) vec3 ambient;
+    alignas(sizeof(vec4)) vec3 diffuse;
+    alignas(sizeof(vec4)) vec3 specular;
     alignas(sizeof(float)) float shininess;
 };
 
 struct ubdata {
-    alignas(sizeof(cm::vec4)) cm::mat4 model;
-    alignas(sizeof(cm::vec4)) cm::mat4 view;
-    alignas(sizeof(cm::vec4)) cm::mat4 projection;
-    alignas(sizeof(cm::vec4)) cm::vec3 cameraposition;
-    alignas(sizeof(cm::vec4)) cm::vec3 lightposition;
-    alignas(sizeof(cm::vec4)) cm::vec3 lightcolor;
-    alignas(sizeof(cm::vec4)) cm::vec3 color;
+    alignas(sizeof(vec4)) mat4 model;
+    alignas(sizeof(vec4)) mat4 view;
+    alignas(sizeof(vec4)) mat4 projection;
+    alignas(sizeof(vec4)) vec3 cameraposition;
+    alignas(sizeof(vec4)) vec3 lightposition;
+    alignas(sizeof(vec4)) vec3 lightcolor;
+    alignas(sizeof(vec4)) vec3 color;
     struct Material mat;
 };
 
@@ -75,34 +75,34 @@ struct cmesh_t {
 };
 
 struct vertex {
-    cm::vec3 position;
-    cm::vec3 normal;
-    cm::vec3 tangent;
-    cm::vec3 bitangent;
-    cm::vec2 texcoord;
+    vec3 position;
+    vec3 normal;
+    vec3 tangent;
+    vec3 bitangent;
+    vec2 texcoord;
 
     bool operator==(const vertex& other) const {
-        return position == other.position && texcoord == other.texcoord && normal == other.normal;
+        return v3areeq(position, other.position) && v2areeq(texcoord, other.texcoord) && v3areeq(normal, other.normal);
     }
 };
 
 struct soosydata {
-    cvector_t * /* vertex */ vertices;
-    cvector_t * /* u32 */    indices;
+    cg_vector_t * /* vertex */ vertices;
+    cg_vector_t * /* u32 */    indices;
 };
 
 static bool_t eq_vertex(const void *key1, const void *key2, unsigned long) {
     const vertex *v1 = (vertex *)key1;
     const vertex *v2 = (vertex *)key2;
-    return v1->position == v2->position && v1->texcoord == v2->texcoord && v1->normal == v2->normal;
+    return v3areeq(v1->position, v2->position) && v2areeq(v1->texcoord, v2->texcoord) && v3areeq(v1->normal, v2->normal);
 };
 
 static u32 hash_vertex(const void *in, int nbytes) {
     const vertex *v = (vertex *)in;
-    u32 h = chashmap_std_hash(&v->position, sizeof(cm::vec3));
-    h ^= (chashmap_std_hash(&v->normal, sizeof(cm::vec3)) + 0x9e3779b9 + (h << 6) + (h >> 2));
-    h ^= (chashmap_std_hash(&v->tangent, sizeof(cm::vec3)) + 0x9e3779b9 + (h << 6) + (h >> 2));
-    h ^= (chashmap_std_hash(&v->texcoord, sizeof(cm::vec2)) + 0x9e3779b9 + (h << 6) + (h >> 2));
+    u32 h = cg_hashmap_std_hash(&v->position, sizeof(vec3));
+    h ^= (cg_hashmap_std_hash(&v->normal, sizeof(vec3)) + 0x9e3779b9 + (h << 6) + (h >> 2));
+    h ^= (cg_hashmap_std_hash(&v->tangent, sizeof(vec3)) + 0x9e3779b9 + (h << 6) + (h >> 2));
+    h ^= (cg_hashmap_std_hash(&v->texcoord, sizeof(vec2)) + 0x9e3779b9 + (h << 6) + (h >> 2));
     return h;
 }
 
@@ -113,8 +113,8 @@ static soosydata loadmdl(const char *mdlpath, bool to_retrieve_normals) {
     std::string warn, err;
 
     soosydata ret{};
-    ret.vertices = cvector_init(sizeof(vertex), 0);
-    ret.indices = cvector_init(sizeof(u32), 0);
+    ret.vertices = cg_vector_init(sizeof(vertex), 0);
+    ret.indices = cg_vector_init(sizeof(u32), 0);
 
     if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, mdlpath))
         LOG_ERROR((warn + err).c_str());
@@ -123,79 +123,79 @@ static soosydata loadmdl(const char *mdlpath, bool to_retrieve_normals) {
     for (const auto &shape : shapes) {
         v_count += shape.mesh.indices.size();
     }
-    chashmap_t *unique_vertices = chashmap_init(v_count, sizeof(vertex), sizeof(unsigned), hash_vertex, eq_vertex);
+    cg_hashmap_t *unique_vertices = cg_hashmap_init(v_count, sizeof(vertex), sizeof(unsigned), hash_vertex, eq_vertex);
 
     for (const auto& shape : shapes) {
         for (const auto& index : shape.mesh.indices) {
             vertex vertex;
 
-            vertex.position = (cm::vec3){
+            vertex.position = (vec3){
                 attrib.vertices[3 * index.vertex_index + 0],
                 attrib.vertices[3 * index.vertex_index + 1],
                 attrib.vertices[3 * index.vertex_index + 2]
             };
 
             if (to_retrieve_normals) {
-                vertex.normal = (cm::vec3){
+                vertex.normal = (vec3){
                     attrib.normals[3 * index.normal_index + 0],
                     attrib.normals[3 * index.normal_index + 1],
                     attrib.normals[3 * index.normal_index + 2]
                 };
             }
 
-            vertex.texcoord = (cm::vec2){
+            vertex.texcoord = (vec2){
                 attrib.texcoords[2 * index.texcoord_index + 0],
                 1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
             };
 
-            u32 *exists = (u32 *)chashmap_find(unique_vertices, &vertex);
+            u32 *exists = (u32 *)cg_hashmap_find(unique_vertices, &vertex);
 
             if (!exists) {
-                unsigned idx = cvector_size(ret.vertices);
-                chashmap_insert(unique_vertices, &vertex, &idx);
-                cvector_push_back(ret.indices, &idx);
-                cvector_push_back(ret.vertices, &vertex);
+                unsigned idx = cg_vector_size(ret.vertices);
+                cg_hashmap_insert(unique_vertices, &vertex, &idx);
+                cg_vector_push_back(ret.indices, &idx);
+                cg_vector_push_back(ret.vertices, &vertex);
             } else {
-                cvector_push_back(ret.indices, exists);
+                cg_vector_push_back(ret.indices, exists);
             }
         }
     }
 
     // calcula tangents
     // you can look at how it's claculated at https://learnopengl.com/Advanced-Lighting/Normal-Mapping
-    for (int i = 0; i < cvector_size(ret.indices); i += 3) {
-        const u32 *indices = (u32 *)cvector_data(ret.indices);
-        vertex *vertices = (vertex *)cvector_data(ret.vertices);
+    for (int i = 0; i < cg_vector_size(ret.indices); i += 3) {
+        const u32 *indices = (u32 *)cg_vector_data(ret.indices);
+        vertex *vertices = (vertex *)cg_vector_data(ret.vertices);
 
         u32 i0 = indices[i];
         u32 i1 = indices[i + 1];
         u32 i2 = indices[i + 2];
 
-        const cm::vec3 &pos1 = vertices[i0].position;
-        const cm::vec3 &pos2 = vertices[i1].position;
-        const cm::vec3 &pos3 = vertices[i2].position;
+        const vec3 &pos1 = vertices[i0].position;
+        const vec3 &pos2 = vertices[i1].position;
+        const vec3 &pos3 = vertices[i2].position;
 
-        const cm::vec2 &uv1 = vertices[i0].texcoord;
-        const cm::vec2 &uv2 = vertices[i1].texcoord;
-        const cm::vec2 &uv3 = vertices[i2].texcoord;
+        const vec2 &uv1 = vertices[i0].texcoord;
+        const vec2 &uv2 = vertices[i1].texcoord;
+        const vec2 &uv3 = vertices[i2].texcoord;
 
-        cm::vec3 edge1 = pos2 - pos1;
-        cm::vec3 edge2 = pos3 - pos1;
-        cm::vec2 deltaUV1 = uv2 - uv1;
-        cm::vec2 deltaUV2 = uv3 - uv1;
+        vec3 edge1 = v3sub(pos2, pos1);
+        vec3 edge2 = v3sub(pos3, pos1);
+        vec2 deltaUV1 = v2sub(uv2, uv1);
+        vec2 deltaUV2 = v2sub(uv3, uv1);
 
         float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
 
-        cm::vec3 tangent = (cm::vec3){
+        vec3 tangent = (vec3){
             f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x),
             f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y),
             f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z)
         };
-        vertices[i0].tangent += tangent;
-        vertices[i1].tangent += tangent;
-        vertices[i2].tangent += tangent;
+        vertices[i0].tangent = v3add(vertices[i0].tangent, tangent);
+        vertices[i1].tangent = v3add(vertices[i1].tangent, tangent);
+        vertices[i2].tangent = v3add(vertices[i2].tangent, tangent);
 
-        cm::vec3 bitangent = (cm::vec3){
+        vec3 bitangent = (vec3){
             f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x),
             f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y),
             f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z)
@@ -205,7 +205,7 @@ static soosydata loadmdl(const char *mdlpath, bool to_retrieve_normals) {
         vertices[i2].bitangent = bitangent;
     }
 
-    chashmap_destroy(unique_vertices);
+    cg_hashmap_destroy(unique_vertices);
 
     return ret;
 }
@@ -214,12 +214,12 @@ struct cmesh_t *load_mesh(crenderer_t *rd, const char *mdlpath, const char *texp
     soosydata data = loadmdl(mdlpath, (true));
 
     cmesh_t *mesh = (cmesh_t *)malloc(sizeof(cmesh_t));
-    mesh->index_count = cvector_size(data.indices);
+    mesh->index_count = cg_vector_size(data.indices);
 
     mesh->transform = Transform();
 
-    const int vertexsize = sizeof(vertex) * cvector_size(data.vertices);
-    const int indexsize = sizeof(u32) * cvector_size(data.indices);
+    const int vertexsize = sizeof(vertex) * cg_vector_size(data.vertices);
+    const int indexsize = sizeof(u32) * cg_vector_size(data.indices);
 
     vkh_buffer_create(
         vertexsize,
@@ -245,20 +245,20 @@ struct cmesh_t *load_mesh(crenderer_t *rd, const char *mdlpath, const char *texp
 
     void *mapped;
     vkMapMemory(device, mesh->vbm, 0, vertexsize, 0, &mapped);
-    memcpy(mapped, cvector_data(data.vertices), vertexsize);
+    memcpy(mapped, cg_vector_data(data.vertices), vertexsize);
     vkUnmapMemory(device, mesh->vbm);
 
     vkMapMemory(device, mesh->ibm, 0, indexsize, 0, &mapped);
-    memcpy(mapped, cvector_data(data.indices), indexsize);
+    memcpy(mapped, cg_vector_data(data.indices), indexsize);
     vkUnmapMemory(device, mesh->ibm);
 
     const VkVertexInputAttributeDescription attributeDescriptions[] = {
         // location; binding; format; offset;
         { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0 }, // pos
-        { 1, 0, VK_FORMAT_R32G32B32_SFLOAT, sizeof(cm::vec3) }, // normal
-        { 2, 0, VK_FORMAT_R32G32B32_SFLOAT, 2 * sizeof(cm::vec3) }, // tangent
-        { 3, 0, VK_FORMAT_R32G32B32_SFLOAT, 3 * sizeof(cm::vec3) }, // bitangent
-        { 4, 0, VK_FORMAT_R32G32_SFLOAT,    4 * sizeof(cm::vec3) }, // uv
+        { 1, 0, VK_FORMAT_R32G32B32_SFLOAT, sizeof(vec3) }, // normal
+        { 2, 0, VK_FORMAT_R32G32B32_SFLOAT, 2 * sizeof(vec3) }, // tangent
+        { 3, 0, VK_FORMAT_R32G32B32_SFLOAT, 3 * sizeof(vec3) }, // bitangent
+        { 4, 0, VK_FORMAT_R32G32_SFLOAT,    4 * sizeof(vec3) }, // uv
     };
 
     const VkVertexInputBindingDescription bindingDescriptions[] = {
@@ -268,7 +268,7 @@ struct cmesh_t *load_mesh(crenderer_t *rd, const char *mdlpath, const char *texp
 
     const VkPushConstantRange pushConstants[] = { 
         // stageFlags, offset, size
-        {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(cm::vec3)}
+        {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(vec3)}
     };
 
     ctex2D texture = cimg_load( texpath );
@@ -420,26 +420,26 @@ struct cmesh_t *load_mesh(crenderer_t *rd, const char *mdlpath, const char *texp
     return mesh;
 }
 
-static void render(crenderer_t *rd, ccamera camera, cmesh_t *mesh, cm::vec3 lightposition) {
-    const cm::vec3 rotationradians = mesh->transform.rotation * (float)cmDEG2RAD_CONSTANT;
-    cm::mat4 scaling = scale(cm::mat4(1.0f), mesh->transform.scale);
-    cm::mat4 rotation = rotate(cm::mat4(1.0f), rotationradians);
-    cm::mat4 translation = translate(cm::mat4(1.0f), mesh->transform.position);
+static void render(crenderer_t *rd, ccamera camera, cmesh_t *mesh, vec3 lightposition) {
+    const vec3 rotationradians = v3muls(mesh->transform.rotation, (float)cmDEG2RAD_CONSTANT);
+    mat4 scaling = m4scale(m4identity, mesh->transform.scale);
+    mat4 rotation = m4rotatev(m4identity, rotationradians);
+    mat4 translation = m4translate(m4identity, mesh->transform.position);
     ubdata ub{};
-    ub.model = scaling * rotation  * translation;
+    ub.model = m4mul(scaling,  m4mul(rotation, translation));
     ub.projection = camera.get_projection();
     ub.view = camera.get_view();
     ub.cameraposition = camera.position;
     ub.lightposition = lightposition;
-    ub.color = cm::vec3(1.0f, 1.0f, 1.0f);
-    ub.lightcolor = cm::vec3(1.0f, 1.0f, 1.0f);
+    ub.color = (vec3){1.0f, 1.0f, 1.0f};
+    ub.lightcolor = (vec3){1.0f, 1.0f, 1.0f};
     memcpy(mesh->ubmapped, &ub, sizeof(ubdata));
 
     const VkDeviceSize offsets[1] = {};
 
     const VkCommandBuffer cmd = crd_get_drawbuffer(rd);
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, mesh->pipeline_layout, 0, 1, &mesh->set, 0, nullptr);
-    vkCmdPushConstants(cmd, mesh->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(cm::vec3), &lightposition);
+    vkCmdPushConstants(cmd, mesh->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(vec3), &lightposition);
     vkCmdBindVertexBuffers(cmd, 0, 1, &mesh->vb, offsets);
     vkCmdBindIndexBuffer(cmd, mesh->ib, 0, VK_INDEX_TYPE_UINT32);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, mesh->pipeline);

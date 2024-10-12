@@ -1,4 +1,4 @@
-#include "../../include/containers/catlas.h"
+#include "../../include/catlas.h"
 #include "../../include/math/math.h"
 #include <stdlib.h>
 
@@ -18,7 +18,7 @@ catlas_t catlas_init(int init_w, int init_h)
 
 bool_t catlas_add_image(catlas_t *__restrict__ atlas, int w, int h, const unsigned char *__restrict__ data, int *x, int *y)
 {
-    const int padding = 2;
+    const int padding = 4;
     const int prev_h = atlas->height, prev_w = atlas->width;
     bool_t realloc_needed = 0;
     if (w > atlas->width) {

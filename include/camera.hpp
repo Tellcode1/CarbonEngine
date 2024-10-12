@@ -4,8 +4,8 @@
 #include "stdafx.h"
 #include "vkstdafx.h"
 #include "math/math.h"
-#include "math/vec3.hpp"
-#include "math/mat.hpp"
+#include "math/vec3.h"
+#include "math/mat.h"
 #include "cgfx.h"
 
 struct ccamera {
@@ -13,13 +13,13 @@ struct ccamera {
     // To be honest i dont know what delta time is supposed to be
     // doing on the GPU except for particle simulations but you ought to
     // use something like push constants for that. Not my fault ;D
-    cm::mat4 projection;
-    cm::mat4 view;
+    mat4 projection;
+    mat4 view;
 
-    cm::vec3 position = cm::vec3(0.0f, 0.0f, 3.0f);
-    cm::vec3 front = cm::vec3(0.0f, 0.0f,  1.0f);
-    cm::vec3 up = cm::vec3(0.0f, 1.0f, 0.0f);
-    cm::vec3 right;
+    vec3 position = (vec3){0.0f, 0.0f, 3.0f};
+    vec3 front = (vec3){0.0f, 0.0f,  1.0f};
+    vec3 up = (vec3){0.0f, 1.0f, 0.0f};
+    vec3 right;
     f32 yaw = cmdeg2rad(-90.0);
     f32 pitch = 0.0;
 
@@ -30,19 +30,19 @@ struct ccamera {
     ccamera(f32 FOV = cmdeg2rad(90.0))
         : fov(FOV) {}
 
-    const cm::mat4 get_projection() const {
+    const mat4 get_projection() const {
         return projection;
     }
 
-    const cm::mat4 get_view() const {
+    const mat4 get_view() const {
         return view;
     }
 
-    inline const cm::vec3 &get_up() const {
+    inline const vec3 &get_up() const {
         return up;
     }
 
-    inline const cm::vec3 &get_front() const {
+    inline const vec3 &get_front() const {
         return front;
     }
 
@@ -56,34 +56,34 @@ struct ccamera {
         pitch = cmclamp( pitch, -bound, bound );
     }
 
-    inline void move(const cm::vec3 &amt) {
-        position += cm::mul(right, amt.x);
-        position += cm::mul(up   , amt.y);
-        position += cm::mul(front, amt.z);
+    inline void move(const vec3 &amt) {
+        position = v3add(position, v3muls(right, amt.x));
+        position = v3add(position, v3muls(up   , amt.y));
+        position = v3add(position, v3muls(front, amt.z));
     }
 
-    inline void set_position(const cm::vec3 &pos) {
+    inline void set_position(const vec3 &pos) {
         position = pos;
     }
 
 // private:
     void update(struct crenderer_t *rd) {
-        cm::vec3 new_front;
+        vec3 new_front;
         new_front.x = cosf(cmdeg2rad(yaw)) * cosf(cmdeg2rad(pitch));
         new_front.y = sinf(cmdeg2rad(pitch));
         new_front.z = sinf(cmdeg2rad(yaw)) * cosf(cmdeg2rad(pitch));
 
-        const cm::vec3 world_up = cm::vec3(0.0f, 1.0f, 0.0f);
+        const vec3 world_up = (vec3){0.0f, 1.0f, 0.0f};
 
-        this->front = cm::normalize(new_front);
-        this->right = cm::normalize(cm::cross(this->front, world_up));
-        this->up = cm::normalize(cm::cross(this->right, this->front));
+        this->front = v3normalize(new_front);
+        this->right = v3normalize(v3cross(front, world_up));
+        this->up = v3normalize(v3cross(right, front));
 
-        view = cm::lookat(position, cm::add(position, front), up);
+        view = m4lookat(position, v3add(position, front), up);
 
         const cg_extent2d RenderExtent = crd_get_render_extent(rd);
         const f32 aspect = (f32)RenderExtent.width / (f32)RenderExtent.height;
-        projection = cm::perspective(fov, aspect, near_clip, far_clip);
+        projection = m4perspective(fov, aspect, near_clip, far_clip);
     }
 };
 

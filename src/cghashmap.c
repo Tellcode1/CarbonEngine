@@ -1,6 +1,6 @@
 #include <stdlib.h>
 
-#include "../../include/containers/chashmap.h"
+#include "../../include/cghashmap.h"
 #include "../../include/defines.h"
 
 typedef struct ch_node_t {
@@ -9,13 +9,13 @@ typedef struct ch_node_t {
     unsigned char is_occupied;
 } ch_node_t;
 
-typedef struct chashmap_t {
+typedef struct cg_hashmap_t {
     ch_node_t **nodes;
-    chashmap_hash_fn hash_fn;
-    chashmap_key_equal_fn equal_fn;
+    cg_hashmap_hash_fn hash_fn;
+    cg_hashmap_key_equal_fn equal_fn;
     int entries, size;
     int keysize, valuesize;
-} chashmap_t;
+} cg_hashmap_t;
 
 unsigned closest_power_of_two(unsigned i) {
     if (i == 0) {
@@ -35,7 +35,7 @@ unsigned int power_of_two_mod(unsigned int x, unsigned int n) {
     return x & (n - 1);
 }
 
-unsigned chashmap_std_hash(const void *bytes, int nbytes) {
+unsigned cg_hashmap_std_hash(const void *bytes, int nbytes) {
     const unsigned FNV_PRIME = 16777619;
     const unsigned OFFSET_BASIS = 2166136261;
 
@@ -47,7 +47,7 @@ unsigned chashmap_std_hash(const void *bytes, int nbytes) {
     return hash;
 };
 
-bool_t chashmap_std_key_eq(const void *key1, const void *key2, unsigned long nbytes) {
+bool_t cg_hashmap_std_key_eq(const void *key1, const void *key2, unsigned long nbytes) {
     if (key1 == key2) {
         return 1;
     } else {
@@ -55,22 +55,22 @@ bool_t chashmap_std_key_eq(const void *key1, const void *key2, unsigned long nby
     }
 }
 
-chashmap_t *chashmap_init(int init_size, int keysize, int valuesize, chashmap_hash_fn hash_fn, chashmap_key_equal_fn equal_fn)
+cg_hashmap_t *cg_hashmap_init(int init_size, int keysize, int valuesize, cg_hashmap_hash_fn hash_fn, cg_hashmap_key_equal_fn equal_fn)
 {
     cassert(keysize > 0 && valuesize > 0);
 
-    chashmap_t *map = malloc(sizeof(struct chashmap_t));
+    cg_hashmap_t *map = malloc(sizeof(struct cg_hashmap_t));
     cassert(map != NULL);
-    memset(map, 0, sizeof(struct chashmap_t));
+    memset(map, 0, sizeof(struct cg_hashmap_t));
 
     if (init_size < 0) {
         init_size = 1;
     }
     if (hash_fn == NULL) {
-        hash_fn = chashmap_std_hash;
+        hash_fn = cg_hashmap_std_hash;
     }
     if (equal_fn == NULL) {
-        equal_fn = chashmap_std_key_eq;
+        equal_fn = cg_hashmap_std_key_eq;
     }
 
     map->nodes = (ch_node_t **)calloc(init_size, sizeof(ch_node_t));
@@ -86,7 +86,7 @@ chashmap_t *chashmap_init(int init_size, int keysize, int valuesize, chashmap_ha
     return map;
 }
 
-void chashmap_destroy(chashmap_t *map)
+void cg_hashmap_destroy(cg_hashmap_t *map)
 {
     if (!map->nodes) {
         return;
@@ -99,7 +99,7 @@ void chashmap_destroy(chashmap_t *map)
     free(map->nodes);
 }
 
-void chashmap_resize(chashmap_t *map, int new_size)
+void cg_hashmap_resize(cg_hashmap_t *map, int new_size)
 {
     ch_node_t **old_nodes = map->nodes;
     int old_entries = map->entries;
@@ -118,7 +118,7 @@ void chashmap_resize(chashmap_t *map, int new_size)
         for (int i = 0; i < old_entries; i++) {
             ch_node_t *node = old_nodes[i];
             if (node && node->is_occupied) {
-                chashmap_insert(map, node->key, node->value);
+                cg_hashmap_insert(map, node->key, node->value);
                 free(node);
             }
         }
@@ -127,7 +127,7 @@ void chashmap_resize(chashmap_t *map, int new_size)
 }
 
 
-void chashmap_clear(chashmap_t *map)
+void cg_hashmap_clear(cg_hashmap_t *map)
 {
     if (!map->nodes) {
         return;
@@ -143,32 +143,32 @@ void chashmap_clear(chashmap_t *map)
     map->entries = 0;
 }
 
-int chashmap_size(const chashmap_t *map)
+int cg_hashmap_size(const cg_hashmap_t *map)
 {
     return map->size;
 }
 
-int chashmap_capacity(const chashmap_t *map)
+int cg_hashmap_capacity(const cg_hashmap_t *map)
 {
     return map->entries;
 }
 
-int chashmap_keysize(const chashmap_t *map)
+int cg_hashmap_keysize(const cg_hashmap_t *map)
 {
     return map->keysize;
 }
 
-int chashmap_valuesize(const chashmap_t *map)
+int cg_hashmap_valuesize(const cg_hashmap_t *map)
 {
     return map->valuesize;
 }
 
-void *chashmap_root_node(const chashmap_t *map)
+void *cg_hashmap_root_node(const cg_hashmap_t *map)
 {
     return map->nodes;
 }
 
-void *chashmap_find(const chashmap_t *map, const void *key)
+void *cg_hashmap_find(const cg_hashmap_t *map, const void *key)
 {
     if (!map->nodes) {
         return NULL;
@@ -188,11 +188,11 @@ void *chashmap_find(const chashmap_t *map, const void *key)
     return NULL;
 }
 
-void chashmap_insert(chashmap_t *map, const void *key, void *value)
+void cg_hashmap_insert(cg_hashmap_t *map, const void *key, void *value)
 {
     if (!map->nodes || map->size >= (map->entries * 3) / 4) {
         // The check to whether map->entries is greater than 0 is already done in resize();
-        chashmap_resize(map, map->entries * 2);
+        cg_hashmap_resize(map, map->entries * 2);
     }
 
     const unsigned begin = power_of_two_mod(map->hash_fn(key, map->keysize), map->entries);
@@ -218,11 +218,11 @@ void chashmap_insert(chashmap_t *map, const void *key, void *value)
     map->size++;
 }
 
-void chashmap_insert_or_replace(chashmap_t *map, const void *key, void *value)
+void cg_hashmap_insert_or_replace(cg_hashmap_t *map, const void *key, void *value)
 {
     if (!map->nodes || map->size >= (map->entries * 3) / 4) {
         // The check to whether map->entries is greater than 0 is already done in resize();
-        chashmap_resize(map, map->entries * 2);
+        cg_hashmap_resize(map, map->entries * 2);
     }
 
     const unsigned begin = power_of_two_mod(map->hash_fn(key, map->keysize), map->entries);

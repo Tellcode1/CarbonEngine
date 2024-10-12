@@ -13,6 +13,13 @@
 // * it shold be like cg_init_ctext(rd); and then you can just do crd_render_text(&info);
 typedef struct cg_ctext_module {
     // TODO Implement
+    VkDescriptorPool desc_pool;
+    VkDescriptorSetLayout desc_Layout;
+    VkDescriptorSet desc_set;
+    VkImage error_image;
+    VkImageView error_image_view;
+    VkSampler error_image_sampler;
+    float model_matrix[4][4];
 } cg_ctext_module;
 
 typedef struct crenderer_t
@@ -35,8 +42,8 @@ typedef struct crenderer_t
 
     VkFormat depth_buffer_format;
 
-    cvector_t *renderData;
-    cvector_t *drawBuffers;
+    struct cg_vector_t *renderData;
+    struct cg_vector_t *drawBuffers;
 
     cg_ctext_module *ctext;
 } crenderer_t;

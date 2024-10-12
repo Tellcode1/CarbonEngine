@@ -1,6 +1,6 @@
 #include "../../include/cvk.h"
 #include "../../include/cshadermanagerdev.h"
-#include "../../include/containers/cvector.h"
+#include "../../include/cgvector.h"
 
 cvk_result_check_fn __cvk_resultFunc = __cvk_defaultResultCheckFunc; // To not cause nullptr dereference. SetResultCheckFunc also checks for nullptr and handles it.
 u32 cvk_flag_register = 0;
@@ -204,8 +204,8 @@ void cvk_create_render_pass(VkDevice device, cvk_render_pass_create_info const *
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorAttachmentReference;
 
-    cvector_t * /* VkAttachmentDescription */ attachments = cvector_init(sizeof(VkAttachmentDescription), 5);
-	cvector_push_back(attachments, &colorAttachmentDescription);
+    cg_vector_t * /* VkAttachmentDescription */ attachments = cg_vector_init(sizeof(VkAttachmentDescription), 5);
+	cg_vector_push_back(attachments, &colorAttachmentDescription);
 
 	VkAttachmentDescription depthAttachment = {};
 	VkAttachmentReference depthAttachmentRef = {};
@@ -224,12 +224,12 @@ void cvk_create_render_pass(VkDevice device, cvk_render_pass_create_info const *
 		// else
 			depthAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-		depthAttachmentRef.attachment = cvector_size(attachments);
+		depthAttachmentRef.attachment = cg_vector_size(attachments);
 		depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
         subpass.pDepthStencilAttachment = &depthAttachmentRef;
 
-		cvector_push_back(attachments, &depthAttachment);
+		cg_vector_push_back(attachments, &depthAttachment);
     }
 
 	VkAttachmentReference colorAttachmentResolveRef = {};
@@ -245,10 +245,10 @@ void cvk_create_render_pass(VkDevice device, cvk_render_pass_create_info const *
         colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-        colorAttachmentResolveRef.attachment = cvector_size(attachments);
+        colorAttachmentResolveRef.attachment = cg_vector_size(attachments);
         colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-		cvector_push_back(attachments, &colorAttachmentResolve);
+		cg_vector_push_back(attachments, &colorAttachmentResolve);
 
         subpass.pResolveAttachments = &colorAttachmentResolveRef;
     }
@@ -263,8 +263,8 @@ void cvk_create_render_pass(VkDevice device, cvk_render_pass_create_info const *
 
     VkRenderPassCreateInfo renderPassInfo = {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderPassInfo.attachmentCount = cvector_size(attachments);
-    renderPassInfo.pAttachments = (const VkAttachmentDescription *)cvector_data(attachments);
+    renderPassInfo.attachmentCount = cg_vector_size(attachments);
+    renderPassInfo.pAttachments = (const VkAttachmentDescription *)cg_vector_data(attachments);
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpass;
     renderPassInfo.dependencyCount = 1;
@@ -284,12 +284,12 @@ void cvk_create_pipeline_layout(VkDevice device, cvk_pipeline_create_info const 
 	// 	totalLayouts += pCreateInfo->pShaders[i]->nsetlayouts;
 	// }
 
-	// cvector_t *sets = cvector_init(sizeof(VkDescriptorSetLayout), totalLayouts);
+	// cg_vector_t *sets = cg_vector_init(sizeof(VkDescriptorSetLayout), totalLayouts);
 
 	// for (int i = 0; i < pCreateInfo->nShaders; i++) {
 	// 	const csm_shader_t *shader = pCreateInfo->pShaders[i];
 	// 	for (int j = 0; j < shader->nsetlayouts; j++) {
-	// 		cvector_push_back(sets, &shader->setlayouts[j]);
+	// 		cg_vector_push_back(sets, &shader->setlayouts[j]);
 	// 	}
 	// }
 

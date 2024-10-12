@@ -2,16 +2,15 @@
 #ifndef __CBTREE_H
 #define __CBTREE_H
 
-#include "../defines.h"
-
 #ifdef __cplusplus
     extern "C" {
 #endif
 
+typedef unsigned char cbtree_bool_t;
 typedef struct cbtree_t cbtree_t;
 typedef struct cbnode_t cbnode_t;
 
-typedef bool_t (*cbtree_equal_fn)(const void *__restrict__ value1, const void *__restrict__ value2, unsigned long keysize);
+typedef cbtree_bool_t (*cbtree_equal_fn)(const void *__restrict__ value1, const void *__restrict__ value2, unsigned long keysize);
 
 extern cbtree_t *cbt_init(int datasize);
 extern cbnode_t *cbt_insert(cbtree_t *tree, const void *value);

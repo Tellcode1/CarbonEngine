@@ -5,7 +5,11 @@
 #include "../include/math/math.h"
 #include "../include/cvk.h"
 #include "../include/cengine.h"
-#include "../../include/vkhelper.h"
+#include "../include/vkhelper.h"
+
+#include "../include/cgvector.h"
+
+#include <SDL2/SDL_vulkan.h>
 
 // TODO: move to internal cengine struct owned by renderer. user should query from renderer for these
 VkFormat SwapChainImageFormat;
@@ -30,7 +34,7 @@ int crd_get_renderer_frame(const crenderer_t *rd)
 
 VkCommandBuffer crd_get_drawbuffer(const crenderer_t *rd)
 {
-    return *(VkCommandBuffer *)cvector_get(rd->drawBuffers, rd->renderer_frame);
+    return *(VkCommandBuffer *)cg_vector_get(rd->drawBuffers, rd->renderer_frame);
 }
 
 VkRenderPass crd_get_render_pass(const crenderer_t *rd)
@@ -49,7 +53,7 @@ void create_optional_images(crenderer_t *rd)
     VkImage *swapchainImages = (VkImage *)malloc(SwapChainImageCount * sizeof(VkImage));
 	vkGetSwapchainImagesKHR(device, rd->swapchain, &SwapChainImageCount, swapchainImages);
 
-    cvector_resize(rd->renderData, SwapChainImageCount);
+    cg_vector_resize(rd->renderData, SwapChainImageCount);
 
     if (rd->config.multisampling_enable) {
         vkh_image_create_empty(
@@ -82,7 +86,7 @@ void create_optional_images(crenderer_t *rd)
 
     // attachment vector will be like <color resolve, depth attachment, swapchain image>
     for (int i = 0; i < (int)SwapChainImageCount; i++) {
-        cg_framerender_data *data = (cg_framerender_data *)cvector_get(rd->renderData, i);
+        cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(rd->renderData, i);
         data->swapchainImage = swapchainImages[i];
 
         VkImageCreateInfo image = {};
@@ -127,10 +131,10 @@ void create_optional_images(crenderer_t *rd)
 }
 
 void create_framebuffers_and_swapchain_image_views(crenderer_t *rd) {
-    cvector_t * /* VkImageView */ attachments = cvector_init(sizeof(VkImageView), 3);
+    cg_vector_t * /* VkImageView */ attachments = cg_vector_init(sizeof(VkImageView), 3);
 
     for (int i = 0; i < (int)SwapChainImageCount; i++) {
-        cg_framerender_data *data = (cg_framerender_data *)cvector_get(rd->renderData, i);
+        cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(rd->renderData, i);
         VkImageViewCreateInfo imageViewCreateInfo = {};
         imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         imageViewCreateInfo.image = data->swapchainImage;
@@ -152,17 +156,17 @@ void create_framebuffers_and_swapchain_image_views(crenderer_t *rd) {
         const VkImageView swapchain_image_view = data->swapchainImageView;
         const VkImageView depth_image_view = data->depth_image_view;
 
-        cvector_clear(attachments);
+        cg_vector_clear(attachments);
         if (rd->config.multisampling_enable)
-            cvector_push_set(attachments, (VkImageView[]){ rd->color_image_view, depth_image_view, swapchain_image_view }, 3);
+            cg_vector_push_set(attachments, (VkImageView[]){ rd->color_image_view, depth_image_view, swapchain_image_view }, 3);
         else
-            cvector_push_set(attachments, (VkImageView[]){ swapchain_image_view, depth_image_view }, 2);
+            cg_vector_push_set(attachments, (VkImageView[]){ swapchain_image_view, depth_image_view }, 2);
 
         VkFramebufferCreateInfo framebufferInfo = {};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         framebufferInfo.renderPass = rd->render_pass;
-        framebufferInfo.attachmentCount = cvector_size(attachments);
-        framebufferInfo.pAttachments = (VkImageView *)cvector_data(attachments);
+        framebufferInfo.attachmentCount = cg_vector_size(attachments);
+        framebufferInfo.pAttachments = (VkImageView *)cg_vector_data(attachments);
         framebufferInfo.width = rd->render_extent.width;
         framebufferInfo.height = rd->render_extent.height;
         framebufferInfo.layers = 1;
@@ -170,7 +174,7 @@ void create_framebuffers_and_swapchain_image_views(crenderer_t *rd) {
             LOG_ERROR("Failed to create framebuffer for swapchain image %d", i);
     }
 
-    cvector_destroy(attachments);
+    cg_vector_destroy(attachments);
 }
 
 crenderer_t *crenderer_init(const crenderer_config *conf)
@@ -189,15 +193,15 @@ crenderer_t *crenderer_init(const crenderer_config *conf)
 
         u32 queueCount = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, NULL);
-        cvector_t * /* VkQueueFamilyProperties */ queueFamilies = cvector_init(sizeof(VkQueueFamilyProperties), queueCount);
-        vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, (VkQueueFamilyProperties *)cvector_data(queueFamilies));
+        cg_vector_t * /* VkQueueFamilyProperties */ queueFamilies = cg_vector_init(sizeof(VkQueueFamilyProperties), queueCount);
+        vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, (VkQueueFamilyProperties *)cg_vector_data(queueFamilies));
 
         u32 graphicsFamily = 0, graphicsAndComputeFamily = 0, presentFamily = 0, computeFamily = 0, transferFamily = 0;
         bool foundGraphicsFamily = false, foundGraphicsAndComputeFamily = false, foundPresentFamily = false, foundComputeFamily = false, foundTransferFamily = false;
 
         u32 i = 0;
         for (u32 j = 0; j < queueCount; j++) {
-            const VkQueueFamilyProperties queueFamily = ((VkQueueFamilyProperties *)cvector_data(queueFamilies))[j];
+            const VkQueueFamilyProperties queueFamily = ((VkQueueFamilyProperties *)cg_vector_data(queueFamilies))[j];
             VkBool32 presentSupport = false;
             vkGetPhysicalDeviceSurfaceSupportKHR(physDevice, i, surface, &presentSupport);
             
@@ -239,7 +243,7 @@ crenderer_t *crenderer_init(const crenderer_config *conf)
         vkGetDeviceQueue(device, PresentFamilyIndex, 0, &PresentQueue);
         vkGetDeviceQueue(device, GraphicsAndComputeFamilyIndex, 0, &GraphicsAndComputeQueue);
 
-        cvector_destroy(queueFamilies);
+        cg_vector_destroy(queueFamilies);
     }
 
     rd->render_extent.width = conf->initial_window_size.width;
@@ -300,13 +304,13 @@ crenderer_t *crenderer_init(const crenderer_config *conf)
     // how many frames the renderer will render at once
     const int frames_in_flight = 1 + (int)conf->buffer_mode;
 
-    rd->drawBuffers = cvector_init(sizeof(VkCommandBuffer), frames_in_flight);
-    rd->renderData = cvector_init(sizeof(cg_framerender_data), frames_in_flight);
+    rd->drawBuffers = cg_vector_init(sizeof(VkCommandBuffer), frames_in_flight);
+    rd->renderData = cg_vector_init(sizeof(cg_framerender_data), frames_in_flight);
 
     cg_framerender_data data = {};
     for (int i = 0; i < frames_in_flight; i++) {
-        cvector_push_back(rd->drawBuffers, &data);
-        cvector_push_back(rd->renderData, &data);
+        cg_vector_push_back(rd->drawBuffers, &data);
+        cg_vector_push_back(rd->renderData, &data);
     }
 
     VkCommandBufferAllocateInfo cmdAllocInfo = {};
@@ -314,7 +318,7 @@ crenderer_t *crenderer_init(const crenderer_config *conf)
     cmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     cmdAllocInfo.commandBufferCount = frames_in_flight;
     cmdAllocInfo.commandPool = rd->commandPool;
-    vkAllocateCommandBuffers(device, &cmdAllocInfo, (VkCommandBuffer *)cvector_data(rd->drawBuffers));
+    vkAllocateCommandBuffers(device, &cmdAllocInfo, (VkCommandBuffer *)cg_vector_data(rd->drawBuffers));
 
     rd->depth_buffer_format = VK_FORMAT_D16_UNORM; // replace (probably)
 
@@ -372,7 +376,7 @@ crenderer_t *crenderer_init(const crenderer_config *conf)
             VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, NULL, VK_FENCE_CREATE_SIGNALED_BIT
         };
 
-        cg_framerender_data *data = (cg_framerender_data *)cvector_get(rd->renderData, i);
+        cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(rd->renderData, i);
         vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->renderingFinishedSemaphore);
         vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->imageAvailableSemaphore);
         vkCreateFence(device, &fenceCreateInfo, NULL, &data->inFlightFence);
@@ -394,18 +398,18 @@ void crenderer_resize(crenderer_t *rd) {
     
     // adhoc method of resetting them
     for (int i = 0; i < (1 + (int)rd->config.buffer_mode); i++) {
-        cg_framerender_data *data = (cg_framerender_data *)cvector_get(rd->renderData, i);
+        cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(rd->renderData, i);
         vkDestroySemaphore(device, data->imageAvailableSemaphore, NULL);
         vkDestroySemaphore(device, data->renderingFinishedSemaphore, NULL);
         vkDestroyFence(device, data->inFlightFence, NULL);
     }
     for (u32 i = 0; i < SwapChainImageCount; i++)
     {
-        cg_framerender_data *data = (cg_framerender_data *)cvector_get(rd->renderData, i);
+        cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(rd->renderData, i);
         vkDestroyImageView(device, data->swapchainImageView, NULL);
         vkDestroyFramebuffer(device, data->color_framebuffer, NULL);
     }
-    cvector_clear(rd->renderData);
+    cg_vector_clear(rd->renderData);
 
     i32 w, h;
     SDL_Vulkan_GetDrawableSize(window, &w, &h);
@@ -463,7 +467,7 @@ void crenderer_resize(crenderer_t *rd) {
 
     for (u32 i = 0; i < SwapChainImageCount; i++)
     {
-        cg_framerender_data *data = (cg_framerender_data *)cvector_get(rd->renderData, i);
+        cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(rd->renderData, i);
         vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->renderingFinishedSemaphore);
         vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->imageAvailableSemaphore);
         vkCreateFence(device, &fenceCreateInfo, NULL, &data->inFlightFence);
@@ -474,13 +478,13 @@ void crenderer_resize(crenderer_t *rd) {
 
 bool_t crd_begin_render(crenderer_t *rd)
 {
-    cg_framerender_data *data = (cg_framerender_data *)cvector_get(rd->renderData, rd->renderer_frame);
+    cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(rd->renderData, rd->renderer_frame);
 
     vkWaitForFences(device, 1, &data->inFlightFence, VK_TRUE, UINT64_MAX);
 
     const VkResult imageAcquireResult = vkAcquireNextImageKHR(device, rd->swapchain, UINT64_MAX, data->imageAvailableSemaphore, VK_NULL_HANDLE, &rd->imageIndex);
 
-    const VkCommandBuffer drawBuffer = *(VkCommandBuffer *)cvector_get(rd->drawBuffers, rd->renderer_frame);
+    const VkCommandBuffer drawBuffer = *(VkCommandBuffer *)cg_vector_get(rd->drawBuffers, rd->renderer_frame);
 
 	if(imageAcquireResult == VK_ERROR_OUT_OF_DATE_KHR || imageAcquireResult == VK_SUBOPTIMAL_KHR || cg_get_frame_buffer_resized())
 	{
@@ -499,7 +503,7 @@ bool_t crd_begin_render(crenderer_t *rd)
     clearValues[0].color = (VkClearColorValue){ {0.0f, 0.0f, 0.0f, 1.0f} };
     clearValues[1].depthStencil = (VkClearDepthStencilValue){ 1.0f, 0 };
 
-    VkFramebuffer fb = (*(cg_framerender_data *)(cvector_get(rd->renderData, rd->imageIndex))).color_framebuffer;
+    VkFramebuffer fb = (*(cg_framerender_data *)(cg_vector_get(rd->renderData, rd->imageIndex))).color_framebuffer;
  
     static VkRenderPassBeginInfo renderPassInfo = {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -537,7 +541,7 @@ bool_t crd_begin_render(crenderer_t *rd)
 
 void crd_end_render(crenderer_t *rd)
 {
-    const VkCommandBuffer drawBuffer = *(VkCommandBuffer *)cvector_get(rd->drawBuffers, rd->renderer_frame);
+    const VkCommandBuffer drawBuffer = *(VkCommandBuffer *)cg_vector_get(rd->drawBuffers, rd->renderer_frame);
 
     vkCmdEndRenderPass(drawBuffer);
     vkEndCommandBuffer(drawBuffer);
@@ -545,7 +549,7 @@ void crd_end_render(crenderer_t *rd)
 	VkSubmitInfo submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-    cg_framerender_data *data = (cg_framerender_data *)cvector_get(rd->renderData, rd->renderer_frame);
+    cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(rd->renderData, rd->renderer_frame);
     const VkSemaphore waitSemaphores[] = {data->imageAvailableSemaphore};
     const VkSemaphore signalSemaphores[] = {data->renderingFinishedSemaphore};
 

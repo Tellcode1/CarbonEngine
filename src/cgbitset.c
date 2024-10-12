@@ -1,15 +1,15 @@
 #include <stdlib.h>
 #include "../../include/defines.h"
-#include "../../include/containers/cbitset.h"
+#include "../../include/cgbitset.h"
 
-typedef struct cbitset_t {
+typedef struct cg_bitset_t {
     u8 *data;
     int size;
-} cbitset_t;
+} cg_bitset_t;
 
-cbitset_t *cbitset_init(int init_capacity)
+cg_bitset_t *cg_bitset_init(int init_capacity)
 {
-    cbitset_t *set = malloc(sizeof(struct cbitset_t));
+    cg_bitset_t *set = malloc(sizeof(struct cg_bitset_t));
     if (init_capacity > 0) {
         init_capacity = (init_capacity + 7) / 8;
         set->size = init_capacity;
@@ -20,35 +20,35 @@ cbitset_t *cbitset_init(int init_capacity)
     return set;
 }
 
-void cbitset_set_bit(cbitset_t *set, int bitindex)
+void cg_bitset_set_bit(cg_bitset_t *set, int bitindex)
 {
     set->data[bitindex / 8] |= (1 << (bitindex % 8));
 }
 
-void cbitset_set_bit_to(cbitset_t *set, int bitindex, cbitset_bit to)
+void cg_bitset_set_bit_to(cg_bitset_t *set, int bitindex, cg_bitset_bit to)
 {
     to ?
-        cbitset_set_bit(set, bitindex)
+        cg_bitset_set_bit(set, bitindex)
         :
-        cbitset_clear_bit(set, bitindex);
+        cg_bitset_clear_bit(set, bitindex);
 }
 
-void cbitset_clear_bit(cbitset_t *set, int bitindex)
+void cg_bitset_clear_bit(cg_bitset_t *set, int bitindex)
 {
     set->data[bitindex / 8] &= ~(1 << (bitindex % 8));
 }
 
-void cbitset_toggle_bit(cbitset_t *set, int bitindex)
+void cg_bitset_toggle_bit(cg_bitset_t *set, int bitindex)
 {
     set->data[bitindex / 8] ^= (1 << (bitindex % 8));
 }
 
-cbitset_bit cbitset_access_bit(cbitset_t *set, int bitindex)
+cg_bitset_bit cg_bitset_access_bit(cg_bitset_t *set, int bitindex)
 {
     return (set->data[bitindex / 8] & (1 << (bitindex % 8))) != 0;
 }
 
-void cbitset_destroy(cbitset_t *set)
+void cg_bitset_destroy(cg_bitset_t *set)
 {
     free(set->data);
     free(set);

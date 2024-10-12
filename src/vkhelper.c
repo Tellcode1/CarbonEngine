@@ -3,6 +3,8 @@
 #include "../include/cgfx.h"
 #include "../include/cimage.h"
 
+#include "../include/cgvector.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -171,7 +173,7 @@ VkResult vkh_cmd_end(VkCommandBuffer cmd, VkQueue queue, bool waitForExecution)
     return VK_SUCCESS;
 }
 
-// void help::Files::LoadBinary(const char * path, cvector<u8>* dst)
+// void help::Files::LoadBinary(const char * path, cg_vector<u8>* dst)
 // {
 //     FILE *f = fopen(path, "rb");
 //     cassert(f != NULL);
@@ -367,8 +369,8 @@ bool vkh_get_supported_fmt(VkDevice device, VkPhysicalDevice physDevice, VkSurfa
 
     u32 formatCount = 0;
 	vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, VK_NULL_HANDLE);
-	cvector_t * /* VkSurfaceFormatKHR */ surfaceFormats = cvector_init(sizeof(VkSurfaceFormatKHR), formatCount);
-	vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, (VkSurfaceFormatKHR *)cvector_data(surfaceFormats));
+	cg_vector_t * /* VkSurfaceFormatKHR */ surfaceFormats = cg_vector_init(sizeof(VkSurfaceFormatKHR), formatCount);
+	vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, (VkSurfaceFormatKHR *)cg_vector_data(surfaceFormats));
 
 	VkSurfaceFormatKHR selectedFormat = { VK_FORMAT_MAX_ENUM, VK_COLOR_SPACE_MAX_ENUM_KHR };
 
@@ -379,7 +381,7 @@ bool vkh_get_supported_fmt(VkDevice device, VkPhysicalDevice physDevice, VkSurfa
 
 	for (u32 i = 0; i < formatCount; i++)
 	{
-		const VkSurfaceFormatKHR *surfaceFormat = (VkSurfaceFormatKHR *)cvector_get(surfaceFormats, i);
+		const VkSurfaceFormatKHR *surfaceFormat = (VkSurfaceFormatKHR *)cg_vector_get(surfaceFormats, i);
 		for (u32 j = 0; j < array_len(desired_formats); j++) {
 			if (surfaceFormat->format == desired_formats[j].format 
 				&&
@@ -391,7 +393,7 @@ bool vkh_get_supported_fmt(VkDevice device, VkPhysicalDevice physDevice, VkSurfa
 		}
 	}
 
-    cvector_destroy(surfaceFormats);
+    cg_vector_destroy(surfaceFormats);
 	if (selectedFormat.format == VK_FORMAT_MAX_ENUM || selectedFormat.colorSpace == VK_COLOR_SPACE_MAX_ENUM_KHR) {
 		return VK_FALSE;
 	} else {

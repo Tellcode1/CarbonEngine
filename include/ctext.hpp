@@ -1,19 +1,19 @@
 #ifndef __C_TEXT_HPP__
 #define __C_TEXT_HPP__
 
-#include "../../../include/camera.hpp"
+#include "camera.hpp"
 
-#include "../include/math/vec3.hpp"
-#include "../include/math/vec2.hpp"
-#include "../include/math/mat.hpp"
+#include "../include/math/vec3.h"
+#include "../include/math/vec2.h"
+#include "../include/math/mat.h"
 
 #include "stdafx.h"
 #include "vkstdafx.h"
 
-#include "containers/cvector.h"
-#include "containers/cstring.h"
-#include "containers/chashmap.h"
-#include "containers/catlas.h"
+#include "cgvector.h"
+#include "cgstring.h"
+#include "cghashmap.h"
+#include "catlas.h"
 
 typedef struct crenderer_t crenderer_t;
 
@@ -64,7 +64,7 @@ struct ctext
     struct text_render_info {
         HoriAlignment horizontal;
         VertAlignment vertical;
-        cm::vec3 position;
+        vec3 position;
         f32 scale;
 
         text_render_info() = default;
@@ -82,30 +82,11 @@ struct ctext
     static VkImage error_image;
     static VkImageView error_image_view;
     static VkSampler error_image_sampler;
-    static cm::mat4 model_matrix;
-
-    /*
-    *	I'll just detail what I want to do with the registry.
-    *	The registry is supposed to contain all valid font 'caches' (atlas + vertex && texture positions compressed).
-    *	Need a way to check if the font's been changed since the last time the 'regchecker' ran. You can probably guess what 'regchecker' is.
-    *	This will be a very volatile component of the engine so I ought to make it as secure as possible but we'll see.
-    *	This block of text should not be removed until the registry has achieved production status.
-    *	The registry should also contain a count of the fonts loaded since the last time the program was ran, pass it through
-    *	as a spec constant. This is because the shader will need to be recompiled everytime the max font count is to increase.
-    *	+ Descriptor count will be equal to that and we really do not want multiple descriptor pool recreations or multiple descriptor pool allocations
-    *	This won't be very heavy though and instead can probably be replaced by a simple pass from the engine to collect all fonts, cache them
-    *	into the binary and instead just use the accumulated count.
-    */
-    constexpr static const char *CFontRegistryPath = "./CFont/Registry.txt";
 
     static void load_font(struct crenderer_t *rd, const CFontLoadInfo* pInfo, cfont_t **dst);
 
     static void begin_render(cfont_t *fnt);
-    static void end_render(crenderer_t *rd, ccamera camera, cfont_t *fnt, cm::mat4 model);
-
-    static inline void set_model_matrix(const cm::mat4 &new_matrix) {
-        model_matrix = new_matrix;
-    }
+    static void end_render(crenderer_t *rd, ccamera camera, cfont_t *fnt, mat4 model);
 
     struct CFGlyph
     {
@@ -158,8 +139,8 @@ struct ctext
         bool to_render;
 
         u32 chars_drawn;
-        cvector_t * /* text_drawcall_t */  drawcalls;
-        chashmap_t * /* unicode, CFGlyph ctext_hasher<unicode>> */ glyph_map;
+        cg_vector_t * /* text_drawcall_t */  drawcalls;
+        cg_hashmap_t * /* unicode, CFGlyph ctext_hasher<unicode>> */ glyph_map;
 
         friend void ctext::load_font(struct crenderer_t *rd, const CFontLoadInfo* pInfo, cfont_t **dst);
     };

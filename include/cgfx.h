@@ -9,12 +9,6 @@
 #include "stdafx.h"
 #include "vkstdafx.h"
 
-#include "../external/volk/volk.h"
-#include "containers/cvector.h"
-
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_vulkan.h>
-
 #ifdef bool_t
     typedef bool_t cg_bool_t;
 #else
@@ -50,8 +44,8 @@ typedef unsigned cengine_buffering_mode;
 
 typedef enum cengine_sample_count_bits {
     CGFX_SAMPLE_COUNT_MAX_SUPPORTED = 0xFFFFFFFF,
-    CGFX_SAMPLE_COUNT_NO_EXTRA_SAMPLES = 0,
-    CGFX_SAMPLE_COUNT_1_SAMPLES = 0,
+    CGFX_SAMPLE_COUNT_NO_EXTRA_SAMPLES = 1,
+    CGFX_SAMPLE_COUNT_1_SAMPLES = 1,
     CGFX_SAMPLE_COUNT_2_SAMPLES = 2,
     CGFX_SAMPLE_COUNT_4_SAMPLES = 4,
     CGFX_SAMPLE_COUNT_8_SAMPLES = 8,
@@ -68,7 +62,7 @@ typedef struct crenderer_config {
     cengine_sample_count   samples;
     cengine_buffering_mode buffer_mode;
     cg_extent2d            initial_window_size;
-    SDL_Scancode           exit_key;
+    int                    exit_key;
     cg_bool_t              multisampling_enable;
     cg_bool_t              window_resizable;
     cg_vsync               vsync_enabled;
@@ -79,7 +73,7 @@ static inline crenderer_config crender_config_init() {
         .samples = CGFX_SAMPLE_COUNT_NO_EXTRA_SAMPLES,
         .buffer_mode = CGFX_BUFFER_MODE_DOUBLE_BUFFERED,
         .initial_window_size = { 800, 600 },
-        .exit_key = SDL_SCANCODE_ESCAPE,
+        .exit_key = 41, /* SDL_SCANCODE_ESCAPE */
         .multisampling_enable = 0,
         .window_resizable = 0,
         .vsync_enabled = 1,

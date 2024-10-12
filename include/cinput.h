@@ -9,7 +9,7 @@
 
 #include <SDL2/SDL.h>
 #include "../include/stdafx.h"
-#include "../include/containers/cbitset.h"
+#include "../include/cgbitset.h"
 
 typedef enum key_state
 {
@@ -20,14 +20,14 @@ typedef enum key_state
     KB_STATE_INVALID = __INT32_MAX__
 } key_state;
 
-extern cbitset_t *cinput_kb_state;
-extern cbitset_t *cinput_last_frame_kb_state;
+extern cg_bitset_t *cinput_kb_state;
+extern cg_bitset_t *cinput_last_frame_kb_state;
 
 static inline void cinput_initialize() {
-    cinput_kb_state = cbitset_init( SDL_NUM_SCANCODES );
-    cinput_last_frame_kb_state = cbitset_init( SDL_NUM_SCANCODES );
-    // mouse_position = cm::vec2(0.0f, 0.0f);
-    // last_frame_mouse_position = cm::vec2(0.0f, 0.0f);
+    cinput_kb_state = cg_bitset_init( SDL_NUM_SCANCODES );
+    cinput_last_frame_kb_state = cg_bitset_init( SDL_NUM_SCANCODES );
+    // mouse_position = vec2(0.0f, 0.0f);
+    // last_frame_mouse_position = vec2(0.0f, 0.0f);
 }
 
 static inline void cinput_update() {
@@ -44,12 +44,12 @@ static inline void cinput_update() {
     const u8 *const sdl_kb_state = SDL_GetKeyboardState(NULL);
     cinput_last_frame_kb_state = cinput_kb_state;
     for (u32 i = 0; i < SDL_NUM_SCANCODES; i++)
-        cbitset_set_bit_to(cinput_kb_state, i, sdl_kb_state[i]);
+        cg_bitset_set_bit_to(cinput_kb_state, i, sdl_kb_state[i]);
 }
 
 static inline key_state cinput_get_key_state(const SDL_Scancode sc) {
-    const bool key_state = cbitset_access_bit(cinput_kb_state, sc);
-    const bool last_frame_key_state = cbitset_access_bit(cinput_last_frame_kb_state, sc);
+    const bool key_state = cg_bitset_access_bit(cinput_kb_state, sc);
+    const bool last_frame_key_state = cg_bitset_access_bit(cinput_last_frame_kb_state, sc);
 
     // curly braces are beautiful, aren't they?
     if (key_state && last_frame_key_state) {

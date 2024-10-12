@@ -1,5 +1,7 @@
 #include <stdlib.h>
-#include "../../include/containers/cbinarytree.h"
+#include <string.h>
+#include "../../include/cbinarytree.h"
+#include "../../include/defines.h"
 
 typedef struct cbnode_t {
     void *data;
@@ -173,7 +175,7 @@ cbnode_t *cbt_search(cbtree_t *tree, const void *data)
 }
 
 // v1 will never be equal to v2 because the btree makes a copy of the data
-static inline bool_t compmem(const void *v1, const void *v2, unsigned long l) {
+static inline cbtree_bool_t compmem(const void *v1, const void *v2, unsigned long l) {
     return (memcmp(v1, v2, l) == 0);
 }
 

@@ -28,8 +28,8 @@ set(SOURCES
     src/cgfx.c
     src/vkhelper.c
 
-    src/containers/containersunity.c
-    src/containers/cbinarytree.c
+    src/containersunity.c
+    src/cbinarytree.c
 
     src/cimage.c
     src/ctext.c
@@ -66,7 +66,7 @@ set(LIBS
     jpeg
 )
 
-target_link_options(${OUTPUT} PRIVATE -g -Wall -fopenmp)
-target_compile_options(${OUTPUT} PRIVATE -g -Wall -fopenmp)
+target_link_options(${OUTPUT} PRIVATE -g -Wall -fopenmp -fpermissive)
+target_compile_options(${OUTPUT} PRIVATE -g -Wall -fopenmp -fpermissive)
 target_compile_definitions(${OUTPUT} PRIVATE CSM_EXECUTABLE=0) # avoid making multiple main's 
 target_link_libraries(${OUTPUT} ${LIBS})

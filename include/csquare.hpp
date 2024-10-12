@@ -4,16 +4,16 @@
 #include "vkstdafx.h"
 #include "vkhelper.h"
 #include "cvk.h"
-#include "math/vec3.hpp"
-#include "math/vec2.hpp"
-#include "math/mat.hpp"
+#include "math/vec3.h"
+#include "math/vec2.h"
+#include "math/mat.h"
 
 struct cvertex {
-    cm::vec3 position;
-    cm::vec2 texcoord;
+    vec3 position;
+    vec2 texcoord;
 
     bool operator==(const cvertex& other) const {
-        return position == other.position && texcoord == other.texcoord;
+        return v3areeq(position, other.position) && v2areeq(texcoord, other.texcoord);
     }
 };
 
@@ -49,9 +49,9 @@ struct texture2d_t {
 };
 
 struct ctransform {
-    cm::vec3 position;
-    cm::vec3 scale;
-    cm::vec3 rotation;
+    vec3 position;
+    vec3 scale;
+    vec3 rotation;
 };
 
 struct cpipeline {
@@ -85,7 +85,7 @@ int ccreate_cube(crenderer_t *rd, csquare_t *dst) {
     const VkVertexInputAttributeDescription attributeDescriptions[] = {
         // location; binding; format; offset;
         { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0 }, // pos
-        { 1, 0, VK_FORMAT_R32G32_SFLOAT,    sizeof(cm::vec3) }, // uv
+        { 1, 0, VK_FORMAT_R32G32_SFLOAT,    sizeof(vec3) }, // uv
     };
 
     const VkVertexInputBindingDescription bindingDescriptions[] = {
@@ -95,7 +95,7 @@ int ccreate_cube(crenderer_t *rd, csquare_t *dst) {
 
     const VkPushConstantRange pushConstants[] = { 
         // stageFlags, offset, size
-        { VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(cm::mat4) * 2 }
+        { VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4) * 2 }
     };
 
     csm_shader_t *vertex, *fragment;
@@ -133,8 +133,8 @@ int ccreate_cube(crenderer_t *rd, csquare_t *dst) {
 
 void render_cube(crenderer_t *rd, ccamera camera, const csquare_t *cube) {
     struct push_constants {
-        cm::mat4 view;
-        cm::mat4 projection;
+        mat4 view;
+        mat4 projection;
     } pc;
 
     pc.view = camera.get_view();

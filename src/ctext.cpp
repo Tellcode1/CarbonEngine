@@ -13,8 +13,8 @@
 #define MAX(a,b) ({ __typeof__(a) a_ = a; __typeof__(a) b_ = b; (a_ > b_) ? a_ : b_; })
 
 struct cglyph_vertex_t {
-    cm::vec3 pos;
-    cm::vec2 uv;
+    vec3 pos;
+    vec2 uv;
 };
 
 struct ctext::text_drawcall_t {
@@ -47,8 +47,8 @@ void ctext::load_font(crenderer_t *rd, const CFontLoadInfo *__restrict pInfo, cf
     *dst = new cfont_t();
     const f32 scale = ceilf(pInfo->scale);
     (*dst)->pixel_range = scale;
-    (*dst)->glyph_map = chashmap_init(16, sizeof(char), sizeof(CFGlyph), NULL, NULL);
-    (*dst)->drawcalls = cvector_init(sizeof(text_drawcall_t), 4);
+    (*dst)->glyph_map = cg_hashmap_init(16, sizeof(char), sizeof(CFGlyph), NULL, NULL);
+    (*dst)->drawcalls = cg_vector_init(sizeof(text_drawcall_t), 4);
 
     FT_Library lib; FT_Face face;
     if (FT_Init_FreeType(&lib))
@@ -76,7 +76,9 @@ void ctext::load_font(crenderer_t *rd, const CFontLoadInfo *__restrict pInfo, cf
     int ypositions[ 256 ];
     for (int i = 0; i < 256; ++i) {
         FT_UInt glyph_index = FT_Get_Char_Index(face, i);
-
+        if (glyph_index == 0) {
+            continue;
+        }
         if (FT_Load_Glyph(face, glyph_index, FT_LOAD_DEFAULT)) {
             continue;
         }
@@ -99,7 +101,9 @@ void ctext::load_font(crenderer_t *rd, const CFontLoadInfo *__restrict pInfo, cf
 
     for (int i = 0; i < 256; ++i) {
         FT_UInt glyph_index = FT_Get_Char_Index(face, i);
-
+        if (glyph_index == 0) {
+            continue;
+        }
         if (FT_Load_Glyph(face, glyph_index, FT_LOAD_BITMAP_METRICS_ONLY)) {
             continue;
         }
@@ -133,7 +137,7 @@ void ctext::load_font(crenderer_t *rd, const CFontLoadInfo *__restrict pInfo, cf
         retglyph.advance = (f32)face->glyph->metrics.horiAdvance / (f32)face->units_per_EM;
 
         const char glyphi = i;
-        chashmap_insert((*dst)->glyph_map, &glyphi, &retglyph);
+        cg_hashmap_insert((*dst)->glyph_map, &glyphi, &retglyph);
     }
 
     FT_Done_Face(face);
@@ -194,17 +198,17 @@ void ctext::load_font(crenderer_t *rd, const CFontLoadInfo *__restrict pInfo, cf
     VkVertexInputAttributeDescription attributeDescriptions[] = {
         // location; binding; format; offset;
         { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0 }, // pos
-        { 1, 0, VK_FORMAT_R32G32_SFLOAT, sizeof(cm::vec3) }, // uv
+        { 1, 0, VK_FORMAT_R32G32_SFLOAT, sizeof(vec3) }, // uv
     };
 
     VkVertexInputBindingDescription bindingDescriptions[] = {
         // binding; stride; inputRate
-        { 0, sizeof(cm::vec3) + sizeof(cm::vec2), VK_VERTEX_INPUT_RATE_VERTEX }
+        { 0, sizeof(vec3) + sizeof(vec2), VK_VERTEX_INPUT_RATE_VERTEX }
     };
 
     VkPushConstantRange pushConstants[] = {
         // stageFlags, offset, size
-        { VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(cm::mat4) + sizeof(f32) },
+        { VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4) + sizeof(f32) },
     };
 
     csm_shader_t *vertex, *fragment;
@@ -250,7 +254,7 @@ void ctext::load_font(crenderer_t *rd, const CFontLoadInfo *__restrict pInfo, cf
     vkDestroyShaderModule(device, (*dst)->fshader, nullptr);
 }
 
-void ctext::end_render(crenderer_t *rd, ccamera camera, cfont_t *fnt, cm::mat4 model)
+void ctext::end_render(crenderer_t *rd, ccamera camera, cfont_t *fnt, mat4 model)
 {
     if (!fnt->to_render)
         return;
@@ -259,18 +263,18 @@ void ctext::end_render(crenderer_t *rd, ccamera camera, cfont_t *fnt, cm::mat4 m
     constexpr VkDeviceSize offsets[] = { 0 };
 
     struct push_constants {
-        cm::mat4 model;
+        mat4 model;
         f32 scale;
     } pc;
 
-    pc.model = camera.get_projection() * camera.get_view();
+    pc.model = m4mul(camera.get_projection(), camera.get_view());
     pc.scale = fnt->pixel_range;
 
     vkCmdPushConstants(
         cmd,
         fnt->pipeline_layout,
         VK_SHADER_STAGE_VERTEX_BIT,
-        0, sizeof(cm::mat4) + sizeof(f32),
+        0, sizeof(mat4) + sizeof(f32),
         &pc
     );
 
@@ -282,29 +286,29 @@ void ctext::end_render(crenderer_t *rd, ccamera camera, cfont_t *fnt, cm::mat4 m
     vkCmdDrawIndexed(cmd, fnt->index_count, 1, 0, 0, 0);
 }
 
-static cvector_t *split_string(const cstring_t *str) {
-    cstring_t *substr = NULL;
-    cvector_t *result = NULL;
+static cg_vector_t *split_string(const cg_string_t *str) {
+    cg_string_t *substr = NULL;
+    cg_vector_t *result = NULL;
     int i_start = 0;
 
-    result = cvector_init(sizeof(cstring_t *), 16);
+    result = cg_vector_init(sizeof(cg_string_t *), 16);
     cassert(result != NULL);
 
-    for (int i = 0; i < cstring_length(str); i++) {
-        if (cstring_data(str)[i] == '\n') {
+    for (int i = 0; i < cg_string_length(str); i++) {
+        if (cg_string_data(str)[i] == '\n') {
             if (i > i_start) {
-                substr = cstring_substring(str, i_start, i - i_start);
+                substr = cg_string_substring(str, i_start, i - i_start);
                 cassert(substr != NULL);
-                cvector_push_back(result, &substr);
+                cg_vector_push_back(result, &substr);
             }
             i_start = i + 1;
         }
     }
 
-    if (i_start < cstring_length(str)) {
-        substr = cstring_substring(str, i_start, cstring_length(str) - i_start);
+    if (i_start < cg_string_length(str)) {
+        substr = cg_string_substring(str, i_start, cg_string_length(str) - i_start);
         cassert(substr != NULL);
-        cvector_push_back(result, &substr);
+        cg_vector_push_back(result, &substr);
     }
 
     return result;
@@ -312,7 +316,7 @@ static cvector_t *split_string(const cstring_t *str) {
 
 void ctext::begin_render(cfont_t *fnt)
 {
-    if (cvector_size(fnt->drawcalls) == 0) {
+    if (cg_vector_size(fnt->drawcalls) == 0) {
         fnt->to_render = false;
         return;
     }
@@ -320,8 +324,8 @@ void ctext::begin_render(cfont_t *fnt)
     u32 total_vertex_byte_size = 0;
     u32 total_index_count = 0;
 
-    for (int i = 0; i < cvector_size(fnt->drawcalls); i++) {
-        const text_drawcall_t &drawcall = ((text_drawcall_t *)cvector_data(fnt->drawcalls))[i];
+    for (int i = 0; i < cg_vector_size(fnt->drawcalls); i++) {
+        const text_drawcall_t &drawcall = ((text_drawcall_t *)cg_vector_data(fnt->drawcalls))[i];
         total_vertex_byte_size += drawcall.vertex_count * sizeof(cglyph_vertex_t);
         total_index_count += drawcall.index_count;
     }
@@ -336,8 +340,8 @@ void ctext::begin_render(cfont_t *fnt)
 
     u32 vertex_copy_iterator = 0;
     u32 index_copy_iterator = 0;
-    for (int i = 0; i < cvector_size(fnt->drawcalls); i++) {
-        const text_drawcall_t &drawcall = ((text_drawcall_t *)cvector_data(fnt->drawcalls))[i];
+    for (int i = 0; i < cg_vector_size(fnt->drawcalls); i++) {
+        const text_drawcall_t &drawcall = ((text_drawcall_t *)cg_vector_data(fnt->drawcalls))[i];
         memcpy(static_cast<u8 *>(mapped) + vertex_copy_iterator, drawcall.vertices, drawcall.vertex_count * sizeof(cglyph_vertex_t));
         memcpy(static_cast<u8 *>(mapped) + total_vertex_byte_size + index_copy_iterator, drawcall.indices, drawcall.index_count * sizeof(u32));
         vertex_copy_iterator += drawcall.vertex_count * sizeof(cglyph_vertex_t);
@@ -350,21 +354,21 @@ void ctext::begin_render(cfont_t *fnt)
     fnt->to_render = true;
 
     fnt->chars_drawn = 0;
-    for (int i = 0; i < cvector_size(fnt->drawcalls); i++) {
-        text_drawcall_t &drawcall = ((text_drawcall_t *)cvector_data(fnt->drawcalls))[i];
+    for (int i = 0; i < cg_vector_size(fnt->drawcalls); i++) {
+        text_drawcall_t &drawcall = ((text_drawcall_t *)cg_vector_data(fnt->drawcalls))[i];
         free(drawcall.vertices);
     }
-    cvector_clear(fnt->drawcalls);
+    cg_vector_clear(fnt->drawcalls);
 }
 
 static void render_line(
     const ctext::cfont_t *fnt,
-    const cstring_t *str,
+    const cg_string_t *str,
     const ctext::text_drawcall_t* drawcall,
     const ctext::text_render_info *pInfo,
     const f32 &y,
-    const cvector_t * /* ctext::CFGlyph * */ glyph_table,
-    const chashmap_t * /* <char, int> */ index_table,
+    const cg_vector_t * /* ctext::CFGlyph * */ glyph_table,
+    const cg_hashmap_t * /* <char, int> */ index_table,
     int &glyph_iter
 ) {
 
@@ -377,9 +381,9 @@ static void render_line(
 
     f32 width = 0.0f;
     int local_glyph_iter = glyph_iter;
-    const int len = cstring_length(str);
+    const int len = cg_string_length(str);
     for (int i = 0; i < len; i++) {
-        const char c = cstring_data(str)[i];
+        const char c = cg_string_data(str)[i];
         switch (c) {
             case ' ':
                 width += scaled_space_width;
@@ -390,9 +394,9 @@ static void render_line(
             case '\n':
                 continue;
             default:
-                int *indexptr = (int *)chashmap_find(index_table, &c);
+                int *indexptr = (int *)cg_hashmap_find(index_table, &c);
                 int index = *indexptr;
-                ctext::CFGlyph *glyph = ((ctext::CFGlyph **)cvector_data(glyph_table))[ index ];
+                ctext::CFGlyph *glyph = ((ctext::CFGlyph **)cg_vector_data(glyph_table))[ index ];
                 width += glyph->advance * pInfo->scale;
                 local_glyph_iter++;
                 continue;
@@ -409,7 +413,7 @@ static void render_line(
                     pInfo->position.x;
 
     for (int i = 0; i < len; i++) {
-        switch (cstring_data(str)[i]) {
+        switch (cg_string_data(str)[i]) {
             case ' ':
                 x += scaled_space_width;
                 continue;
@@ -417,25 +421,18 @@ static void render_line(
                 x += scaled_tab_width;
                 continue;
             default:
-                const ctext::CFGlyph *glyph = (const ctext::CFGlyph *)chashmap_find(fnt->glyph_map, &(cstring_data(str)[i]));
+                const ctext::CFGlyph *glyph = (const ctext::CFGlyph *)cg_hashmap_find(fnt->glyph_map, &(cg_string_data(str)[i]));
                 const f32 glyph_x0 = glyph->x0 * pInfo->scale + x;
                 const f32 glyph_x1 = glyph->x1 * pInfo->scale + x;
                 const f32 glyph_y0 = glyph->y0 * pInfo->scale + y;
                 const f32 glyph_y1 = glyph->y1 * pInfo->scale + y;
 
-                const cm::vec2 texture_coordinates[4] = {
-                    cm::vec2(glyph->l, glyph->b),
-                    cm::vec2(glyph->r, glyph->b),
-                    cm::vec2(glyph->r, glyph->t),
-                    cm::vec2(glyph->l, glyph->t)
-                };
-
                 const f32 scaled_z = pInfo->position.z * pInfo->scale;
 
-                vertex_output_data[0] = (cglyph_vertex_t){ cm::vec3(glyph_x0, glyph_y0, scaled_z), texture_coordinates[0] };
-                vertex_output_data[1] = (cglyph_vertex_t){ cm::vec3(glyph_x1, glyph_y0, scaled_z), texture_coordinates[1] };
-                vertex_output_data[2] = (cglyph_vertex_t){ cm::vec3(glyph_x1, glyph_y1, scaled_z), texture_coordinates[2] };
-                vertex_output_data[3] = (cglyph_vertex_t){ cm::vec3(glyph_x0, glyph_y1, scaled_z), texture_coordinates[3] };
+                vertex_output_data[0] = (cglyph_vertex_t){ (vec3){glyph_x0, glyph_y0, scaled_z}, (vec2){glyph->l, glyph->b}, };
+                vertex_output_data[1] = (cglyph_vertex_t){ (vec3){glyph_x1, glyph_y0, scaled_z}, (vec2){glyph->r, glyph->b}, };
+                vertex_output_data[2] = (cglyph_vertex_t){ (vec3){glyph_x1, glyph_y1, scaled_z}, (vec2){glyph->r, glyph->t}, };
+                vertex_output_data[3] = (cglyph_vertex_t){ (vec3){glyph_x0, glyph_y1, scaled_z}, (vec2){glyph->l, glyph->t} };
 
                 index_output_data[0] = index_offset;
                 index_output_data[1] = index_offset + 1;
@@ -470,20 +467,20 @@ void gen_vertices(
     ctext::cfont_t *fnt,
     ctext::text_drawcall_t* drawcall,
     const ctext::text_render_info *pInfo,
-    const cstring_t *str,
+    const cg_string_t *str,
     const u32 effective_length,
-    const cvector_t * /* ctext::CFGlyph * */ glyph_table,
-    const chashmap_t * /* <char, int> */ index_table
+    const cg_vector_t * /* ctext::CFGlyph * */ glyph_table,
+    const cg_hashmap_t * /* <char, int> */ index_table
 ) {
-    if (cstring_length(str) == 0)
+    if (cg_string_length(str) == 0)
         return;
 
-    cvector_t *splitted_strings = split_string(str);
+    cg_vector_t *splitted_strings = split_string(str);
 
     const f32 scaled_line_height = fnt->line_height * pInfo->scale;
 
     f32 y = pInfo->position.y;
-    const f32 text_size = ((fnt->line_height * pInfo->scale) * cvector_size(splitted_strings));
+    const f32 text_size = ((fnt->line_height * pInfo->scale) * cg_vector_size(splitted_strings));
     switch(pInfo->vertical)
     {
         case CTEXT_VERT_ALIGN_CENTER:
@@ -506,15 +503,15 @@ void gen_vertices(
 
     const i32 old_chars_drawn = fnt->chars_drawn;
     int glyph_iter = 0;
-    for (int i = 0; i < cvector_size(splitted_strings); i++) {;
-        render_line(fnt, *(cstring_t **)cvector_get(splitted_strings, i), drawcall, pInfo, y + i * scaled_line_height, glyph_table, index_table, glyph_iter);
+    for (int i = 0; i < cg_vector_size(splitted_strings); i++) {;
+        render_line(fnt, *(cg_string_t **)cg_vector_get(splitted_strings, i), drawcall, pInfo, y + i * scaled_line_height, glyph_table, index_table, glyph_iter);
         fnt->chars_drawn = old_chars_drawn + glyph_iter;
     }
 
-    for (int i = 0; i < cvector_size(splitted_strings); i++) {
-        cstring_destroy( ((cstring_t **)cvector_data(splitted_strings))[i] );
+    for (int i = 0; i < cg_vector_size(splitted_strings); i++) {
+        cg_string_destroy( ((cg_string_t **)cg_vector_data(splitted_strings))[i] );
     }
-    cvector_destroy(splitted_strings);
+    cg_vector_destroy(splitted_strings);
 }
 
 void ctext::render(cfont_t *fnt, const text_render_info *pInfo, const char *fmt, ...)
@@ -530,7 +527,7 @@ void ctext::render(cfont_t *fnt, const text_render_info *pInfo, const char *fmt,
         return;
     }
 
-    cstring_t *str = cstring_init_str(buf);
+    cg_string_t *str = cg_string_init_str(buf);
 
     // free(buf);
 
@@ -546,34 +543,34 @@ void ctext::render(cfont_t *fnt, const text_render_info *pInfo, const char *fmt,
     drawcall.index_offset = (vertex_count * sizeof(cglyph_vertex_t));
     drawcall.indices = (u32 *)((uchar *)allocation + drawcall.index_offset);
 
-    cvector_t * /* ctext::CFGlyph * */ glyph_table = cvector_init(sizeof(ctext::CFGlyph *), effective_length);
-    chashmap_t * /*<char, int>*/ index_table = chashmap_init(effective_length, sizeof(char), sizeof(int), NULL, NULL);
+    cg_vector_t * /* ctext::CFGlyph * */ glyph_table = cg_vector_init(sizeof(ctext::CFGlyph *), effective_length);
+    cg_hashmap_t * /*<char, int>*/ index_table = cg_hashmap_init(effective_length, sizeof(char), sizeof(int), NULL, NULL);
 
     int pen = 0;
-    for (int i = 0; i < cstring_length(str); i++) {
-        const char c = cstring_data(str)[i];
+    for (int i = 0; i < cg_string_length(str); i++) {
+        const char c = cg_string_data(str)[i];
         if (c == '\000')
             break;
         else if (c == ' ' || c == '\t' || c == '\n')
             continue;
-        else if (chashmap_find(index_table, &c) == NULL) {
-            CFGlyph *glyph = (CFGlyph *)chashmap_find(fnt->glyph_map, &c);
-            cvector_push_back(glyph_table, &glyph);
-            chashmap_insert(index_table, &c, &pen);
+        else if (cg_hashmap_find(index_table, &c) == NULL) {
+            CFGlyph *glyph = (CFGlyph *)cg_hashmap_find(fnt->glyph_map, &c);
+            cg_vector_push_back(glyph_table, &glyph);
+            cg_hashmap_insert(index_table, &c, &pen);
             pen++;
         }
     }
 
     gen_vertices(fnt, &drawcall, pInfo, str, effective_length, glyph_table, index_table);
 
-    cvector_destroy(glyph_table);
-    chashmap_destroy(index_table);
-    cstring_destroy(str);
+    cg_vector_destroy(glyph_table);
+    cg_hashmap_destroy(index_table);
+    cg_string_destroy(str);
 
     drawcall.vertex_count = effective_length * 4;
     drawcall.index_count = effective_length * 6;
 
-    cvector_push_back(fnt->drawcalls, &drawcall);
+    cg_vector_push_back(fnt->drawcalls, &drawcall);
 }
 
 void ctext::init()

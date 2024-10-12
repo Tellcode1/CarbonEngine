@@ -6,15 +6,15 @@ struct ctx;
 #include "stdafx.h"
 #include "vkstdafx.h"
 #include "../external/volk/volk.h"
-#include "containers/cvector.h"
-#include "containers/cstring.h"
+#include "cgvector.h"
+#include "cgstring.h"
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
 
 struct ctx {
-	static cvector_t * /* cstring_t * */ availableDeviceExtensions;
-	static cvector_t * /* cstring_t * */ availableInstanceExtensions;
+	static cg_vector_t * /* cg_string_t * */ availableDeviceExtensions;
+	static cg_vector_t * /* cg_string_t * */ availableInstanceExtensions;
 	static VkPhysicalDeviceFeatures availableFeatures;
 	
 	static void Initialize(const char* title, u32 windowWidth, u32 windowHeight);
@@ -53,51 +53,51 @@ static __attribute_maybe_unused__ VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessengerC
     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
     void* pUserData) {
 
-	cstring_t *preceder = cstring_init_str("[VkDBG]");
-	cstring_t *succeeder = cstring_init_str("\n");
+	cg_string_t *preceder = cg_string_init_str("[VkDBG]");
+	cg_string_t *succeeder = cg_string_init_str("\n");
 
 	switch(messageSeverity)
 	{
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
-			cstring_append(preceder, "[WARN]");
+			cg_string_append(preceder, "[WARN]");
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
-			cstring_append(preceder, "[INFO]");
+			cg_string_append(preceder, "[INFO]");
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
-			cstring_append(preceder, "[ERR]");
+			cg_string_append(preceder, "[ERR]");
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
-			cstring_append(preceder, "[VERB]");
+			cg_string_append(preceder, "[VERB]");
 			break;
 		default:
-			cstring_append(preceder, "[UNKNOWN SEVERITY]");
+			cg_string_append(preceder, "[UNKNOWN SEVERITY]");
 			break;
 	}
 
 	switch(messageType)
 	{
 		case VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT:
-			cstring_append(preceder, "[GEN] ");
+			cg_string_append(preceder, "[GEN] ");
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT:
-			cstring_append(preceder, "[VALTION] ");
+			cg_string_append(preceder, "[VALTION] ");
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT:
-			cstring_append(preceder, "[PERF] ");
+			cg_string_append(preceder, "[PERF] ");
 			break;
 		case VK_DEBUG_UTILS_MESSAGE_TYPE_DEVICE_ADDRESS_BINDING_BIT_EXT:
-			cstring_append(preceder, "[ADDR BIND] ");
+			cg_string_append(preceder, "[ADDR BIND] ");
 			break;
 		default:
-			cstring_append(preceder, "[UNKNOWN TYPE] ");
+			cg_string_append(preceder, "[UNKNOWN TYPE] ");
 			break;
 	}
 
-	printf("%s%s%s", cstring_data(preceder), pCallbackData->pMessage, cstring_data(succeeder));
+	printf("%s%s%s", cg_string_data(preceder), pCallbackData->pMessage, cg_string_data(succeeder));
 
-	cstring_destroy(preceder);
-	cstring_destroy(succeeder);
+	cg_string_destroy(preceder);
+	cg_string_destroy(succeeder);
     return VK_FALSE;
 }
 

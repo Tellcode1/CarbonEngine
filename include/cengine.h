@@ -54,7 +54,7 @@ static const u32 FIXED_FRAME_RATE = 30;
 static const f64 FIXED_TICK_RATE = 1000.0 / (f64)FIXED_FRAME_RATE; // 1000 milliseconds
 
 extern void cg_initialize();
-extern void cg_consume_event(const SDL_Event *event);
+extern void cg_consume_event(const union SDL_Event *event);
 extern void cg_update();
 extern void cg_begin_frame();
 extern void cg_end_frame();

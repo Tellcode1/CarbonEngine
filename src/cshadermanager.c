@@ -402,8 +402,6 @@ void csm_compile_updated()
     int cachecount = 0;
     shader_cache_entry *cacheentries = load_cache(&cachecount);
 
-    int was_any_shader_modified = 0;
-
     if (cacheentries != NULL) {
         for (int i = 0; i < count; i++) {
             for (int j = 0; j < cachecount; j++) {
@@ -412,7 +410,6 @@ void csm_compile_updated()
                         memset(buffer, 0, 512);
                         compile_shader(buffer, &entries[i]);
                         cacheentries[j].last_modified = entries[i].last_modified;
-                        was_any_shader_modified = 1;
                     }
                     break;
                 }
@@ -425,7 +422,7 @@ void csm_compile_updated()
         }
     }
 
-    if (!cacheentries || was_any_shader_modified) {
+    if (!cacheentries) {
         printf("csm :: No cache or modified cache. Writing new cache file...\n");
         write_new_cache(entries, count);
     } else {

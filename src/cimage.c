@@ -40,9 +40,9 @@ ctex2D cimg_load_png(const char *path)
     png_init_io(png, f);
     png_read_info(png, info);
 
-    // if (setjmp(png_jmpbuf(png))) {
-    //     cassert(0);
-    // }
+    if (setjmp(png_jmpbuf(png))) {
+        cassert(0);
+    }
 
     texture.w = png_get_image_width(png, info);
     texture.h = png_get_image_height(png, info);
@@ -250,7 +250,7 @@ void cimg_write_png(const ctex2D *tex, const char *path)
     }
 
     const int bytesperpixel = cfmt_get_bytesperpixel(tex->fmt);
-    png_set_IHDR(png, info, tex->w, tex->h, bytesperpixel * 8, coltype, PNG_INTERLACE_ADAM7, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+    png_set_IHDR(png, info, tex->w, tex->h, bytesperpixel * 8, coltype, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
 
     png_write_info(png, info);
 
