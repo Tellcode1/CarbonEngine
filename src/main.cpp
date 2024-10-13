@@ -7,15 +7,14 @@
 
 #include "../include/camera.h"
 #include "../include/mesh.hpp"
-#include "../include/csquare.h"
+#include "../include/cquad.h"
 
 #include "../include/cimage.h"
 
 int main(int argc, char *argv[]) {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);
 
-    cg_device_t device = {};
-    TIME_FUNCTION(device = cg_initialize_device("kilometers per second (edgy)(im cool now ok?)", 800, 600));
+    TIME_FUNCTION(cg_initialize_context("kilometers per second (edgy)(im cool now ok?)", 800, 600));
 
     crenderer_config rdconf = crender_config_init();
     rdconf.vsync_enabled = 1;
@@ -23,12 +22,12 @@ int main(int argc, char *argv[]) {
     rdconf.window_resizable = 0;
     rdconf.multisampling_enable = 1;
     rdconf.samples = CGFX_SAMPLE_COUNT_MAX_SUPPORTED;
-    crenderer_t *rd = crenderer_init(&device, &rdconf);
+    crenderer_t *rd = crenderer_init(&rdconf);
     cinput_init();
     ctext_init(rd);
 
     // * get a better name for this
-    csm_compile_updated(&device);
+    csm_compile_updated();
 
     const f32 updateTime = 3.0f; // seconds. 1.5f = 1.5 seconds
     f32 totalTime = 0.0f;
@@ -55,6 +54,9 @@ int main(int argc, char *argv[]) {
     light = load_mesh(rd, "../Assets/barrel.obj", "../Assets/barrel.png", "../Assets/model/3DBread007_HQ-1K-JPG_NormalGL.jpg");
     mesh = load_mesh(rd, "../Assets/model/3DBread007_HQ-1K-JPG.obj", "../Assets/model/3DBread007_HQ-1K-JPG_Color.jpg", "../Assets/model/3DBread007_HQ-1K-JPG_NormalGL.jpg");
 
+    csquare_t square;
+    ccreate_cube(rd, &square);
+
     ccamera camera = ccamera_init();
 
     // What in the unholy f%$ where you doing
@@ -67,10 +69,6 @@ int main(int argc, char *argv[]) {
         SDL_Event event;
         while(SDL_PollEvent(&event)) {
             cg_consume_event(&event);
-            if (event.type == SDL_MOUSEMOTION) {
-                const float sensitivity = 10.0f;
-                cam_rotate(&camera, ((float)event.motion.xrel) / sensitivity, ((float)event.motion.yrel) / sensitivity);
-            }
         }
 
         const float speed = 16.6f * dt;
@@ -143,6 +141,7 @@ int main(int argc, char *argv[]) {
 
             block->transform.rotation.y += cmdeg2rad(360.0f * 16.0f) * dt;
 
+            render_cube(rd, &camera, &square);
             // render(rd, camera, light, light->transform.position);
             // render(rd, camera, mesh, light->transform.position);
             render(rd, &camera, block, light->transform.position);

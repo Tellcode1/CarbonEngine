@@ -4,27 +4,18 @@
 #include "../../include/math/math.h"
 #include "../../include/defines.h"
 
-typedef struct cg_vector_t {
-    int m_size;
-    int m_capacity;
-    int m_typesize;
-    void *m_data;
-} cg_vector_t;
-
-cg_vector_t *cg_vector_init(int typesize, int init_size)
+cg_vector_t cg_vector_init(int typesize, int init_size)
 {
-    cg_vector_t *vec = malloc(sizeof(struct cg_vector_t));
-    cassert(vec != NULL);
-
-    vec->m_size = 0;
-    vec->m_typesize = typesize;
-    vec->m_capacity = init_size;
+    cg_vector_t vec = {};
+    vec.m_size = 0;
+    vec.m_typesize = typesize;
+    vec.m_capacity = init_size;
 
     if (init_size > 0) {
-        vec->m_data = calloc(init_size, typesize);
-        cassert(vec->m_data != NULL);
+        vec.m_data = calloc(init_size, typesize);
+        cassert(vec.m_data != NULL);
     } else {
-        vec->m_data = NULL;
+        vec.m_data = NULL;
     }
 
     return vec;
@@ -36,7 +27,6 @@ void cg_vector_destroy(cg_vector_t *vec)
         if (vec->m_data) {
             free(vec->m_data);
         }
-        free(vec);
     }
 }
 

@@ -6,25 +6,25 @@ VkSampleCountFlagBits                MAX_SAMPLES;
 unsigned char 				         SUPPORTS_MULTISAMPLING;
 f32 				                 MAX_ANISOTROPY;
 
-cg_vector_t *setify(u32 i1, u32 i2, u32 i3, u32 i4) {
-	cg_vector_t *ret = cg_vector_init(sizeof(u32), 4);
+cg_vector_t setify(u32 i1, u32 i2, u32 i3, u32 i4) {
+	cg_vector_t ret = cg_vector_init(sizeof(u32), 4);
     u32 nums[4] = {i1, i2, i3, i4};
 	for (int j = 0; j < array_len(nums); j++) {
 		int e = nums[j];
 		bool already_in = false;
-		for (int i = 0; i < cg_vector_size(ret); i++) {
-			if (e == *(u32 *)cg_vector_get(ret, i))
+		for (int i = 0; i < cg_vector_size(&ret); i++) {
+			if (e == *(u32 *)cg_vector_get(&ret, i))
 				already_in = true;
 
 		}
 		if (!already_in) {
-			cg_vector_push_back(ret, &e);
+			cg_vector_push_back(&ret, &e);
 		}
 	}
 	return ret;
 }
 
-VkInstance CreateInstance(const char* title, cg_device_t *device) {
+VkInstance CreateInstance(const char* title) {
 	if (volkInitialize() != VK_SUCCESS) {
 		LOG_AND_ABORT("Volk could not initialize. You probably don't have the vulkan loader installed. I can't do anything about that.");
 	}
@@ -38,32 +38,32 @@ VkInstance CreateInstance(const char* title, cg_device_t *device) {
 	appInfo.engineVersion = 0;
 
 	uint32_t SDLExtensionCount = 0;
-	SDL_Vulkan_GetInstanceExtensions(device->window, &SDLExtensionCount, NULL);
-	cg_vector_t * /* const char* */ SDLExtensions = cg_vector_init(sizeof(const char *), SDLExtensionCount);
-	SDL_Vulkan_GetInstanceExtensions(device->window, &SDLExtensionCount, (const char **)cg_vector_data(SDLExtensions));
+	SDL_Vulkan_GetInstanceExtensions(window, &SDLExtensionCount, NULL);
+	cg_vector_t /* const char* */ SDLExtensions = cg_vector_init(sizeof(const char *), SDLExtensionCount);
+	SDL_Vulkan_GetInstanceExtensions(window, &SDLExtensionCount, (const char **)cg_vector_data(&SDLExtensions));
 
-	cg_vector_t *enabledExtensions = cg_vector_init(sizeof(const char *), array_len(RequiredInstanceExtensions));
+	cg_vector_t enabledExtensions = cg_vector_init(sizeof(const char *), array_len(RequiredInstanceExtensions));
 
 	for (int i = 0; i < array_len(RequiredInstanceExtensions); i++) {
 		const char *ext = RequiredInstanceExtensions[i];
-		cg_vector_push_back(enabledExtensions, &ext);
+		cg_vector_push_back(&enabledExtensions, &ext);
 	}
 
 	for (int i = 0; i < (int)SDLExtensionCount; i++) {
-		cg_vector_push_back(enabledExtensions, cg_vector_get(SDLExtensions, i));
+		cg_vector_push_back(&enabledExtensions, cg_vector_get(&SDLExtensions, i));
 	}
 
 	u32 extensionCount = 0;
 	vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, NULL);
-	cg_vector_t * /* VkExtensionProperties */ extensions = cg_vector_init(sizeof(VkExtensionProperties), extensionCount);
-	vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, (VkExtensionProperties *)cg_vector_data(extensions));
+	cg_vector_t /* VkExtensionProperties */ extensions = cg_vector_init(sizeof(VkExtensionProperties), extensionCount);
+	vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, (VkExtensionProperties *)cg_vector_data(&extensions));
 
 	for (u32 i = 0; i < extensionCount; i++) {
-		const char* name = ((VkExtensionProperties *)cg_vector_data(extensions))[i].extensionName;
+		const char* name = ((VkExtensionProperties *)cg_vector_data(&extensions))[i].extensionName;
 		for(int j = 0; j < array_len(WantedInstanceExtensions); j++) {
 			const char * want = WantedInstanceExtensions[j];
 			if(strcmp(name, want) == 0) {
-				cg_vector_push_back(enabledExtensions, &name);
+				cg_vector_push_back(&enabledExtensions, &name);
 				break;
 			}
 		}
@@ -72,8 +72,8 @@ VkInstance CreateInstance(const char* title, cg_device_t *device) {
 	VkInstanceCreateInfo instanceCreateinfo = {};
 	instanceCreateinfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 	instanceCreateinfo.pApplicationInfo = &appInfo;
-	instanceCreateinfo.enabledExtensionCount = cg_vector_size(enabledExtensions);
-	instanceCreateinfo.ppEnabledExtensionNames = (const char **)cg_vector_data(enabledExtensions);
+	instanceCreateinfo.enabledExtensionCount = cg_vector_size(&enabledExtensions);
+	instanceCreateinfo.ppEnabledExtensionNames = (const char **)cg_vector_data(&enabledExtensions);
 
 	#ifdef DEBUG
 
@@ -81,13 +81,13 @@ VkInstance CreateInstance(const char* title, cg_device_t *device) {
 	uint32_t layerCount = 0;
 
 	vkEnumerateInstanceLayerProperties(&layerCount, NULL);
-	cg_vector_t * /* VkLayerProperties */ layerProperties = cg_vector_init(sizeof(VkLayerProperties), layerCount);
-	vkEnumerateInstanceLayerProperties(&layerCount, (VkLayerProperties *)cg_vector_data(layerProperties));
+	cg_vector_t /* VkLayerProperties */ layerProperties = cg_vector_init(sizeof(VkLayerProperties), layerCount);
+	vkEnumerateInstanceLayerProperties(&layerCount, (VkLayerProperties *)cg_vector_data(&layerProperties));
 
 	if(array_len(ValidationLayers) != 0) {
 		for(int j = 0; j < array_len(ValidationLayers); j++) {
 			for (uint32_t i = 0; i < layerCount; i++) {
-				if (strcmp(ValidationLayers[j], ((VkLayerProperties *)cg_vector_data(layerProperties))[i].layerName) == 0) {
+				if (strcmp(ValidationLayers[j], ((VkLayerProperties *)cg_vector_data(&layerProperties))[i].layerName) == 0) {
 					validationLayersAvailable = true;
 				}
 			}
@@ -102,29 +102,29 @@ VkInstance CreateInstance(const char* title, cg_device_t *device) {
 
 			printf("Instance provided these layers (i.e. These layers are available):\n");
 			for(uint32_t i = 0; i < layerCount; i++)
-				printf("\t%s\n", ((VkLayerProperties *)cg_vector_data(layerProperties))[i].layerName);
+				printf("\t%s\n", ((VkLayerProperties *)cg_vector_data(&layerProperties))[i].layerName);
 
 			printf("But instance asked for (i.e. are not available):\n");
 
-			cg_vector_t * /* const char* */ missingLayers = cg_vector_init(sizeof(const char *), 16);
+			cg_vector_t /* const char* */ missingLayers = cg_vector_init(sizeof(const char *), 16);
 		
 			for(int i = 0; i < array_len(ValidationLayers); i++)
 			{
 				const char *layer = ValidationLayers[i];
 				bool layerAvailable = false;
 				for (uint32_t i = 0; i < layerCount; i++) {
-					if (strcmp(layer, ((VkLayerProperties *)cg_vector_data(layerProperties))[i].layerName) == 0)
+					if (strcmp(layer, ((VkLayerProperties *)cg_vector_data(&layerProperties))[i].layerName) == 0)
 					{
 						layerAvailable = true;
 						break;
 					}
 				}
-				if(!layerAvailable) cg_vector_push_back(missingLayers, &layer);
+				if(!layerAvailable) cg_vector_push_back(&missingLayers, &layer);
 			}
-			for(int i = 0; i < cg_vector_size(missingLayers); i++)
-				printf("\t%s\n", (const char *)cg_vector_get(missingLayers, i));
+			for(int i = 0; i < cg_vector_size(&missingLayers); i++)
+				printf("\t%s\n", (const char *)cg_vector_get(&missingLayers, i));
 			
-			cg_vector_destroy(missingLayers);
+			cg_vector_destroy(&missingLayers);
 			
 			abort();
 		}
@@ -159,7 +159,7 @@ VkInstance CreateInstance(const char* title, cg_device_t *device) {
 		PFN_vkCreateDebugUtilsMessengerEXT _CreateDebugUtilsMessenger = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
 
 		if (_CreateDebugUtilsMessenger) {
-			if (_CreateDebugUtilsMessenger(instance, &createInfo, NULL, &device->debugMessenger) != VK_SUCCESS)
+			if (_CreateDebugUtilsMessenger(instance, &createInfo, NULL, &debugMessenger) != VK_SUCCESS)
 				LOG_ERROR("Debug messenger failed to initialize");
 			else
 				LOG_DEBUG("Debug messenger successfully set up.");
@@ -169,10 +169,10 @@ VkInstance CreateInstance(const char* title, cg_device_t *device) {
 	}
 	#endif
 
-	cg_vector_destroy(SDLExtensions);
-	cg_vector_destroy(extensions);
-	cg_vector_destroy(enabledExtensions);
-	cg_vector_destroy(layerProperties);
+	cg_vector_destroy(&SDLExtensions);
+	cg_vector_destroy(&extensions);
+	cg_vector_destroy(&enabledExtensions);
+	cg_vector_destroy(&layerProperties);
 
 	volkLoadInstance(instance);
     return instance;
@@ -216,11 +216,11 @@ VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR surface)
 		LOG_AND_ABORT("Huuuhhh??? No physical devices found? Are you running this on a banana???\n");
 	}
 
-	cg_vector_t * /* VkPhysicalDevice */ physicalDevices = cg_vector_init(sizeof(VkPhysicalDevice), physDeviceCount);
-	vkEnumeratePhysicalDevices(instance, &physDeviceCount, (VkPhysicalDevice *)cg_vector_data(physicalDevices));
+	cg_vector_t /* VkPhysicalDevice */ physicalDevices = cg_vector_init(sizeof(VkPhysicalDevice), physDeviceCount);
+	vkEnumeratePhysicalDevices(instance, &physDeviceCount, (VkPhysicalDevice *)cg_vector_data(&physicalDevices));
 
 	for(u32 i = 0; i < physDeviceCount; i++) {
-		const VkPhysicalDevice device = ((VkPhysicalDevice *)cg_vector_data(physicalDevices))[i];
+		const VkPhysicalDevice device = ((VkPhysicalDevice *)cg_vector_data(&physicalDevices))[i];
 
 		uint32_t formatCount = 0;
 		vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, NULL);
@@ -232,14 +232,14 @@ VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR surface)
 
 		uint32_t extensionCount = 0;
 		vkEnumerateDeviceExtensionProperties(device, NULL, &extensionCount, NULL);
-		cg_vector_t * /* VkExtensionProperties */ availableExtensions = cg_vector_init(sizeof(VkExtensionProperties), extensionCount);
-		vkEnumerateDeviceExtensionProperties(device, NULL, &extensionCount, (VkExtensionProperties *)cg_vector_data(availableExtensions));
+		cg_vector_t /* VkExtensionProperties */ availableExtensions = cg_vector_init(sizeof(VkExtensionProperties), extensionCount);
+		vkEnumerateDeviceExtensionProperties(device, NULL, &extensionCount, (VkExtensionProperties *)cg_vector_data(&availableExtensions));
 
 		for (int i = 0; i < array_len(RequiredDeviceExtensions); i++) {
 			const char *extension = RequiredDeviceExtensions[i];
 			bool validated = false;
 			for(u32 j = 0; j < extensionCount; j++) {
-				if (strcmp(extension, ((VkExtensionProperties *)cg_vector_data(availableExtensions))[j].extensionName) == 0)
+				if (strcmp(extension, ((VkExtensionProperties *)cg_vector_data(&availableExtensions))[j].extensionName) == 0)
 					validated = true;
 			}
 			if (!validated) {
@@ -248,7 +248,7 @@ VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR surface)
 			}
 		}
 
-		cg_vector_destroy(availableExtensions);
+		cg_vector_destroy(&availableExtensions);
 
 		if (extensionsAvailable && formatCount > 0 && presentModeCount > 0) {
 			PrintDeviceInfo(device);
@@ -256,7 +256,7 @@ VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR surface)
 		}
 	}
 
-	VkPhysicalDevice fallback = ((VkPhysicalDevice *)cg_vector_data(physicalDevices))[0];
+	VkPhysicalDevice fallback = ((VkPhysicalDevice *)cg_vector_data(&physicalDevices))[0];
 
 	VkPhysicalDeviceProperties properties;
 	vkGetPhysicalDeviceProperties(fallback, &properties);
@@ -265,16 +265,16 @@ VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR surface)
 
 	PrintDeviceInfo(fallback);
 
-	cg_vector_destroy(physicalDevices);
+	cg_vector_destroy(&physicalDevices);
 
 	return fallback;
 }
 
-VkDevice CreateDevice(cg_device_t *device) {
+VkDevice CreateDevice() {
 	u32 queueCount = 0;
-	vkGetPhysicalDeviceQueueFamilyProperties(device->physDevice, &queueCount, NULL);
-	cg_vector_t * /* VkQueueFamilyProperties */ queueFamilies = cg_vector_init(sizeof(VkQueueFamilyProperties), queueCount);
-	vkGetPhysicalDeviceQueueFamilyProperties(device->physDevice, &queueCount, (VkQueueFamilyProperties *)cg_vector_data(queueFamilies));
+	vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, NULL);
+	cg_vector_t /* VkQueueFamilyProperties */ queueFamilies = cg_vector_init(sizeof(VkQueueFamilyProperties), queueCount);
+	vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, (VkQueueFamilyProperties *)cg_vector_data(&queueFamilies));
 
 	// Clang loves complaining about these.
 	u32 graphicsFamily = 0, presentFamily = 0, computeFamily = 0, transferFamily = 0;
@@ -283,10 +283,10 @@ VkDevice CreateDevice(cg_device_t *device) {
 	bool foundGraphicsFamily = false, foundPresentFamily = false, foundComputeFamily = false, foundTransferFamily = false;
 		
 	u32 i = 0;
-	for (int j = 0; j < cg_vector_size(queueFamilies); j++) {
-		const VkQueueFamilyProperties queueFamily = ((VkQueueFamilyProperties *)cg_vector_data(queueFamilies))[j];
+	for (int j = 0; j < cg_vector_size(&queueFamilies); j++) {
+		const VkQueueFamilyProperties queueFamily = ((VkQueueFamilyProperties *)cg_vector_data(&queueFamilies))[j];
 		VkBool32 presentSupport = false;
-		vkGetPhysicalDeviceSurfaceSupportKHR(device->physDevice, i, device->surface, &presentSupport);
+		vkGetPhysicalDeviceSurfaceSupportKHR(physDevice, i, surface, &presentSupport);
 	
 		if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
 			graphicsFamily = i;
@@ -310,34 +310,34 @@ VkDevice CreateDevice(cg_device_t *device) {
 		i++;
 	}
 	
-	cg_vector_t * /* u32 */ uniqueQueueFamilies = setify(graphicsFamily, presentFamily, computeFamily, transferFamily);
-	cg_vector_t * /* VkDeviceQueueCreateInfo */ queueCreateInfos = cg_vector_init(sizeof(VkDeviceQueueCreateInfo), cg_vector_size(uniqueQueueFamilies));
+	cg_vector_t /* u32 */ uniqueQueueFamilies = setify(graphicsFamily, presentFamily, computeFamily, transferFamily);
+	cg_vector_t /* VkDeviceQueueCreateInfo */ queueCreateInfos = cg_vector_init(sizeof(VkDeviceQueueCreateInfo), cg_vector_size(&uniqueQueueFamilies));
 
 	const float queuePriority = 1.0f;
 
-	for (int i = 0; i < cg_vector_size(uniqueQueueFamilies); i++)
+	for (int i = 0; i < cg_vector_size(&uniqueQueueFamilies); i++)
 	{
 		VkDeviceQueueCreateInfo queueInfo = {};
 		queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		queueInfo.queueFamilyIndex = ((u32 *)cg_vector_data(uniqueQueueFamilies))[i];
+		queueInfo.queueFamilyIndex = ((u32 *)cg_vector_data(&uniqueQueueFamilies))[i];
 		queueInfo.queueCount = 1;
 		queueInfo.pQueuePriorities = &queuePriority;
-		cg_vector_push_back(queueCreateInfos, &queueInfo);
+		cg_vector_push_back(&queueCreateInfos, &queueInfo);
 	}
 
-	cg_vector_t * /* const char* */ enabledExtensions = cg_vector_init(sizeof(const char *), array_len(WantedDeviceExtensions) + array_len(RequiredDeviceExtensions));
+	cg_vector_t /* const char* */ enabledExtensions = cg_vector_init(sizeof(const char *), array_len(WantedDeviceExtensions) + array_len(RequiredDeviceExtensions));
 
 	u32 extensionCount;
-	vkEnumerateDeviceExtensionProperties(device->physDevice, NULL, &extensionCount, NULL);
-	cg_vector_t * /* VkExtensionProperties */ extensions = cg_vector_init(sizeof(VkExtensionProperties), extensionCount);
-	vkEnumerateDeviceExtensionProperties(device->physDevice, NULL, &extensionCount, (VkExtensionProperties *)cg_vector_data(extensions));
+	vkEnumerateDeviceExtensionProperties(physDevice, NULL, &extensionCount, NULL);
+	cg_vector_t /* VkExtensionProperties */ extensions = cg_vector_init(sizeof(VkExtensionProperties), extensionCount);
+	vkEnumerateDeviceExtensionProperties(physDevice, NULL, &extensionCount, (VkExtensionProperties *)cg_vector_data(&extensions));
 
 	for (int i = 0; i < array_len(WantedDeviceExtensions); i++) {
 		const char *wanted = WantedDeviceExtensions[i];
 		for(u32 i = 0; i < extensionCount; i++) {
-			VkExtensionProperties ext = ((VkExtensionProperties *)cg_vector_data(extensions))[i];
+			VkExtensionProperties ext = ((VkExtensionProperties *)cg_vector_data(&extensions))[i];
 			if(strcmp(wanted, ext.extensionName) == 0) {
-				cg_vector_push_back(enabledExtensions, &ext.extensionName);
+				cg_vector_push_back(&enabledExtensions, &ext.extensionName);
 			}
 		}
 	}
@@ -346,9 +346,9 @@ VkDevice CreateDevice(cg_device_t *device) {
 		const char *required = RequiredDeviceExtensions[i];
 		bool validated = false;
 		for(u32 i = 0; i < extensionCount; i++) {
-			const char* extName = ((VkExtensionProperties *)cg_vector_data(extensions))[i].extensionName;
+			const char* extName = ((VkExtensionProperties *)cg_vector_data(&extensions))[i].extensionName;
 			if(strcmp(required, extName) == 0) {
-				cg_vector_push_back(enabledExtensions, &extName);
+				cg_vector_push_back(&enabledExtensions, &extName);
 				validated = true;
 			}
 		}
@@ -358,51 +358,51 @@ VkDevice CreateDevice(cg_device_t *device) {
 	}
 
 	VkPhysicalDeviceFeatures availableFeatures = {};
-	vkGetPhysicalDeviceFeatures(device->physDevice, &availableFeatures);
+	vkGetPhysicalDeviceFeatures(physDevice, &availableFeatures);
 
 	availableFeatures = availableFeatures;
 
 	VkDeviceCreateInfo deviceCreateInfo = {};
 	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	deviceCreateInfo.queueCreateInfoCount = cg_vector_size(queueCreateInfos);
-	deviceCreateInfo.pQueueCreateInfos = (const VkDeviceQueueCreateInfo *)cg_vector_data(queueCreateInfos);
-	deviceCreateInfo.enabledExtensionCount = cg_vector_size(enabledExtensions);
-	deviceCreateInfo.ppEnabledExtensionNames = (const char * const*)cg_vector_data(enabledExtensions);
+	deviceCreateInfo.queueCreateInfoCount = cg_vector_size(&queueCreateInfos);
+	deviceCreateInfo.pQueueCreateInfos = (const VkDeviceQueueCreateInfo *)cg_vector_data(&queueCreateInfos);
+	deviceCreateInfo.enabledExtensionCount = cg_vector_size(&enabledExtensions);
+	deviceCreateInfo.ppEnabledExtensionNames = (const char * const*)cg_vector_data(&enabledExtensions);
 	deviceCreateInfo.pEnabledFeatures = &WantedFeatures;
 
-	if (vkCreateDevice(device->physDevice, &deviceCreateInfo, NULL, &device) != VK_SUCCESS) {
+	if (vkCreateDevice(physDevice, &deviceCreateInfo, NULL, &device) != VK_SUCCESS) {
 		LOG_AND_ABORT("Failed to create device");
 	}
 
-	cg_vector_destroy(extensions);
-	cg_vector_destroy(enabledExtensions);
-	cg_vector_destroy(queueFamilies);
-	cg_vector_destroy(uniqueQueueFamilies);
-	cg_vector_destroy(queueCreateInfos);
+	cg_vector_destroy(&extensions);
+	cg_vector_destroy(&enabledExtensions);
+	cg_vector_destroy(&queueFamilies);
+	cg_vector_destroy(&uniqueQueueFamilies);
+	cg_vector_destroy(&queueCreateInfos);
 
 	return device;
 }
 
-void ctx_initialize(const char* title, u32 windowWidth, u32 windowHeight, cg_device_t *device) {
-	device->window = SDL_CreateWindow(title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, windowWidth, windowHeight, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
-	cassert(device->window != NULL);
+void ctx_initialize(const char* title, u32 windowWidth, u32 windowHeight) {
+	window = SDL_CreateWindow(title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, windowWidth, windowHeight, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
+	cassert(window != NULL);
 
-	device->instance = CreateInstance(title, device);
-	cassert(device->instance != NULL);
+	instance = CreateInstance(title);
+	cassert(instance != NULL);
 
-	if(SDL_Vulkan_CreateSurface(device->window, device->instance, &device->surface) != SDL_TRUE) {
+	if(SDL_Vulkan_CreateSurface(window, instance, &surface) != SDL_TRUE) {
 		LOG_AND_ABORT("Surface creation failed.\nSDL reports: %s", SDL_GetError());
 	}
 
-	device->physDevice = ChoosePhysicalDevice(device->instance, device->surface);
+	physDevice = ChoosePhysicalDevice(instance, surface);
 
-	device->device = CreateDevice(device);
+	device = CreateDevice(device);
 	cassert(device != NULL);
 
-	volkLoadDevice(device->device);
+	volkLoadDevice(device);
 
 	VkPhysicalDeviceProperties props;
-	vkGetPhysicalDeviceProperties(device->physDevice, &props);
+	vkGetPhysicalDeviceProperties(physDevice, &props);
 
 	MAX_ANISOTROPY = props.limits.maxSamplerAnisotropy;
 	SUPPORTS_MULTISAMPLING = true;

@@ -1,0 +1,9 @@
+name: test/vert path: ../Shaders/Generic/Lit.vert mtime: 1728792337
+name: test/frag path: ../Shaders/Generic/Lit.frag mtime: 1728792337
+name: Unlit/vert path: ../Shaders/Generic/Unlit.vert mtime: 1728792337
+name: Unlit/frag path: ../Shaders/Generic/Unlit.frag mtime: 1728792337
+name: ctext/vert path: ../Shaders/ctext/ctext.vert.glsl mtime: 1728792337
+name: ctext/frag path: ../Shaders/ctext/ctext.frag.glsl mtime: 1728792337
+name: shadow/vert path: ../Shaders/shadow.glsl.vert mtime: 1728792337
+name: shadow/frag path: ../Shaders/shadow.glsl.frag mtime: 1728792337
+name: ctext/comp path: ../Shaders/text.comp mtime: 1728792337

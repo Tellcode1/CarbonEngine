@@ -116,11 +116,11 @@ typedef struct cfont_t
     bool to_render;
 
     u32 chars_drawn;
-    cg_vector_t * /* ctext_text_drawcall_t */  drawcalls;
+    cg_vector_t /* ctext_text_drawcall_t */  drawcalls;
     cg_hashmap_t * /* unicode, ctext_glyph ctext_hasher<unicode>> */ glyph_map;
 } cfont_t;
 
-void ctext__font_resize_buffer(cfont_t *fnt, cg_device_t *device, u32 new_buffer_size, u32 index_buffer_offset);
+void ctext__font_resize_buffer(cfont_t *fnt,  u32 new_buffer_size, u32 index_buffer_offset);
 
 typedef struct ctext_font_load_info
 {

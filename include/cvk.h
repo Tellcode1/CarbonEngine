@@ -147,12 +147,12 @@ typedef struct cvk_render_pass_create_info
 } cvk_render_pass_create_info;
 #define cvk_init_render_pass_create_info() (cvk_render_pass_create_info){ .samples = VK_SAMPLE_COUNT_1_BIT}
 
-extern void cvk_create_graphics_pipeline(cg_device_t *device, cvk_pipeline_create_info const* pCreateInfo, VkPipeline* dstPipeline, u32 flags);
-extern void cvk_create_depth_pipeline(cg_device_t *device, cvk_pipeline_create_info const* pCreateInfo, VkPipeline* dstPipeline, u32 flags);
-extern void cvk_create_pipeline_layout(cg_device_t *device, cvk_pipeline_create_info const* pCreateInfo, VkPipelineLayout* dstLayout);
-extern void cvk_create_render_pass(cg_device_t *device, cvk_render_pass_create_info const* pCreateInfo, VkRenderPass* dstRenderPass, u32 flags);
-extern void cvk_create_depth_pass(cg_device_t *device, cvk_render_pass_create_info const* pCreateInfo, VkRenderPass* dstRenderPass, u32 flags);
-extern void cvk_create_swapchain(cg_device_t *device, cvk_swapchain_create_info const* pCreateInfo, VkSwapchainKHR* dstSwapchain);
+extern void cvk_create_graphics_pipeline(cvk_pipeline_create_info const* pCreateInfo, VkPipeline* dstPipeline, u32 flags);
+extern void cvk_create_depth_pipeline(cvk_pipeline_create_info const* pCreateInfo, VkPipeline* dstPipeline, u32 flags);
+extern void cvk_create_pipeline_layout(cvk_pipeline_create_info const* pCreateInfo, VkPipelineLayout* dstLayout);
+extern void cvk_create_render_pass(cvk_render_pass_create_info const* pCreateInfo, VkRenderPass* dstRenderPass, u32 flags);
+extern void cvk_create_depth_pass(cvk_render_pass_create_info const* pCreateInfo, VkRenderPass* dstRenderPass, u32 flags);
+extern void cvk_create_swapchain(cvk_swapchain_create_info const* pCreateInfo, VkSwapchainKHR* dstSwapchain);
 
 #ifdef __cplusplus
 	}

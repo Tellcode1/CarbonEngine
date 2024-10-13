@@ -19,11 +19,9 @@ u64 cg_frame_time = 0;
 bool_t cg_framebuffer_resized = 0;
 bool_t cg_application_running = 1;
 
-cg_device_t cg_initialize_device(const char *window_title, u32 window_width, u32 window_height)
+void cg_initialize_context(const char *window_title, int window_width, int window_height)
 {
-    cg_device_t device = {};
-    ctx_initialize(window_title, window_width, window_height, &device);
-    return device;
+    ctx_initialize(window_title, window_width, window_height);
 }
 
 void cg_consume_event(const SDL_Event *event)

@@ -15,30 +15,19 @@ typedef struct cvertex {
     vec2 texcoord;
 } cvertex;
 
-static const int ccube_index_offset = sizeof(cvertex) * 8;
-
-static const cvertex ccube_vertices[8] = {
+static const cvertex ccube_vertices[4] = {
     (cvertex){ { -1.0f, -1.0f,  1.0f }, { 0.0f, 0.0f } },
     (cvertex){ {  1.0f, -1.0f,  1.0f }, { 1.0f, 0.0f } },
     (cvertex){ {  1.0f,  1.0f,  1.0f }, { 1.0f, 1.0f } },
     (cvertex){ { -1.0f,  1.0f,  1.0f }, { 0.0f, 1.0f } },
-
-    (cvertex){ { -1.0f, -1.0f, -1.0f }, { 0.0f, 0.0f } },
-    (cvertex){ {  1.0f, -1.0f, -1.0f }, { 1.0f, 0.0f } },
-    (cvertex){ {  1.0f,  1.0f, -1.0f }, { 1.0f, 1.0f } },
-    (cvertex){ { -1.0f,  1.0f, -1.0f }, { 0.0f, 1.0f } }
 };
+static const int ccube_index_offset = sizeof(ccube_vertices);
 
-static const u32 ccube_indices[36] = {
+static const u32 ccube_indices[6] = {
     0, 1, 2,   2, 3, 0,
-    4, 5, 6,   6, 7, 4,
-    4, 0, 3,   3, 7, 4,
-    1, 5, 6,   6, 2, 1,
-    3, 2, 6,   6, 7, 3,
-    4, 5, 1,   1, 0, 4
 };
 
-static const int ccube_total_data_size = sizeof(cvertex) * 8 + sizeof(u32) * 36;
+static const int ccube_total_data_size = sizeof(ccube_vertices) + sizeof(ccube_indices);
 
 typedef struct texture2d_t {
     VkImage image;
@@ -68,7 +57,6 @@ typedef struct csquare_t {
 
 int ccreate_cube(crenderer_t *rd, csquare_t *dst) {
     vkh_buffer_create(
-        crd_get_device(rd),
         ccube_total_data_size,
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
@@ -76,10 +64,10 @@ int ccreate_cube(crenderer_t *rd, csquare_t *dst) {
     );
 
     void *mapped;
-    vkMapMemory(crd_get_device(rd)->device, dst->mem, 0, ccube_total_data_size, 0, &mapped);
-    memcpy(mapped, ccube_vertices, sizeof(cvertex) * 8);
-    memcpy((char *)mapped + ccube_index_offset, ccube_indices, sizeof(u32) * 36);
-    vkUnmapMemory(crd_get_device(rd)->device, dst->mem);
+    vkMapMemory(device, dst->mem, 0, ccube_total_data_size, 0, &mapped);
+    memcpy(mapped, ccube_vertices, sizeof(ccube_vertices));
+    memcpy((char *)mapped + ccube_index_offset, ccube_indices, sizeof(ccube_indices));
+    vkUnmapMemory(device, dst->mem);
 
     const VkVertexInputAttributeDescription attributeDescriptions[] = {
         // location; binding; format; offset;
@@ -102,7 +90,7 @@ int ccreate_cube(crenderer_t *rd, csquare_t *dst) {
     assert(csm_load_shader("Unlit/frag", &fragment) != -1);
     const csm_shader_t * shaders[] = { vertex, fragment };
 
-    cvk_pipeline_create_info pc = {};
+    cvk_pipeline_create_info pc = cvk_init_pipeline_create_info();
     pc.format = SwapChainImageFormat;
     pc.subpass = 0;
     pc.render_pass = crd_get_render_pass(rd);
@@ -123,9 +111,9 @@ int ccreate_cube(crenderer_t *rd, csquare_t *dst) {
     pc.extent.width = RenderExtent.width;
     pc.extent.height = RenderExtent.height;
     pc.samples = Samples;
-    cvk_create_pipeline_layout(crd_get_device(rd), &pc, &dst->pipeline.pipeline_layout);
+    cvk_create_pipeline_layout(&pc, &dst->pipeline.pipeline_layout);
     pc.pipeline_layout = dst->pipeline.pipeline_layout;
-    cvk_create_graphics_pipeline(crd_get_device(rd), &pc, &dst->pipeline.pipeline, CVK_PIPELINE_FLAGS_UNFORCE_CULLING);
+    cvk_create_graphics_pipeline(&pc, &dst->pipeline.pipeline, CVK_PIPELINE_FLAGS_UNFORCE_CULLING);
 
     return 0;
 }

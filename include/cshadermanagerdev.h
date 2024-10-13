@@ -5,8 +5,17 @@ extern const char *shader_compiler;
 extern const char *shader_compiler_args;
 extern const char *list;
 
+typedef struct csm_shader_descriptor {
+    const char *name;
+    struct csm_shader_t *parent;
+    unsigned type;
+    int binding, set;
+} csm_shader_descriptor;
+
 typedef struct csm_shader_t {
     char name[128];
+    csm_shader_descriptor descriptors_info[ 10 ]; // ! replace
+    int ndescriptors;
     void *shader_module;
     unsigned stage;
 } csm_shader_t;

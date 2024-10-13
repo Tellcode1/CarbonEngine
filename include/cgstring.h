@@ -5,7 +5,11 @@
     extern "C" {
 #endif
 
-typedef struct cg_string_t cg_string_t;
+typedef struct cg_string_t {
+    char *data;
+    int length;
+    int capacity;
+} cg_string_t;
 
 /*
     initial_size may be 0

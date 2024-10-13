@@ -9,6 +9,7 @@
 #endif
 
 #include "../include/cgfx.h"
+#include "cgvector.h"
 
 // * it shold be like cg_init_ctext(rd); and then you can just do crd_render_text(&info);
 typedef struct cg_ctext_module {
@@ -43,8 +44,8 @@ typedef struct crenderer_t
 
     VkFormat depth_buffer_format;
 
-    struct cg_vector_t *renderData;
-    struct cg_vector_t *drawBuffers;
+    cg_vector_t renderData;
+    cg_vector_t drawBuffers;
 
     cg_ctext_module *ctext;
 } crenderer_t;

@@ -4,12 +4,6 @@
 #include "../../include/defines.h"
 #include "../../include/cgstring.h"
 
-struct cg_string_t {
-    char *data;
-    int length;
-    int capacity;
-};
-
 static void cg_string_resize(cg_string_t *str, int new_capacity) {
     char *new_data = realloc(str->data, new_capacity);
     cassert(new_data != NULL);

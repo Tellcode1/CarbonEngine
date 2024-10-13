@@ -11,7 +11,7 @@
 VkCommandPool pool = VK_NULL_HANDLE;
 VkCommandBuffer buffer = VK_NULL_HANDLE;
 
-void vkh_buffer_create(cg_device_t *device, u64 size, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags, VkBuffer *dstBuffer, VkDeviceMemory *retMem, bool externallyAllocated)
+void vkh_buffer_create( u64 size, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags, VkBuffer *dstBuffer, VkDeviceMemory *retMem, bool externallyAllocated)
 {
     if(size == 0) {
         return;
@@ -25,33 +25,33 @@ void vkh_buffer_create(cg_device_t *device, u64 size, VkBufferUsageFlags usageFl
     bufferCreateInfo.size = size;
     bufferCreateInfo.usage = usageFlags;
     bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    if (vkCreateBuffer(device->device, &bufferCreateInfo, NULL, &newBuffer) != VK_SUCCESS)
+    if (vkCreateBuffer(device, &bufferCreateInfo, NULL, &newBuffer) != VK_SUCCESS)
     {
         printf("Renderer::failed to create staging buffer!");
     }
 
     VkMemoryRequirements bufferMemoryRequirements;
-    vkGetBufferMemoryRequirements(device->device, newBuffer, &bufferMemoryRequirements);
+    vkGetBufferMemoryRequirements(device, newBuffer, &bufferMemoryRequirements);
     
     if(!externallyAllocated)
     {
         VkMemoryAllocateInfo allocInfo = {};
         allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         allocInfo.allocationSize = bufferMemoryRequirements.size;
-        allocInfo.memoryTypeIndex = vkh_get_mem_type(device, bufferMemoryRequirements.memoryTypeBits, propertyFlags);
-        if (vkAllocateMemory(device->device, &allocInfo, NULL, &newMemory) != VK_SUCCESS)
+        allocInfo.memoryTypeIndex = vkh_get_mem_type(bufferMemoryRequirements.memoryTypeBits, propertyFlags);
+        if (vkAllocateMemory(device, &allocInfo, NULL, &newMemory) != VK_SUCCESS)
         {
             printf("Renderer::failed to allocate staging buffer memory!");
         }
         
-        vkBindBufferMemory(device->device, newBuffer, newMemory, 0);
+        vkBindBufferMemory(device, newBuffer, newMemory, 0);
         *retMem = newMemory;
     }
 
     *dstBuffer = newBuffer;
 }
 
-void vkh_buffer_stage_transfer(cg_device_t *device, VkBuffer dst, void *data, u64 size)
+void vkh_buffer_stage_transfer( VkBuffer dst, void *data, u64 size)
 {
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
@@ -61,38 +61,38 @@ void vkh_buffer_stage_transfer(cg_device_t *device, VkBuffer dst, void *data, u6
     stagingBufferInfo.size = size;
     stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
     stagingBufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    if (vkCreateBuffer(device->device, &stagingBufferInfo, NULL, &stagingBuffer) != VK_SUCCESS)
+    if (vkCreateBuffer(device, &stagingBufferInfo, NULL, &stagingBuffer) != VK_SUCCESS)
     {
         printf("Failed to create staging buffer!");
     }
 
     VkMemoryRequirements stagingBufferMemoryRequirements;
-    vkGetBufferMemoryRequirements(device->device, stagingBuffer, &stagingBufferMemoryRequirements);
+    vkGetBufferMemoryRequirements(device, stagingBuffer, &stagingBufferMemoryRequirements);
     
     VkMemoryAllocateInfo stagingBufferAlloc = {};
     stagingBufferAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     stagingBufferAlloc.allocationSize = stagingBufferMemoryRequirements.size;
-    stagingBufferAlloc.memoryTypeIndex = vkh_get_mem_type(device, stagingBufferMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    if (vkAllocateMemory(device->device, &stagingBufferAlloc, NULL, &stagingBufferMemory) != VK_SUCCESS)
+    stagingBufferAlloc.memoryTypeIndex = vkh_get_mem_type(stagingBufferMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    if (vkAllocateMemory(device, &stagingBufferAlloc, NULL, &stagingBufferMemory) != VK_SUCCESS)
     {
         printf("Failed to allocate staging buffer memory!");
     }
     
-    vkBindBufferMemory(device->device, stagingBuffer, stagingBufferMemory, 0);
+    vkBindBufferMemory(device, stagingBuffer, stagingBufferMemory, 0);
 
     void* mapped;
-    vkMapMemory(device->device, stagingBufferMemory, 0, size, 0, &mapped);
+    vkMapMemory(device, stagingBufferMemory, 0, size, 0, &mapped);
     memcpy(mapped, data, size);
-    vkUnmapMemory(device->device, stagingBufferMemory);
+    vkUnmapMemory(device, stagingBufferMemory);
 
-    vkDestroyBuffer(device->device, stagingBuffer, NULL);
-    vkFreeMemory(device->device, stagingBufferMemory, NULL);
+    vkDestroyBuffer(device, stagingBuffer, NULL);
+    vkFreeMemory(device, stagingBufferMemory, NULL);
 }
 
-u32 vkh_get_mem_type(cg_device_t *device, const u32 memoryTypeBits, const VkMemoryPropertyFlags memoryProperties)
+u32 vkh_get_mem_type( const u32 memoryTypeBits, const VkMemoryPropertyFlags memoryProperties)
 {
     VkPhysicalDeviceMemoryProperties properties;
-	vkGetPhysicalDeviceMemoryProperties(device->physDevice, &properties);
+	vkGetPhysicalDeviceMemoryProperties(physDevice, &properties);
 
 	for (u32 i = 0; i < properties.memoryTypeCount; i++) 
 	{
@@ -103,7 +103,7 @@ u32 vkh_get_mem_type(cg_device_t *device, const u32 memoryTypeBits, const VkMemo
     return UINT32_MAX;
 }
 
-VkCommandBuffer vkh_cmd_begin_from(cg_device_t *device, VkCommandBuffer src)
+VkCommandBuffer vkh_cmd_begin_from( VkCommandBuffer src)
 {
     VkCommandBufferBeginInfo beginInfo = {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -114,14 +114,14 @@ VkCommandBuffer vkh_cmd_begin_from(cg_device_t *device, VkCommandBuffer src)
     return src;
 }
 
-VkCommandBuffer vkh_cmd_begin(cg_device_t *device)
+VkCommandBuffer vkh_cmd_begin()
 {
     if (!pool) {
         VkCommandPoolCreateInfo cmdPoolCreateInfo = {};
         cmdPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         cmdPoolCreateInfo.queueFamilyIndex = GraphicsFamilyIndex;
         cmdPoolCreateInfo.flags = 0;
-        if(vkCreateCommandPool(device->device, &cmdPoolCreateInfo, NULL, &pool) != VK_SUCCESS) {
+        if(vkCreateCommandPool(device, &cmdPoolCreateInfo, NULL, &pool) != VK_SUCCESS) {
             LOG_ERROR("Failed to create command pool");
         }
     }
@@ -131,12 +131,12 @@ VkCommandBuffer vkh_cmd_begin(cg_device_t *device)
     cmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     cmdAllocInfo.commandBufferCount = 1;
     cmdAllocInfo.commandPool = pool;
-    vkAllocateCommandBuffers(device->device, &cmdAllocInfo, &buffer);
+    vkAllocateCommandBuffers(device, &cmdAllocInfo, &buffer);
 
-    return vkh_cmd_begin_from(device, buffer);
+    return vkh_cmd_begin_from(buffer);
 }
 
-VkResult vkh_cmd_end(cg_device_t *device, VkCommandBuffer cmd, VkQueue queue, bool waitForExecution)
+VkResult vkh_cmd_end( VkCommandBuffer cmd, VkQueue queue, bool waitForExecution)
 {
     VkResult res = vkEndCommandBuffer(cmd);
     if (res != VK_SUCCESS) return res;
@@ -152,7 +152,7 @@ VkResult vkh_cmd_end(cg_device_t *device, VkCommandBuffer cmd, VkQueue queue, bo
     fenceInfo.flags = 0;
 
     if (waitForExecution) {
-        res = vkCreateFence(device->device, &fenceInfo, NULL, &fence);
+        res = vkCreateFence(device, &fenceInfo, NULL, &fence);
         if (res != VK_SUCCESS) return res;
     }
 
@@ -161,12 +161,12 @@ VkResult vkh_cmd_end(cg_device_t *device, VkCommandBuffer cmd, VkQueue queue, bo
 
     if (waitForExecution) {
         if (fence != VK_NULL_HANDLE) {
-            res = vkWaitForFences(device->device, 1, &fence, VK_TRUE, UINT64_MAX);
+            res = vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX);
             if (res != VK_SUCCESS) return res;
-            vkDestroyFence(device->device, fence, NULL);
+            vkDestroyFence(device, fence, NULL);
         }
-        vkDeviceWaitIdle(device->device);
-        vkFreeCommandBuffers(device->device, pool, 1, &cmd);
+        vkDeviceWaitIdle(device);
+        vkFreeCommandBuffers(device, pool, 1, &cmd);
         buffer = NULL;
     }
 
@@ -188,7 +188,7 @@ VkResult vkh_cmd_end(cg_device_t *device, VkCommandBuffer cmd, VkQueue queue, bo
 //     fclose(f);
 // }
 
-void vkh_files_load_binary(cg_device_t *device, const char* path, u8* dst, u32* dstSize) {
+void vkh_files_load_binary( const char* path, u8* dst, u32* dstSize) {
     FILE *f = fopen(path, "rb");
     cassert(f != NULL);
 
@@ -208,7 +208,7 @@ void vkh_files_load_binary(cg_device_t *device, const char* path, u8* dst, u32* 
     fclose(f);
 }
 
-void vkh_stage_image_transfer(cg_device_t *device, VkImage dst, void *data, u32 width, u32 height, u32 channels)
+void vkh_stage_image_transfer( VkImage dst, void *data, u32 width, u32 height, u32 channels)
 {
     VkBuffer stagingBuffer = VK_NULL_HANDLE;
     VkDeviceMemory stagingBufferMemory = VK_NULL_HANDLE;
@@ -219,29 +219,29 @@ void vkh_stage_image_transfer(cg_device_t *device, VkImage dst, void *data, u32 
     stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     stagingBufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    vkCreateBuffer(device->device, &stagingBufferInfo, NULL, &stagingBuffer);
+    vkCreateBuffer(device, &stagingBufferInfo, NULL, &stagingBuffer);
 
     VkMemoryRequirements stagingBufferRequirements;
-    vkGetBufferMemoryRequirements(device->device, stagingBuffer, &stagingBufferRequirements);
+    vkGetBufferMemoryRequirements(device, stagingBuffer, &stagingBufferRequirements);
 
     VkMemoryAllocateInfo stagingBufferAllocInfo = {};
     stagingBufferAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     stagingBufferAllocInfo.allocationSize = stagingBufferRequirements.size;
-    stagingBufferAllocInfo.memoryTypeIndex = vkh_get_mem_type(device, stagingBufferRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    stagingBufferAllocInfo.memoryTypeIndex = vkh_get_mem_type(stagingBufferRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-    vkAllocateMemory(device->device, &stagingBufferAllocInfo, NULL, &stagingBufferMemory);
-    vkBindBufferMemory(device->device, stagingBuffer, stagingBufferMemory, 0);
+    vkAllocateMemory(device, &stagingBufferAllocInfo, NULL, &stagingBufferMemory);
+    vkBindBufferMemory(device, stagingBuffer, stagingBufferMemory, 0);
 
     void *stagingBufferMapped;
-    if (vkMapMemory(device->device, stagingBufferMemory, 0, width * height * channels, 0, &stagingBufferMapped) != VK_SUCCESS)
+    if (vkMapMemory(device, stagingBufferMemory, 0, width * height * channels, 0, &stagingBufferMapped) != VK_SUCCESS)
         LOG_ERROR("Failed to map staging buffer memory!");
     memcpy(stagingBufferMapped, data, width * height * channels);
-    vkUnmapMemory(device->device, stagingBufferMemory);
+    vkUnmapMemory(device, stagingBufferMemory);
 
     const VkCommandBuffer cmd = vkh_cmd_begin(device);
 
     vkh_transition_image_layout(
-        device, cmd, dst, 1, VK_IMAGE_ASPECT_COLOR_BIT,
+        cmd, dst, 1, VK_IMAGE_ASPECT_COLOR_BIT,
         VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
         0, VK_ACCESS_TRANSFER_WRITE_BIT,
         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT
@@ -258,25 +258,25 @@ void vkh_stage_image_transfer(cg_device_t *device, VkImage dst, void *data, u32 
     vkCmdCopyBufferToImage(cmd, stagingBuffer, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
     vkh_transition_image_layout(
-            device, cmd, dst, 1, VK_IMAGE_ASPECT_COLOR_BIT,
+            cmd, dst, 1, VK_IMAGE_ASPECT_COLOR_BIT,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
             0, VK_ACCESS_TRANSFER_WRITE_BIT,
             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT
         );
 
-    vkh_cmd_end(device, cmd, TransferQueue, true);
+    vkh_cmd_end(cmd, TransferQueue, true);
 
-    vkDestroyBuffer(device->device, stagingBuffer, NULL);
-    vkFreeMemory(device->device, stagingBufferMemory, NULL);
+    vkDestroyBuffer(device, stagingBuffer, NULL);
+    vkFreeMemory(device, stagingBufferMemory, NULL);
 }
 
-void vkh_image_from_mem(cg_device_t *device, u8 *buffer, u32 width, u32 height, VkFormat format, u32 channels, VkImage *dst, VkDeviceMemory *dstMem)
+void vkh_image_from_mem( u8 *buffer, u32 width, u32 height, VkFormat format, u32 channels, VkImage *dst, VkDeviceMemory *dstMem)
 {
-    vkh_image_create_empty(device, width, height, format, VK_SAMPLE_COUNT_1_BIT, channels, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, dst, dstMem);
-    vkh_stage_image_transfer(device, *dst, buffer, width, height, channels);
+    vkh_image_create_empty(width, height, format, VK_SAMPLE_COUNT_1_BIT, channels, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, dst, dstMem);
+    vkh_stage_image_transfer(*dst, buffer, width, height, channels);
 }
 
-void vkh_image_create_empty(cg_device_t *device, u32 width, u32 height, VkFormat format, VkSampleCountFlagBits samples, u32 channels, VkImageUsageFlags usage, VkImage *dst, VkDeviceMemory *dstMem)
+void vkh_image_create_empty( u32 width, u32 height, VkFormat format, VkSampleCountFlagBits samples, u32 channels, VkImageUsageFlags usage, VkImage *dst, VkDeviceMemory *dstMem)
 {
     VkImageCreateInfo imageCreateInfo = {};
     imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -292,26 +292,26 @@ void vkh_image_create_empty(cg_device_t *device, u32 width, u32 height, VkFormat
     imageCreateInfo.usage = usage;
     imageCreateInfo.samples = samples;
     imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    if (vkCreateImage(device->device, &imageCreateInfo, NULL, dst) != VK_SUCCESS)
+    if (vkCreateImage(device, &imageCreateInfo, NULL, dst) != VK_SUCCESS)
         LOG_ERROR("Failed to create image");
 
     VkMemoryRequirements imageMemoryRequirements;
-    vkGetImageMemoryRequirements(device->device, *dst, &imageMemoryRequirements);
+    vkGetImageMemoryRequirements(device, *dst, &imageMemoryRequirements);
 
-    const u32 localDeviceMemoryIndex = vkh_get_mem_type(device, imageMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    const u32 localDeviceMemoryIndex = vkh_get_mem_type(imageMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     VkMemoryAllocateInfo allocInfo = {};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = imageMemoryRequirements.size;
     allocInfo.memoryTypeIndex = localDeviceMemoryIndex;
 
-    vkAllocateMemory(device->device, &allocInfo, NULL, dstMem);
-    vkBindImageMemory(device->device, *dst, *dstMem, 0);
+    vkAllocateMemory(device, &allocInfo, NULL, dstMem);
+    vkBindImageMemory(device, *dst, *dstMem, 0);
 }
 
-u8* vkh_image_from_disk(cg_device_t *device, const char *path, u32 *width, u32 *height, VkFormat *channels, VkImage *dst, VkDeviceMemory *dstMem)
+u8* vkh_image_from_disk( const char *path, u32 *width, u32 *height, VkFormat *channels, VkImage *dst, VkDeviceMemory *dstMem)
 {
-    ctex2D tex = cimg_load(path);
+    cg_tex2D tex = cimg_load(path);
 
     cassert(tex.data != NULL);
 
@@ -319,11 +319,11 @@ u8* vkh_image_from_disk(cg_device_t *device, const char *path, u32 *width, u32 *
     *height = tex.h;
     *channels = cfmt_conv_cfmt_to_vkfmt(tex.fmt);
 
-    vkh_image_from_mem(device, tex.data, tex.w, tex.h, *channels, cfmt_get_bytesperpixel(tex.fmt), dst, dstMem);
+    vkh_image_from_mem(tex.data, tex.w, tex.h, *channels, cfmt_get_bytesperpixel(tex.fmt), dst, dstMem);
     return tex.data;
 }
 
-void vkh_transition_image_layout(cg_device_t *device, VkCommandBuffer cmd, VkImage image,
+void vkh_transition_image_layout( VkCommandBuffer cmd, VkImage image,
 										 u32 mipLevels,
                                          VkImageAspectFlagBits aspect,
 										 VkImageLayout oldLayout,
@@ -359,7 +359,7 @@ void vkh_transition_image_layout(cg_device_t *device, VkCommandBuffer cmd, VkIma
 //     *dstHeight = tex.h;
 // }
 
-bool vkh_get_supported_fmt(cg_device_t *device, VkPhysicalDevice physDevice, VkSurfaceKHR surface, VkFormat *dstFormat, VkColorSpaceKHR *dstColorSpace)
+bool vkh_get_supported_fmt( VkPhysicalDevice physDevice, VkSurfaceKHR surface, VkFormat *dstFormat, VkColorSpaceKHR *dstColorSpace)
 {
 	CVK_REQUIRED_PTR(device);
 	CVK_REQUIRED_PTR(physDevice);
@@ -369,8 +369,8 @@ bool vkh_get_supported_fmt(cg_device_t *device, VkPhysicalDevice physDevice, VkS
 
     u32 formatCount = 0;
 	vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, VK_NULL_HANDLE);
-	cg_vector_t * /* VkSurfaceFormatKHR */ surfaceFormats = cg_vector_init(sizeof(VkSurfaceFormatKHR), formatCount);
-	vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, (VkSurfaceFormatKHR *)cg_vector_data(surfaceFormats));
+	cg_vector_t /* VkSurfaceFormatKHR */ surfaceFormats = cg_vector_init(sizeof(VkSurfaceFormatKHR), formatCount);
+	vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, (VkSurfaceFormatKHR *)cg_vector_data(&surfaceFormats));
 
 	VkSurfaceFormatKHR selectedFormat = { VK_FORMAT_MAX_ENUM, VK_COLOR_SPACE_MAX_ENUM_KHR };
 
@@ -381,7 +381,7 @@ bool vkh_get_supported_fmt(cg_device_t *device, VkPhysicalDevice physDevice, VkS
 
 	for (u32 i = 0; i < formatCount; i++)
 	{
-		const VkSurfaceFormatKHR *surfaceFormat = (VkSurfaceFormatKHR *)cg_vector_get(surfaceFormats, i);
+		const VkSurfaceFormatKHR *surfaceFormat = (VkSurfaceFormatKHR *)cg_vector_get(&surfaceFormats, i);
 		for (u32 j = 0; j < array_len(desired_formats); j++) {
 			if (surfaceFormat->format == desired_formats[j].format 
 				&&
@@ -393,7 +393,7 @@ bool vkh_get_supported_fmt(cg_device_t *device, VkPhysicalDevice physDevice, VkS
 		}
 	}
 
-    cg_vector_destroy(surfaceFormats);
+    cg_vector_destroy(&surfaceFormats);
 	if (selectedFormat.format == VK_FORMAT_MAX_ENUM || selectedFormat.colorSpace == VK_COLOR_SPACE_MAX_ENUM_KHR) {
 		return VK_FALSE;
 	} else {

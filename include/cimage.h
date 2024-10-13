@@ -7,19 +7,26 @@
 
 #include "cgfxstdafx.h"
 
-typedef struct ctex2D {
+typedef struct cg_tex2D {
     int w, h;
     cformat fmt;
     unsigned char *data;
-} ctex2D;
+} cg_tex2D;
 
-extern ctex2D cimg_load(const char *path);
-extern ctex2D cimg_load_png(const char *path);
-extern ctex2D cimg_load_jpg(const char *path);
+typedef struct cg_gpu_tex2D {
+    int w, h;
+    void *vkimage, *vkimageview;
+    
+    cformat fmt;
+} cg_gpu_tex2D;
 
-extern void cimg_write(const ctex2D *tex, const char *path);
-extern void cimg_write_png(const ctex2D *tex, const char *path);
-extern void cimg_write_jpg(const ctex2D *tex, const char *path);
+extern cg_tex2D cimg_load(const char *path);
+extern cg_tex2D cimg_load_png(const char *path);
+extern cg_tex2D cimg_load_jpg(const char *path);
+
+extern void cimg_write(const cg_tex2D *tex, const char *path);
+extern void cimg_write_png(const cg_tex2D *tex, const char *path);
+extern void cimg_write_jpg(const cg_tex2D *tex, const char *path);
 
 #ifdef __cplusplus
     }

@@ -15,14 +15,14 @@
 
 #include "../external/volk/volk.h"
 
-typedef struct cg_device_t {
-    VkInstance instance;
-    VkDevice device;
-    VkPhysicalDevice physDevice;
-    VkSurfaceKHR surface;
-    struct SDL_Window *window;
-    VkDebugUtilsMessengerEXT debugMessenger;
-} cg_device_t;
+// These have been globalized for the easing the game making
+// No need to pass around cg_device_t * everywhere, this isn't an engine anymore.
+extern VkInstance instance;
+extern VkDevice device;
+extern VkPhysicalDevice physDevice;
+extern VkSurfaceKHR surface;
+extern struct SDL_Window *window;
+extern VkDebugUtilsMessengerEXT debugMessenger;
 
 extern VkFormat SwapChainImageFormat;
 extern VkColorSpaceKHR SwapChainColorSpace;

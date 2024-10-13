@@ -16,7 +16,7 @@ typedef struct ctx ctx;
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
 
-void ctx_initialize(const char* title, u32 windowWidth, u32 windowHeight, struct cg_device_t *device);
+void ctx_initialize(const char* window_title, u32 window_width, u32 window_height);
 
 static SDL_UNUSED const char* ValidationLayers[] = {  
 	"VK_LAYER_KHRONOS_validation",

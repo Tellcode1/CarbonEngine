@@ -86,8 +86,8 @@ struct vertex {
 };
 
 struct soosydata {
-    cg_vector_t * /* vertex */ vertices;
-    cg_vector_t * /* u32 */    indices;
+    cg_vector_t /* vertex */ vertices;
+    cg_vector_t /* u32 */    indices;
 };
 
 static bool_t eq_vertex(const void *key1, const void *key2, unsigned long) {
@@ -111,7 +111,7 @@ static soosydata loadmdl(const char *mdlpath, bool to_retrieve_normals) {
     std::vector<tinyobj::material_t> materials;
     std::string warn, err;
 
-    soosydata ret{};
+    soosydata ret = {};
     ret.vertices = cg_vector_init(sizeof(vertex), 0);
     ret.indices = cg_vector_init(sizeof(u32), 0);
 
@@ -150,21 +150,21 @@ static soosydata loadmdl(const char *mdlpath, bool to_retrieve_normals) {
             u32 *exists = (u32 *)cg_hashmap_find(unique_vertices, &vertex);
 
             if (!exists) {
-                unsigned idx = cg_vector_size(ret.vertices);
+                unsigned idx = cg_vector_size(&ret.vertices);
                 cg_hashmap_insert(unique_vertices, &vertex, &idx);
-                cg_vector_push_back(ret.indices, &idx);
-                cg_vector_push_back(ret.vertices, &vertex);
+                cg_vector_push_back(&ret.indices, &idx);
+                cg_vector_push_back(&ret.vertices, &vertex);
             } else {
-                cg_vector_push_back(ret.indices, exists);
+                cg_vector_push_back(&ret.indices, exists);
             }
         }
     }
 
     // calcula tangents
     // you can look at how it's claculated at https://learnopengl.com/Advanced-Lighting/Normal-Mapping
-    for (int i = 0; i < cg_vector_size(ret.indices); i += 3) {
-        const u32 *indices = (u32 *)cg_vector_data(ret.indices);
-        vertex *vertices = (vertex *)cg_vector_data(ret.vertices);
+    for (int i = 0; i < cg_vector_size(&ret.indices); i += 3) {
+        const u32 *indices = (u32 *)cg_vector_data(&ret.indices);
+        vertex *vertices = (vertex *)cg_vector_data(&ret.vertices);
 
         u32 i0 = indices[i];
         u32 i1 = indices[i + 1];
@@ -213,15 +213,14 @@ struct cmesh_t *load_mesh(crenderer_t *rd, const char *mdlpath, const char *texp
     soosydata data = loadmdl(mdlpath, (true));
 
     cmesh_t *mesh = (cmesh_t *)malloc(sizeof(cmesh_t));
-    mesh->index_count = cg_vector_size(data.indices);
+    mesh->index_count = cg_vector_size(&data.indices);
 
     mesh->transform = Transform();
 
-    const int vertexsize = sizeof(vertex) * cg_vector_size(data.vertices);
-    const int indexsize = sizeof(u32) * cg_vector_size(data.indices);
+    const int vertexsize = sizeof(vertex) * cg_vector_size(&data.vertices);
+    const int indexsize = sizeof(u32) * cg_vector_size(&data.indices);
 
     vkh_buffer_create(
-        crd_get_device(rd),
         vertexsize,
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
@@ -229,7 +228,6 @@ struct cmesh_t *load_mesh(crenderer_t *rd, const char *mdlpath, const char *texp
     );
 
     vkh_buffer_create(
-        crd_get_device(rd),
         indexsize,
         VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -237,23 +235,22 @@ struct cmesh_t *load_mesh(crenderer_t *rd, const char *mdlpath, const char *texp
     );
 
     vkh_buffer_create(
-        crd_get_device(rd),
         sizeof(ubdata),
         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
         &mesh->ub, &mesh->ubm, 0
     );
 
-    VkDevice vkdevice = crd_get_device(rd)->device;
+    VkDevice vkdevice = device;
     vkMapMemory(vkdevice, mesh->ubm, 0, sizeof(ubdata), 0, &mesh->ubmapped);
 
     void *mapped;
     vkMapMemory(vkdevice, mesh->vbm, 0, vertexsize, 0, &mapped);
-    memcpy(mapped, cg_vector_data(data.vertices), vertexsize);
+    memcpy(mapped, cg_vector_data(&data.vertices), vertexsize);
     vkUnmapMemory(vkdevice, mesh->vbm);
 
     vkMapMemory(vkdevice, mesh->ibm, 0, indexsize, 0, &mapped);
-    memcpy(mapped, cg_vector_data(data.indices), indexsize);
+    memcpy(mapped, cg_vector_data(&data.indices), indexsize);
     vkUnmapMemory(vkdevice, mesh->ibm);
 
     const VkVertexInputAttributeDescription attributeDescriptions[] = {
@@ -275,11 +272,11 @@ struct cmesh_t *load_mesh(crenderer_t *rd, const char *mdlpath, const char *texp
         {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(vec3)}
     };
 
-    ctex2D texture = cimg_load( texpath );
-    vkh_image_from_mem(crd_get_device(rd), texture.data, texture.w, texture.h, cfmt_conv_cfmt_to_vkfmt(texture.fmt), cfmt_get_bytesperpixel(texture.fmt), &mesh->texture, &mesh->texture_memory);
+    cg_tex2D texture = cimg_load( texpath );
+    vkh_image_from_mem(texture.data, texture.w, texture.h, cfmt_conv_cfmt_to_vkfmt(texture.fmt), cfmt_get_bytesperpixel(texture.fmt), &mesh->texture, &mesh->texture_memory);
 
-    ctex2D normal = cimg_load( normalmappath );
-    vkh_image_from_mem(crd_get_device(rd), normal.data, normal.w, normal.h, cfmt_conv_cfmt_to_vkfmt(normal.fmt), cfmt_get_bytesperpixel(normal.fmt), &mesh->normalmap, &mesh->normalmap_memory);
+    cg_tex2D normal = cimg_load( normalmappath );
+    vkh_image_from_mem(normal.data, normal.w, normal.h, cfmt_conv_cfmt_to_vkfmt(normal.fmt), cfmt_get_bytesperpixel(normal.fmt), &mesh->normalmap, &mesh->normalmap_memory);
 
     free(texture.data);
     free(normal.data);
@@ -417,9 +414,9 @@ struct cmesh_t *load_mesh(crenderer_t *rd, const char *mdlpath, const char *texp
     pc.extent.width = RenderExtent.width;
     pc.extent.height = RenderExtent.height;
     pc.samples = Samples;
-    cvk_create_pipeline_layout(crd_get_device(rd), &pc, &mesh->pipeline_layout);
+    cvk_create_pipeline_layout(&pc, &mesh->pipeline_layout);
     pc.pipeline_layout = mesh->pipeline_layout;
-    cvk_create_graphics_pipeline(crd_get_device(rd), &pc, &mesh->pipeline, 0);
+    cvk_create_graphics_pipeline(&pc, &mesh->pipeline, 0);
 
     return mesh;
 }

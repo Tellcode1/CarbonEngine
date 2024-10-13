@@ -54,8 +54,7 @@ static inline f64 cg_get_time() {
     return cg_time;
 }
 
-extern void cg_initialize_context(const char *title, u32 width, u32 height);
-extern cg_device_t cg_initialize_device(const char *window_title, u32 window_width, u32 window_height);
+extern void cg_initialize_context(const char *window_title, int window_width, int window_height);
 
 static const u32 FIXED_FRAME_RATE = 30;
 static const f64 FIXED_TICK_RATE = 1000.0 / (f64)FIXED_FRAME_RATE; // 1000 milliseconds

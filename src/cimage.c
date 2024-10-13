@@ -12,7 +12,7 @@ const char* get_file_extension(const char *path) {
     return dot + 1;
 }
 
-ctex2D cimg_load(const char *path)
+cg_tex2D cimg_load(const char *path)
 {
     const char *ext = get_file_extension(path);
     if (strcmp(ext, "jpeg") == 0 || strcmp(ext, "jpg") == 0) {
@@ -21,12 +21,12 @@ ctex2D cimg_load(const char *path)
         return cimg_load_png(path);
     }
     cassert(0);
-    return (ctex2D){};
+    return (cg_tex2D){};
 }
 
-ctex2D cimg_load_png(const char *path)
+cg_tex2D cimg_load_png(const char *path)
 {
-    ctex2D texture = {};
+    cg_tex2D texture = {};
     
     FILE *f = fopen(path, "rb");
     cassert(f != NULL);
@@ -95,12 +95,12 @@ ctex2D cimg_load_png(const char *path)
     return texture;
 }
 
-ctex2D cimg_load_jpg(const char *path)
+cg_tex2D cimg_load_jpg(const char *path)
 {
     struct jpeg_decompress_struct cinfo;
     struct jpeg_error_mgr jerr;
     FILE *f;
-    ctex2D img = {};
+    cg_tex2D img = {};
 
     if ((f = fopen(path, "rb")) == NULL) {
         fprintf(stderr, "cimageload :: couldn't open file \"%s\" Are you sure that it exists?\n", path);
@@ -149,7 +149,7 @@ ctex2D cimg_load_jpg(const char *path)
     return img;
 }
 
-void cimg_write_png(const ctex2D *tex, const char *path)
+void cimg_write_png(const cg_tex2D *tex, const char *path)
 {
     FILE *f = fopen(path, "wb");
     cassert(f != NULL);

@@ -6,6 +6,8 @@
 #include <time.h>
 #include <errno.h>
 #include <libgen.h>
+#include "../external/SPIRV-Reflect/spirv_reflect.h"
+#include "../include/cgfxpipeline.h"
 
 #ifndef WIN32
     #include <unistd.h>
@@ -139,8 +141,58 @@ void read_shader_spirv(const char *output, unsigned **spirv, int *spirvsize) {
     fclose(f);
 }
 
+cgfx_descriptor_type spv_desc_type_to_cgfx_desc(SpvReflectDescriptorType reflect_type) {
+    switch (reflect_type) {
+        case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+            return CGFX_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER:
+            return CGFX_DESCRIPTOR_TYPE_SS_BUFFER;
+        case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+        case SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+            return CGFX_DESCRIPTOR_TYPE_IMAGE;
+        default:
+            return CGFX_DESCRIPTOR_TYPE_UNKNOWN;
+    }
+}
+
+void reflect_shader_descriptors(SpvReflectShaderModule *shader_module, csm_shader_t *dst) {
+    u32 count = 0;
+    cassert( spvReflectEnumerateDescriptorSets(shader_module, &count, NULL) == SPV_REFLECT_RESULT_SUCCESS );
+    dst->ndescriptors = 0;
+    if (count > 0) {
+        SpvReflectDescriptorSet **descriptor_sets = (SpvReflectDescriptorSet**)malloc(count * sizeof(SpvReflectDescriptorSet*));
+        cassert( spvReflectEnumerateDescriptorSets(shader_module, &count, descriptor_sets) == SPV_REFLECT_RESULT_SUCCESS);
+
+        for (u32 i = 0; i < count; ++i) {
+            SpvReflectDescriptorSet *set = descriptor_sets[i];
+            for (u32 j = 0; j < set->binding_count; ++j) {
+                SpvReflectDescriptorBinding* binding = set->bindings[j];
+
+                if (dst->ndescriptors < CGFX_MAX_DESCRIPTORS_PER_SHADER) {
+                    csm_shader_descriptor *desc = &dst->descriptors_info[dst->ndescriptors++];
+                    desc->parent = dst;
+                    desc->name = binding->name;
+                    desc->binding = binding->binding;
+                    desc->set = set->set;
+                    desc->type = spv_desc_type_to_cgfx_desc(binding->descriptor_type);
+                } else {
+                    LOG_AND_ABORT("more shader descriptors than CGFX_MAX_DESCRIPTORS_PER_SHADER(%i)\n", CGFX_MAX_DESCRIPTORS_PER_SHADER);
+                }
+            }
+        }
+        free(descriptor_sets);
+    }
+}
+
 void __csm_create_shader(VkDevice vkdevice, const unsigned *bytes, int nbytes, struct csm_shader_t *out)
 {
+    SpvReflectShaderModule reflect_module;
+    spvReflectCreateShaderModule(nbytes, bytes, &reflect_module);
+
+    reflect_shader_descriptors(&reflect_module, out);
+
+    spvReflectDestroyShaderModule(&reflect_module);
+
     VkShaderModuleCreateInfo info = {};
     info.codeSize = nbytes;
     info.pCode = bytes;
@@ -392,7 +444,7 @@ void compile_shader(char *buffer, const struct shader_entry *entry) {
     }
 }
 
-void csm_compile_updated(cg_device_t *device)
+void csm_compile_updated()
 {
     char *buffer = malloc(512);
 
@@ -430,14 +482,14 @@ void csm_compile_updated(cg_device_t *device)
     }
 
     #if CSM_EXECUTABLE != 1
-        register_all_shaders(device->device, entries, count);
+        register_all_shaders(device, entries, count);
     #endif//CSM_EXECUTABLE != 1
 
     free(cacheentries);
     free(buffer);
 }
 
-void csm_compile_all(cg_device_t *device)
+void csm_compile_all()
 {
     char *buffer = malloc(512);
 
@@ -445,7 +497,7 @@ void csm_compile_all(cg_device_t *device)
     shader_entry *entries = load_all_entries(list, &count);
 
     #if CSM_EXECUTABLE != 1
-       register_all_shaders(device->device, entries, count);
+       register_all_shaders(device, entries, count);
     #endif//#if CSM_EXECUTABLE != 1
 
     for (int i = 0; i < count; i++) {

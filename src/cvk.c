@@ -7,7 +7,7 @@ u32 cvk_flag_register = 0;
 
 #define HAS_FLAG(flag) ((cvk_flag_register & flag) || (flags & flag))
 
-void cvk_create_graphics_pipeline(cg_device_t *device,  const cvk_pipeline_create_info *pCreateInfo, VkPipeline *dstPipeline, u32 flags)
+void cvk_create_graphics_pipeline( const cvk_pipeline_create_info *pCreateInfo, VkPipeline *dstPipeline, u32 flags)
 {
 	CVK_REQUIRED_PTR(device);
 	CVK_REQUIRED_PTR(pCreateInfo);
@@ -167,12 +167,12 @@ void cvk_create_graphics_pipeline(cg_device_t *device,  const cvk_pipeline_creat
 	}
 
 	// if(cacheIsNull) cacheCreator.join();
-	CVK_ResultCheck(vkCreateGraphicsPipelines(device->device, pCreateInfo->cache, 1, &graphicsPipelineCreateInfo, VK_NULL_HANDLE, dstPipeline));
+	CVK_ResultCheck(vkCreateGraphicsPipelines(device, pCreateInfo->cache, 1, &graphicsPipelineCreateInfo, VK_NULL_HANDLE, dstPipeline));
 
 	free(shader_infos);
 }
 
-void cvk_create_render_pass(cg_device_t *device, cvk_render_pass_create_info const *pCreateInfo, VkRenderPass *dstRenderPass, u32 flags)
+void cvk_create_render_pass(cvk_render_pass_create_info const *pCreateInfo, VkRenderPass *dstRenderPass, u32 flags)
 {
 	CVK_REQUIRED_PTR(device);
     CVK_REQUIRED_PTR(pCreateInfo);
@@ -204,8 +204,8 @@ void cvk_create_render_pass(cg_device_t *device, cvk_render_pass_create_info con
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorAttachmentReference;
 
-    cg_vector_t * /* VkAttachmentDescription */ attachments = cg_vector_init(sizeof(VkAttachmentDescription), 5);
-	cg_vector_push_back(attachments, &colorAttachmentDescription);
+    cg_vector_t /* VkAttachmentDescription */ attachments = cg_vector_init(sizeof(VkAttachmentDescription), 5);
+	cg_vector_push_back(&attachments, &colorAttachmentDescription);
 
 	VkAttachmentDescription depthAttachment = {};
 	VkAttachmentReference depthAttachmentRef = {};
@@ -224,12 +224,12 @@ void cvk_create_render_pass(cg_device_t *device, cvk_render_pass_create_info con
 		// else
 			depthAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-		depthAttachmentRef.attachment = cg_vector_size(attachments);
+		depthAttachmentRef.attachment = cg_vector_size(&attachments);
 		depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
         subpass.pDepthStencilAttachment = &depthAttachmentRef;
 
-		cg_vector_push_back(attachments, &depthAttachment);
+		cg_vector_push_back(&attachments, &depthAttachment);
     }
 
 	VkAttachmentReference colorAttachmentResolveRef = {};
@@ -245,10 +245,10 @@ void cvk_create_render_pass(cg_device_t *device, cvk_render_pass_create_info con
         colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-        colorAttachmentResolveRef.attachment = cg_vector_size(attachments);
+        colorAttachmentResolveRef.attachment = cg_vector_size(&attachments);
         colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-		cg_vector_push_back(attachments, &colorAttachmentResolve);
+		cg_vector_push_back(&attachments, &colorAttachmentResolve);
 
         subpass.pResolveAttachments = &colorAttachmentResolveRef;
     }
@@ -263,17 +263,17 @@ void cvk_create_render_pass(cg_device_t *device, cvk_render_pass_create_info con
 
     VkRenderPassCreateInfo renderPassInfo = {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderPassInfo.attachmentCount = cg_vector_size(attachments);
-    renderPassInfo.pAttachments = (const VkAttachmentDescription *)cg_vector_data(attachments);
+    renderPassInfo.attachmentCount = cg_vector_size(&attachments);
+    renderPassInfo.pAttachments = (const VkAttachmentDescription *)cg_vector_data(&attachments);
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpass;
     renderPassInfo.dependencyCount = 1;
     renderPassInfo.pDependencies = &depth_dependancy;
 
-    CVK_ResultCheck(vkCreateRenderPass(device->device, &renderPassInfo, VK_NULL_HANDLE, dstRenderPass));
+    CVK_ResultCheck(vkCreateRenderPass(device, &renderPassInfo, VK_NULL_HANDLE, dstRenderPass));
 }
 
-void cvk_create_pipeline_layout(cg_device_t *device, cvk_pipeline_create_info const *pCreateInfo, VkPipelineLayout *dstLayout)
+void cvk_create_pipeline_layout(cvk_pipeline_create_info const *pCreateInfo, VkPipelineLayout *dstLayout)
 {
 	CVK_REQUIRED_PTR(device);
 	CVK_REQUIRED_PTR(pCreateInfo);
@@ -300,10 +300,10 @@ void cvk_create_pipeline_layout(cg_device_t *device, cvk_pipeline_create_info co
 	pipelineLayoutCreateInfo.pushConstantRangeCount = pCreateInfo->nPushConstants;
 	pipelineLayoutCreateInfo.pPushConstantRanges = pCreateInfo->pPushConstants;
 
-	CVK_ResultCheck(vkCreatePipelineLayout(device->device, &pipelineLayoutCreateInfo, VK_NULL_HANDLE, dstLayout));
+	CVK_ResultCheck(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, VK_NULL_HANDLE, dstLayout));
 }
 
-void cvk_create_swapchain(cg_device_t *device, cvk_swapchain_create_info const* pCreateInfo, VkSwapchainKHR *dstSwapchain)
+void cvk_create_swapchain(cvk_swapchain_create_info const* pCreateInfo, VkSwapchainKHR *dstSwapchain)
 {
 	CVK_REQUIRED_PTR(device);
 	CVK_REQUIRED_PTR(pCreateInfo);
@@ -314,7 +314,7 @@ void cvk_create_swapchain(cg_device_t *device, cvk_swapchain_create_info const* 
 
 	VkSwapchainCreateInfoKHR swapChainCreateInfo = {};
 	swapChainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-	swapChainCreateInfo.surface = device->surface;
+	swapChainCreateInfo.surface = surface;
 	swapChainCreateInfo.imageExtent = pCreateInfo->extent;
 	swapChainCreateInfo.minImageCount = pCreateInfo->image_count;
 	swapChainCreateInfo.imageFormat = pCreateInfo->format;
@@ -327,7 +327,7 @@ void cvk_create_swapchain(cg_device_t *device, cvk_swapchain_create_info const* 
 	swapChainCreateInfo.presentMode = pCreateInfo->present_mode;
 	swapChainCreateInfo.oldSwapchain = pCreateInfo->old_swapchain;
 	swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	CVK_ResultCheck(vkCreateSwapchainKHR(device->device, &swapChainCreateInfo, VK_NULL_HANDLE, dstSwapchain));
+	CVK_ResultCheck(vkCreateSwapchainKHR(device, &swapChainCreateInfo, VK_NULL_HANDLE, dstSwapchain));
 }
 
 cvk_pipeline_blend_state cvk_init_pipeline_blend_state(cvk_blend_preset preset)

@@ -35,10 +35,11 @@ inline ccamera ccamera_init() {
         .position = (vec3){0.0f, 0.0f, 3.0f},
         .front = (vec3){0.0f, 0.0f,  1.0f},
         .up = (vec3){0.0f, 1.0f, 0.0f},
-        .right = {},
-        .yaw = cmdeg2rad(-90.0),
+        .right = (vec3){1.0f, 0.0f, 0.0f},
+        // These angles should not be in radians because they're converted at update() time.
+        .yaw = -90.0,
         .pitch = 0.0,
-        .fov = cmdeg2rad(90.0f),
+        .fov = 90.0f,
         .near_clip = 0.1f,
         .far_clip = 1000.0f,
     };
@@ -81,10 +82,12 @@ inline void cam_set_position(ccamera *cam, const vec3 pos) {
 }
 
 inline void cam_update(ccamera *cam, struct crenderer_t *rd) {
+    const float yaw_rads = cmdeg2rad(cam->yaw), pitch_rads = cmdeg2rad(cam->pitch);
+    const float cospitch = cosf(pitch_rads);
     vec3 new_front;
-    new_front.x = cosf(cmdeg2rad(cam->yaw)) * cosf(cmdeg2rad(cam->pitch));
-    new_front.y = sinf(cmdeg2rad(cam->pitch));
-    new_front.z = sinf(cmdeg2rad(cam->yaw)) * cosf(cmdeg2rad(cam->pitch));
+    new_front.x = cosf(yaw_rads) * cospitch;
+    new_front.y = sinf(pitch_rads);
+    new_front.z = sinf(yaw_rads) * cospitch;
 
     const vec3 world_up = (vec3){0.0f, 1.0f, 0.0f};
 

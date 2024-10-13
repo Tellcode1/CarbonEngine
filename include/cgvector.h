@@ -5,13 +5,19 @@
     extern "C" {
 #endif
 
-typedef struct cg_vector_t cg_vector_t;
+typedef struct cg_vector_t {
+    int m_size;
+    int m_capacity;
+    int m_typesize;
+    void *m_data;
+} cg_vector_t;
+
 typedef unsigned char cg_vector_bool_t;
 
 /*
     initial_size may be 0
 */
-extern cg_vector_t *cg_vector_init(int typesize, int init_size);
+extern cg_vector_t cg_vector_init(int typesize, int init_size);
 extern void cg_vector_destroy(cg_vector_t *vec);
 
 extern void cg_vector_resize(cg_vector_t *vec, int new_size);

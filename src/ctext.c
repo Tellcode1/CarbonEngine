@@ -8,6 +8,8 @@
 
 #include "../include/cgfxdef.h"
 
+#include "../include/cgfxpipeline.h"
+
 #include <freetype2/ft2build.h>
 #include FT_FREETYPE_H
 #include FT_GLYPH_H
@@ -139,15 +141,13 @@ void ctext_load_font(crenderer_t *rd, const ctext_font_load_info *__restrict pIn
     FT_Done_Face(face);
     FT_Done_FreeType(lib);
 
-    cg_device_t *device = crd_get_device(rd);
-    
-    ctex2D tex = {};
+    cg_tex2D tex = {};
     tex.w = (*dst)->atlas.width;
     tex.h = (*dst)->atlas.height;
     tex.fmt = CFMT_R8_UINT;
     tex.data = (*dst)->atlas.data;
     cimg_write_png(&tex, "skdlfj.png");
-    vkh_image_from_mem(device, (*dst)->atlas.data, (*dst)->atlas.width, (*dst)->atlas.height, VK_FORMAT_R8_UNORM, 1, &(*dst)->texture, &(*dst)->texture_memory);
+    vkh_image_from_mem((*dst)->atlas.data, (*dst)->atlas.width, (*dst)->atlas.height, VK_FORMAT_R8_UNORM, 1, &(*dst)->texture, &(*dst)->texture_memory);
 
     VkSamplerCreateInfo sampler_info = {};
     sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -157,7 +157,7 @@ void ctext_load_font(crenderer_t *rd, const ctext_font_load_info *__restrict pIn
     sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    if (vkCreateSampler(device->device, &sampler_info, NULL, &(*dst)->sampler) != VK_SUCCESS)
+    if (vkCreateSampler(device, &sampler_info, NULL, &(*dst)->sampler) != VK_SUCCESS)
         LOG_ERROR("Failed to create sampler");
 
     VkImageViewCreateInfo view_info = {};
@@ -171,7 +171,7 @@ void ctext_load_font(crenderer_t *rd, const ctext_font_load_info *__restrict pIn
     view_info.subresourceRange.levelCount = 1;
     view_info.subresourceRange.baseArrayLayer = 0;
     view_info.subresourceRange.layerCount = 1;
-    if (vkCreateImageView(device->device, &view_info, NULL, &(*dst)->texture_view) != VK_SUCCESS)
+    if (vkCreateImageView(device, &view_info, NULL, &(*dst)->texture_view) != VK_SUCCESS)
         LOG_ERROR("Failed to create image view");
 
     VkDescriptorImageInfo ctext_error_image_info = {};
@@ -189,7 +189,7 @@ void ctext_load_font(crenderer_t *rd, const ctext_font_load_info *__restrict pIn
         writeSet.pImageInfo = &ctext_error_image_info;
         writeSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         writeSet.dstArrayElement = i;
-        vkUpdateDescriptorSets(device->device, 1, &writeSet, 0, NULL);
+        vkUpdateDescriptorSets(device, 1, &writeSet, 0, NULL);
     }
 
     const VkVertexInputAttributeDescription attributeDescriptions[] = {
@@ -243,9 +243,9 @@ void ctext_load_font(crenderer_t *rd, const ctext_font_load_info *__restrict pIn
     pc.extent.height = RenderExtent.height;
     pc.blend_state = &blend;
     pc.samples = Samples;
-    cvk_create_pipeline_layout(device, &pc, &(*dst)->pipeline_layout);
+    cvk_create_pipeline_layout(&pc, &(*dst)->pipeline_layout);
     pc.pipeline_layout = (*dst)->pipeline_layout;
-    cvk_create_graphics_pipeline(device, &pc, &(*dst)->pipeline, CVK_PIPELINE_FLAGS_ENABLE_BLEND | CVK_PIPELINE_FLAGS_UNFORCE_CULLING);
+    cvk_create_graphics_pipeline(&pc, &(*dst)->pipeline, CVK_PIPELINE_FLAGS_ENABLE_BLEND | CVK_PIPELINE_FLAGS_UNFORCE_CULLING);
 }
 
 void ctext_end_render(crenderer_t *rd, ccamera *camera, cfont_t *fnt, mat4 model)
@@ -280,20 +280,19 @@ void ctext_end_render(crenderer_t *rd, ccamera *camera, cfont_t *fnt, mat4 model
     vkCmdDrawIndexed(cmd, fnt->index_count, 1, 0, 0, 0);
 }
 
-static cg_vector_t *split_string(const cg_string_t *str) {
+static cg_vector_t split_string(const cg_string_t *str) {
     cg_string_t *substr = NULL;
-    cg_vector_t *result = NULL;
+    cg_vector_t result;
     int i_start = 0;
 
     result = cg_vector_init(sizeof(cg_string_t *), 16);
-    cassert(result != NULL);
 
     for (int i = 0; i < cg_string_length(str); i++) {
         if (cg_string_data(str)[i] == '\n') {
             if (i > i_start) {
                 substr = cg_string_substring(str, i_start, i - i_start);
                 cassert(substr != NULL);
-                cg_vector_push_back(result, &substr);
+                cg_vector_push_back(&result, &substr);
             }
             i_start = i + 1;
         }
@@ -302,7 +301,7 @@ static cg_vector_t *split_string(const cg_string_t *str) {
     if (i_start < cg_string_length(str)) {
         substr = cg_string_substring(str, i_start, cg_string_length(str) - i_start);
         cassert(substr != NULL);
-        cg_vector_push_back(result, &substr);
+        cg_vector_push_back(&result, &substr);
     }
 
     return result;
@@ -310,7 +309,7 @@ static cg_vector_t *split_string(const cg_string_t *str) {
 
 void ctext_begin_render(crenderer_t *rd, cfont_t *fnt)
 {
-    if (cg_vector_size(fnt->drawcalls) == 0) {
+    if (cg_vector_size(&fnt->drawcalls) == 0) {
         fnt->to_render = false;
         return;
     }
@@ -318,8 +317,8 @@ void ctext_begin_render(crenderer_t *rd, cfont_t *fnt)
     u32 total_vertex_byte_size = 0;
     u32 total_index_count = 0;
 
-    for (int i = 0; i < cg_vector_size(fnt->drawcalls); i++) {
-        const ctext_text_drawcall_t *drawcall = (ctext_text_drawcall_t *)cg_vector_get(fnt->drawcalls, i);
+    for (int i = 0; i < cg_vector_size(&fnt->drawcalls); i++) {
+        const ctext_text_drawcall_t *drawcall = (ctext_text_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
         total_vertex_byte_size += drawcall->vertex_count * sizeof(cglyph_vertex_t);
         total_index_count += drawcall->index_count;
     }
@@ -327,32 +326,32 @@ void ctext_begin_render(crenderer_t *rd, cfont_t *fnt)
     const u32 total_index_byte_size = total_index_count * sizeof(u32);
     const u32 total_buffer_size = total_index_byte_size + total_vertex_byte_size;
 
-    ctext__font_resize_buffer(fnt, crd_get_device(rd), total_buffer_size, total_vertex_byte_size);
+    ctext__font_resize_buffer(fnt, total_buffer_size, total_vertex_byte_size);
 
     void *mapped;
-    vkMapMemory(crd_get_device(rd)->device, fnt->buffer_memory, 0, fnt->allocated_size, 0, &mapped);
+    vkMapMemory(device, fnt->buffer_memory, 0, fnt->allocated_size, 0, &mapped);
 
     u32 vertex_copy_iterator = 0;
     u32 index_copy_iterator = 0;
-    for (int i = 0; i < cg_vector_size(fnt->drawcalls); i++) {
-        const ctext_text_drawcall_t *drawcall = (ctext_text_drawcall_t *)cg_vector_get(fnt->drawcalls, i);
+    for (int i = 0; i < cg_vector_size(&fnt->drawcalls); i++) {
+        const ctext_text_drawcall_t *drawcall = (ctext_text_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
         memcpy((u8 *)(mapped) + vertex_copy_iterator, drawcall->vertices, drawcall->vertex_count * sizeof(cglyph_vertex_t));
         memcpy((u8 *)(mapped) + total_vertex_byte_size + index_copy_iterator, drawcall->indices, drawcall->index_count * sizeof(u32));
         vertex_copy_iterator += drawcall->vertex_count * sizeof(cglyph_vertex_t);
         index_copy_iterator += drawcall->index_count * sizeof(u32);
     }
-    vkUnmapMemory(crd_get_device(rd)->device, fnt->buffer_memory);
+    vkUnmapMemory(device, fnt->buffer_memory);
 
     fnt->index_buffer_offset = total_vertex_byte_size;
     fnt->index_count = total_index_count;
     fnt->to_render = true;
 
     fnt->chars_drawn = 0;
-    for (int i = 0; i < cg_vector_size(fnt->drawcalls); i++) {
-        ctext_text_drawcall_t *drawcall = (ctext_text_drawcall_t *)cg_vector_get(fnt->drawcalls, i);
+    for (int i = 0; i < cg_vector_size(&fnt->drawcalls); i++) {
+        ctext_text_drawcall_t *drawcall = (ctext_text_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
         free(drawcall->vertices);
     }
-    cg_vector_clear(fnt->drawcalls);
+    cg_vector_clear(&fnt->drawcalls);
 }
 
 static void render_line(
@@ -469,12 +468,12 @@ void gen_vertices(
     if (cg_string_length(str) == 0)
         return;
 
-    cg_vector_t *splitted_strings = split_string(str);
+    cg_vector_t splitted_strings = split_string(str);
 
     const f32 scaled_line_height = fnt->line_height * pInfo->scale;
 
     f32 y = pInfo->position.y;
-    const f32 text_size = ((fnt->line_height * pInfo->scale) * cg_vector_size(splitted_strings));
+    const f32 text_size = ((fnt->line_height * pInfo->scale) * cg_vector_size(&splitted_strings));
     switch(pInfo->vertical)
     {
         case CTEXT_VERT_ALIGN_CENTER:
@@ -497,31 +496,31 @@ void gen_vertices(
 
     const i32 old_chars_drawn = fnt->chars_drawn;
     int glyph_iter = 0;
-    for (int i = 0; i < cg_vector_size(splitted_strings); i++) {;
-        render_line(fnt, *(cg_string_t **)cg_vector_get(splitted_strings, i), drawcall, pInfo, y + i * scaled_line_height, glyph_table, index_table, &glyph_iter);
+    for (int i = 0; i < cg_vector_size(&splitted_strings); i++) {;
+        render_line(fnt, *(cg_string_t **)cg_vector_get(&splitted_strings, i), drawcall, pInfo, y + i * scaled_line_height, glyph_table, index_table, &glyph_iter);
         fnt->chars_drawn = old_chars_drawn + glyph_iter;
     }
 
-    for (int i = 0; i < cg_vector_size(splitted_strings); i++) {
-        cg_string_destroy( ((cg_string_t **)cg_vector_data(splitted_strings))[i] );
+    for (int i = 0; i < cg_vector_size(&splitted_strings); i++) {
+        cg_string_destroy( ((cg_string_t **)cg_vector_data(&splitted_strings))[i] );
     }
-    cg_vector_destroy(splitted_strings);
+    cg_vector_destroy(&splitted_strings);
 }
 
 void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo, const char *fmt, ...)
 {
-    char buf[BUFSIZ] = {};
     va_list arg;
     va_start(arg, fmt);
-    int num = vsprintf(buf, fmt, arg);
+    char buffer[BUFSIZ];
+    int num = vsnprintf(buffer, BUFSIZ, fmt, arg);
     va_end(arg);
 
-    const u32 effective_length = get_effective_length(buf, num);
+    const u32 effective_length = get_effective_length(buffer, num);
     if (effective_length == 0) {
         return;
     }
 
-    cg_string_t *str = cg_string_init_str(buf);
+    cg_string_t *str = cg_string_init_str(buffer);
 
     // free(buf);
 
@@ -537,7 +536,7 @@ void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo, const char 
     drawcall.index_offset = (vertex_count * sizeof(cglyph_vertex_t));
     drawcall.indices = (u32 *)((uchar *)allocation + drawcall.index_offset);
 
-    cg_vector_t * /* ctext_glyph * */ glyph_table = cg_vector_init(sizeof(ctext_glyph *), effective_length);
+    cg_vector_t /* ctext_glyph * */ glyph_table = cg_vector_init(sizeof(ctext_glyph *), effective_length);
     cg_hashmap_t * /*<char, int>*/ index_table = cg_hashmap_init(effective_length, sizeof(char), sizeof(int), NULL, NULL);
 
     int pen = 0;
@@ -549,22 +548,22 @@ void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo, const char 
             continue;
         else if (cg_hashmap_find(index_table, &c) == NULL) {
             const ctext_glyph *glyph = (ctext_glyph *)cg_hashmap_find(fnt->glyph_map, &c);
-            cg_vector_push_back(glyph_table, &glyph);
+            cg_vector_push_back(&glyph_table, &glyph);
             cg_hashmap_insert(index_table, &c, &pen);
             pen++;
         }
     }
 
-    gen_vertices(fnt, &drawcall, pInfo, str, effective_length, glyph_table, index_table);
+    gen_vertices(fnt, &drawcall, pInfo, str, effective_length, &glyph_table, index_table);
 
-    cg_vector_destroy(glyph_table);
+    cg_vector_destroy(&glyph_table);
     cg_hashmap_destroy(index_table);
     cg_string_destroy(str);
 
     drawcall.vertex_count = effective_length * 4;
     drawcall.index_count = effective_length * 6;
 
-    cg_vector_push_back(fnt->drawcalls, &drawcall);
+    cg_vector_push_back(&fnt->drawcalls, &drawcall);
 }
 
 void ctext_init(struct crenderer_t *rd)
@@ -587,7 +586,7 @@ void ctext_init(struct crenderer_t *rd)
     poolInfo.pPoolSizes = poolSizes;
     poolInfo.poolSizeCount = array_len(poolSizes);
     poolInfo.maxSets = 1;
-    if (vkCreateDescriptorPool(crd_get_device(rd)->device, &poolInfo, NULL, &ctext->desc_pool) != VK_SUCCESS) {
+    if (vkCreateDescriptorPool(device, &poolInfo, NULL, &ctext->desc_pool) != VK_SUCCESS) {
         LOG_ERROR("Failed to create descriptor pool");
     }
 
@@ -595,7 +594,7 @@ void ctext_init(struct crenderer_t *rd)
     setLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     setLayoutInfo.pBindings = bindings;
     setLayoutInfo.bindingCount = array_len(bindings);
-    if (vkCreateDescriptorSetLayout(crd_get_device(rd)->device, &setLayoutInfo, NULL, &ctext->desc_Layout) != VK_SUCCESS) {
+    if (vkCreateDescriptorSetLayout(device, &setLayoutInfo, NULL, &ctext->desc_Layout) != VK_SUCCESS) {
         LOG_ERROR("%s Failto create descriptor set layout");
     }
 
@@ -604,7 +603,7 @@ void ctext_init(struct crenderer_t *rd)
     setAllocInfo.descriptorPool = ctext->desc_pool;
     setAllocInfo.descriptorSetCount = 1;
     setAllocInfo.pSetLayouts = &ctext->desc_Layout;
-    if (vkAllocateDescriptorSets(crd_get_device(rd)->device, &setAllocInfo, &ctext->desc_set) != VK_SUCCESS) {
+    if (vkAllocateDescriptorSets(device, &setAllocInfo, &ctext->desc_set) != VK_SUCCESS) {
         LOG_ERROR("Failed to allocate descriptor sets");
     }
 
@@ -613,7 +612,7 @@ void ctext_init(struct crenderer_t *rd)
 
     // No need to store image memory because it won't ever be deleted (probably)
     VkDeviceMemory dummyImageMemory;;
-    free(vkh_image_from_disk(crd_get_device(rd), "../Assets/error.png", &width, &height, &dummyImageFmt, &ctext->error_image, &dummyImageMemory));
+    free(vkh_image_from_disk("../Assets/error.png", &width, &height, &dummyImageFmt, &ctext->error_image, &dummyImageMemory));
 
     VkSamplerCreateInfo samplerInfo = {};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -623,7 +622,7 @@ void ctext_init(struct crenderer_t *rd)
     samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    if (vkCreateSampler(crd_get_device(rd)->device, &samplerInfo, NULL, &ctext->error_image_sampler) != VK_SUCCESS) {
+    if (vkCreateSampler(device, &samplerInfo, NULL, &ctext->error_image_sampler) != VK_SUCCESS) {
         LOG_ERROR("Failed to create sampler");
     }
 
@@ -638,7 +637,7 @@ void ctext_init(struct crenderer_t *rd)
     viewInfo.subresourceRange.levelCount = 1;
     viewInfo.subresourceRange.baseArrayLayer = 0;
     viewInfo.subresourceRange.layerCount = 1;
-    if (vkCreateImageView(crd_get_device(rd)->device, &viewInfo, NULL, &ctext->error_image_view) != VK_SUCCESS) {
+    if (vkCreateImageView(device, &viewInfo, NULL, &ctext->error_image_view) != VK_SUCCESS) {
         LOG_ERROR("Failed to create image view");
     }
 
@@ -657,11 +656,11 @@ void ctext_init(struct crenderer_t *rd)
     write_set.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     for (int i = 0; i < CTEXT_MAX_FONT_COUNT; i++) {
         write_set.dstArrayElement = i;
-        vkUpdateDescriptorSets(crd_get_device(rd)->device, 1, &write_set, 0, NULL);
+        vkUpdateDescriptorSets(device, 1, &write_set, 0, NULL);
     }
 }
 
-void ctext__font_resize_buffer(cfont_t *fnt, cg_device_t *device, u32 new_buffer_size, u32 index_buffer_offset)
+void ctext__font_resize_buffer(cfont_t *fnt,  u32 new_buffer_size, u32 index_buffer_offset)
 {
     u32 new_allocation_size;
 
@@ -674,13 +673,12 @@ void ctext__font_resize_buffer(cfont_t *fnt, cg_device_t *device, u32 new_buffer
     else
         return;
 
-    vkDeviceWaitIdle(device->device);
+    vkDeviceWaitIdle(device);
     
-    vkDestroyBuffer(device->device, fnt->buffer, NULL);
-    vkFreeMemory(device->device, fnt->buffer_memory, NULL);
+    vkDestroyBuffer(device, fnt->buffer, NULL);
+    vkFreeMemory(device, fnt->buffer_memory, NULL);
 
     vkh_buffer_create(
-        device,
         new_allocation_size,
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,

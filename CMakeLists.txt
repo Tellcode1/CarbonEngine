@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.10)
 project(main)
 
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+
 find_package(Vulkan REQUIRED)
 include_directories(${Vulkan_INCLUDE_DIRS})
 
@@ -29,29 +32,14 @@ set(SOURCES
     src/vkhelper.c
 
     src/containersunity.c
-    src/cbinarytree.c
 
     src/cimage.c
 )
 
-set(MSDFGEN_CORE_ONLY OFF)
-set(MSDFGEN_BUILD_STANDALONE OFF)
-set(MSDFGEN_USE_SKIA OFF)
-set(MSDFGEN_USE_VCPKG OFF)
-
-set(MSDF_ATLAS_USE_VCPKG OFF)
-set(MSDF_ATLAS_USE_SKIA OFF)
-set(MSDF_ATLAS_DYNAMIC_RUNTIME OFF)
-set(MSDF_ATLAS_NO_ARTERY_FONT ON)
+add_library(spirv-reflect STATIC ${CMAKE_SOURCE_DIR}/external/SPIRV-Reflect/spirv_reflect.c)
+add_subdirectory(${CMAKE_SOURCE_DIR}/external/volk)
 
 add_executable(${OUTPUT} ${SOURCES})
-
-target_include_directories(${OUTPUT} PUBLIC ${CMAKE_SOURCE_DIR}/external/msdf-atlas-gen/msdfgen)
-target_include_directories(${OUTPUT} PUBLIC ${CMAKE_SOURCE_DIR}/external/msdf-atlas-gen/msdf-atlas-gen)
-target_include_directories(${OUTPUT} PUBLIC ${CMAKE_SOURCE_DIR}/external/SPIRV-Reflect)
-
-add_subdirectory(${CMAKE_SOURCE_DIR}/external/msdf-atlas-gen)
-add_subdirectory(${CMAKE_SOURCE_DIR}/external/volk)
 
 add_executable(shadermanager src/cshadermanager.c)
 target_compile_definitions(shadermanager PRIVATE CSM_EXECUTABLE=1)
@@ -60,9 +48,10 @@ target_compile_options(shadermanager PRIVATE -O3 -g)
 set(LIBS
     volk
     SDL2
-    msdf-atlas-gen
     freetype
     jpeg
+    png
+    spirv-reflect
 )
 
 target_link_options(${OUTPUT} PRIVATE -g -Wall -fopenmp -fpermissive)
