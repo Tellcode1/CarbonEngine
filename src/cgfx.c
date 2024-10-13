@@ -12,12 +12,12 @@
 
 #include <SDL2/SDL_vulkan.h>
 
-VkInstance instance;
-VkDevice device;
-VkPhysicalDevice physDevice;
-VkSurfaceKHR surface;
-SDL_Window *window;
-VkDebugUtilsMessengerEXT debugMessenger;
+VkInstance instance = NULL;
+VkDevice device = NULL;
+VkPhysicalDevice physDevice = NULL;
+VkSurfaceKHR surface = NULL;
+SDL_Window *window = NULL;
+VkDebugUtilsMessengerEXT debugMessenger = NULL;
 
 VkFormat SwapChainImageFormat;
 VkColorSpaceKHR SwapChainColorSpace;
@@ -54,6 +54,40 @@ cg_extent2d crd_get_render_extent(const crenderer_t *rd)
     return rd->render_extent;
 }
 
+void crenderer_destroy(crenderer_t *rd)
+{
+    vkDeviceWaitIdle(device);
+
+    for (int i = 0; i < SwapChainImageCount; i++) {
+        cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(&rd->renderData, i);
+        // weeeee
+        vkDestroyImage(device, data->depth_image, NULL);
+        vkDestroyImageView(device, data->depth_image_view, NULL);
+        vkDestroyFramebuffer(device, data->color_framebuffer, NULL);
+        // CHECKMEOUTPARTNER: Uhh, these are causing vulkan validation layer errors...
+        // vkDestroySemaphore(device, data->image_available_semaphore, NULL);
+        // vkDestroySemaphore(device, data->render_finish_semaphore, NULL);
+        // vkDestroyFence(device, data->in_flight_fence, NULL);
+    }
+    cg_vector_destroy(&rd->renderData);
+    cgfx_gpu_memory_free(&rd->shadow_image_memory);
+    vkFreeCommandBuffers(device, rd->commandPool, cg_vector_size(&rd->drawBuffers), (VkCommandBuffer *)cg_vector_data(&rd->drawBuffers));
+    vkDestroyCommandPool(device, rd->commandPool, NULL);
+
+    vkDestroySwapchainKHR(device, rd->swapchain, NULL);
+
+    if (rd->ctext) {
+        // ! FIXME: Implement
+    }
+    if (rd->config.multisampling_enable) {
+        vkDestroyImage(device, rd->color_image, NULL);
+        vkDestroyImageView(device, rd->color_image_view, NULL);
+        cgfx_gpu_memory_free(&rd->color_image_memory);
+    }
+    vkDestroyRenderPass(device, rd->render_pass, NULL);
+    free(rd);
+}
+
 void create_optional_images(crenderer_t *rd)
 {
     vkGetSwapchainImagesKHR(device, rd->swapchain, &SwapChainImageCount, NULL);
@@ -63,14 +97,18 @@ void create_optional_images(crenderer_t *rd)
     cg_vector_resize(&rd->renderData, SwapChainImageCount);
 
     if (rd->config.multisampling_enable) {
+        int color_image_size = 0;
         vkh_image_create_empty(
             rd->render_extent.width, rd->render_extent.height,
             SwapChainImageFormat,
             Samples,
             4,
             VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-            &rd->color_image, &rd->color_image_memory
+            &color_image_size,
+            &rd->color_image, NULL
         );
+        cgfx_gpu_memory_allocate(color_image_size, CGFX_MEMORY_USAGE_GPU_LOCAL, &rd->color_image_memory);
+        cgfx_gpu_memory_bind_image(&rd->color_image_memory, rd->color_image, 0);
 
         VkImageViewCreateInfo resolve_view_create_info = {};
         resolve_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -94,7 +132,7 @@ void create_optional_images(crenderer_t *rd)
     // attachment vector will be like <color resolve, depth attachment, swapchain image>
     for (int i = 0; i < (int)SwapChainImageCount; i++) {
         cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(&rd->renderData, i);
-        data->swapchainImage = swapchainImages[i];
+        data->sc_image = swapchainImages[i];
 
         VkImageCreateInfo image = {};
         image.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -106,25 +144,24 @@ void create_optional_images(crenderer_t *rd)
         image.arrayLayers = 1;
         image.samples = Samples;
         image.tiling = VK_IMAGE_TILING_OPTIMAL;
-        image.format = VK_FORMAT_D16_UNORM;
+        image.format = VK_FORMAT_D32_SFLOAT;
         image.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ;
         vkCreateImage(device, &image, NULL, &data->depth_image);
 
-        VkMemoryRequirements memReqs = {};
-        vkGetImageMemoryRequirements(device, data->depth_image, &memReqs);
+        if (i == 0) {
+            VkMemoryRequirements memReqs = {};
+            vkGetImageMemoryRequirements(device, data->depth_image, &memReqs);
 
-        VkMemoryAllocateInfo memAlloc = {};
-        memAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        memAlloc.allocationSize = memReqs.size;
-        memAlloc.memoryTypeIndex = vkh_get_mem_type(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+            rd->shadow_image_size = memReqs.size;
+            cgfx_gpu_memory_allocate(rd->shadow_image_size * SwapChainImageCount, CGFX_MEMORY_USAGE_GPU_LOCAL, &rd->shadow_image_memory);
+        }
 
-        vkAllocateMemory(device, &memAlloc, NULL, &data->shadow_image_memory);
-        vkBindImageMemory(device, data->depth_image, data->shadow_image_memory, 0);
+        cgfx_gpu_memory_bind_image(&rd->shadow_image_memory, data->depth_image, i * rd->shadow_image_size);
 
         VkImageViewCreateInfo depthStencilView = {};
         depthStencilView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         depthStencilView.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        depthStencilView.format = VK_FORMAT_D16_UNORM;
+        depthStencilView.format = VK_FORMAT_D32_SFLOAT;
         depthStencilView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
         depthStencilView.subresourceRange.baseMipLevel = 0;
         depthStencilView.subresourceRange.levelCount = 1;
@@ -144,7 +181,7 @@ void create_framebuffers_and_swapchain_image_views(crenderer_t *rd) {
         cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(&rd->renderData, i);
         VkImageViewCreateInfo imageViewCreateInfo = {};
         imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        imageViewCreateInfo.image = data->swapchainImage;
+        imageViewCreateInfo.image = data->sc_image;
         imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
         imageViewCreateInfo.format = SwapChainImageFormat;
         imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -156,11 +193,11 @@ void create_framebuffers_and_swapchain_image_views(crenderer_t *rd) {
         imageViewCreateInfo.subresourceRange.levelCount = 1;
         imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
         imageViewCreateInfo.subresourceRange.layerCount = 1;
-        if (vkCreateImageView(device, &imageViewCreateInfo, NULL, &data->swapchainImageView) != VK_SUCCESS) {
+        if (vkCreateImageView(device, &imageViewCreateInfo, NULL, &data->sc_image_view) != VK_SUCCESS) {
             LOG_ERROR("Failed to create view for swapchain image %d", i);
         }
 
-        const VkImageView swapchain_image_view = data->swapchainImageView;
+        const VkImageView swapchain_image_view = data->sc_image_view;
         const VkImageView depth_image_view = data->depth_image_view;
 
         cg_vector_clear(&attachments);
@@ -327,7 +364,7 @@ crenderer_t *crenderer_init( const crenderer_config *conf)
     cmdAllocInfo.commandPool = rd->commandPool;
     vkAllocateCommandBuffers(device, &cmdAllocInfo, (VkCommandBuffer *)cg_vector_data(&rd->drawBuffers));
 
-    rd->depth_buffer_format = VK_FORMAT_D16_UNORM; // replace (probably)
+    rd->depth_buffer_format = VK_FORMAT_D32_SFLOAT; // replace (probably)
 
     cvk_render_pass_create_info rpi = {};
     rpi.format = SwapChainImageFormat;
@@ -337,14 +374,14 @@ crenderer_t *crenderer_init( const crenderer_config *conf)
     cvk_create_render_pass(&rpi, &rd->render_pass, cvk_flag_register);
 
     // cvk_render_pass_create_info depth_render_pass_info = {};
-    // depth_render_pass_info.format = VK_FORMAT_D16_UNORM;
+    // depth_render_pass_info.format = VK_FORMAT_D32_SFLOAT;
     // depth_render_pass_info.depthBufferFormat = depth_buffer_format;
     // depth_render_pass_info.subpass = 0;
     // depth_render_pass_info.samples = VK_SAMPLE_COUNT_1_BIT;
     // cvk_create_render_pass(device, &depth_render_pass_info, &ShadowPass, cvk_flag_register);
     // {
     //     VkAttachmentDescription depthAttachment = {};
-    //     depthAttachment.format = VK_FORMAT_D16_UNORM;
+    //     depthAttachment.format = VK_FORMAT_D32_SFLOAT;
     //     depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
     //     depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     //     depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -384,9 +421,9 @@ crenderer_t *crenderer_init( const crenderer_config *conf)
         };
 
         cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(&rd->renderData, i);
-        vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->renderingFinishedSemaphore);
-        vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->imageAvailableSemaphore);
-        vkCreateFence(device, &fenceCreateInfo, NULL, &data->inFlightFence);
+        vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->render_finish_semaphore);
+        vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->image_available_semaphore);
+        vkCreateFence(device, &fenceCreateInfo, NULL, &data->in_flight_fence);
 	}
 
     return rd;
@@ -406,14 +443,14 @@ void crenderer_resize(crenderer_t *rd) {
     // adhoc method of resetting them
     for (int i = 0; i < (1 + (int)rd->config.buffer_mode); i++) {
         cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(&rd->renderData, i);
-        vkDestroySemaphore(device, data->imageAvailableSemaphore, NULL);
-        vkDestroySemaphore(device, data->renderingFinishedSemaphore, NULL);
-        vkDestroyFence(device, data->inFlightFence, NULL);
+        vkDestroySemaphore(device, data->image_available_semaphore, NULL);
+        vkDestroySemaphore(device, data->render_finish_semaphore, NULL);
+        vkDestroyFence(device, data->in_flight_fence, NULL);
     }
     for (u32 i = 0; i < SwapChainImageCount; i++)
     {
         cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(&rd->renderData, i);
-        vkDestroyImageView(device, data->swapchainImageView, NULL);
+        vkDestroyImageView(device, data->sc_image_view, NULL);
         vkDestroyFramebuffer(device, data->color_framebuffer, NULL);
     }
     cg_vector_clear(&rd->renderData);
@@ -475,9 +512,9 @@ void crenderer_resize(crenderer_t *rd) {
     for (u32 i = 0; i < SwapChainImageCount; i++)
     {
         cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(&rd->renderData, i);
-        vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->renderingFinishedSemaphore);
-        vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->imageAvailableSemaphore);
-        vkCreateFence(device, &fenceCreateInfo, NULL, &data->inFlightFence);
+        vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->render_finish_semaphore);
+        vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->image_available_semaphore);
+        vkCreateFence(device, &fenceCreateInfo, NULL, &data->in_flight_fence);
     }
 
     cg__reset_frame_buffer_resized();
@@ -487,9 +524,9 @@ bool_t crd_begin_render(crenderer_t *rd)
 {
     cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(&rd->renderData, rd->renderer_frame);
 
-    vkWaitForFences(device, 1, &data->inFlightFence, VK_TRUE, UINT64_MAX);
+    vkWaitForFences(device, 1, &data->in_flight_fence, VK_TRUE, UINT64_MAX);
 
-    const VkResult imageAcquireResult = vkAcquireNextImageKHR(device, rd->swapchain, UINT64_MAX, data->imageAvailableSemaphore, VK_NULL_HANDLE, &rd->imageIndex);
+    const VkResult imageAcquireResult = vkAcquireNextImageKHR(device, rd->swapchain, UINT64_MAX, data->image_available_semaphore, VK_NULL_HANDLE, &rd->imageIndex);
 
     const VkCommandBuffer drawBuffer = *(VkCommandBuffer *)cg_vector_get(&rd->drawBuffers, rd->renderer_frame);
 
@@ -504,7 +541,7 @@ bool_t crd_begin_render(crenderer_t *rd)
 		return false;
     }
 
-    vkResetFences(device, 1, &data->inFlightFence);
+    vkResetFences(device, 1, &data->in_flight_fence);
 
     VkClearValue clearValues[2];
     clearValues[0].color = (VkClearColorValue){ {0.0f, 0.0f, 0.0f, 1.0f} };
@@ -557,8 +594,8 @@ void crd_end_render(crenderer_t *rd)
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
     cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(&rd->renderData, rd->renderer_frame);
-    const VkSemaphore waitSemaphores[] = {data->imageAvailableSemaphore};
-    const VkSemaphore signalSemaphores[] = {data->renderingFinishedSemaphore};
+    const VkSemaphore waitSemaphores[] = {data->image_available_semaphore};
+    const VkSemaphore signalSemaphores[] = {data->render_finish_semaphore};
 
     VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
     submitInfo.pWaitDstStageMask = waitStages;
@@ -573,7 +610,7 @@ void crd_end_render(crenderer_t *rd)
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    vkQueueSubmit(PresentQueue, 1, &submitInfo, data->inFlightFence);
+    vkQueueSubmit(PresentQueue, 1, &submitInfo, data->in_flight_fence);
 
     VkPresentInfoKHR presentInfo = {};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;

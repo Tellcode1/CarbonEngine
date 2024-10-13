@@ -29,7 +29,7 @@ extern void vkh_stage_image_transfer( VkImage dst, void* data, u32 width, u32 he
 extern void vkh_image_from_mem( u8 *buffer, u32 width, u32 height, VkFormat format, u32 channels, VkImage *dst, VkDeviceMemory *dstMem);
 extern u8* vkh_image_from_disk( const char *path, u32 *width, u32 *height, VkFormat *channels, VkImage *dst, VkDeviceMemory *dstMem);
 
-extern void vkh_image_create_empty( u32 width, u32 height, VkFormat format, VkSampleCountFlagBits samples, u32 channels, VkImageUsageFlags usage, VkImage *dst, VkDeviceMemory *dstMem);
+extern void vkh_image_create_empty( u32 width, u32 height, VkFormat format, VkSampleCountFlagBits samples, u32 channels, VkImageUsageFlags usage, int *image_size, VkImage *dst, VkDeviceMemory *dstMem);
 
 extern bool vkh_get_supported_fmt( VkPhysicalDevice physDevice, VkSurfaceKHR surface, VkFormat* dstFormat, VkColorSpaceKHR* dstColorSpace);
 extern u32 vkh_get_image_count(VkPhysicalDevice physDevice, VkSurfaceKHR surface);

@@ -147,7 +147,32 @@ void ctext_load_font(crenderer_t *rd, const ctext_font_load_info *__restrict pIn
     tex.fmt = CFMT_R8_UINT;
     tex.data = (*dst)->atlas.data;
     cimg_write_png(&tex, "skdlfj.png");
-    vkh_image_from_mem((*dst)->atlas.data, (*dst)->atlas.width, (*dst)->atlas.height, VK_FORMAT_R8_UNORM, 1, &(*dst)->texture, &(*dst)->texture_memory);
+
+    VkImageCreateInfo imageCreateInfo = {};
+    imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageCreateInfo.extent.width = (*dst)->atlas.width;
+    imageCreateInfo.extent.height = (*dst)->atlas.height;
+    imageCreateInfo.extent.depth = 1;
+    imageCreateInfo.mipLevels = 1;
+    imageCreateInfo.arrayLayers = 1;
+    imageCreateInfo.format = VK_FORMAT_R8_UNORM;
+    imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    if (vkCreateImage(device, &imageCreateInfo, NULL, &(*dst)->texture) != VK_SUCCESS) {
+        LOG_ERROR("Failed to create bitmap image");
+    }
+
+    VkMemoryRequirements imageMemoryRequirements;
+    vkGetImageMemoryRequirements(device, (*dst)->texture, &imageMemoryRequirements);
+
+    cgfx_gpu_memory_allocate(imageMemoryRequirements.size, CGFX_MEMORY_USAGE_GPU_LOCAL, &(*dst)->texture_mem);
+    cgfx_gpu_memory_bind_image(&(*dst)->texture_mem, (*dst)->texture, 0);
+
+    vkh_stage_image_transfer((*dst)->texture, (*dst)->atlas.data, (*dst)->atlas.width, (*dst)->atlas.height, 1);
 
     VkSamplerCreateInfo sampler_info = {};
     sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -329,7 +354,7 @@ void ctext_begin_render(crenderer_t *rd, cfont_t *fnt)
     ctext__font_resize_buffer(fnt, total_buffer_size, total_vertex_byte_size);
 
     void *mapped;
-    vkMapMemory(device, fnt->buffer_memory, 0, fnt->allocated_size, 0, &mapped);
+    vkMapMemory(device, fnt->buffer_mem.memory, 0, fnt->allocated_size, 0, &mapped);
 
     u32 vertex_copy_iterator = 0;
     u32 index_copy_iterator = 0;
@@ -340,7 +365,7 @@ void ctext_begin_render(crenderer_t *rd, cfont_t *fnt)
         vertex_copy_iterator += drawcall->vertex_count * sizeof(cglyph_vertex_t);
         index_copy_iterator += drawcall->index_count * sizeof(u32);
     }
-    vkUnmapMemory(device, fnt->buffer_memory);
+    vkUnmapMemory(device, fnt->buffer_mem.memory);
 
     fnt->index_buffer_offset = total_vertex_byte_size;
     fnt->index_count = total_index_count;
@@ -611,7 +636,7 @@ void ctext_init(struct crenderer_t *rd)
     VkFormat dummyImageFmt;
 
     // No need to store image memory because it won't ever be deleted (probably)
-    VkDeviceMemory dummyImageMemory;;
+    VkDeviceMemory dummyImageMemory;
     free(vkh_image_from_disk("../Assets/error.png", &width, &height, &dummyImageFmt, &ctext->error_image, &dummyImageMemory));
 
     VkSamplerCreateInfo samplerInfo = {};
@@ -676,16 +701,19 @@ void ctext__font_resize_buffer(cfont_t *fnt,  u32 new_buffer_size, u32 index_buf
     vkDeviceWaitIdle(device);
     
     vkDestroyBuffer(device, fnt->buffer, NULL);
-    vkFreeMemory(device, fnt->buffer_memory, NULL);
+    cgfx_gpu_memory_free(&fnt->buffer_mem);
+
+    cgfx_gpu_memory_allocate(new_allocation_size, CGFX_MEMORY_USAGE_GPU_LOCAL | CGFX_MEMORY_USAGE_CPU_WRITEABLE, &fnt->buffer_mem);
 
     vkh_buffer_create(
         new_allocation_size,
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
         &fnt->buffer,
-        &fnt->buffer_memory,
-        0
+        &fnt->buffer_mem.memory,
+        1
     );
+    cgfx_gpu_memory_bind_buffer(&fnt->buffer_mem, fnt->buffer, 0);
 
     fnt->allocated_size = new_allocation_size;
 }

@@ -8,6 +8,10 @@
 #include "math/mat.h"
 #include "cgfx.h"
 
+// typedef struct cgfx_render_Texture {
+
+// } cgfx_render_texture;
+
 typedef struct ccamera {
     // TODO: move to uniform buffer with data like current app time, delta time, etc.
     // To be honest i dont know what delta time is supposed to be

@@ -42,17 +42,6 @@ void cg_update() {
     currtime = SDL_GetPerformanceCounter();
     cg_delta_time = fdiv(currtime - cg_last_frame_time, SDL_GetPerformanceFrequency());
 
-    if ((double)(SDL_GetTicks64() - cg_fixed_frame_start) >= FIXED_TICK_RATE) {
-        // fixed update
-        cinput_update();
-        cg_fixed_frame_start = SDL_GetTicks64();
-    }
-}
-
-void cg_begin_frame() {
-    
-}
-
-void cg_end_frame() {
-    
+    // ! FIXME: fixed update is not fixed (sorry)
+    cinput_update();
 }

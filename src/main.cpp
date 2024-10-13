@@ -90,7 +90,6 @@ int main(int argc, char *argv[]) {
         }
 
         if (cinput_is_key_pressed(SDL_SCANCODE_SPACE)) {
-            printf("space press\n");
             relmodeon = !relmodeon;
             SDL_SetRelativeMouseMode((SDL_bool)relmodeon);
         }
@@ -152,6 +151,6 @@ int main(int argc, char *argv[]) {
         }
     }
     
-    // Do not do cleanup because we are big bois
+    crenderer_destroy(rd);
     return 0;
 }

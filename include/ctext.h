@@ -18,6 +18,7 @@
 #include "cgstring.h"
 #include "cghashmap.h"
 #include "catlas.h"
+#include "cdevicememory.h"
 
 typedef struct crenderer_t crenderer_t;
 
@@ -103,12 +104,12 @@ typedef struct cfont_t
     u32 font_index;
     VkImage texture;
     VkImageView texture_view;
-    VkDeviceMemory texture_memory;
+    cgfx_gpu_memory texture_mem;
     VkSampler sampler;
 
     u32 allocated_size;
     VkBuffer buffer;
-    VkDeviceMemory buffer_memory;
+    cgfx_gpu_memory buffer_mem;
     void *mapped;
 
     int index_buffer_offset;

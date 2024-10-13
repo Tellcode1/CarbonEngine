@@ -18,15 +18,14 @@
 // Move ownership to camera VV
 typedef struct cg_framerender_data
 {
-    VkImage         swapchainImage;
-    VkImageView     swapchainImageView;
+    VkImage         sc_image; // sc -> swapchain owned
+    VkImageView     sc_image_view;
     VkFramebuffer   color_framebuffer;
     VkImage         depth_image;
     VkImageView     depth_image_view;
-    VkDeviceMemory  shadow_image_memory; // FIXME: move to Renderer struct to allocate all at once
-    VkSemaphore     imageAvailableSemaphore;
-    VkSemaphore     renderingFinishedSemaphore;
-    VkFence         inFlightFence;
+    VkSemaphore     image_available_semaphore;
+    VkSemaphore     render_finish_semaphore;
+    VkFence         in_flight_fence;
 } cg_framerender_data;
 
 typedef enum cengine_vsync_bits {

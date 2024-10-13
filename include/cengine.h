@@ -56,7 +56,7 @@ static inline f64 cg_get_time() {
 
 extern void cg_initialize_context(const char *window_title, int window_width, int window_height);
 
-static const u32 FIXED_FRAME_RATE = 30;
+static const u32 FIXED_FRAME_RATE = 60;
 static const f64 FIXED_TICK_RATE = 1000.0 / (f64)FIXED_FRAME_RATE; // 1000 milliseconds
 
 extern void cg_consume_event(const union SDL_Event *event);

@@ -41,7 +41,7 @@ void vkh_buffer_create( u64 size, VkBufferUsageFlags usageFlags, VkMemoryPropert
         allocInfo.memoryTypeIndex = vkh_get_mem_type(bufferMemoryRequirements.memoryTypeBits, propertyFlags);
         if (vkAllocateMemory(device, &allocInfo, NULL, &newMemory) != VK_SUCCESS)
         {
-            printf("Renderer::failed to allocate staging buffer memory!");
+            LOG_ERROR("failed to alloc gpu memory for buffer");
         }
         
         vkBindBufferMemory(device, newBuffer, newMemory, 0);
@@ -272,11 +272,11 @@ void vkh_stage_image_transfer( VkImage dst, void *data, u32 width, u32 height, u
 
 void vkh_image_from_mem( u8 *buffer, u32 width, u32 height, VkFormat format, u32 channels, VkImage *dst, VkDeviceMemory *dstMem)
 {
-    vkh_image_create_empty(width, height, format, VK_SAMPLE_COUNT_1_BIT, channels, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, dst, dstMem);
+    vkh_image_create_empty(width, height, format, VK_SAMPLE_COUNT_1_BIT, channels, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, NULL, dst, dstMem);
     vkh_stage_image_transfer(*dst, buffer, width, height, channels);
 }
 
-void vkh_image_create_empty( u32 width, u32 height, VkFormat format, VkSampleCountFlagBits samples, u32 channels, VkImageUsageFlags usage, VkImage *dst, VkDeviceMemory *dstMem)
+void vkh_image_create_empty( u32 width, u32 height, VkFormat format, VkSampleCountFlagBits samples, u32 channels, VkImageUsageFlags usage, int *image_size, VkImage *dst, VkDeviceMemory *dstMem)
 {
     VkImageCreateInfo imageCreateInfo = {};
     imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -298,15 +298,23 @@ void vkh_image_create_empty( u32 width, u32 height, VkFormat format, VkSampleCou
     VkMemoryRequirements imageMemoryRequirements;
     vkGetImageMemoryRequirements(device, *dst, &imageMemoryRequirements);
 
-    const u32 localDeviceMemoryIndex = vkh_get_mem_type(imageMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    if (image_size) {
+        *image_size = imageMemoryRequirements.size;
+    }
 
-    VkMemoryAllocateInfo allocInfo = {};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = imageMemoryRequirements.size;
-    allocInfo.memoryTypeIndex = localDeviceMemoryIndex;
+    // allow for preallocated memory.
+    if (dstMem != NULL) {
 
-    vkAllocateMemory(device, &allocInfo, NULL, dstMem);
-    vkBindImageMemory(device, *dst, *dstMem, 0);
+        const u32 localDeviceMemoryIndex = vkh_get_mem_type(imageMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+        VkMemoryAllocateInfo allocInfo = {};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = imageMemoryRequirements.size;
+        allocInfo.memoryTypeIndex = localDeviceMemoryIndex;
+
+        vkAllocateMemory(device, &allocInfo, NULL, dstMem);
+        vkBindImageMemory(device, *dst, *dstMem, 0);
+    }
 }
 
 u8* vkh_image_from_disk( const char *path, u32 *width, u32 *height, VkFormat *channels, VkImage *dst, VkDeviceMemory *dstMem)

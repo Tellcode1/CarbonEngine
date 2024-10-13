@@ -211,7 +211,7 @@ void cvk_create_render_pass(cvk_render_pass_create_info const *pCreateInfo, VkRe
 	VkAttachmentReference depthAttachmentRef = {};
     if (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_DEPTH_CHECK) && !(flags & CVK_PIPELINE_FLAGS_UNFORCE_DEPTH_CHECK))
     {
-		depthAttachment.format = VK_FORMAT_D16_UNORM;
+		depthAttachment.format = pCreateInfo->depthBufferFormat; // Why wasn't this being used?
     	depthAttachment.samples = pCreateInfo->samples;
 		depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -253,22 +253,14 @@ void cvk_create_render_pass(cvk_render_pass_create_info const *pCreateInfo, VkRe
         subpass.pResolveAttachments = &colorAttachmentResolveRef;
     }
 
-	VkSubpassDependency depth_dependancy = {};
-	depth_dependancy.srcSubpass = VK_SUBPASS_EXTERNAL;
-	depth_dependancy.dstSubpass = 0;
-	depth_dependancy.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-	depth_dependancy.srcAccessMask = 0;
-	depth_dependancy.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-	depth_dependancy.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
     VkRenderPassCreateInfo renderPassInfo = {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     renderPassInfo.attachmentCount = cg_vector_size(&attachments);
     renderPassInfo.pAttachments = (const VkAttachmentDescription *)cg_vector_data(&attachments);
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpass;
-    renderPassInfo.dependencyCount = 1;
-    renderPassInfo.pDependencies = &depth_dependancy;
+    renderPassInfo.dependencyCount = 0;
+    renderPassInfo.pDependencies = NULL;
 
     CVK_ResultCheck(vkCreateRenderPass(device, &renderPassInfo, VK_NULL_HANDLE, dstRenderPass));
 }

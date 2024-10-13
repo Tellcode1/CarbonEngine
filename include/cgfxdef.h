@@ -8,8 +8,9 @@
     extern "C" {
 #endif
 
-#include "../include/cgfx.h"
+#include "cgfx.h"
 #include "cgvector.h"
+#include "cdevicememory.h"
 
 // * it shold be like cg_init_ctext(rd); and then you can just do crd_render_text(&info);
 typedef struct cg_ctext_module {
@@ -25,7 +26,6 @@ typedef struct cg_ctext_module {
 
 typedef struct crenderer_t
 {
-    struct cg_device_t *device;
     crenderer_config config;
 
     VkRenderPass render_pass;
@@ -38,8 +38,11 @@ typedef struct crenderer_t
     u32 renderer_frame;
     u32 imageIndex;
 
+    int shadow_image_size; // the size of ONE depth texture. Multiply by SwapchainImageCount to get total size
+    cgfx_gpu_memory shadow_image_memory;
+
     VkImage color_image;
-    VkDeviceMemory color_image_memory;
+    cgfx_gpu_memory color_image_memory;
     VkImageView color_image_view;
 
     VkFormat depth_buffer_format;

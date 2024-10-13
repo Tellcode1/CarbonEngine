@@ -2,22 +2,17 @@
 #include "../../include/defines.h"
 #include "../../include/cgbitset.h"
 
-typedef struct cg_bitset_t {
-    u8 *data;
-    int size;
-} cg_bitset_t;
-
-cg_bitset_t *cg_bitset_init(int init_capacity)
-{
-    cg_bitset_t *set = malloc(sizeof(struct cg_bitset_t));
+cg_bitset_t cg_bitset_init(int init_capacity)
+{   
+    cg_bitset_t ret = {};
     if (init_capacity > 0) {
         init_capacity = (init_capacity + 7) / 8;
-        set->size = init_capacity;
-        set->data = malloc(init_capacity * sizeof(uint8_t));
+        ret.size = init_capacity;
+        ret.data = calloc(init_capacity, sizeof(uint8_t));
     } else {
-        set->size = 0;
+        ret.size = 0;
     }
-    return set;
+    return ret;
 }
 
 void cg_bitset_set_bit(cg_bitset_t *set, int bitindex)
@@ -46,6 +41,18 @@ void cg_bitset_toggle_bit(cg_bitset_t *set, int bitindex)
 cg_bitset_bit cg_bitset_access_bit(cg_bitset_t *set, int bitindex)
 {
     return (set->data[bitindex / 8] & (1 << (bitindex % 8))) != 0;
+}
+
+void cg_bitset_copy_from(cg_bitset_t *dst, cg_bitset_t *src)
+{
+    if (src->size != dst->size && dst->data) {
+        free(dst->data);
+        dst->data = malloc(src->size);
+        dst->size = src->size;
+    }
+    // FOR TESTING MOVE THE DATA
+    // !FIXME: revert
+    memmove(dst->data, src->data, src->size);
 }
 
 void cg_bitset_destroy(cg_bitset_t *set)
