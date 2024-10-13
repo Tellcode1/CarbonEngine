@@ -18,9 +18,8 @@ typedef struct cg_ctext_module {
     VkDescriptorPool desc_pool;
     VkDescriptorSetLayout desc_Layout;
     VkDescriptorSet desc_set;
-    VkImage error_image;
-    VkImageView error_image_view;
-    VkSampler error_image_sampler;
+    cgfx_gpu_image_t error_image;
+    cgfx_gpu_sampler_t error_sampler;
     float model_matrix[4][4];
 } cg_ctext_module;
 
@@ -39,11 +38,10 @@ typedef struct crenderer_t
     u32 imageIndex;
 
     int shadow_image_size; // the size of ONE depth texture. Multiply by SwapchainImageCount to get total size
-    cgfx_gpu_memory shadow_image_memory;
+    cgfx_gpu_memory_t depth_image_memory;
 
-    VkImage color_image;
-    cgfx_gpu_memory color_image_memory;
-    VkImageView color_image_view;
+    cgfx_gpu_image_t color_image;
+    cgfx_gpu_memory_t color_image_memory;
 
     VkFormat depth_buffer_format;
 

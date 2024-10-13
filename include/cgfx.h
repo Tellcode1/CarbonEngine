@@ -8,58 +8,23 @@
 #include "defines.h"
 #include "stdafx.h"
 #include "vkstdafx.h"
-
-#ifdef bool_t
-    typedef bool_t cg_bool_t;
-#else
-    typedef unsigned char cg_bool_t;
-#endif
+#include "cgfxstdafx.h"
+#include "cdevicememory.h"
 
 // Move ownership to camera VV
 typedef struct cg_framerender_data
 {
-    VkImage         sc_image; // sc -> swapchain owned
-    VkImageView     sc_image_view;
-    VkFramebuffer   color_framebuffer;
-    VkImage         depth_image;
-    VkImageView     depth_image_view;
-    VkSemaphore     image_available_semaphore;
-    VkSemaphore     render_finish_semaphore;
-    VkFence         in_flight_fence;
+    cgfx_gpu_image_t sc_image; // sc -> swapchain owned
+    cgfx_gpu_image_t depth_image;
+    VkFramebuffer    color_framebuffer;
+    VkSemaphore      image_available_semaphore;
+    VkSemaphore      render_finish_semaphore;
+    VkFence          in_flight_fence;
 } cg_framerender_data;
 
-typedef enum cengine_vsync_bits {
-    CENGINE_VSYNC_DISABLED = 0,
-    CENGINE_VSYNC_ENABLED = 1
-} cengine_vsync_bits;
-typedef cg_bool_t cg_vsync;
-
-typedef enum cengine_buffering_mode_bits {
-    CGFX_BUFFER_MODE_SINGLE_BUFFERED = 0,
-    CGFX_BUFFER_MODE_DOUBLE_BUFFERED = 1,
-    CGFX_BUFFER_MODE_TRIPLE_BUFFERED = 2,
-} cengine_buffering_mode_bits;
-typedef unsigned cengine_buffering_mode;
-
-typedef enum cengine_sample_count_bits {
-    CGFX_SAMPLE_COUNT_MAX_SUPPORTED = 0xFFFFFFFF,
-    CGFX_SAMPLE_COUNT_NO_EXTRA_SAMPLES = 1,
-    CGFX_SAMPLE_COUNT_1_SAMPLES = 1,
-    CGFX_SAMPLE_COUNT_2_SAMPLES = 2,
-    CGFX_SAMPLE_COUNT_4_SAMPLES = 4,
-    CGFX_SAMPLE_COUNT_8_SAMPLES = 8,
-    CGFX_SAMPLE_COUNT_16_SAMPLES = 16,
-    CGFX_SAMPLE_COUNT_32_SAMPLES = 32,
-} cengine_sample_count_bits;
-typedef unsigned cengine_sample_count;
-
-typedef struct cg_extent2d {
-    int width, height;
-} cg_extent2d;
-
 typedef struct crenderer_config {
-    cengine_sample_count   samples;
-    cengine_buffering_mode buffer_mode;
+    cg_sample_count   samples;
+    cg_buffering_mode buffer_mode;
     cg_extent2d            initial_window_size;
     int                    exit_key;
     cg_bool_t              multisampling_enable;

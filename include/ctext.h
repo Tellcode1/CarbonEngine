@@ -102,14 +102,13 @@ typedef struct cfont_t
     VkPipelineLayout pipeline_layout;
 
     u32 font_index;
-    VkImage texture;
-    VkImageView texture_view;
-    cgfx_gpu_memory texture_mem;
-    VkSampler sampler;
+    cgfx_gpu_image_t texture;
+    cgfx_gpu_memory_t texture_mem;
+    cgfx_gpu_sampler_t sampler;
 
     u32 allocated_size;
-    VkBuffer buffer;
-    cgfx_gpu_memory buffer_mem;
+    cgfx_gpu_buffer_t buffer;
+    cgfx_gpu_memory_t buffer_mem;
     void *mapped;
 
     int index_buffer_offset;

@@ -20,7 +20,7 @@ typedef struct cgfxcamera {
     cgfx_render_texture render_texture;
     VkFramebuffer framebuffer;
     VkRenderPass pass;
-    cformat fmt;
+    cg_format fmt;
     cg_extent2d extent;
 } cgfxcamera;
 
@@ -42,7 +42,7 @@ typedef struct cgfx_descriptor_t {
 
 typedef struct cgfx_pipeline_t {
     const char *name;
-    cformat format;
+    cg_format format;
     cgfx_descriptor_t descriptors[ CGFX_MAX_DESCRIPTORS_PER_SHADER ];
     csm_shader_t shaders[ CGFX_MAX_SHADERS_PER_PIPELINE ];
     int nshaders, ndescriptors;

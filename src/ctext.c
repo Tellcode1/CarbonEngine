@@ -148,71 +148,79 @@ void ctext_load_font(crenderer_t *rd, const ctext_font_load_info *__restrict pIn
     tex.data = (*dst)->atlas.data;
     cimg_write_png(&tex, "skdlfj.png");
 
-    VkImageCreateInfo imageCreateInfo = {};
-    imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-    imageCreateInfo.extent.width = (*dst)->atlas.width;
-    imageCreateInfo.extent.height = (*dst)->atlas.height;
-    imageCreateInfo.extent.depth = 1;
-    imageCreateInfo.mipLevels = 1;
-    imageCreateInfo.arrayLayers = 1;
-    imageCreateInfo.format = VK_FORMAT_R8_UNORM;
-    imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-    imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-    imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-    imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    if (vkCreateImage(device, &imageCreateInfo, NULL, &(*dst)->texture) != VK_SUCCESS) {
-        LOG_ERROR("Failed to create bitmap image");
-    }
+    cgfx_gpu_image_create_info image_info = {
+        .format = CFMT_R8_UNORM,
+        .samples = CGFX_SAMPLE_COUNT_1_SAMPLES,
+        .type = VK_IMAGE_TYPE_2D,
+        .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        .extent = (VkExtent3D){ .width = (*dst)->atlas.width, .height = (*dst)->atlas.height, .depth = 1 },
+        .arraylayers = 1,
+        .miplevels = 1
+    };
+    cgfx_gpu_create_image(&image_info, &(*dst)->texture);
+
+    // VkImageCreateInfo imageCreateInfo = {};
+    // imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    // imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+    // imageCreateInfo.extent.width = (*dst)->atlas.width;
+    // imageCreateInfo.extent.height = (*dst)->atlas.height;
+    // imageCreateInfo.extent.depth = 1;
+    // imageCreateInfo.mipLevels = 1;
+    // imageCreateInfo.arrayLayers = 1;
+    // imageCreateInfo.format = VK_FORMAT_R8_UNORM;
+    // imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    // imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    // imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    // imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    // imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    // if (vkCreateImage(device, &imageCreateInfo, NULL, &(*dst)->texture.image) != VK_SUCCESS) {
+    //     LOG_ERROR("Failed to create bitmap image");
+    // }
 
     VkMemoryRequirements imageMemoryRequirements;
-    vkGetImageMemoryRequirements(device, (*dst)->texture, &imageMemoryRequirements);
+    vkGetImageMemoryRequirements(device, (*dst)->texture.image, &imageMemoryRequirements);
 
     cgfx_gpu_memory_allocate(imageMemoryRequirements.size, CGFX_MEMORY_USAGE_GPU_LOCAL, &(*dst)->texture_mem);
-    cgfx_gpu_memory_bind_image(&(*dst)->texture_mem, (*dst)->texture, 0);
+    cgfx_gpu_memory_bind_image(&(*dst)->texture_mem, 0, &(*dst)->texture);
 
-    vkh_stage_image_transfer((*dst)->texture, (*dst)->atlas.data, (*dst)->atlas.width, (*dst)->atlas.height, 1);
+    vkh_stage_image_transfer((*dst)->texture.image, (*dst)->atlas.data, (*dst)->atlas.width, (*dst)->atlas.height, 1);
 
-    VkSamplerCreateInfo sampler_info = {};
-    sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    sampler_info.magFilter = VK_FILTER_LINEAR;
-    sampler_info.minFilter = VK_FILTER_LINEAR;
-    sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    if (vkCreateSampler(device, &sampler_info, NULL, &(*dst)->sampler) != VK_SUCCESS)
-        LOG_ERROR("Failed to create sampler");
+    const cgfx_gpu_sampler_create_info sampler_info = {
+        .filter = VK_FILTER_LINEAR,
+        .mipmap_mode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+        .address_mode = VK_SAMPLER_ADDRESS_MODE_REPEAT
+    };
+    cgfx_gpu_create_sampler(&sampler_info, &(*dst)->sampler);
 
     VkImageViewCreateInfo view_info = {};
     view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
     view_info.format = VK_FORMAT_R8_UNORM;
-    view_info.image = (*dst)->texture;
+    view_info.image = (*dst)->texture.image;
     view_info.components = (VkComponentMapping){ VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
     view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     view_info.subresourceRange.baseMipLevel = 0;
     view_info.subresourceRange.levelCount = 1;
     view_info.subresourceRange.baseArrayLayer = 0;
     view_info.subresourceRange.layerCount = 1;
-    if (vkCreateImageView(device, &view_info, NULL, &(*dst)->texture_view) != VK_SUCCESS)
+    if (vkCreateImageView(device, &view_info, NULL, &(*dst)->texture.view) != VK_SUCCESS)
         LOG_ERROR("Failed to create image view");
 
-    VkDescriptorImageInfo ctext_error_image_info = {};
-    ctext_error_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    ctext_error_image_info.sampler = (*dst)->sampler;
-    ctext_error_image_info.imageView = (*dst)->texture_view;
+    const VkDescriptorImageInfo ctext_error_image_info = {
+        .sampler = (*dst)->sampler.vksampler,
+        .imageView = (*dst)->texture.view,
+        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    };
 
+    VkWriteDescriptorSet writeSet = {};
+    writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeSet.dstSet = rd->ctext->desc_set;
+    writeSet.dstBinding = 0;
+    writeSet.descriptorCount = 1;
+    writeSet.pImageInfo = &ctext_error_image_info;
+    writeSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     for (u32 i = 0; i < CTEXT_MAX_FONT_COUNT; i++)
     {
-        VkWriteDescriptorSet writeSet = {};
-        writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writeSet.dstSet = rd->ctext->desc_set;
-        writeSet.dstBinding = 0;
-        writeSet.descriptorCount = 1;
-        writeSet.pImageInfo = &ctext_error_image_info;
-        writeSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         writeSet.dstArrayElement = i;
         vkUpdateDescriptorSets(device, 1, &writeSet, 0, NULL);
     }
@@ -299,8 +307,8 @@ void ctext_end_render(crenderer_t *rd, ccamera *camera, cfont_t *fnt, mat4 model
 
     // Viewport && scissor are set by renderer so no need to set them here
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, fnt->pipeline_layout, 0, 1, &rd->ctext->desc_set, 0, NULL);
-    vkCmdBindVertexBuffers(cmd, 0, 1, &fnt->buffer, offsets);
-    vkCmdBindIndexBuffer(cmd, fnt->buffer, fnt->index_buffer_offset, VK_INDEX_TYPE_UINT32);
+    vkCmdBindVertexBuffers(cmd, 0, 1, &fnt->buffer.vkbuffer, offsets);
+    vkCmdBindIndexBuffer(cmd, fnt->buffer.vkbuffer, fnt->index_buffer_offset, VK_INDEX_TYPE_UINT32);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, fnt->pipeline);
     vkCmdDrawIndexed(cmd, fnt->index_count, 1, 0, 0, 0);
 }
@@ -636,39 +644,35 @@ void ctext_init(struct crenderer_t *rd)
     VkFormat dummyImageFmt;
 
     // No need to store image memory because it won't ever be deleted (probably)
+    // ! you should probably store it and free it.
     VkDeviceMemory dummyImageMemory;
-    free(vkh_image_from_disk("../Assets/error.png", &width, &height, &dummyImageFmt, &ctext->error_image, &dummyImageMemory));
+    free(vkh_image_from_disk("../Assets/error.png", &width, &height, &dummyImageFmt, &ctext->error_image.image, &dummyImageMemory));
 
-    VkSamplerCreateInfo samplerInfo = {};
-    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    samplerInfo.magFilter = VK_FILTER_LINEAR;
-    samplerInfo.minFilter = VK_FILTER_LINEAR;
-    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    if (vkCreateSampler(device, &samplerInfo, NULL, &ctext->error_image_sampler) != VK_SUCCESS) {
-        LOG_ERROR("Failed to create sampler");
-    }
+    const cgfx_gpu_sampler_create_info sampler_info = {
+        .filter = VK_FILTER_LINEAR,
+        .mipmap_mode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+        .address_mode = VK_SAMPLER_ADDRESS_MODE_REPEAT
+    };
+    cgfx_gpu_create_sampler(&sampler_info, &ctext->error_sampler);
 
     VkImageViewCreateInfo viewInfo = {};
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
     viewInfo.format = dummyImageFmt;
-    viewInfo.image = ctext->error_image;
+    viewInfo.image = ctext->error_image.image;
     viewInfo.components = (VkComponentMapping){ VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
     viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     viewInfo.subresourceRange.baseMipLevel = 0;
     viewInfo.subresourceRange.levelCount = 1;
     viewInfo.subresourceRange.baseArrayLayer = 0;
     viewInfo.subresourceRange.layerCount = 1;
-    if (vkCreateImageView(device, &viewInfo, NULL, &ctext->error_image_view) != VK_SUCCESS) {
+    if (vkCreateImageView(device, &viewInfo, NULL, &ctext->error_image.view) != VK_SUCCESS) {
         LOG_ERROR("Failed to create image view");
     }
 
     const VkDescriptorImageInfo dummyImageInfo = {
-        .sampler = ctext->error_image_sampler,
-        .imageView = ctext->error_image_view,
+        .sampler = ctext->error_sampler.vksampler,
+        .imageView = ctext->error_image.view,
         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     };
 
@@ -700,20 +704,16 @@ void ctext__font_resize_buffer(cfont_t *fnt,  u32 new_buffer_size, u32 index_buf
 
     vkDeviceWaitIdle(device);
     
-    vkDestroyBuffer(device, fnt->buffer, NULL);
+    cgfx_gpu_buffer_free(&fnt->buffer);
     cgfx_gpu_memory_free(&fnt->buffer_mem);
 
     cgfx_gpu_memory_allocate(new_allocation_size, CGFX_MEMORY_USAGE_GPU_LOCAL | CGFX_MEMORY_USAGE_CPU_WRITEABLE, &fnt->buffer_mem);
 
-    vkh_buffer_create(
-        new_allocation_size,
-        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-        &fnt->buffer,
-        &fnt->buffer_mem.memory,
-        1
+    cgfx_gpu_create_buffer(
+        new_allocation_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        &fnt->buffer
     );
-    cgfx_gpu_memory_bind_buffer(&fnt->buffer_mem, fnt->buffer, 0);
+    cgfx_gpu_memory_bind_buffer(&fnt->buffer_mem, 0, &fnt->buffer);
 
     fnt->allocated_size = new_allocation_size;
 }

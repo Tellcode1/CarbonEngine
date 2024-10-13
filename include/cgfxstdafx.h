@@ -7,7 +7,42 @@
 
 #include "../external/volk/volk.h"
 
-typedef enum cformat {
+#ifdef bool_t
+    typedef bool_t cg_bool_t;
+#else
+    typedef unsigned char cg_bool_t;
+#endif
+
+typedef enum cengine_vsync_bits {
+    CENGINE_VSYNC_DISABLED = 0,
+    CENGINE_VSYNC_ENABLED = 1
+} cengine_vsync_bits;
+typedef cg_bool_t cg_vsync;
+
+typedef enum cg_buffering_mode_bits {
+    CGFX_BUFFER_MODE_SINGLE_BUFFERED = 0,
+    CGFX_BUFFER_MODE_DOUBLE_BUFFERED = 1,
+    CGFX_BUFFER_MODE_TRIPLE_BUFFERED = 2,
+} cg_buffering_mode_bits;
+typedef unsigned cg_buffering_mode;
+
+typedef enum cg_sample_count_bits {
+    CGFX_SAMPLE_COUNT_MAX_SUPPORTED = 0xFFFFFFFF,
+    CGFX_SAMPLE_COUNT_NO_EXTRA_SAMPLES = 1,
+    CGFX_SAMPLE_COUNT_1_SAMPLES = 1,
+    CGFX_SAMPLE_COUNT_2_SAMPLES = 2,
+    CGFX_SAMPLE_COUNT_4_SAMPLES = 4,
+    CGFX_SAMPLE_COUNT_8_SAMPLES = 8,
+    CGFX_SAMPLE_COUNT_16_SAMPLES = 16,
+    CGFX_SAMPLE_COUNT_32_SAMPLES = 32,
+} cg_sample_count_bits;
+typedef unsigned cg_sample_count;
+
+typedef struct cg_extent2d {
+    int width, height;
+} cg_extent2d;
+
+typedef enum cg_format {
     CFMT_UNKNOWN = 0, // so the user knows they didn't pick a format
 
     // 8 bits per pixel texture formats
@@ -67,9 +102,9 @@ typedef enum cformat {
     CFMT_D32_FLOAT,
     CFMT_D24_UNORM_S8_UINT,
     CFMT_D32_FLOAT_S8_UINT,
-} cformat;
+} cg_format;
 
-static inline VkFormat cfmt_conv_cfmt_to_vkfmt(cformat fmt) {
+static inline VkFormat cfmt_conv_cfmt_to_vkfmt(cg_format fmt) {
     switch (fmt) {
         case CFMT_R8_UNORM: return VK_FORMAT_R8_UNORM;
         case CFMT_R8_SNORM: return VK_FORMAT_R8_SNORM;
@@ -132,7 +167,7 @@ static inline VkFormat cfmt_conv_cfmt_to_vkfmt(cformat fmt) {
     }
 }
 
-static inline cformat cfmt_conv_vkfmt_to_cfmt(VkFormat fmt) {
+static inline cg_format cfmt_conv_vkfmt_to_cfmt(VkFormat fmt) {
     switch(fmt) {
         case VK_FORMAT_R8_UNORM: return CFMT_R8_UNORM;
         case VK_FORMAT_R8_SNORM: return CFMT_R8_SNORM;
@@ -195,7 +230,7 @@ static inline cformat cfmt_conv_vkfmt_to_cfmt(VkFormat fmt) {
     }
 }
 
-static inline int cfmt_get_bytesperpixel(cformat format) {
+static inline int cfmt_get_bytesperpixel(cg_format format) {
     switch (format) {
         case CFMT_R8_UNORM:
         case CFMT_R8_SNORM:

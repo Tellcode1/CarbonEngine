@@ -9,16 +9,9 @@
 
 typedef struct cg_tex2D {
     int w, h;
-    cformat fmt;
+    cg_format fmt;
     unsigned char *data;
 } cg_tex2D;
-
-typedef struct cg_gpu_tex2D {
-    int w, h;
-    void *vkimage, *vkimageview;
-    
-    cformat fmt;
-} cg_gpu_tex2D;
 
 extern cg_tex2D cimg_load(const char *path);
 extern cg_tex2D cimg_load_png(const char *path);

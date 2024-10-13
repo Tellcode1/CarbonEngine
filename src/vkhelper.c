@@ -355,7 +355,7 @@ void vkh_transition_image_layout( VkCommandBuffer cmd, VkImage image,
     barrier.subresourceRange.layerCount = 1;
     barrier.srcAccessMask = srcAccessMask;
     barrier.dstAccessMask = dstAccessMask;
-    vkCmdPipelineBarrier(cmd, sourceStage, dstAccessMask, 0, 0, NULL, 0, NULL, 1, &barrier);
+    vkCmdPipelineBarrier(cmd, sourceStage, destinationStage, 0, 0, NULL, 0, NULL, 1, &barrier);
 }
 
 // void help::Images::LoadFromDisk(const char *path, u8 channels, u8 **dst, u32 *dstWidth, u32 *dstHeight)

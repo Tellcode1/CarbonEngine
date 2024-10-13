@@ -10,6 +10,8 @@
 
 #include "../include/cgvector.h"
 
+#include "../include/cdevicememory.h"
+
 #include <SDL2/SDL_vulkan.h>
 
 VkInstance instance = NULL;
@@ -61,8 +63,7 @@ void crenderer_destroy(crenderer_t *rd)
     for (int i = 0; i < SwapChainImageCount; i++) {
         cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(&rd->renderData, i);
         // weeeee
-        vkDestroyImage(device, data->depth_image, NULL);
-        vkDestroyImageView(device, data->depth_image_view, NULL);
+        cgfx_gpu_image_free(&data->depth_image);
         vkDestroyFramebuffer(device, data->color_framebuffer, NULL);
         // CHECKMEOUTPARTNER: Uhh, these are causing vulkan validation layer errors...
         // vkDestroySemaphore(device, data->image_available_semaphore, NULL);
@@ -70,7 +71,7 @@ void crenderer_destroy(crenderer_t *rd)
         // vkDestroyFence(device, data->in_flight_fence, NULL);
     }
     cg_vector_destroy(&rd->renderData);
-    cgfx_gpu_memory_free(&rd->shadow_image_memory);
+    cgfx_gpu_memory_free(&rd->depth_image_memory);
     vkFreeCommandBuffers(device, rd->commandPool, cg_vector_size(&rd->drawBuffers), (VkCommandBuffer *)cg_vector_data(&rd->drawBuffers));
     vkDestroyCommandPool(device, rd->commandPool, NULL);
 
@@ -80,8 +81,7 @@ void crenderer_destroy(crenderer_t *rd)
         // ! FIXME: Implement
     }
     if (rd->config.multisampling_enable) {
-        vkDestroyImage(device, rd->color_image, NULL);
-        vkDestroyImageView(device, rd->color_image_view, NULL);
+        cgfx_gpu_image_free(&rd->color_image);
         cgfx_gpu_memory_free(&rd->color_image_memory);
     }
     vkDestroyRenderPass(device, rd->render_pass, NULL);
@@ -105,14 +105,14 @@ void create_optional_images(crenderer_t *rd)
             4,
             VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
             &color_image_size,
-            &rd->color_image, NULL
+            &rd->color_image.image, NULL
         );
         cgfx_gpu_memory_allocate(color_image_size, CGFX_MEMORY_USAGE_GPU_LOCAL, &rd->color_image_memory);
-        cgfx_gpu_memory_bind_image(&rd->color_image_memory, rd->color_image, 0);
+        cgfx_gpu_memory_bind_image(&rd->color_image_memory, 0, &rd->color_image);
 
         VkImageViewCreateInfo resolve_view_create_info = {};
         resolve_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        resolve_view_create_info.image = rd->color_image;
+        resolve_view_create_info.image = rd->color_image.image;
         resolve_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
         resolve_view_create_info.format = SwapChainImageFormat;
         resolve_view_create_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -124,7 +124,7 @@ void create_optional_images(crenderer_t *rd)
         resolve_view_create_info.subresourceRange.levelCount = 1;
         resolve_view_create_info.subresourceRange.baseArrayLayer = 0;
         resolve_view_create_info.subresourceRange.layerCount = 1;
-        if (vkCreateImageView(device, &resolve_view_create_info, NULL, &rd->color_image_view) != VK_SUCCESS) {
+        if (vkCreateImageView(device, &resolve_view_create_info, NULL, &rd->color_image.view) != VK_SUCCESS) {
             LOG_ERROR("Failed to create view for resolve image");
         }
     }
@@ -132,43 +132,42 @@ void create_optional_images(crenderer_t *rd)
     // attachment vector will be like <color resolve, depth attachment, swapchain image>
     for (int i = 0; i < (int)SwapChainImageCount; i++) {
         cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(&rd->renderData, i);
-        data->sc_image = swapchainImages[i];
+        data->sc_image = (cgfx_gpu_image_t){};
+        data->sc_image.image = swapchainImages[i];
 
-        VkImageCreateInfo image = {};
-        image.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        image.imageType = VK_IMAGE_TYPE_2D;
-        image.extent.width = rd->render_extent.width;
-        image.extent.height = rd->render_extent.height;
-        image.extent.depth = 1;
-        image.mipLevels = 1;
-        image.arrayLayers = 1;
-        image.samples = Samples;
-        image.tiling = VK_IMAGE_TILING_OPTIMAL;
-        image.format = VK_FORMAT_D32_SFLOAT;
-        image.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ;
-        vkCreateImage(device, &image, NULL, &data->depth_image);
+        const cgfx_gpu_image_create_info image_info = {
+            .format = CFMT_D32_FLOAT,
+            .samples = Samples,
+            .type = VK_IMAGE_TYPE_2D,
+            .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            .extent = (VkExtent3D){ .width = rd->render_extent.width, .height = rd->render_extent.height, .depth = 1 },
+            .arraylayers = 1,
+            .miplevels = 1,
+        };
+        cgfx_gpu_create_image(&image_info, &data->depth_image);
 
         if (i == 0) {
             VkMemoryRequirements memReqs = {};
-            vkGetImageMemoryRequirements(device, data->depth_image, &memReqs);
+            vkGetImageMemoryRequirements(device, data->depth_image.image, &memReqs);
 
             rd->shadow_image_size = memReqs.size;
-            cgfx_gpu_memory_allocate(rd->shadow_image_size * SwapChainImageCount, CGFX_MEMORY_USAGE_GPU_LOCAL, &rd->shadow_image_memory);
+            cgfx_gpu_memory_allocate(rd->shadow_image_size * SwapChainImageCount, CGFX_MEMORY_USAGE_GPU_LOCAL, &rd->depth_image_memory);
         }
 
-        cgfx_gpu_memory_bind_image(&rd->shadow_image_memory, data->depth_image, i * rd->shadow_image_size);
+        cgfx_gpu_memory_bind_image(&rd->depth_image_memory, i * rd->shadow_image_size, &data->depth_image);
 
-        VkImageViewCreateInfo depthStencilView = {};
-        depthStencilView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        depthStencilView.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        depthStencilView.format = VK_FORMAT_D32_SFLOAT;
-        depthStencilView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-        depthStencilView.subresourceRange.baseMipLevel = 0;
-        depthStencilView.subresourceRange.levelCount = 1;
-        depthStencilView.subresourceRange.baseArrayLayer = 0;
-        depthStencilView.subresourceRange.layerCount = 1;
-        depthStencilView.image = data->depth_image;
-        vkCreateImageView(device, &depthStencilView, NULL, &data->depth_image_view);
+        const cgfx_gpu_image_view_create_info view_info = {
+            .format = CFMT_D32_FLOAT,
+            .view_type = VK_IMAGE_VIEW_TYPE_2D,
+            .subresourceRange = (VkImageSubresourceRange){
+                .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+                .baseMipLevel = 0,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = 1,
+            },
+        };
+        cgfx_gpu_create_image_view(&view_info, &data->depth_image);
     }
 
     free(swapchainImages);
@@ -179,32 +178,33 @@ void create_framebuffers_and_swapchain_image_views(crenderer_t *rd) {
 
     for (int i = 0; i < (int)SwapChainImageCount; i++) {
         cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(&rd->renderData, i);
+
+        // we don't know anything about the swapchain_image, as it's a swapchain image
+        // so we have to manually create the image view;
         VkImageViewCreateInfo imageViewCreateInfo = {};
         imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        imageViewCreateInfo.image = data->sc_image;
+        imageViewCreateInfo.image = data->sc_image.image;
         imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
         imageViewCreateInfo.format = SwapChainImageFormat;
-        imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-        imageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-        imageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-        imageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
         imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
         imageViewCreateInfo.subresourceRange.levelCount = 1;
         imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
         imageViewCreateInfo.subresourceRange.layerCount = 1;
-        if (vkCreateImageView(device, &imageViewCreateInfo, NULL, &data->sc_image_view) != VK_SUCCESS) {
+        if (vkCreateImageView(device, &imageViewCreateInfo, NULL, &data->sc_image.view) != VK_SUCCESS) {
             LOG_ERROR("Failed to create view for swapchain image %d", i);
         }
 
-        const VkImageView swapchain_image_view = data->sc_image_view;
-        const VkImageView depth_image_view = data->depth_image_view;
+        const VkImageView swapchain_image_view = data->sc_image.view;
+        const VkImageView depth_image_view = data->depth_image.view;
 
         cg_vector_clear(&attachments);
-        if (rd->config.multisampling_enable)
-            cg_vector_push_set(&attachments, (VkImageView[]){ rd->color_image_view, depth_image_view, swapchain_image_view }, 3);
-        else
+        if (rd->config.multisampling_enable) {
+            cg_vector_push_set(&attachments, (VkImageView[]){ rd->color_image.view, depth_image_view, swapchain_image_view }, 3);
+        }
+        else {
             cg_vector_push_set(&attachments, (VkImageView[]){ swapchain_image_view, depth_image_view }, 2);
+        }
 
         VkFramebufferCreateInfo framebufferInfo = {};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -214,8 +214,9 @@ void create_framebuffers_and_swapchain_image_views(crenderer_t *rd) {
         framebufferInfo.width = rd->render_extent.width;
         framebufferInfo.height = rd->render_extent.height;
         framebufferInfo.layers = 1;
-        if (vkCreateFramebuffer(device, &framebufferInfo, NULL, &data->color_framebuffer) != VK_SUCCESS)
+        if (vkCreateFramebuffer(device, &framebufferInfo, NULL, &data->color_framebuffer) != VK_SUCCESS) {
             LOG_ERROR("Failed to create framebuffer for swapchain image %d", i);
+        }
     }
 
     cg_vector_destroy(&attachments);
@@ -450,7 +451,7 @@ void crenderer_resize(crenderer_t *rd) {
     for (u32 i = 0; i < SwapChainImageCount; i++)
     {
         cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(&rd->renderData, i);
-        vkDestroyImageView(device, data->sc_image_view, NULL);
+        vkDestroyImageView(device, data->sc_image.view, NULL); // as the view was silently smushed into the structure, we just kinda smush it out as well.
         vkDestroyFramebuffer(device, data->color_framebuffer, NULL);
     }
     cg_vector_clear(&rd->renderData);
@@ -503,8 +504,7 @@ void crenderer_resize(crenderer_t *rd) {
     cvk_create_swapchain(&scio, &rd->swapchain);
     vkDestroySwapchainKHR(device, old_swapchain, NULL);
 
-    vkDestroyImage(device, rd->color_image, NULL);
-    vkDestroyImageView(device, rd->color_image_view, NULL);
+    cgfx_gpu_image_free(&rd->color_image);
 
     create_optional_images(rd);
     create_framebuffers_and_swapchain_image_views(rd);
