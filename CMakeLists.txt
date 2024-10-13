@@ -18,10 +18,10 @@ set(OUTPUT
 set(SOURCES
     src/main.cpp
     src/cengine.cpp
-    src/cengineinit.cpp
+    src/cengineinit.c
     src/cinput.c
     
-    src/ctext.cpp
+    src/ctext.c
     src/cshadermanager.c
     
     src/cvk.c
@@ -32,7 +32,6 @@ set(SOURCES
     src/cbinarytree.c
 
     src/cimage.c
-    src/ctext.c
 )
 
 set(MSDFGEN_CORE_ONLY OFF)

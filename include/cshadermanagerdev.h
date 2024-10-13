@@ -29,6 +29,6 @@ typedef struct shader_cache_entry {
     long last_modified;
 } shader_cache_entry;
 
-void __csm_create_shader(const unsigned *bytes, int nbytes, struct csm_shader_t *out);
+void __csm_create_shader(struct VkDevice_T *vkdevice, const unsigned *bytes, int nbytes, struct csm_shader_t *out);
 
 #endif//__CSM_DEV_H

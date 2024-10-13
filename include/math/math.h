@@ -14,7 +14,8 @@ static const double cmRAD2DEG_CONSTANT = 57.29577951308232; // 1.0 / DEG2RAD_CON
 #define cmclamp(x, min, max) (((x) < (min)) ? (min) : (((x) > (max)) ? (max) : (x)))
 #define cmclamp01(x) cmclamp((x), 0, 1)
 
-#define cmdeg2rad(x) ((x) * cmDEG2RAD_CONSTANT)
-#define cmrad2deg(x) ((x) * cmRAD2DEG_CONSTANT)
+// The constants aren't used because for static const variables, they can cause minor issues like not compiling at all.
+#define cmdeg2rad(x) ((x) * 0.017453292519943295)
+#define cmrad2deg(x) ((x) * 57.29577951308232)
 
 #endif//__MATH_H__

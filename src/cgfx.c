@@ -1,6 +1,7 @@
 #include "../include/cgfx.h"
 #include "../include/cgfxdef.h"
 
+#include "../include/vkstdafx.h"
 #include "../include/stdafx.h"
 #include "../include/math/math.h"
 #include "../include/cvk.h"
@@ -49,14 +50,15 @@ cg_extent2d crd_get_render_extent(const crenderer_t *rd)
 
 void create_optional_images(crenderer_t *rd)
 {
-    vkGetSwapchainImagesKHR(device, rd->swapchain, &SwapChainImageCount, NULL);
+    vkGetSwapchainImagesKHR(rd->device->device, rd->swapchain, &SwapChainImageCount, NULL);
     VkImage *swapchainImages = (VkImage *)malloc(SwapChainImageCount * sizeof(VkImage));
-	vkGetSwapchainImagesKHR(device, rd->swapchain, &SwapChainImageCount, swapchainImages);
+	vkGetSwapchainImagesKHR(rd->device->device, rd->swapchain, &SwapChainImageCount, swapchainImages);
 
     cg_vector_resize(rd->renderData, SwapChainImageCount);
 
     if (rd->config.multisampling_enable) {
         vkh_image_create_empty(
+            rd->device,
             rd->render_extent.width, rd->render_extent.height,
             SwapChainImageFormat,
             Samples,
@@ -79,7 +81,7 @@ void create_optional_images(crenderer_t *rd)
         resolve_view_create_info.subresourceRange.levelCount = 1;
         resolve_view_create_info.subresourceRange.baseArrayLayer = 0;
         resolve_view_create_info.subresourceRange.layerCount = 1;
-        if (vkCreateImageView(device, &resolve_view_create_info, NULL, &rd->color_image_view) != VK_SUCCESS) {
+        if (vkCreateImageView(rd->device->device, &resolve_view_create_info, NULL, &rd->color_image_view) != VK_SUCCESS) {
             LOG_ERROR("Failed to create view for resolve image");
         }
     }
@@ -101,18 +103,18 @@ void create_optional_images(crenderer_t *rd)
         image.tiling = VK_IMAGE_TILING_OPTIMAL;
         image.format = VK_FORMAT_D16_UNORM;
         image.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ;
-        vkCreateImage(device, &image, NULL, &data->depth_image);
+        vkCreateImage(rd->device->device, &image, NULL, &data->depth_image);
 
         VkMemoryRequirements memReqs = {};
-        vkGetImageMemoryRequirements(device, data->depth_image, &memReqs);
+        vkGetImageMemoryRequirements(rd->device->device, data->depth_image, &memReqs);
 
         VkMemoryAllocateInfo memAlloc = {};
         memAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         memAlloc.allocationSize = memReqs.size;
-        memAlloc.memoryTypeIndex = vkh_get_mem_type(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        memAlloc.memoryTypeIndex = vkh_get_mem_type(rd->device, memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-        vkAllocateMemory(device, &memAlloc, NULL, &data->shadow_image_memory);
-        vkBindImageMemory(device, data->depth_image, data->shadow_image_memory, 0);
+        vkAllocateMemory(rd->device->device, &memAlloc, NULL, &data->shadow_image_memory);
+        vkBindImageMemory(rd->device->device, data->depth_image, data->shadow_image_memory, 0);
 
         VkImageViewCreateInfo depthStencilView = {};
         depthStencilView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -124,7 +126,7 @@ void create_optional_images(crenderer_t *rd)
         depthStencilView.subresourceRange.baseArrayLayer = 0;
         depthStencilView.subresourceRange.layerCount = 1;
         depthStencilView.image = data->depth_image;
-        vkCreateImageView(device, &depthStencilView, NULL, &data->depth_image_view);
+        vkCreateImageView(rd->device->device, &depthStencilView, NULL, &data->depth_image_view);
     }
 
     free(swapchainImages);
@@ -149,7 +151,7 @@ void create_framebuffers_and_swapchain_image_views(crenderer_t *rd) {
         imageViewCreateInfo.subresourceRange.levelCount = 1;
         imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
         imageViewCreateInfo.subresourceRange.layerCount = 1;
-        if (vkCreateImageView(device, &imageViewCreateInfo, NULL, &data->swapchainImageView) != VK_SUCCESS) {
+        if (vkCreateImageView(rd->device->device, &imageViewCreateInfo, NULL, &data->swapchainImageView) != VK_SUCCESS) {
             LOG_ERROR("Failed to create view for swapchain image %d", i);
         }
 
@@ -170,31 +172,31 @@ void create_framebuffers_and_swapchain_image_views(crenderer_t *rd) {
         framebufferInfo.width = rd->render_extent.width;
         framebufferInfo.height = rd->render_extent.height;
         framebufferInfo.layers = 1;
-        if (vkCreateFramebuffer(device, &framebufferInfo, NULL, &data->color_framebuffer) != VK_SUCCESS)
+        if (vkCreateFramebuffer(rd->device->device, &framebufferInfo, NULL, &data->color_framebuffer) != VK_SUCCESS)
             LOG_ERROR("Failed to create framebuffer for swapchain image %d", i);
     }
 
     cg_vector_destroy(attachments);
 }
 
-crenderer_t *crenderer_init(const crenderer_config *conf)
+crenderer_t *crenderer_init(cg_device_t *device, const crenderer_config *conf)
 {
-    struct crenderer_t *rd = (crenderer_t *)malloc(sizeof(struct crenderer_t));
-    memset(rd, 0, sizeof(struct crenderer_t));
+    struct crenderer_t *rd = (crenderer_t *)calloc(1, sizeof(struct crenderer_t));
+    rd->device = device;
 
     memcpy(&rd->config, conf, sizeof(crenderer_config));
 
     /* Initialize graphics singleton */
     {
-        if (!vkh_get_supported_fmt(device, physDevice, surface, &SwapChainImageFormat, &SwapChainColorSpace)) {
+        if (!vkh_get_supported_fmt(rd->device, rd->device->physDevice, rd->device->surface, &SwapChainImageFormat, &SwapChainColorSpace)) {
             LOG_AND_ABORT("No supported format for display.");
         }
-        SwapChainImageCount = vkh_get_image_count(physDevice, surface);
+        SwapChainImageCount = vkh_get_image_count(rd->device->physDevice, rd->device->surface);
 
         u32 queueCount = 0;
-        vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, NULL);
+        vkGetPhysicalDeviceQueueFamilyProperties(rd->device->physDevice, &queueCount, NULL);
         cg_vector_t * /* VkQueueFamilyProperties */ queueFamilies = cg_vector_init(sizeof(VkQueueFamilyProperties), queueCount);
-        vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, (VkQueueFamilyProperties *)cg_vector_data(queueFamilies));
+        vkGetPhysicalDeviceQueueFamilyProperties(rd->device->physDevice, &queueCount, (VkQueueFamilyProperties *)cg_vector_data(queueFamilies));
 
         u32 graphicsFamily = 0, graphicsAndComputeFamily = 0, presentFamily = 0, computeFamily = 0, transferFamily = 0;
         bool foundGraphicsFamily = false, foundGraphicsAndComputeFamily = false, foundPresentFamily = false, foundComputeFamily = false, foundTransferFamily = false;
@@ -203,7 +205,7 @@ crenderer_t *crenderer_init(const crenderer_config *conf)
         for (u32 j = 0; j < queueCount; j++) {
             const VkQueueFamilyProperties queueFamily = ((VkQueueFamilyProperties *)cg_vector_data(queueFamilies))[j];
             VkBool32 presentSupport = false;
-            vkGetPhysicalDeviceSurfaceSupportKHR(physDevice, i, surface, &presentSupport);
+            vkGetPhysicalDeviceSurfaceSupportKHR(rd->device->physDevice, i, rd->device->surface, &presentSupport);
             
             if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT && queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) {
                 graphicsAndComputeFamily = i;
@@ -237,11 +239,11 @@ crenderer_t *crenderer_init(const crenderer_config *conf)
         PresentFamilyIndex = presentFamily;
         GraphicsAndComputeFamilyIndex = graphicsAndComputeFamily;
 
-        vkGetDeviceQueue(device, GraphicsFamilyIndex, 0, &GraphicsQueue);
-        vkGetDeviceQueue(device, ComputeFamilyIndex, 0, &ComputeQueue);
-        vkGetDeviceQueue(device, TransferQueueIndex, 0, &TransferQueue);
-        vkGetDeviceQueue(device, PresentFamilyIndex, 0, &PresentQueue);
-        vkGetDeviceQueue(device, GraphicsAndComputeFamilyIndex, 0, &GraphicsAndComputeQueue);
+        vkGetDeviceQueue(rd->device->device, GraphicsFamilyIndex, 0, &GraphicsQueue);
+        vkGetDeviceQueue(rd->device->device, ComputeFamilyIndex, 0, &ComputeQueue);
+        vkGetDeviceQueue(rd->device->device, TransferQueueIndex, 0, &TransferQueue);
+        vkGetDeviceQueue(rd->device->device, PresentFamilyIndex, 0, &PresentQueue);
+        vkGetDeviceQueue(rd->device->device, GraphicsAndComputeFamilyIndex, 0, &GraphicsAndComputeQueue);
 
         cg_vector_destroy(queueFamilies);
     }
@@ -274,7 +276,7 @@ crenderer_t *crenderer_init(const crenderer_config *conf)
     scio.format = SwapChainImageFormat;
     scio.color_space = SwapChainColorSpace;
     scio.image_count = SwapChainImageCount;
-    cvk_create_swapchain(device, &scio, &rd->swapchain);
+    cvk_create_swapchain(rd->device, &scio, &rd->swapchain);
 
     VkSampleCountFlagBits conf_samples;
     if (conf->samples == CGFX_SAMPLE_COUNT_MAX_SUPPORTED) {
@@ -297,7 +299,7 @@ crenderer_t *crenderer_init(const crenderer_config *conf)
 	cmdPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     cmdPoolCreateInfo.queueFamilyIndex = GraphicsFamilyIndex;
     cmdPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;    
-	if(vkCreateCommandPool(device, &cmdPoolCreateInfo, NULL, &rd->commandPool) != VK_SUCCESS) {
+	if(vkCreateCommandPool(rd->device->device, &cmdPoolCreateInfo, NULL, &rd->commandPool) != VK_SUCCESS) {
 		LOG_ERROR("Failed to create command pool");
 	}
 
@@ -318,7 +320,7 @@ crenderer_t *crenderer_init(const crenderer_config *conf)
     cmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     cmdAllocInfo.commandBufferCount = frames_in_flight;
     cmdAllocInfo.commandPool = rd->commandPool;
-    vkAllocateCommandBuffers(device, &cmdAllocInfo, (VkCommandBuffer *)cg_vector_data(rd->drawBuffers));
+    vkAllocateCommandBuffers(rd->device->device, &cmdAllocInfo, (VkCommandBuffer *)cg_vector_data(rd->drawBuffers));
 
     rd->depth_buffer_format = VK_FORMAT_D16_UNORM; // replace (probably)
 
@@ -327,7 +329,7 @@ crenderer_t *crenderer_init(const crenderer_config *conf)
     rpi.depthBufferFormat = rd->depth_buffer_format;
     rpi.subpass = 0;
     rpi.samples = samples;
-    cvk_create_render_pass(device, &rpi, &rd->render_pass, cvk_flag_register);
+    cvk_create_render_pass(rd->device, &rpi, &rd->render_pass, cvk_flag_register);
 
     // cvk_render_pass_create_info depth_render_pass_info = {};
     // depth_render_pass_info.format = VK_FORMAT_D16_UNORM;
@@ -377,16 +379,16 @@ crenderer_t *crenderer_init(const crenderer_config *conf)
         };
 
         cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(rd->renderData, i);
-        vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->renderingFinishedSemaphore);
-        vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->imageAvailableSemaphore);
-        vkCreateFence(device, &fenceCreateInfo, NULL, &data->inFlightFence);
+        vkCreateSemaphore(rd->device->device, &semaphoreCreateInfo, NULL, &data->renderingFinishedSemaphore);
+        vkCreateSemaphore(rd->device->device, &semaphoreCreateInfo, NULL, &data->imageAvailableSemaphore);
+        vkCreateFence(rd->device->device, &fenceCreateInfo, NULL, &data->inFlightFence);
 	}
 
     return rd;
 }
 
 void crenderer_resize(crenderer_t *rd) {
-    vkDeviceWaitIdle(device);
+    vkDeviceWaitIdle(rd->device->device);
 
     const VkSemaphoreCreateInfo semaphoreCreateInfo = {
         VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, NULL, 0
@@ -399,23 +401,23 @@ void crenderer_resize(crenderer_t *rd) {
     // adhoc method of resetting them
     for (int i = 0; i < (1 + (int)rd->config.buffer_mode); i++) {
         cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(rd->renderData, i);
-        vkDestroySemaphore(device, data->imageAvailableSemaphore, NULL);
-        vkDestroySemaphore(device, data->renderingFinishedSemaphore, NULL);
-        vkDestroyFence(device, data->inFlightFence, NULL);
+        vkDestroySemaphore(rd->device->device, data->imageAvailableSemaphore, NULL);
+        vkDestroySemaphore(rd->device->device, data->renderingFinishedSemaphore, NULL);
+        vkDestroyFence(rd->device->device, data->inFlightFence, NULL);
     }
     for (u32 i = 0; i < SwapChainImageCount; i++)
     {
         cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(rd->renderData, i);
-        vkDestroyImageView(device, data->swapchainImageView, NULL);
-        vkDestroyFramebuffer(device, data->color_framebuffer, NULL);
+        vkDestroyImageView(rd->device->device, data->swapchainImageView, NULL);
+        vkDestroyFramebuffer(rd->device->device, data->color_framebuffer, NULL);
     }
     cg_vector_clear(rd->renderData);
 
     i32 w, h;
-    SDL_Vulkan_GetDrawableSize(window, &w, &h);
+    SDL_Vulkan_GetDrawableSize(rd->device->window, &w, &h);
 
     VkSurfaceCapabilitiesKHR surface_capabilities;
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physDevice, surface, &surface_capabilities);
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(rd->device->physDevice, rd->device->surface, &surface_capabilities);
 
     const u32 min_width = surface_capabilities.minImageExtent.width;
     const u32 min_height = surface_capabilities.minImageExtent.height;
@@ -456,11 +458,11 @@ void crenderer_resize(crenderer_t *rd) {
     scio.color_space = SwapChainColorSpace;
     scio.image_count = SwapChainImageCount;
     scio.old_swapchain = old_swapchain;
-    cvk_create_swapchain(device, &scio, &rd->swapchain);
-    vkDestroySwapchainKHR(device, old_swapchain, NULL);
+    cvk_create_swapchain(rd->device, &scio, &rd->swapchain);
+    vkDestroySwapchainKHR(rd->device->device, old_swapchain, NULL);
 
-    vkDestroyImage(device, rd->color_image, NULL);
-    vkDestroyImageView(device, rd->color_image_view, NULL);
+    vkDestroyImage(rd->device->device, rd->color_image, NULL);
+    vkDestroyImageView(rd->device->device, rd->color_image_view, NULL);
 
     create_optional_images(rd);
     create_framebuffers_and_swapchain_image_views(rd);
@@ -468,9 +470,9 @@ void crenderer_resize(crenderer_t *rd) {
     for (u32 i = 0; i < SwapChainImageCount; i++)
     {
         cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(rd->renderData, i);
-        vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->renderingFinishedSemaphore);
-        vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->imageAvailableSemaphore);
-        vkCreateFence(device, &fenceCreateInfo, NULL, &data->inFlightFence);
+        vkCreateSemaphore(rd->device->device, &semaphoreCreateInfo, NULL, &data->renderingFinishedSemaphore);
+        vkCreateSemaphore(rd->device->device, &semaphoreCreateInfo, NULL, &data->imageAvailableSemaphore);
+        vkCreateFence(rd->device->device, &fenceCreateInfo, NULL, &data->inFlightFence);
     }
 
     cg__reset_frame_buffer_resized();
@@ -480,9 +482,9 @@ bool_t crd_begin_render(crenderer_t *rd)
 {
     cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(rd->renderData, rd->renderer_frame);
 
-    vkWaitForFences(device, 1, &data->inFlightFence, VK_TRUE, UINT64_MAX);
+    vkWaitForFences(rd->device->device, 1, &data->inFlightFence, VK_TRUE, UINT64_MAX);
 
-    const VkResult imageAcquireResult = vkAcquireNextImageKHR(device, rd->swapchain, UINT64_MAX, data->imageAvailableSemaphore, VK_NULL_HANDLE, &rd->imageIndex);
+    const VkResult imageAcquireResult = vkAcquireNextImageKHR(rd->device->device, rd->swapchain, UINT64_MAX, data->imageAvailableSemaphore, VK_NULL_HANDLE, &rd->imageIndex);
 
     const VkCommandBuffer drawBuffer = *(VkCommandBuffer *)cg_vector_get(rd->drawBuffers, rd->renderer_frame);
 
@@ -497,7 +499,7 @@ bool_t crd_begin_render(crenderer_t *rd)
 		return false;
     }
 
-    vkResetFences(device, 1, &data->inFlightFence);
+    vkResetFences(rd->device->device, 1, &data->inFlightFence);
 
     VkClearValue clearValues[2];
     clearValues[0].color = (VkClearColorValue){ {0.0f, 0.0f, 0.0f, 1.0f} };
@@ -582,4 +584,9 @@ void crd_end_render(crenderer_t *rd)
     }
 
     rd->renderer_frame = (rd->renderer_frame + 1) % (1 + (int)rd->config.buffer_mode);
+}
+
+cg_device_t *crd_get_device(const crenderer_t *rd)
+{
+    return rd->device;
 }

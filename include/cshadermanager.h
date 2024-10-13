@@ -9,8 +9,8 @@ extern "C" {
     #define CSM_EXECUTABLE 0
 #endif
 
-extern void csm_compile_updated();
-extern void csm_compile_all();
+extern void csm_compile_updated(struct cg_device_t *device);
+extern void csm_compile_all(struct cg_device_t *device);
 
 extern void csm_set_list_file(const char *path);
 extern void csm_set_shader_compiler(const char *exec);

@@ -15,6 +15,15 @@
 
 #include "../external/volk/volk.h"
 
+typedef struct cg_device_t {
+    VkInstance instance;
+    VkDevice device;
+    VkPhysicalDevice physDevice;
+    VkSurfaceKHR surface;
+    struct SDL_Window *window;
+    VkDebugUtilsMessengerEXT debugMessenger;
+} cg_device_t;
+
 extern VkFormat SwapChainImageFormat;
 extern VkColorSpaceKHR SwapChainColorSpace;
 extern u32 SwapChainImageCount;
@@ -31,13 +40,6 @@ extern VkQueue GraphicsAndComputeQueue;
 extern VkQueue PresentQueue;
 extern VkQueue ComputeQueue;
 extern VkQueue TransferQueue;
-
-extern VkInstance 							 instance;
-extern VkDevice 							 device;
-extern VkPhysicalDevice 					 physDevice;
-extern VkSurfaceKHR 				         surface;
-extern struct SDL_Window* 				     window;
-extern VkDebugUtilsMessengerEXT 			 debugMessenger;
 
 extern VkSampleCountFlagBits MAX_SAMPLES;
 extern unsigned char SUPPORTS_MULTISAMPLING;

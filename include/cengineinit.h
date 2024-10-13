@@ -1,24 +1,22 @@
-#ifndef __CENGINE_INIT_HPP
-#define __CENGINE_INIT_HPP
+#ifndef __CENGINE_INIT_H
+#define __CENGINE_INIT_H
 
-struct ctx;
+#ifdef __cplusplus
+	extern "C" {
+#endif
+
+typedef struct ctx ctx;
 
 #include "stdafx.h"
 #include "vkstdafx.h"
-#include "../external/volk/volk.h"
+#include "cengine.h"
 #include "cgvector.h"
 #include "cgstring.h"
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
 
-struct ctx {
-	static cg_vector_t * /* cg_string_t * */ availableDeviceExtensions;
-	static cg_vector_t * /* cg_string_t * */ availableInstanceExtensions;
-	static VkPhysicalDeviceFeatures availableFeatures;
-	
-	static void Initialize(const char* title, u32 windowWidth, u32 windowHeight);
-};
+void ctx_initialize(const char* title, u32 windowWidth, u32 windowHeight, struct cg_device_t *device);
 
 static SDL_UNUSED const char* ValidationLayers[] = {  
 	"VK_LAYER_KHRONOS_validation",
@@ -100,5 +98,9 @@ static __attribute_maybe_unused__ VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessengerC
 	cg_string_destroy(succeeder);
     return VK_FALSE;
 }
+
+#ifdef __cplusplus
+	}
+#endif
 
 #endif//__CENGINE_INIT_HPP

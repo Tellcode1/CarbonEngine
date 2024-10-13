@@ -7,7 +7,7 @@ u32 cvk_flag_register = 0;
 
 #define HAS_FLAG(flag) ((cvk_flag_register & flag) || (flags & flag))
 
-void cvk_create_graphics_pipeline(VkDevice device,  const cvk_pipeline_create_info *pCreateInfo, VkPipeline *dstPipeline, u32 flags)
+void cvk_create_graphics_pipeline(cg_device_t *device,  const cvk_pipeline_create_info *pCreateInfo, VkPipeline *dstPipeline, u32 flags)
 {
 	CVK_REQUIRED_PTR(device);
 	CVK_REQUIRED_PTR(pCreateInfo);
@@ -167,12 +167,12 @@ void cvk_create_graphics_pipeline(VkDevice device,  const cvk_pipeline_create_in
 	}
 
 	// if(cacheIsNull) cacheCreator.join();
-	CVK_ResultCheck(vkCreateGraphicsPipelines(device, pCreateInfo->cache, 1, &graphicsPipelineCreateInfo, VK_NULL_HANDLE, dstPipeline));
+	CVK_ResultCheck(vkCreateGraphicsPipelines(device->device, pCreateInfo->cache, 1, &graphicsPipelineCreateInfo, VK_NULL_HANDLE, dstPipeline));
 
 	free(shader_infos);
 }
 
-void cvk_create_render_pass(VkDevice device, cvk_render_pass_create_info const *pCreateInfo, VkRenderPass *dstRenderPass, u32 flags)
+void cvk_create_render_pass(cg_device_t *device, cvk_render_pass_create_info const *pCreateInfo, VkRenderPass *dstRenderPass, u32 flags)
 {
 	CVK_REQUIRED_PTR(device);
     CVK_REQUIRED_PTR(pCreateInfo);
@@ -270,10 +270,10 @@ void cvk_create_render_pass(VkDevice device, cvk_render_pass_create_info const *
     renderPassInfo.dependencyCount = 1;
     renderPassInfo.pDependencies = &depth_dependancy;
 
-    CVK_ResultCheck(vkCreateRenderPass(device, &renderPassInfo, VK_NULL_HANDLE, dstRenderPass));
+    CVK_ResultCheck(vkCreateRenderPass(device->device, &renderPassInfo, VK_NULL_HANDLE, dstRenderPass));
 }
 
-void cvk_create_pipeline_layout(VkDevice device, cvk_pipeline_create_info const *pCreateInfo, VkPipelineLayout *dstLayout)
+void cvk_create_pipeline_layout(cg_device_t *device, cvk_pipeline_create_info const *pCreateInfo, VkPipelineLayout *dstLayout)
 {
 	CVK_REQUIRED_PTR(device);
 	CVK_REQUIRED_PTR(pCreateInfo);
@@ -300,10 +300,10 @@ void cvk_create_pipeline_layout(VkDevice device, cvk_pipeline_create_info const 
 	pipelineLayoutCreateInfo.pushConstantRangeCount = pCreateInfo->nPushConstants;
 	pipelineLayoutCreateInfo.pPushConstantRanges = pCreateInfo->pPushConstants;
 
-	CVK_ResultCheck(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, VK_NULL_HANDLE, dstLayout));
+	CVK_ResultCheck(vkCreatePipelineLayout(device->device, &pipelineLayoutCreateInfo, VK_NULL_HANDLE, dstLayout));
 }
 
-void cvk_create_swapchain(VkDevice device, cvk_swapchain_create_info const* pCreateInfo, VkSwapchainKHR *dstSwapchain)
+void cvk_create_swapchain(cg_device_t *device, cvk_swapchain_create_info const* pCreateInfo, VkSwapchainKHR *dstSwapchain)
 {
 	CVK_REQUIRED_PTR(device);
 	CVK_REQUIRED_PTR(pCreateInfo);
@@ -314,7 +314,7 @@ void cvk_create_swapchain(VkDevice device, cvk_swapchain_create_info const* pCre
 
 	VkSwapchainCreateInfoKHR swapChainCreateInfo = {};
 	swapChainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-	swapChainCreateInfo.surface = surface;
+	swapChainCreateInfo.surface = device->surface;
 	swapChainCreateInfo.imageExtent = pCreateInfo->extent;
 	swapChainCreateInfo.minImageCount = pCreateInfo->image_count;
 	swapChainCreateInfo.imageFormat = pCreateInfo->format;
@@ -327,7 +327,7 @@ void cvk_create_swapchain(VkDevice device, cvk_swapchain_create_info const* pCre
 	swapChainCreateInfo.presentMode = pCreateInfo->present_mode;
 	swapChainCreateInfo.oldSwapchain = pCreateInfo->old_swapchain;
 	swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	CVK_ResultCheck(vkCreateSwapchainKHR(device, &swapChainCreateInfo, VK_NULL_HANDLE, dstSwapchain));
+	CVK_ResultCheck(vkCreateSwapchainKHR(device->device, &swapChainCreateInfo, VK_NULL_HANDLE, dstSwapchain));
 }
 
 cvk_pipeline_blend_state cvk_init_pipeline_blend_state(cvk_blend_preset preset)

@@ -82,9 +82,12 @@ static inline crenderer_config crender_config_init() {
 
 typedef struct crenderer_t crenderer_t;
 
-extern crenderer_t *crenderer_init(const crenderer_config *conf);
+extern crenderer_t *crenderer_init(struct cg_device_t *device, const crenderer_config *conf);
+
 extern cg_bool_t crd_begin_render(struct crenderer_t *rd);
 extern void crd_end_render(struct crenderer_t *rd);
+
+extern struct cg_device_t *crd_get_device(const struct crenderer_t *rd);
 
 extern int crd_get_renderer_frame(const struct crenderer_t *rd);
 extern struct VkCommandBuffer_T *crd_get_drawbuffer(const crenderer_t *rd);

@@ -10,6 +10,7 @@
 #include <SDL2/SDL.h>
 #include "../include/stdafx.h"
 #include "../include/cgbitset.h"
+#include "../include/math/vec2.h"
 
 typedef enum key_state
 {
@@ -20,20 +21,23 @@ typedef enum key_state
     KB_STATE_INVALID = __INT32_MAX__
 } key_state;
 
+extern vec2 mouse_position;
+extern vec2 last_frame_mouse_position;
 extern cg_bitset_t *cinput_kb_state;
 extern cg_bitset_t *cinput_last_frame_kb_state;
 
-static inline void cinput_initialize() {
+static inline void cinput_init() {
     cinput_kb_state = cg_bitset_init( SDL_NUM_SCANCODES );
     cinput_last_frame_kb_state = cg_bitset_init( SDL_NUM_SCANCODES );
-    // mouse_position = vec2(0.0f, 0.0f);
-    // last_frame_mouse_position = vec2(0.0f, 0.0f);
+    mouse_position = (vec2){};
+    last_frame_mouse_position = (vec2){};
 }
 
 static inline void cinput_update() {
     // i32 mx, my;
     // SDL_GetMouseState(&mx, &my);
 
+    // * do we actually have to make renderer a parameter to cinput
     // const f32 width = (f32)vctx::RenderExtent.width;
     // const f32 height = (f32)vctx::RenderExtent.height;
 

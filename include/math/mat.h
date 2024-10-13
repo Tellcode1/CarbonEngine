@@ -23,13 +23,6 @@ inline mat4 m4init(float diag) {
     };
 }
 
-static const mat4 m4identity = (mat4){
-    (vec4){1.0f, 0, 0, 0},
-    (vec4){0, 1.0f, 0, 0},
-    (vec4){0, 0, 1.0f, 0},
-    (vec4){0, 0, 0, 1.0f},
-};
-
 inline mat4 m4add(const mat4 m1, const mat4 m2) {
     mat4 result;
     for (int i = 0; i < 4; i++) {
@@ -47,12 +40,12 @@ inline mat4 m4sub(const mat4 m1, const mat4 m2) {
 }
 
 inline mat4 m4mul(const mat4 m1, const mat4 m2) {
-    return (mat4) {
+    return (mat4){{
         v4add(v4add(v4muls(m1.data[0], m2.data[0].x), v4muls(m1.data[1], m2.data[0].y)), v4add(v4muls(m1.data[2], m2.data[0].z), v4muls(m1.data[3], m2.data[0].w))),
         v4add(v4add(v4muls(m1.data[0], m2.data[1].x), v4muls(m1.data[1], m2.data[1].y)), v4add(v4muls(m1.data[2], m2.data[1].z), v4muls(m1.data[3], m2.data[1].w))),
         v4add(v4add(v4muls(m1.data[0], m2.data[2].x), v4muls(m1.data[1], m2.data[2].y)), v4add(v4muls(m1.data[2], m2.data[2].z), v4muls(m1.data[3], m2.data[2].w))),
         v4add(v4add(v4muls(m1.data[0], m2.data[3].x), v4muls(m1.data[1], m2.data[3].y)), v4add(v4muls(m1.data[2], m2.data[3].z), v4muls(m1.data[3], m2.data[3].w)))
-    };
+    }};
 }
 
 inline vec4 m4mulv4(const mat4 m, const vec4 v) {
@@ -64,7 +57,7 @@ inline vec4 m4mulv4(const mat4 m, const vec4 v) {
 }
 
 inline mat4 m4scale(const mat4 m, const vec3 v) {
-    mat4 matrix = m4identity;
+    mat4 matrix = m4init(1.0f);
     for (int i = 0; i < 3; i++) {
         matrix.data[i] = v4muls(m.data[i], ((float *)&v)[i]);
     }
@@ -73,7 +66,7 @@ inline mat4 m4scale(const mat4 m, const vec3 v) {
 }
 
 inline mat4 m4translate(const mat4 m, const vec3 v) {
-    mat4 matrix = m4identity;
+    mat4 matrix = m4init(1.0f);
     matrix.data[3].x = v.x;
     matrix.data[3].y = v.y;
     matrix.data[3].z = v.z;
@@ -132,7 +125,7 @@ inline mat4 m4lookat(const vec3 eye, const vec3 center, const vec3 up) {
     const vec3 s = v3normalize(v3cross(f, up));
     const vec3 u = v3cross(s, f);
 
-    mat4 ret = m4identity;
+    mat4 ret = m4init(1.0f);
     ret.data[0].x = s.x;
     ret.data[1].x = s.y;
     ret.data[2].x = s.z;

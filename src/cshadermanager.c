@@ -59,9 +59,9 @@ int main(int argc, char *argv[]) {
     const char *cmd = (argc < 3) ? "compile" : argv[2];
 
     if (strcmp(cmd, "compile-force") == 0) {
-        csm_compile_all();
+        csm_compile_all(NULL);
     } else if (strcmp(cmd, "compile") == 0) {
-        csm_compile_updated();
+        csm_compile_updated(NULL);
     }
 
     return 0;
@@ -139,16 +139,16 @@ void read_shader_spirv(const char *output, unsigned **spirv, int *spirvsize) {
     fclose(f);
 }
 
-void __csm_create_shader(const unsigned *bytes, int nbytes, struct csm_shader_t *out)
+void __csm_create_shader(VkDevice vkdevice, const unsigned *bytes, int nbytes, struct csm_shader_t *out)
 {
     VkShaderModuleCreateInfo info = {};
     info.codeSize = nbytes;
     info.pCode = bytes;
     info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    vkCreateShaderModule(device, &info, NULL, (VkShaderModule *)&out->shader_module);
+    vkCreateShaderModule(vkdevice, &info, NULL, (VkShaderModule *)&out->shader_module);
 }
 
-void register_all_shaders(struct shader_entry *entries, int nentries) {
+void register_all_shaders(VkDevice vkdevice, struct shader_entry *entries, int nentries) {
     struct csm_shader_t *new_shader_map = malloc((nshaders + nentries) * sizeof(struct csm_shader_t));
     if (shader_map) {
         memcpy(new_shader_map, shader_map, nshaders * sizeof(struct csm_shader_t));
@@ -178,7 +178,7 @@ void register_all_shaders(struct shader_entry *entries, int nentries) {
         unsigned *spirv;
         int spirvsize = 0;
         read_shader_spirv((const char *)entries[i].output_path, &spirv, &spirvsize);
-        __csm_create_shader(spirv, spirvsize, &shader_map[nshaders + index]);
+        __csm_create_shader(vkdevice, spirv, spirvsize, &shader_map[nshaders + index]);
 
         nshaders++;
     }
@@ -392,7 +392,7 @@ void compile_shader(char *buffer, const struct shader_entry *entry) {
     }
 }
 
-void csm_compile_updated()
+void csm_compile_updated(cg_device_t *device)
 {
     char *buffer = malloc(512);
 
@@ -430,14 +430,14 @@ void csm_compile_updated()
     }
 
     #if CSM_EXECUTABLE != 1
-        register_all_shaders(entries, count);
+        register_all_shaders(device->device, entries, count);
     #endif//CSM_EXECUTABLE != 1
 
     free(cacheentries);
     free(buffer);
 }
 
-void csm_compile_all()
+void csm_compile_all(cg_device_t *device)
 {
     char *buffer = malloc(512);
 
@@ -445,7 +445,7 @@ void csm_compile_all()
     shader_entry *entries = load_all_entries(list, &count);
 
     #if CSM_EXECUTABLE != 1
-       register_all_shaders(entries, count);
+       register_all_shaders(device->device, entries, count);
     #endif//#if CSM_EXECUTABLE != 1
 
     for (int i = 0; i < count; i++) {

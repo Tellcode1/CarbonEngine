@@ -1,10 +1,13 @@
 #ifndef __C_MESH_HPP__
 #define __C_MESH_HPP__
 
+// this file is an hpp because tinyobjloader
+// Honestly? If I had the time, i would've just written an obj file loader myself.
+
 // TODO: move this + stb implementation to some stdafx.cpp or something it looks ugly man
 #define TINYOBJLOADER_IMPLEMENTATION
 
-#include <iostream>
+#include <stdio.h>
 #include "defines.h"
 
 #include "cvk.h"
@@ -80,10 +83,6 @@ struct vertex {
     vec3 tangent;
     vec3 bitangent;
     vec2 texcoord;
-
-    bool operator==(const vertex& other) const {
-        return v3areeq(position, other.position) && v2areeq(texcoord, other.texcoord) && v3areeq(normal, other.normal);
-    }
 };
 
 struct soosydata {
@@ -222,6 +221,7 @@ struct cmesh_t *load_mesh(crenderer_t *rd, const char *mdlpath, const char *texp
     const int indexsize = sizeof(u32) * cg_vector_size(data.indices);
 
     vkh_buffer_create(
+        crd_get_device(rd),
         vertexsize,
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
@@ -229,6 +229,7 @@ struct cmesh_t *load_mesh(crenderer_t *rd, const char *mdlpath, const char *texp
     );
 
     vkh_buffer_create(
+        crd_get_device(rd),
         indexsize,
         VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -236,21 +237,24 @@ struct cmesh_t *load_mesh(crenderer_t *rd, const char *mdlpath, const char *texp
     );
 
     vkh_buffer_create(
+        crd_get_device(rd),
         sizeof(ubdata),
         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
         &mesh->ub, &mesh->ubm, 0
     );
-    vkMapMemory(device, mesh->ubm, 0, sizeof(ubdata), 0, &mesh->ubmapped);
+
+    VkDevice vkdevice = crd_get_device(rd)->device;
+    vkMapMemory(vkdevice, mesh->ubm, 0, sizeof(ubdata), 0, &mesh->ubmapped);
 
     void *mapped;
-    vkMapMemory(device, mesh->vbm, 0, vertexsize, 0, &mapped);
+    vkMapMemory(vkdevice, mesh->vbm, 0, vertexsize, 0, &mapped);
     memcpy(mapped, cg_vector_data(data.vertices), vertexsize);
-    vkUnmapMemory(device, mesh->vbm);
+    vkUnmapMemory(vkdevice, mesh->vbm);
 
-    vkMapMemory(device, mesh->ibm, 0, indexsize, 0, &mapped);
+    vkMapMemory(vkdevice, mesh->ibm, 0, indexsize, 0, &mapped);
     memcpy(mapped, cg_vector_data(data.indices), indexsize);
-    vkUnmapMemory(device, mesh->ibm);
+    vkUnmapMemory(vkdevice, mesh->ibm);
 
     const VkVertexInputAttributeDescription attributeDescriptions[] = {
         // location; binding; format; offset;
@@ -272,10 +276,10 @@ struct cmesh_t *load_mesh(crenderer_t *rd, const char *mdlpath, const char *texp
     };
 
     ctex2D texture = cimg_load( texpath );
-    vkh_image_from_mem(texture.data, texture.w, texture.h, cfmt_conv_cfmt_to_vkfmt(texture.fmt), cfmt_get_bytesperpixel(texture.fmt), &mesh->texture, &mesh->texture_memory);
+    vkh_image_from_mem(crd_get_device(rd), texture.data, texture.w, texture.h, cfmt_conv_cfmt_to_vkfmt(texture.fmt), cfmt_get_bytesperpixel(texture.fmt), &mesh->texture, &mesh->texture_memory);
 
     ctex2D normal = cimg_load( normalmappath );
-    vkh_image_from_mem(normal.data, normal.w, normal.h, cfmt_conv_cfmt_to_vkfmt(normal.fmt), cfmt_get_bytesperpixel(normal.fmt), &mesh->normalmap, &mesh->normalmap_memory);
+    vkh_image_from_mem(crd_get_device(rd), normal.data, normal.w, normal.h, cfmt_conv_cfmt_to_vkfmt(normal.fmt), cfmt_get_bytesperpixel(normal.fmt), &mesh->normalmap, &mesh->normalmap_memory);
 
     free(texture.data);
     free(normal.data);
@@ -288,7 +292,7 @@ struct cmesh_t *load_mesh(crenderer_t *rd, const char *mdlpath, const char *texp
     sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
     sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
     sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-    if (vkCreateSampler(device, &sampler_info, nullptr, &mesh->sampler) != VK_SUCCESS)
+    if (vkCreateSampler(vkdevice, &sampler_info, nullptr, &mesh->sampler) != VK_SUCCESS)
         LOG_ERROR("Failed to create sampler");
 
     VkImageViewCreateInfo view_info{};
@@ -302,12 +306,12 @@ struct cmesh_t *load_mesh(crenderer_t *rd, const char *mdlpath, const char *texp
     view_info.subresourceRange.levelCount = 1;
     view_info.subresourceRange.baseArrayLayer = 0;
     view_info.subresourceRange.layerCount = 1;
-    if (vkCreateImageView(device, &view_info, nullptr, &mesh->texture_view) != VK_SUCCESS)
+    if (vkCreateImageView(vkdevice, &view_info, nullptr, &mesh->texture_view) != VK_SUCCESS)
         LOG_ERROR("Failed to create image view");
 
     view_info.image = mesh->normalmap;
     view_info.format = cfmt_conv_cfmt_to_vkfmt(normal.fmt);
-    if (vkCreateImageView(device, &view_info, nullptr, &mesh->normalmapview) != VK_SUCCESS)
+    if (vkCreateImageView(vkdevice, &view_info, nullptr, &mesh->normalmapview) != VK_SUCCESS)
         LOG_ERROR("Failed to create image view");
 
     const VkDescriptorSetLayoutBinding bindings[] = {
@@ -328,21 +332,21 @@ struct cmesh_t *load_mesh(crenderer_t *rd, const char *mdlpath, const char *texp
     poolInfo.pPoolSizes = poolSizes;
     poolInfo.poolSizeCount = array_len(poolSizes);
     poolInfo.maxSets = 1;
-    if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &mesh->descpool) != VK_SUCCESS)
+    if (vkCreateDescriptorPool(vkdevice, &poolInfo, nullptr, &mesh->descpool) != VK_SUCCESS)
         LOG_ERROR("Failed to create descriptor pool");
 
     VkDescriptorSetLayoutCreateInfo layoutinfo{};
     layoutinfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutinfo.pBindings = bindings;
     layoutinfo.bindingCount = array_len(bindings);
-    vkCreateDescriptorSetLayout(device, &layoutinfo, nullptr, &mesh->setlayout);
+    vkCreateDescriptorSetLayout(vkdevice, &layoutinfo, nullptr, &mesh->setlayout);
     
     VkDescriptorSetAllocateInfo setAllocInfo{};
     setAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     setAllocInfo.descriptorPool = mesh->descpool;
     setAllocInfo.descriptorSetCount = 1;
     setAllocInfo.pSetLayouts = &mesh->setlayout;
-    if (vkAllocateDescriptorSets(device, &setAllocInfo, &mesh->set) != VK_SUCCESS)
+    if (vkAllocateDescriptorSets(vkdevice, &setAllocInfo, &mesh->set) != VK_SUCCESS)
         LOG_ERROR("Failed to allocate descriptor sets");
 
     VkDescriptorBufferInfo bufferinfo{};
@@ -357,7 +361,7 @@ struct cmesh_t *load_mesh(crenderer_t *rd, const char *mdlpath, const char *texp
     write.dstSet = mesh->set;
     write.descriptorCount = 1;
     write.dstBinding = 0;
-    vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
+    vkUpdateDescriptorSets(vkdevice, 1, &write, 0, nullptr);
 
     VkDescriptorImageInfo imageinfo{};
     imageinfo.sampler = mesh->sampler;
@@ -370,7 +374,7 @@ struct cmesh_t *load_mesh(crenderer_t *rd, const char *mdlpath, const char *texp
     write.dstSet = mesh->set;
     write.descriptorCount = 1;
     write.dstBinding = 1;
-    vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
+    vkUpdateDescriptorSets(vkdevice, 1, &write, 0, nullptr);
 
     imageinfo.sampler = mesh->sampler;
     imageinfo.imageView = mesh->normalmapview;
@@ -378,7 +382,7 @@ struct cmesh_t *load_mesh(crenderer_t *rd, const char *mdlpath, const char *texp
 
     write.pImageInfo = &imageinfo;
     write.dstBinding = 2;
-    vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
+    vkUpdateDescriptorSets(vkdevice, 1, &write, 0, nullptr);
 
     csm_shader_t *vertex, *fragment;
     csm_load_shader("test/vert", &vertex);
@@ -413,23 +417,23 @@ struct cmesh_t *load_mesh(crenderer_t *rd, const char *mdlpath, const char *texp
     pc.extent.width = RenderExtent.width;
     pc.extent.height = RenderExtent.height;
     pc.samples = Samples;
-    cvk_create_pipeline_layout(device, &pc, &mesh->pipeline_layout);
+    cvk_create_pipeline_layout(crd_get_device(rd), &pc, &mesh->pipeline_layout);
     pc.pipeline_layout = mesh->pipeline_layout;
-    cvk_create_graphics_pipeline(device, &pc, &mesh->pipeline, 0);
+    cvk_create_graphics_pipeline(crd_get_device(rd), &pc, &mesh->pipeline, 0);
 
     return mesh;
 }
 
-static void render(crenderer_t *rd, ccamera camera, cmesh_t *mesh, vec3 lightposition) {
+static void render(crenderer_t *rd, ccamera *camera, cmesh_t *mesh, vec3 lightposition) {
     const vec3 rotationradians = v3muls(mesh->transform.rotation, (float)cmDEG2RAD_CONSTANT);
-    mat4 scaling = m4scale(m4identity, mesh->transform.scale);
-    mat4 rotation = m4rotatev(m4identity, rotationradians);
-    mat4 translation = m4translate(m4identity, mesh->transform.position);
+    mat4 scaling = m4scale(m4init(1.0f), mesh->transform.scale);
+    mat4 rotation = m4rotatev(m4init(1.0f), rotationradians);
+    mat4 translation = m4translate(m4init(1.0f), mesh->transform.position);
     ubdata ub{};
     ub.model = m4mul(scaling,  m4mul(rotation, translation));
-    ub.projection = camera.get_projection();
-    ub.view = camera.get_view();
-    ub.cameraposition = camera.position;
+    ub.projection = cam_get_projection(camera);
+    ub.view = cam_get_view(camera);
+    ub.cameraposition = camera->position;
     ub.lightposition = lightposition;
     ub.color = (vec3){1.0f, 1.0f, 1.0f};
     ub.lightcolor = (vec3){1.0f, 1.0f, 1.0f};

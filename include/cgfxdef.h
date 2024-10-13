@@ -24,6 +24,7 @@ typedef struct cg_ctext_module {
 
 typedef struct crenderer_t
 {
+    struct cg_device_t *device;
     crenderer_config config;
 
     VkRenderPass render_pass;

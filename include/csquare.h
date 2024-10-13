@@ -1,21 +1,19 @@
 #ifndef __SQUARE_HPP_
 #define __SQUARE_HPP_
 
-#include "vkstdafx.h"
+#include "cgfx.h"
+#include "camera.h"
+#include "cshadermanager.h"
 #include "vkhelper.h"
 #include "cvk.h"
 #include "math/vec3.h"
 #include "math/vec2.h"
 #include "math/mat.h"
 
-struct cvertex {
+typedef struct cvertex {
     vec3 position;
     vec2 texcoord;
-
-    bool operator==(const cvertex& other) const {
-        return v3areeq(position, other.position) && v2areeq(texcoord, other.texcoord);
-    }
-};
+} cvertex;
 
 static const int ccube_index_offset = sizeof(cvertex) * 8;
 
@@ -42,34 +40,35 @@ static const u32 ccube_indices[36] = {
 
 static const int ccube_total_data_size = sizeof(cvertex) * 8 + sizeof(u32) * 36;
 
-struct texture2d_t {
+typedef struct texture2d_t {
     VkImage image;
     VkImageView view;
     VkDeviceMemory memory;
-};
+} texture2d_t;
 
-struct ctransform {
+typedef struct ctransform {
     vec3 position;
     vec3 scale;
     vec3 rotation;
-};
+} ctransform;
 
-struct cpipeline {
+typedef struct cpipeline {
     VkPipeline pipeline;
     VkPipelineLayout pipeline_layout;
-};
+} cpipeline;
 
-struct csquare_t {
+typedef struct csquare_t {
     ctransform transform;
     cpipeline pipeline;
     texture2d_t *texture;
 
     VkBuffer buf;
     VkDeviceMemory mem;
-};
+} csquare_t;
 
 int ccreate_cube(crenderer_t *rd, csquare_t *dst) {
     vkh_buffer_create(
+        crd_get_device(rd),
         ccube_total_data_size,
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
@@ -77,10 +76,10 @@ int ccreate_cube(crenderer_t *rd, csquare_t *dst) {
     );
 
     void *mapped;
-    vkMapMemory(device, dst->mem, 0, ccube_total_data_size, 0, &mapped);
+    vkMapMemory(crd_get_device(rd)->device, dst->mem, 0, ccube_total_data_size, 0, &mapped);
     memcpy(mapped, ccube_vertices, sizeof(cvertex) * 8);
     memcpy((char *)mapped + ccube_index_offset, ccube_indices, sizeof(u32) * 36);
-    vkUnmapMemory(device, dst->mem);
+    vkUnmapMemory(crd_get_device(rd)->device, dst->mem);
 
     const VkVertexInputAttributeDescription attributeDescriptions[] = {
         // location; binding; format; offset;
@@ -103,7 +102,7 @@ int ccreate_cube(crenderer_t *rd, csquare_t *dst) {
     assert(csm_load_shader("Unlit/frag", &fragment) != -1);
     const csm_shader_t * shaders[] = { vertex, fragment };
 
-    cvk_pipeline_create_info pc{};
+    cvk_pipeline_create_info pc = {};
     pc.format = SwapChainImageFormat;
     pc.subpass = 0;
     pc.render_pass = crd_get_render_pass(rd);
@@ -124,27 +123,27 @@ int ccreate_cube(crenderer_t *rd, csquare_t *dst) {
     pc.extent.width = RenderExtent.width;
     pc.extent.height = RenderExtent.height;
     pc.samples = Samples;
-    cvk_create_pipeline_layout(device, &pc, &dst->pipeline.pipeline_layout);
+    cvk_create_pipeline_layout(crd_get_device(rd), &pc, &dst->pipeline.pipeline_layout);
     pc.pipeline_layout = dst->pipeline.pipeline_layout;
-    cvk_create_graphics_pipeline(device, &pc, &dst->pipeline.pipeline, CVK_PIPELINE_FLAGS_UNFORCE_CULLING);
+    cvk_create_graphics_pipeline(crd_get_device(rd), &pc, &dst->pipeline.pipeline, CVK_PIPELINE_FLAGS_UNFORCE_CULLING);
 
     return 0;
 }
 
-void render_cube(crenderer_t *rd, ccamera camera, const csquare_t *cube) {
+void render_cube(crenderer_t *rd, ccamera *camera, const csquare_t *cube) {
     struct push_constants {
         mat4 view;
         mat4 projection;
     } pc;
 
-    pc.view = camera.get_view();
-    pc.projection = camera.get_projection();
+    pc.view = cam_get_view(camera);
+    pc.projection = cam_get_projection(camera);
 
     const VkDeviceSize offsets[1] = {};
 
     const VkCommandBuffer cmd = crd_get_drawbuffer(rd);
     vkCmdBindVertexBuffers(cmd, 0, 1, &cube->buf, offsets);
-    vkCmdPushConstants(cmd, cube->pipeline.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push_constants), &pc);
+    vkCmdPushConstants(cmd, cube->pipeline.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(struct push_constants), &pc);
     vkCmdBindIndexBuffer(cmd, cube->buf, ccube_index_offset, VK_INDEX_TYPE_UINT32);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, cube->pipeline.pipeline);
     vkCmdDrawIndexed(cmd, array_len(ccube_indices), 1, 0, 0, 0);

@@ -1,16 +1,6 @@
-#include "../../include/cengineinit.hpp"
+#include "../../include/cengineinit.h"
+#include "../../include/cengine.h"
 #include "../../include/cgvector.h"
-#include <cassert>
-
-VkInstance 							 instance = VK_NULL_HANDLE;
-VkDevice 							 device = VK_NULL_HANDLE;
-VkPhysicalDevice 					 physDevice = VK_NULL_HANDLE;
-VkSurfaceKHR 				         surface = VK_NULL_HANDLE;
-struct SDL_Window* 				     window = nullptr;
-VkDebugUtilsMessengerEXT 			 debugMessenger = VK_NULL_HANDLE;
-cg_vector_t * /* cg_string_t * */ 	     ctx::availableDeviceExtensions;
-cg_vector_t * /* cg_string_t * */ 	     ctx::availableInstanceExtensions;
-VkPhysicalDeviceFeatures 			 ctx::availableFeatures;
 
 VkSampleCountFlagBits                MAX_SAMPLES;
 unsigned char 				         SUPPORTS_MULTISAMPLING;
@@ -19,7 +9,8 @@ f32 				                 MAX_ANISOTROPY;
 cg_vector_t *setify(u32 i1, u32 i2, u32 i3, u32 i4) {
 	cg_vector_t *ret = cg_vector_init(sizeof(u32), 4);
     u32 nums[4] = {i1, i2, i3, i4};
-	for (const auto &e : nums) {
+	for (int j = 0; j < array_len(nums); j++) {
+		int e = nums[j];
 		bool already_in = false;
 		for (int i = 0; i < cg_vector_size(ret); i++) {
 			if (e == *(u32 *)cg_vector_get(ret, i))
@@ -33,12 +24,12 @@ cg_vector_t *setify(u32 i1, u32 i2, u32 i3, u32 i4) {
 	return ret;
 }
 
-VkInstance CreateInstance(const char* title, cg_vector_t * /* cg_string_t * */ availableExtensions) {
+VkInstance CreateInstance(const char* title, cg_device_t *device) {
 	if (volkInitialize() != VK_SUCCESS) {
 		LOG_AND_ABORT("Volk could not initialize. You probably don't have the vulkan loader installed. I can't do anything about that.");
 	}
 
-    VkApplicationInfo appInfo{};
+    VkApplicationInfo appInfo = {};
 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	appInfo.applicationVersion = VK_API_VERSION_1_0;
 	appInfo.apiVersion = VK_API_VERSION_1_0;
@@ -47,13 +38,14 @@ VkInstance CreateInstance(const char* title, cg_vector_t * /* cg_string_t * */ a
 	appInfo.engineVersion = 0;
 
 	uint32_t SDLExtensionCount = 0;
-	SDL_Vulkan_GetInstanceExtensions(window, &SDLExtensionCount, nullptr);
+	SDL_Vulkan_GetInstanceExtensions(device->window, &SDLExtensionCount, NULL);
 	cg_vector_t * /* const char* */ SDLExtensions = cg_vector_init(sizeof(const char *), SDLExtensionCount);
-	SDL_Vulkan_GetInstanceExtensions(window, &SDLExtensionCount, (const char **)cg_vector_data(SDLExtensions));
+	SDL_Vulkan_GetInstanceExtensions(device->window, &SDLExtensionCount, (const char **)cg_vector_data(SDLExtensions));
 
 	cg_vector_t *enabledExtensions = cg_vector_init(sizeof(const char *), array_len(RequiredInstanceExtensions));
 
-	for (const auto& ext : RequiredInstanceExtensions) {
+	for (int i = 0; i < array_len(RequiredInstanceExtensions); i++) {
+		const char *ext = RequiredInstanceExtensions[i];
 		cg_vector_push_back(enabledExtensions, &ext);
 	}
 
@@ -62,22 +54,22 @@ VkInstance CreateInstance(const char* title, cg_vector_t * /* cg_string_t * */ a
 	}
 
 	u32 extensionCount = 0;
-	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
+	vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, NULL);
 	cg_vector_t * /* VkExtensionProperties */ extensions = cg_vector_init(sizeof(VkExtensionProperties), extensionCount);
-	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, (VkExtensionProperties *)cg_vector_data(extensions));
+	vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, (VkExtensionProperties *)cg_vector_data(extensions));
 
 	for (u32 i = 0; i < extensionCount; i++) {
 		const char* name = ((VkExtensionProperties *)cg_vector_data(extensions))[i].extensionName;
-		for(const auto& want : WantedInstanceExtensions)
+		for(int j = 0; j < array_len(WantedInstanceExtensions); j++) {
+			const char * want = WantedInstanceExtensions[j];
 			if(strcmp(name, want) == 0) {
 				cg_vector_push_back(enabledExtensions, &name);
-				cg_string_t *name_str = cg_string_init_str(name);
-				cg_vector_push_back(availableExtensions, &name_str);
 				break;
 			}
+		}
 	}
 
-	VkInstanceCreateInfo instanceCreateinfo{};
+	VkInstanceCreateInfo instanceCreateinfo = {};
 	instanceCreateinfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 	instanceCreateinfo.pApplicationInfo = &appInfo;
 	instanceCreateinfo.enabledExtensionCount = cg_vector_size(enabledExtensions);
@@ -88,24 +80,25 @@ VkInstance CreateInstance(const char* title, cg_vector_t * /* cg_string_t * */ a
 	bool validationLayersAvailable = false;
 	uint32_t layerCount = 0;
 
-	vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+	vkEnumerateInstanceLayerProperties(&layerCount, NULL);
 	cg_vector_t * /* VkLayerProperties */ layerProperties = cg_vector_init(sizeof(VkLayerProperties), layerCount);
 	vkEnumerateInstanceLayerProperties(&layerCount, (VkLayerProperties *)cg_vector_data(layerProperties));
 
-	if(array_len(ValidationLayers) != 0)
-	{
-		for(const auto& layer : ValidationLayers)
-		{
-			for (uint32_t i = 0; i < layerCount; i++)
-				if (strcmp(layer, ((VkLayerProperties *)cg_vector_data(layerProperties))[i].layerName) == 0)
+	if(array_len(ValidationLayers) != 0) {
+		for(int j = 0; j < array_len(ValidationLayers); j++) {
+			for (uint32_t i = 0; i < layerCount; i++) {
+				if (strcmp(ValidationLayers[j], ((VkLayerProperties *)cg_vector_data(layerProperties))[i].layerName) == 0) {
 					validationLayersAvailable = true;
+				}
+			}
 		}
 
 		if (!validationLayersAvailable)
 		{
 			LOG_ERROR("VALIDATION LAYERS COULD NOT BE LOADED\nRequested layers:\n");
-			for(const char* layer : ValidationLayers)
-				printf("\t%s\n", layer);
+			for(int i = 0; i < array_len(ValidationLayers); i++) {
+				printf("\t%s\n", ValidationLayers[i]);
+			}
 
 			printf("Instance provided these layers (i.e. These layers are available):\n");
 			for(uint32_t i = 0; i < layerCount; i++)
@@ -115,15 +108,17 @@ VkInstance CreateInstance(const char* title, cg_vector_t * /* cg_string_t * */ a
 
 			cg_vector_t * /* const char* */ missingLayers = cg_vector_init(sizeof(const char *), 16);
 		
-			for(const auto& layer : ValidationLayers)
+			for(int i = 0; i < array_len(ValidationLayers); i++)
 			{
+				const char *layer = ValidationLayers[i];
 				bool layerAvailable = false;
-				for (uint32_t i = 0; i < layerCount; i++)
+				for (uint32_t i = 0; i < layerCount; i++) {
 					if (strcmp(layer, ((VkLayerProperties *)cg_vector_data(layerProperties))[i].layerName) == 0)
 					{
 						layerAvailable = true;
 						break;
 					}
+				}
 				if(!layerAvailable) cg_vector_push_back(missingLayers, &layer);
 			}
 			for(int i = 0; i < cg_vector_size(missingLayers); i++)
@@ -141,12 +136,12 @@ VkInstance CreateInstance(const char* title, cg_vector_t * /* cg_string_t * */ a
 	#else
 
 	instanceCreateinfo.enabledLayerCount = 0;
-	instanceCreateinfo.ppEnabledLayerNames = nullptr;
+	instanceCreateinfo.ppEnabledLayerNames = NULL;
 
 	#endif
 
     VkInstance instance;
-	vkCreateInstance(&instanceCreateinfo, nullptr, &instance);
+	vkCreateInstance(&instanceCreateinfo, NULL, &instance);
 
 	#ifdef DEBUG
 	if (validationLayersAvailable)
@@ -161,10 +156,10 @@ VkInstance CreateInstance(const char* title, cg_vector_t * /* cg_string_t * */ a
 								VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
 		createInfo.pfnUserCallback = DebugMessengerCallback;
 
-		auto _CreateDebugUtilsMessenger = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
+		PFN_vkCreateDebugUtilsMessengerEXT _CreateDebugUtilsMessenger = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
 
 		if (_CreateDebugUtilsMessenger) {
-			if (_CreateDebugUtilsMessenger(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS)
+			if (_CreateDebugUtilsMessenger(instance, &createInfo, NULL, &device->debugMessenger) != VK_SUCCESS)
 				LOG_ERROR("Debug messenger failed to initialize");
 			else
 				LOG_DEBUG("Debug messenger successfully set up.");
@@ -215,7 +210,7 @@ void PrintDeviceInfo(VkPhysicalDevice device)
 VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR surface) {
 
 	uint32_t physDeviceCount = 0;
-	vkEnumeratePhysicalDevices(instance, &physDeviceCount, nullptr);
+	vkEnumeratePhysicalDevices(instance, &physDeviceCount, NULL);
 	
 	if(physDeviceCount == 0) {
 		LOG_AND_ABORT("Huuuhhh??? No physical devices found? Are you running this on a banana???\n");
@@ -225,22 +220,23 @@ VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR surface)
 	vkEnumeratePhysicalDevices(instance, &physDeviceCount, (VkPhysicalDevice *)cg_vector_data(physicalDevices));
 
 	for(u32 i = 0; i < physDeviceCount; i++) {
-		const auto& device = ((VkPhysicalDevice *)cg_vector_data(physicalDevices))[i];
+		const VkPhysicalDevice device = ((VkPhysicalDevice *)cg_vector_data(physicalDevices))[i];
 
 		uint32_t formatCount = 0;
-		vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
+		vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, NULL);
 
 		uint32_t presentModeCount = 0;
-		vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr);
+		vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, NULL);
 		
 		bool extensionsAvailable = true;
 
 		uint32_t extensionCount = 0;
-		vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
+		vkEnumerateDeviceExtensionProperties(device, NULL, &extensionCount, NULL);
 		cg_vector_t * /* VkExtensionProperties */ availableExtensions = cg_vector_init(sizeof(VkExtensionProperties), extensionCount);
-		vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, (VkExtensionProperties *)cg_vector_data(availableExtensions));
+		vkEnumerateDeviceExtensionProperties(device, NULL, &extensionCount, (VkExtensionProperties *)cg_vector_data(availableExtensions));
 
-		for (const auto& extension : RequiredDeviceExtensions) {
+		for (int i = 0; i < array_len(RequiredDeviceExtensions); i++) {
+			const char *extension = RequiredDeviceExtensions[i];
 			bool validated = false;
 			for(u32 j = 0; j < extensionCount; j++) {
 				if (strcmp(extension, ((VkExtensionProperties *)cg_vector_data(availableExtensions))[j].extensionName) == 0)
@@ -255,7 +251,6 @@ VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR surface)
 		cg_vector_destroy(availableExtensions);
 
 		if (extensionsAvailable && formatCount > 0 && presentModeCount > 0) {
-			LOG_INFO("Found device!");
 			PrintDeviceInfo(device);
 			return device;
 		}
@@ -266,7 +261,7 @@ VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR surface)
 	VkPhysicalDeviceProperties properties;
 	vkGetPhysicalDeviceProperties(fallback, &properties);
 
-	LOG_ERROR("Could not find an appropriate device. Falling back to device 0: %s\n", properties.deviceName);
+	LOG_ERROR("No device found. Falling back to device \"%s\".\n", properties.deviceName);
 
 	PrintDeviceInfo(fallback);
 
@@ -275,11 +270,11 @@ VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR surface)
 	return fallback;
 }
 
-VkDevice CreateDevice() {
+VkDevice CreateDevice(cg_device_t *device) {
 	u32 queueCount = 0;
-	vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, nullptr);
+	vkGetPhysicalDeviceQueueFamilyProperties(device->physDevice, &queueCount, NULL);
 	cg_vector_t * /* VkQueueFamilyProperties */ queueFamilies = cg_vector_init(sizeof(VkQueueFamilyProperties), queueCount);
-	vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, (VkQueueFamilyProperties *)cg_vector_data(queueFamilies));
+	vkGetPhysicalDeviceQueueFamilyProperties(device->physDevice, &queueCount, (VkQueueFamilyProperties *)cg_vector_data(queueFamilies));
 
 	// Clang loves complaining about these.
 	u32 graphicsFamily = 0, presentFamily = 0, computeFamily = 0, transferFamily = 0;
@@ -289,9 +284,9 @@ VkDevice CreateDevice() {
 		
 	u32 i = 0;
 	for (int j = 0; j < cg_vector_size(queueFamilies); j++) {
-		const VkQueueFamilyProperties &queueFamily = ((VkQueueFamilyProperties *)cg_vector_data(queueFamilies))[j];
+		const VkQueueFamilyProperties queueFamily = ((VkQueueFamilyProperties *)cg_vector_data(queueFamilies))[j];
 		VkBool32 presentSupport = false;
-		vkGetPhysicalDeviceSurfaceSupportKHR(physDevice, i, surface, &presentSupport);
+		vkGetPhysicalDeviceSurfaceSupportKHR(device->physDevice, i, device->surface, &presentSupport);
 	
 		if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
 			graphicsFamily = i;
@@ -318,7 +313,7 @@ VkDevice CreateDevice() {
 	cg_vector_t * /* u32 */ uniqueQueueFamilies = setify(graphicsFamily, presentFamily, computeFamily, transferFamily);
 	cg_vector_t * /* VkDeviceQueueCreateInfo */ queueCreateInfos = cg_vector_init(sizeof(VkDeviceQueueCreateInfo), cg_vector_size(uniqueQueueFamilies));
 
-	constexpr float queuePriority = 1.0f;
+	const float queuePriority = 1.0f;
 
 	for (int i = 0; i < cg_vector_size(uniqueQueueFamilies); i++)
 	{
@@ -333,25 +328,22 @@ VkDevice CreateDevice() {
 	cg_vector_t * /* const char* */ enabledExtensions = cg_vector_init(sizeof(const char *), array_len(WantedDeviceExtensions) + array_len(RequiredDeviceExtensions));
 
 	u32 extensionCount;
-	vkEnumerateDeviceExtensionProperties(physDevice, nullptr, &extensionCount, nullptr);
+	vkEnumerateDeviceExtensionProperties(device->physDevice, NULL, &extensionCount, NULL);
 	cg_vector_t * /* VkExtensionProperties */ extensions = cg_vector_init(sizeof(VkExtensionProperties), extensionCount);
-	vkEnumerateDeviceExtensionProperties(physDevice, nullptr, &extensionCount, (VkExtensionProperties *)cg_vector_data(extensions));
+	vkEnumerateDeviceExtensionProperties(device->physDevice, NULL, &extensionCount, (VkExtensionProperties *)cg_vector_data(extensions));
 
-	for(u32 i = 0; i < extensionCount; i++) {
-		const char *extname = ((VkExtensionProperties *)cg_vector_data(extensions))[i].extensionName;
-		cg_string_t *extnamestr = cg_string_init_str( extname );
-		cg_vector_push_back(ctx::availableDeviceExtensions, &extnamestr);
-	}
-
-	for(const auto& wanted : WantedDeviceExtensions)
+	for (int i = 0; i < array_len(WantedDeviceExtensions); i++) {
+		const char *wanted = WantedDeviceExtensions[i];
 		for(u32 i = 0; i < extensionCount; i++) {
 			VkExtensionProperties ext = ((VkExtensionProperties *)cg_vector_data(extensions))[i];
 			if(strcmp(wanted, ext.extensionName) == 0) {
 				cg_vector_push_back(enabledExtensions, &ext.extensionName);
 			}
 		}
+	}
 
-	for(const auto& required : RequiredDeviceExtensions) {
+	for (int i = 0; i < array_len(RequiredDeviceExtensions); i++) {
+		const char *required = RequiredDeviceExtensions[i];
 		bool validated = false;
 		for(u32 i = 0; i < extensionCount; i++) {
 			const char* extName = ((VkExtensionProperties *)cg_vector_data(extensions))[i].extensionName;
@@ -365,12 +357,12 @@ VkDevice CreateDevice() {
 			LOG_ERROR("Failed to validate required extension with name %s", required);
 	}
 
-	VkPhysicalDeviceFeatures availableFeatures{};
-	vkGetPhysicalDeviceFeatures(physDevice, &availableFeatures);
+	VkPhysicalDeviceFeatures availableFeatures = {};
+	vkGetPhysicalDeviceFeatures(device->physDevice, &availableFeatures);
 
 	availableFeatures = availableFeatures;
 
-	VkDeviceCreateInfo deviceCreateInfo{};
+	VkDeviceCreateInfo deviceCreateInfo = {};
 	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 	deviceCreateInfo.queueCreateInfoCount = cg_vector_size(queueCreateInfos);
 	deviceCreateInfo.pQueueCreateInfos = (const VkDeviceQueueCreateInfo *)cg_vector_data(queueCreateInfos);
@@ -378,7 +370,7 @@ VkDevice CreateDevice() {
 	deviceCreateInfo.ppEnabledExtensionNames = (const char * const*)cg_vector_data(enabledExtensions);
 	deviceCreateInfo.pEnabledFeatures = &WantedFeatures;
 
-	if (vkCreateDevice(physDevice, &deviceCreateInfo, nullptr, &device) != VK_SUCCESS) {
+	if (vkCreateDevice(device->physDevice, &deviceCreateInfo, NULL, &device) != VK_SUCCESS) {
 		LOG_AND_ABORT("Failed to create device");
 	}
 
@@ -391,28 +383,26 @@ VkDevice CreateDevice() {
 	return device;
 }
 
-void ctx::Initialize(const char* title, u32 windowWidth, u32 windowHeight) {
-	window = SDL_CreateWindow(title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, windowWidth, windowHeight, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
-	cassert(window != NULL);
+void ctx_initialize(const char* title, u32 windowWidth, u32 windowHeight, cg_device_t *device) {
+	device->window = SDL_CreateWindow(title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, windowWidth, windowHeight, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
+	cassert(device->window != NULL);
 
-	ctx::availableDeviceExtensions = cg_vector_init(sizeof(cg_string_t *), 4);
-	ctx::availableInstanceExtensions = cg_vector_init(sizeof(cg_string_t *), 4);
-	instance = CreateInstance(title, ctx::availableInstanceExtensions);
-	cassert(instance != NULL);
-	
-	if(SDL_Vulkan_CreateSurface(window, instance, &surface) != SDL_TRUE) {
+	device->instance = CreateInstance(title, device);
+	cassert(device->instance != NULL);
+
+	if(SDL_Vulkan_CreateSurface(device->window, device->instance, &device->surface) != SDL_TRUE) {
 		LOG_AND_ABORT("Surface creation failed.\nSDL reports: %s", SDL_GetError());
 	}
-	
-	physDevice = ChoosePhysicalDevice(instance, surface);
 
-	device = CreateDevice();
+	device->physDevice = ChoosePhysicalDevice(device->instance, device->surface);
+
+	device->device = CreateDevice(device);
 	cassert(device != NULL);
 
-	volkLoadDevice(device);
+	volkLoadDevice(device->device);
 
 	VkPhysicalDeviceProperties props;
-	vkGetPhysicalDeviceProperties(physDevice, &props);
+	vkGetPhysicalDeviceProperties(device->physDevice, &props);
 
 	MAX_ANISOTROPY = props.limits.maxSamplerAnisotropy;
 	SUPPORTS_MULTISAMPLING = true;

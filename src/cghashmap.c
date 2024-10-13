@@ -188,7 +188,7 @@ void *cg_hashmap_find(const cg_hashmap_t *map, const void *key)
     return NULL;
 }
 
-void cg_hashmap_insert(cg_hashmap_t *map, const void *key, void *value)
+void cg_hashmap_insert(cg_hashmap_t *map, const void *key, const void *value)
 {
     if (!map->nodes || map->size >= (map->entries * 3) / 4) {
         // The check to whether map->entries is greater than 0 is already done in resize();
