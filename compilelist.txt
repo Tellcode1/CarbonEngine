@@ -6,8 +6,3 @@
 
 ../Shaders/ctext/ctext.vert.glsl
 ../Shaders/ctext/ctext.frag.glsl
-
-../Shaders/shadow.glsl.vert
-../Shaders/shadow.glsl.frag
-
-../Shaders/text.comp

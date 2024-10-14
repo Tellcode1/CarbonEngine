@@ -11,12 +11,13 @@ vec2 v_tex_coords;
 layout(location=0) out
 vec2 f_tex_coords;
 
-layout (push_constant) uniform push_constants {
-    mat4 projection_view;
+layout(set = 0, binding = 0, std140) uniform uniform_buffer {
     mat4 model;
+    mat4 view;
+    mat4 projection;
 } ub;
 
 void main() {
     f_tex_coords = v_tex_coords;
-    gl_Position = ub.projection_view * vec4(v_vertices, 1.0);
+    gl_Position = ub.projection * ub.view * ub.model * vec4(v_vertices, 1.0);
 }

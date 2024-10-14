@@ -38,6 +38,7 @@ set(SOURCES
 
 add_library(spirv-reflect STATIC ${CMAKE_SOURCE_DIR}/external/SPIRV-Reflect/spirv_reflect.c)
 add_subdirectory(${CMAKE_SOURCE_DIR}/external/volk)
+add_subdirectory(${CMAKE_SOURCE_DIR}/external/box2d)
 
 add_executable(${OUTPUT} ${SOURCES})
 
@@ -52,6 +53,7 @@ set(LIBS
     jpeg
     png
     spirv-reflect
+    box2d
 )
 
 target_link_options(${OUTPUT} PRIVATE -g -Wall -fopenmp -fpermissive)

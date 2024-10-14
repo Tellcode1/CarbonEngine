@@ -14,27 +14,27 @@
 #endif
 
 typedef enum cengine_vsync_bits {
-    CENGINE_VSYNC_DISABLED = 0,
-    CENGINE_VSYNC_ENABLED = 1
+    CG_VSYNC_DISABLED = 0,
+    CG_VSYNC_ENABLED = 1
 } cengine_vsync_bits;
 typedef cg_bool_t cg_vsync;
 
 typedef enum cg_buffering_mode_bits {
-    CGFX_BUFFER_MODE_SINGLE_BUFFERED = 0,
-    CGFX_BUFFER_MODE_DOUBLE_BUFFERED = 1,
-    CGFX_BUFFER_MODE_TRIPLE_BUFFERED = 2,
+    CG_BUFFER_MODE_SINGLE_BUFFERED = 0,
+    CG_BUFFER_MODE_DOUBLE_BUFFERED = 1,
+    CG_BUFFER_MODE_TRIPLE_BUFFERED = 2,
 } cg_buffering_mode_bits;
 typedef unsigned cg_buffering_mode;
 
 typedef enum cg_sample_count_bits {
-    CGFX_SAMPLE_COUNT_MAX_SUPPORTED = 0xFFFFFFFF,
-    CGFX_SAMPLE_COUNT_NO_EXTRA_SAMPLES = 1,
-    CGFX_SAMPLE_COUNT_1_SAMPLES = 1,
-    CGFX_SAMPLE_COUNT_2_SAMPLES = 2,
-    CGFX_SAMPLE_COUNT_4_SAMPLES = 4,
-    CGFX_SAMPLE_COUNT_8_SAMPLES = 8,
-    CGFX_SAMPLE_COUNT_16_SAMPLES = 16,
-    CGFX_SAMPLE_COUNT_32_SAMPLES = 32,
+    CG_SAMPLE_COUNT_MAX_SUPPORTED = 0xFFFFFFFF,
+    CG_SAMPLE_COUNT_NO_EXTRA_SAMPLES = 1,
+    CG_SAMPLE_COUNT_1_SAMPLES = 1,
+    CG_SAMPLE_COUNT_2_SAMPLES = 2,
+    CG_SAMPLE_COUNT_4_SAMPLES = 4,
+    CG_SAMPLE_COUNT_8_SAMPLES = 8,
+    CG_SAMPLE_COUNT_16_SAMPLES = 16,
+    CG_SAMPLE_COUNT_32_SAMPLES = 32,
 } cg_sample_count_bits;
 typedef unsigned cg_sample_count;
 

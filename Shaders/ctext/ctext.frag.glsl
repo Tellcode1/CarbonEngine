@@ -8,9 +8,6 @@ vec4 outColor;
 layout(location=0) in
 vec2 texCoords;
 
-layout (location=1) in flat
-float scale;
-
 layout(set=0,binding=0) uniform
 sampler2D bitmap;
 

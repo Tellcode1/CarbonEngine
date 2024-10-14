@@ -5,6 +5,10 @@
     extern "C" {
 #endif
 
+// just keeping this here for reference
+// god tier article btw
+// https://zeux.io/2020/02/27/writing-an-efficient-vulkan-renderer/
+
 #include "defines.h"
 #include "stdafx.h"
 #include "vkstdafx.h"
@@ -34,8 +38,8 @@ typedef struct crenderer_config {
 
 static inline crenderer_config crender_config_init() {
     return (crenderer_config) {
-        .samples = CGFX_SAMPLE_COUNT_NO_EXTRA_SAMPLES,
-        .buffer_mode = CGFX_BUFFER_MODE_DOUBLE_BUFFERED,
+        .samples = CG_SAMPLE_COUNT_NO_EXTRA_SAMPLES,
+        .buffer_mode = CG_BUFFER_MODE_DOUBLE_BUFFERED,
         .initial_window_size = { 800, 600 },
         .exit_key = 41, /* SDL_SCANCODE_ESCAPE */
         .multisampling_enable = 0,

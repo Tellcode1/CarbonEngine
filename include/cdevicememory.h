@@ -192,13 +192,14 @@ static inline void cgfx_gpu_create_image(const cgfx_gpu_image_create_info *pInfo
 // vkimage is fetched from image!
 static inline void cgfx_gpu_create_image_view(const cgfx_gpu_image_view_create_info *pInfo, cgfx_gpu_image_t *image) {
     const cg_format dst_format = (pInfo->format != CFMT_UNKNOWN) ? pInfo->format : image->format;
-    VkImageViewCreateInfo view_info = {};
-    view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    view_info.viewType = pInfo->view_type;
-    view_info.format = cfmt_conv_cfmt_to_vkfmt(dst_format);
-    view_info.image = image->image;
-    view_info.subresourceRange = pInfo->subresourceRange;
-    vkCreateImageView(device, &view_info, NULL, &image->view);
+    VkImageViewCreateInfo view_info = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image = image->image,
+        .viewType = pInfo->view_type,
+        .format = cfmt_conv_cfmt_to_vkfmt(dst_format),
+        .subresourceRange = pInfo->subresourceRange
+    };
+    cassert(vkCreateImageView(device, &view_info, NULL, &image->view) == VK_SUCCESS);
 }
 
 static inline void cgfx_gpu_image_transition_layout(VkCommandBuffer cmd, cgfx_gpu_image_t *image, VkImageLayout new_layout) {

@@ -6,10 +6,12 @@
 #include "../include/cgstring.h"
 
 #include "../include/camera.h"
-#include "../include/mesh.hpp"
+// #include "../include/mesh.hpp"
 #include "../include/cquad.h"
 
 #include "../include/cimage.h"
+
+#include "../external/box2d/include/box2d/box2d.h"
 
 int main(int argc, char *argv[]) {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);
@@ -18,10 +20,10 @@ int main(int argc, char *argv[]) {
 
     crenderer_config rdconf = crender_config_init();
     rdconf.vsync_enabled = 1;
-    rdconf.buffer_mode = CGFX_BUFFER_MODE_SINGLE_BUFFERED;
+    rdconf.buffer_mode = CG_BUFFER_MODE_SINGLE_BUFFERED;
     rdconf.window_resizable = 0;
     rdconf.multisampling_enable = 1;
-    rdconf.samples = CGFX_SAMPLE_COUNT_MAX_SUPPORTED;
+    rdconf.samples = CG_SAMPLE_COUNT_MAX_SUPPORTED;
     crenderer_t *rd = crenderer_init(&rdconf);
     cinput_init();
     ctext_init(rd);
@@ -42,22 +44,41 @@ int main(int argc, char *argv[]) {
 
     int curr_showing_fps = 0;
 
-    bool relmodeon = 1;
-    cassert(SDL_SetRelativeMouseMode(SDL_TRUE) != -1);
+    cmesh_t *mesh = load_mesh(rd);
+    cmesh_t *ground = load_mesh(rd);
 
-    cmesh_t *light;
-    cmesh_t *mesh;
-    cmesh_t *block = load_mesh(rd, "../Assets/cube.obj", "../Assets/model/3DBread007_HQ-1K-JPG_Color.jpg", "../Assets/empty.png");
-    block->transform.position = (vec3){0.0f,0.0f,0.0f};
-    block->transform.scale = (vec3){1.0f,1.0f,1.0f};
-
-    light = load_mesh(rd, "../Assets/barrel.obj", "../Assets/barrel.png", "../Assets/model/3DBread007_HQ-1K-JPG_NormalGL.jpg");
-    mesh = load_mesh(rd, "../Assets/model/3DBread007_HQ-1K-JPG.obj", "../Assets/model/3DBread007_HQ-1K-JPG_Color.jpg", "../Assets/model/3DBread007_HQ-1K-JPG_NormalGL.jpg");
-
-    csquare_t square;
-    ccreate_cube(rd, &square);
+    ground->transform.scale.x = 100.0f;
+    ground->transform.position.y = -5.0f;
 
     ccamera camera = ccamera_init();
+
+    b2WorldDef worldDef = b2DefaultWorldDef();
+    worldDef.gravity = (b2Vec2){ 0.0f, -9.8f };
+    b2WorldId worldId = b2CreateWorld(&worldDef);
+
+    b2BodyDef groundBodyDef = b2DefaultBodyDef();
+    groundBodyDef.position = (b2Vec2){ground->transform.position.x, ground->transform.position.y};
+    b2BodyId groundId = b2CreateBody(worldId, &groundBodyDef);
+
+    b2Polygon groundBox = b2MakeBox(ground->transform.scale.x / 2.0f, ground->transform.scale.y / 2.0f);
+
+    b2ShapeDef groundShapeDef = b2DefaultShapeDef();
+    b2CreatePolygonShape(groundId, &groundShapeDef, &groundBox);
+
+    b2BodyDef bodyDef = b2DefaultBodyDef();
+    bodyDef.type = b2_dynamicBody;
+    bodyDef.position = (b2Vec2){0.0f, 4.0f};
+    b2BodyId bodyId = b2CreateBody(worldId, &bodyDef);
+
+    b2Polygon dynamicBox = b2MakeBox(1.0f, 1.0f);
+
+    b2ShapeDef shapeDef = b2DefaultShapeDef();
+    shapeDef.density = 1.0f;
+    shapeDef.friction = 0.3f;
+    b2CreatePolygonShape(bodyId, &shapeDef, &dynamicBox);
+
+    const float timeStep = 1.0f / 60.0f;
+    const int subStepCount = 4;
 
     // What in the unholy f%$ where you doing
     LOG_DEBUG("Initialized in %ld ms (%.3f s)", SDL_GetTicks64(), SDL_GetTicks64() / 1000.0f);
@@ -65,6 +86,15 @@ int main(int argc, char *argv[]) {
     {
         cg_update();
         const double dt = cg_get_delta_time();
+
+        // for (int i = 0; i < 90; ++i)
+        {
+            b2World_Step(worldId, timeStep, subStepCount);
+            b2Vec2 player_position = b2Body_GetPosition(bodyId);
+            b2Rot player_rotation = b2Body_GetRotation(bodyId);
+            mesh->transform.position = (vec3){ player_position.x, player_position.y, 0.0f };
+            // mesh->transform.rotation = (vec3){ player_rotation.s, player_rotation.c, 0.0f };
+        }
 
         SDL_Event event;
         while(SDL_PollEvent(&event)) {
@@ -89,11 +119,6 @@ int main(int argc, char *argv[]) {
             cam_move(&camera, cam_pos_add);
         }
 
-        if (cinput_is_key_pressed(SDL_SCANCODE_SPACE)) {
-            relmodeon = !relmodeon;
-            SDL_SetRelativeMouseMode((SDL_bool)relmodeon);
-        }
-
         // Profiling code
         totalTime += cg_get_delta_time();
         numFrames++;
@@ -103,21 +128,6 @@ int main(int argc, char *argv[]) {
             numFrames = 0;
             totalTime = 0.0;
         }
-
-        if (cinput_is_key_held(SDL_SCANCODE_I))
-            mesh->transform.position.y += speed;
-        if (cinput_is_key_held(SDL_SCANCODE_K))
-            mesh->transform.position.y -= speed;
-        if (cinput_is_key_held(SDL_SCANCODE_J))
-            mesh->transform.position.x -= speed;
-        if (cinput_is_key_held(SDL_SCANCODE_L))
-            mesh->transform.position.x += speed;
-
-        // light->transform.position = vec3(0.5f, 1.0f, 0.3f);
-        light->transform.position = (vec3){0.0f,0.0f,0.0f};
-        mesh->transform.position = (vec3){sinf(cg_get_time() / 3.0f) / 3.0f, 0.0f, cosf(cg_get_time() / 3.0f) / 3.0f};
-        mesh->transform.scale = (vec3){10.0f,10.0f,10.0f};
-        light->transform.scale = (vec3){10.0f,10.0f,10.0f};
 
         cam_update(&camera, rd);
 
@@ -138,19 +148,16 @@ int main(int argc, char *argv[]) {
 
             ctext_end_render(rd, &camera, amongus, m4init(1.0f));
 
-            block->transform.rotation.y += cmdeg2rad(360.0f * 16.0f) * dt;
-
-            render_cube(rd, &camera, &square);
-            // render(rd, camera, light, light->transform.position);
-            // render(rd, camera, mesh, light->transform.position);
-            render(rd, &camera, block, light->transform.position);
+            render(rd, &camera, mesh);
+            render(rd, &camera, ground);
 
             crd_end_render(rd);
         } else {
             LOG_INFO("Skipped a frame!");
         }
     }
-    
+
+    b2DestroyWorld(worldId);
     crenderer_destroy(rd);
     return 0;
 }

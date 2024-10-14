@@ -107,7 +107,7 @@ void create_optional_images(crenderer_t *rd)
             &color_image_size,
             &rd->color_image.image, NULL
         );
-        cgfx_gpu_memory_allocate(color_image_size, CGFX_MEMORY_USAGE_GPU_LOCAL, &rd->color_image_memory);
+        cgfx_gpu_memory_allocate(color_image_size, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, &rd->color_image_memory);
         cgfx_gpu_memory_bind_image(&rd->color_image_memory, 0, &rd->color_image);
 
         VkImageViewCreateInfo resolve_view_create_info = {};
@@ -298,12 +298,12 @@ crenderer_t *crenderer_init( const crenderer_config *conf)
 
     if (conf->vsync_enabled) {
         switch (conf->buffer_mode) {
-            case CGFX_BUFFER_MODE_SINGLE_BUFFERED:
-            case CGFX_BUFFER_MODE_DOUBLE_BUFFERED:
+            case CG_BUFFER_MODE_SINGLE_BUFFERED:
+            case CG_BUFFER_MODE_DOUBLE_BUFFERED:
             default:
                 present_mode = VK_PRESENT_MODE_FIFO_KHR;
                 break;
-            case CGFX_BUFFER_MODE_TRIPLE_BUFFERED:
+            case CG_BUFFER_MODE_TRIPLE_BUFFERED:
                 present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
                 break;
             break;
@@ -322,7 +322,7 @@ crenderer_t *crenderer_init( const crenderer_config *conf)
     cvk_create_swapchain(&scio, &rd->swapchain);
 
     VkSampleCountFlagBits conf_samples;
-    if (conf->samples == CGFX_SAMPLE_COUNT_MAX_SUPPORTED) {
+    if (conf->samples == CG_SAMPLE_COUNT_MAX_SUPPORTED) {
         conf_samples = MAX_SAMPLES;
     } else {
         conf_samples = (VkSampleCountFlagBits)conf->samples;
@@ -373,40 +373,6 @@ crenderer_t *crenderer_init( const crenderer_config *conf)
     rpi.subpass = 0;
     rpi.samples = samples;
     cvk_create_render_pass(&rpi, &rd->render_pass, cvk_flag_register);
-
-    // cvk_render_pass_create_info depth_render_pass_info = {};
-    // depth_render_pass_info.format = VK_FORMAT_D32_SFLOAT;
-    // depth_render_pass_info.depthBufferFormat = depth_buffer_format;
-    // depth_render_pass_info.subpass = 0;
-    // depth_render_pass_info.samples = VK_SAMPLE_COUNT_1_BIT;
-    // cvk_create_render_pass(device, &depth_render_pass_info, &ShadowPass, cvk_flag_register);
-    // {
-    //     VkAttachmentDescription depthAttachment = {};
-    //     depthAttachment.format = VK_FORMAT_D32_SFLOAT;
-    //     depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    //     depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    //     depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    //     depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    //     depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    //     depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    //     depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-    //     VkAttachmentReference depthref = {};
-    //     depthref.attachment = 0;
-    //     depthref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-    //     VkSubpassDescription subpass = {};
-    //     subpass.colorAttachmentCount = 0;
-    //     subpass.pDepthStencilAttachment = &depthref;
-
-    //     VkRenderPassCreateInfo depth_pass = {};
-    //     depth_pass.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    //     depth_pass.attachmentCount = 1;
-    //     depth_pass.pAttachments = &depthAttachment;
-    //     depth_pass.subpassCount = 1;
-    //     depth_pass.pSubpasses = &subpass;
-    //     vkCreateRenderPass(device, &depth_pass, NULL, &ShadowPass);
-    // }
 
     create_optional_images(rd);
     create_framebuffers_and_swapchain_image_views(rd);
@@ -479,12 +445,12 @@ void crenderer_resize(crenderer_t *rd) {
 
     if (rd->config.vsync_enabled) {
         switch (rd->config.buffer_mode) {
-            case CGFX_BUFFER_MODE_SINGLE_BUFFERED:
-            case CGFX_BUFFER_MODE_DOUBLE_BUFFERED:
+            case CG_BUFFER_MODE_SINGLE_BUFFERED:
+            case CG_BUFFER_MODE_DOUBLE_BUFFERED:
             default:
                 present_mode = VK_PRESENT_MODE_FIFO_KHR;
                 break;
-            case CGFX_BUFFER_MODE_TRIPLE_BUFFERED:
+            case CG_BUFFER_MODE_TRIPLE_BUFFERED:
                 present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
                 break;
             break;
@@ -543,21 +509,28 @@ bool_t crd_begin_render(crenderer_t *rd)
 
     vkResetFences(device, 1, &data->in_flight_fence);
 
-    VkClearValue clearValues[2];
-    clearValues[0].color = (VkClearColorValue){ {0.0f, 0.0f, 0.0f, 1.0f} };
-    clearValues[1].depthStencil = (VkClearDepthStencilValue){ 1.0f, 0 };
+    // * Maybe the user should have control of the clear color but I don't really care lmao
 
     VkFramebuffer fb = (*(cg_framerender_data *)(cg_vector_get(&rd->renderData, rd->imageIndex))).color_framebuffer;
- 
-    static VkRenderPassBeginInfo renderPassInfo = {};
-    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassInfo.framebuffer = fb;
-    renderPassInfo.renderArea.extent.width = rd->render_extent.width;
-    renderPassInfo.renderArea.extent.height = rd->render_extent.height;
-    renderPassInfo.renderArea.offset = (VkOffset2D){0, 0};
-    renderPassInfo.renderPass = rd->render_pass;
-    renderPassInfo.clearValueCount = 2;
-    renderPassInfo.pClearValues = clearValues;
+    
+    // Why was this static?
+    VkRenderPassBeginInfo renderPassInfo = {
+        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .renderPass = rd->render_pass,
+        .framebuffer = fb,
+        .renderArea = (VkRect2D) {
+            .extent = (VkExtent2D) {
+                rd->render_extent.width,
+                rd->render_extent.height
+            },
+            .offset = {}
+        },
+        .clearValueCount = 2,
+        .pClearValues = (VkClearValue[2]) {
+            { .color = (VkClearColorValue){ {0.0f, 0.0f, 0.0f, 1.0f} } },
+            { .depthStencil = (VkClearDepthStencilValue){ 1.0f, 0 } }
+        },
+    };
 
     const VkCommandBufferBeginInfo beginInfo = {
         VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, NULL, 0, NULL

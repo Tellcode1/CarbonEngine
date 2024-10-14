@@ -150,7 +150,7 @@ void ctext_load_font(crenderer_t *rd, const ctext_font_load_info *__restrict pIn
 
     cgfx_gpu_image_create_info image_info = {
         .format = CFMT_R8_UNORM,
-        .samples = CGFX_SAMPLE_COUNT_1_SAMPLES,
+        .samples = CG_SAMPLE_COUNT_1_SAMPLES,
         .type = VK_IMAGE_TYPE_2D,
         .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
         .extent = (VkExtent3D){ .width = (*dst)->atlas.width, .height = (*dst)->atlas.height, .depth = 1 },
@@ -158,24 +158,6 @@ void ctext_load_font(crenderer_t *rd, const ctext_font_load_info *__restrict pIn
         .miplevels = 1
     };
     cgfx_gpu_create_image(&image_info, &(*dst)->texture);
-
-    // VkImageCreateInfo imageCreateInfo = {};
-    // imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    // imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-    // imageCreateInfo.extent.width = (*dst)->atlas.width;
-    // imageCreateInfo.extent.height = (*dst)->atlas.height;
-    // imageCreateInfo.extent.depth = 1;
-    // imageCreateInfo.mipLevels = 1;
-    // imageCreateInfo.arrayLayers = 1;
-    // imageCreateInfo.format = VK_FORMAT_R8_UNORM;
-    // imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-    // imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    // imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-    // imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-    // imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    // if (vkCreateImage(device, &imageCreateInfo, NULL, &(*dst)->texture.image) != VK_SUCCESS) {
-    //     LOG_ERROR("Failed to create bitmap image");
-    // }
 
     VkMemoryRequirements imageMemoryRequirements;
     vkGetImageMemoryRequirements(device, (*dst)->texture.image, &imageMemoryRequirements);
@@ -192,19 +174,18 @@ void ctext_load_font(crenderer_t *rd, const ctext_font_load_info *__restrict pIn
     };
     cgfx_gpu_create_sampler(&sampler_info, &(*dst)->sampler);
 
-    VkImageViewCreateInfo view_info = {};
-    view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    view_info.format = VK_FORMAT_R8_UNORM;
-    view_info.image = (*dst)->texture.image;
-    view_info.components = (VkComponentMapping){ VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
-    view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    view_info.subresourceRange.baseMipLevel = 0;
-    view_info.subresourceRange.levelCount = 1;
-    view_info.subresourceRange.baseArrayLayer = 0;
-    view_info.subresourceRange.layerCount = 1;
-    if (vkCreateImageView(device, &view_info, NULL, &(*dst)->texture.view) != VK_SUCCESS)
-        LOG_ERROR("Failed to create image view");
+    cgfx_gpu_image_view_create_info view_info = {
+        .format = CFMT_R8_UNORM,
+        .view_type = VK_IMAGE_VIEW_TYPE_2D,
+        .subresourceRange = (VkImageSubresourceRange){
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        }
+    };
+    cgfx_gpu_create_image_view(&view_info, &(*dst)->texture);
 
     const VkDescriptorImageInfo ctext_error_image_info = {
         .sampler = (*dst)->sampler.vksampler,
