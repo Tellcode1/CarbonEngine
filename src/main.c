@@ -13,25 +13,59 @@
 
 #include "../external/box2d/include/box2d/box2d.h"
 
+typedef struct player_t {
+    int anim_frame;
+    cmesh_t *mesh;
+    b2BodyId player_id;
+} player_t;
+
+player_t player_init(crenderer_t *rd, b2WorldId *world_id) {
+    player_t player = {};
+    player.mesh = load_mesh(NULL, rd);
+
+    b2BodyDef bodyDef = b2DefaultBodyDef();
+    bodyDef.type = b2_dynamicBody;
+    bodyDef.position = (b2Vec2){0.0f, 4.0f};
+    bodyDef.fixedRotation = 1;
+    b2BodyId player_id = b2CreateBody(*world_id, &bodyDef);
+
+    b2Polygon dynamicBox = b2MakeBox(1.0f, 1.0f);
+
+    b2ShapeDef shapeDef = b2DefaultShapeDef();
+    shapeDef.density = 1.0f;
+    shapeDef.friction = 0.7f;
+    shapeDef.restitution = 0.0f;
+    b2CreatePolygonShape(player_id, &shapeDef, &dynamicBox);
+
+    player.player_id = player_id;
+
+    return player;
+}
+
+void player_move(player_t *player, vec2 v) {
+    b2Body_ApplyLinearImpulseToCenter(player->player_id, (b2Vec2){ v.x, v.y }, 1);
+}
+
 int main(int argc, char *argv[]) {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);
 
-    TIME_FUNCTION(cg_initialize_context("kilometers per second (edgy)(im cool now ok?)", 800, 600));
+    cg_initialize_context("kilometers per second (edgy)(im cool now ok?)", 800, 600);
 
     crenderer_config rdconf = crender_config_init();
     rdconf.vsync_enabled = 1;
     rdconf.buffer_mode = CG_BUFFER_MODE_SINGLE_BUFFERED;
     rdconf.window_resizable = 0;
-    rdconf.multisampling_enable = 1;
-    rdconf.samples = CG_SAMPLE_COUNT_MAX_SUPPORTED;
+    rdconf.multisampling_enable = 0;
+    rdconf.samples = CG_SAMPLE_COUNT_1_SAMPLES;
     crenderer_t *rd = crenderer_init(&rdconf);
-    cinput_init();
-    ctext_init(rd);
 
     // * get a better name for this
     csm_compile_updated();
 
-    const f32 updateTime = 3.0f; // seconds. 1.5f = 1.5 seconds
+    cinput_init();
+    ctext_init(rd);
+
+    const f32 updateTime = 10.0f; // seconds. 1.5f = 1.5 seconds
     f32 totalTime = 0.0f;
     u32 numFrames = 0;
 
@@ -44,8 +78,8 @@ int main(int argc, char *argv[]) {
 
     int curr_showing_fps = 0;
 
-    cmesh_t *mesh = load_mesh(rd);
-    cmesh_t *ground = load_mesh(rd);
+    cmesh_t *mesh = load_mesh(NULL, rd);
+    cmesh_t *ground = load_mesh(NULL, rd);
 
     ground->transform.scale.x = 100.0f;
     ground->transform.position.y = -5.0f;
@@ -65,17 +99,7 @@ int main(int argc, char *argv[]) {
     b2ShapeDef groundShapeDef = b2DefaultShapeDef();
     b2CreatePolygonShape(groundId, &groundShapeDef, &groundBox);
 
-    b2BodyDef bodyDef = b2DefaultBodyDef();
-    bodyDef.type = b2_dynamicBody;
-    bodyDef.position = (b2Vec2){0.0f, 4.0f};
-    b2BodyId bodyId = b2CreateBody(worldId, &bodyDef);
-
-    b2Polygon dynamicBox = b2MakeBox(1.0f, 1.0f);
-
-    b2ShapeDef shapeDef = b2DefaultShapeDef();
-    shapeDef.density = 1.0f;
-    shapeDef.friction = 0.3f;
-    b2CreatePolygonShape(bodyId, &shapeDef, &dynamicBox);
+    player_t player = player_init(rd, &worldId);
 
     const float timeStep = 1.0f / 60.0f;
     const int subStepCount = 4;
@@ -87,36 +111,38 @@ int main(int argc, char *argv[]) {
         cg_update();
         const double dt = cg_get_delta_time();
 
-        // for (int i = 0; i < 90; ++i)
+        const float speed = 16.0f;
+        b2Vec2 body_add = (b2Vec2){0.0f,0.0f};
+
+        bool_t moved = 0;
+        if (cinput_is_key_held(SDL_SCANCODE_A))
+            body_add.x -= 1.0f;
+        if (cinput_is_key_held(SDL_SCANCODE_D))
+            body_add.x += 1.0f;
+        if (cinput_is_key_held(SDL_SCANCODE_W))
+            body_add.y += 1.0f;
+        if (cinput_is_key_held(SDL_SCANCODE_S))
+            body_add.y -= 1.0f;
+        if (body_add.x != 0.0f || body_add.y != 0.0f) {
+            vec2 *body_add_v = ((vec2 *)&body_add);
+            *body_add_v = v2muls(v2normalize(*body_add_v), speed);
+            b2Body_SetLinearVelocity(player.player_id, *((b2Vec2 *)body_add_v));
+            moved = 1;
+        }
+
         {
             b2World_Step(worldId, timeStep, subStepCount);
-            b2Vec2 player_position = b2Body_GetPosition(bodyId);
-            b2Rot player_rotation = b2Body_GetRotation(bodyId);
+            b2Vec2 player_position = b2Body_GetPosition(player.player_id);
             mesh->transform.position = (vec3){ player_position.x, player_position.y, 0.0f };
-            // mesh->transform.rotation = (vec3){ player_rotation.s, player_rotation.c, 0.0f };
+        }
+
+        if (moved) {
+            b2Body_SetLinearVelocity(player.player_id, (b2Vec2){ 0.0f, b2Body_GetLinearVelocity(player.player_id).y });
         }
 
         SDL_Event event;
         while(SDL_PollEvent(&event)) {
             cg_consume_event(&event);
-        }
-
-        const float speed = 16.6f * dt;
-        vec3 cam_pos_add = (vec3){0.0f,0.0f,0.0f};
-        if (cinput_is_key_held(SDL_SCANCODE_W))
-            cam_pos_add.z += speed;
-        if (cinput_is_key_held(SDL_SCANCODE_S))
-            cam_pos_add.z -= speed;
-        if (cinput_is_key_held(SDL_SCANCODE_A))
-            cam_pos_add.x -= speed;
-        if (cinput_is_key_held(SDL_SCANCODE_D))
-            cam_pos_add.x += speed;
-        if (cinput_is_key_held(SDL_SCANCODE_SPACE))
-            cam_pos_add.y += speed;
-        if (cinput_is_key_held(SDL_SCANCODE_LALT))
-            cam_pos_add.y -= speed;
-        if (cam_pos_add.x != 0.0f || cam_pos_add.y != 0.0f || cam_pos_add.z != 0.0f) {
-            cam_move(&camera, cam_pos_add);
         }
 
         // Profiling code
@@ -138,7 +164,7 @@ int main(int argc, char *argv[]) {
             info.horizontal = CTEXT_HORI_ALIGN_LEFT;
             info.vertical = CTEXT_VERT_ALIGN_TOP;
             info.scale = 1.0f;
-            info.position = (vec3){-1.0f, -1.0f, -1.0f};
+            info.position = (vec3){-1.0f, -1.0f, 0.0f};
             ctext_render(amongus, &info, "%u %s frames", curr_showing_fps, "joosy");
             
             info.horizontal = CTEXT_HORI_ALIGN_CENTER;
@@ -159,5 +185,6 @@ int main(int argc, char *argv[]) {
 
     b2DestroyWorld(worldId);
     crenderer_destroy(rd);
+    LOG_INFO("done.");
     return 0;
 }

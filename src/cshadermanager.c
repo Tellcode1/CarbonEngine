@@ -17,7 +17,12 @@
     #define stat _stat
 #endif
 
-#include "../include/vkstdafx.h"
+#if !(CSM_EXECUTABLE)
+    #include "../include/vkstdafx.h"
+
+    struct csm_shader_t *shader_map = NULL;
+    int nshaders = 0;
+#endif
 
 #include "../include/cshadermanager.h"
 #include "../include/cshadermanagerdev.h"
@@ -25,9 +30,6 @@
 const char *shader_compiler = "glslangValidator";
 const char *shader_compiler_args = " -V ";
 const char *list = "../compilelist.txt";
-
-struct csm_shader_t *shader_map = NULL;
-int nshaders = 0;
 
 #ifdef _WIN32
     #include <direct.h>
@@ -92,13 +94,11 @@ void add_shader_to_map(struct shader_cache_entry entry) {
     shader_map[ nshaders ] = add;
 
     nshaders++;
-
-    qsort(shader_map, nshaders, sizeof(struct csm_shader_t), compare_shader_t);
+    // map is sorted after all shaders are registered.
 }
 
 struct csm_shader_t *find_shader(const char *name) {
-    struct csm_shader_t shader;
-    memset(&shader, 0, sizeof(struct csm_shader_t));
+    struct csm_shader_t shader = {};
 
     strncpy(shader.name, name, sizeof(shader.name) - 1);
     shader.name[sizeof(shader.name) - 1] = '\0';
@@ -110,7 +110,29 @@ bool does_shader_exist(const char *name) {
     return find_shader(name) != NULL;
 }
 
-#if CSM_EXECUTABLE != 1
+int csm_load_shader(const char *name, struct csm_shader_t **out)
+{
+    if (name == NULL || strlen(name) == 0) {
+        return -1;
+    }
+
+    struct csm_shader_t shader = {};
+
+    strncpy(shader.name, name, sizeof(shader.name) - 1);
+    shader.name[sizeof(shader.name) - 1] = '\0';
+
+    struct csm_shader_t *shaderptr = (struct csm_shader_t *)bsearch(&shader, shader_map, nshaders, sizeof(struct csm_shader_t), compare_shader_t);
+
+    if (shaderptr) {
+        *out = shaderptr;
+    } else {
+        // should we check out is NULL before setting it or not
+        *out = NULL;
+        return -1;
+    }
+
+    return 0;
+}
 
 void read_shader_spirv(const char *output, unsigned **spirv, int *spirvsize) {
     FILE *f = fopen(output, "rb");
@@ -259,33 +281,6 @@ char const *csm_get_shader_compiler_args(void)
     return shader_compiler_args;
 }
 
-int csm_load_shader(const char *name, struct csm_shader_t **out)
-{
-    if (name == NULL || strlen(name) == 0) {
-        return -1;
-    }
-
-    struct csm_shader_t shader;
-    memset(&shader, 0, sizeof(struct csm_shader_t));
-
-    strncpy(shader.name, name, sizeof(shader.name) - 1);
-    shader.name[sizeof(shader.name) - 1] = '\0';
-
-    qsort(shader_map, nshaders, sizeof(struct csm_shader_t), compare_shader_t);
-    struct csm_shader_t *shaderptr = (struct csm_shader_t *)bsearch(&shader, shader_map, nshaders, sizeof(struct csm_shader_t), compare_shader_t);
-
-    if (shaderptr) {
-        *out = shaderptr;
-    } else {
-        *out = NULL;
-        return -1;
-    }
-
-    return 0;
-}
-
-#endif // CSM_EXECUTABLE
-
 shader_cache_entry * load_cache(int *count) {
     FILE *f = fopen("shaders.cache", "r");
     if (f == NULL) {
@@ -384,8 +379,7 @@ shader_entry * load_all_entries(const char *shader_list_file_path, int *count) {
             assert(entries != NULL);
         }
 
-        shader_entry entry;
-        memset(&entry, 0, sizeof(shader_entry));
+        shader_entry entry = {};
 
         strncpy(entry.path, line, 256);
 
@@ -419,8 +413,9 @@ shader_entry * load_all_entries(const char *shader_list_file_path, int *count) {
 }
 
 void compile_shader(char *buffer, const struct shader_entry *entry) {
-    char copy[256] = {};
-    strncpy(copy, entry->output_path, 256);
+    char copy[256];
+    copy[255] = '\0';
+    strncpy(copy, entry->output_path, 255);
     create_parent_dirs(copy);
 
     strcat(buffer, shader_compiler);
@@ -485,6 +480,7 @@ void csm_compile_updated()
         register_all_shaders(device, entries, count);
     #endif//CSM_EXECUTABLE != 1
 
+    free(entries);
     free(cacheentries);
     free(buffer);
 }
@@ -505,6 +501,8 @@ void csm_compile_all()
         compile_shader(buffer, &entries[i]);
     }
 
-    free(buffer);
     write_new_cache(entries, count);
+
+    free(entries);
+    free(buffer);
 }

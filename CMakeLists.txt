@@ -19,7 +19,7 @@ set(OUTPUT
 )
 
 set(SOURCES
-    src/main.cpp
+    src/main.c
     src/cengine.cpp
     src/cengineinit.c
     src/cinput.c

@@ -32,11 +32,11 @@ typedef struct ccamera {
     f32 far_clip;
 } ccamera;
 
-inline ccamera ccamera_init() {
+static inline ccamera ccamera_init() {
     return (ccamera) {
         .projection = {},
         .view = {},
-        .position = (vec3){0.0f, 0.0f, 3.0f},
+        .position = (vec3){0.0f, 0.0f, 10.0f},
         .front = (vec3){0.0f, 0.0f,  1.0f},
         .up = (vec3){0.0f, 1.0f, 0.0f},
         .right = (vec3){1.0f, 0.0f, 0.0f},
@@ -49,23 +49,23 @@ inline ccamera ccamera_init() {
     };
 }
 
-inline const mat4 cam_get_projection(ccamera *cam) {
+static inline const mat4 cam_get_projection(ccamera *cam) {
     return cam->projection;
 }
 
-inline const mat4 cam_get_view(ccamera *cam) {
+static inline const mat4 cam_get_view(ccamera *cam) {
     return cam->view;
 }
 
-inline const vec3 cam_get_up(ccamera *cam) {
+static inline const vec3 cam_get_up(ccamera *cam) {
     return cam->up;
 }
 
-inline const vec3 cam_get_front(ccamera *cam) {
+static inline const vec3 cam_get_front(ccamera *cam) {
     return cam->front;
 }
 
-inline void cam_rotate(ccamera *cam, f32 yaw_, f32 pitch_) {
+static inline void cam_rotate(ccamera *cam, f32 yaw_, f32 pitch_) {
     cam->yaw += yaw_;
     cam->pitch -= pitch_;
 
@@ -75,17 +75,17 @@ inline void cam_rotate(ccamera *cam, f32 yaw_, f32 pitch_) {
     cam->pitch = cmclamp( cam->pitch, -bound, bound );
 }
 
-inline void cam_move(ccamera *cam, const vec3 amt) {
+static inline void cam_move(ccamera *cam, const vec3 amt) {
     cam->position = v3add(cam->position, v3muls(cam->right, amt.x));
     cam->position = v3add(cam->position, v3muls(cam->up   , amt.y));
     cam->position = v3add(cam->position, v3muls(cam->front, amt.z));
 }
 
-inline void cam_set_position(ccamera *cam, const vec3 pos) {
+static inline void cam_set_position(ccamera *cam, const vec3 pos) {
     cam->position = pos;
 }
 
-inline void cam_update(ccamera *cam, struct crenderer_t *rd) {
+static inline void cam_update(ccamera *cam, struct crenderer_t *rd) {
     const float yaw_rads = cmdeg2rad(cam->yaw), pitch_rads = cmdeg2rad(cam->pitch);
     const float cospitch = cosf(pitch_rads);
     vec3 new_front;

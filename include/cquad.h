@@ -10,22 +10,23 @@
 
 #include "math/vec3.h"
 #include "math/vec2.h"
+#include "math/mat.h"
 
 #include "cimage.h"
 
-struct Transform {
-    vec3 position = (vec3){0.0f,0.0f,0.0f};
-    vec3 scale = (vec3){20.0f,20.0f,20.0f};
-    vec3 rotation = (vec3){0.0f,0.0f,0.0f};
-};
+typedef struct Transform {
+    vec3 position;
+    vec3 scale;
+    vec3 rotation;
+} Transform;
 
-struct ubdata {
-    alignas(sizeof(vec4)) mat4 model;
-    alignas(sizeof(vec4)) mat4 view;
-    alignas(sizeof(vec4)) mat4 projection;
-};
+typedef struct ubdata {
+    mat4 model;
+    mat4 view;
+    mat4 projection;
+} ubdata;
 
-struct cmesh_t {
+typedef struct cmesh_t {
     Transform transform;
 
     VkBuffer vb;
@@ -50,7 +51,7 @@ struct cmesh_t {
     VkDescriptorSetLayout setlayout;
 
     int index_count;
-};
+} cmesh_t;
 
 typedef struct cvertex {
     vec3 position;
@@ -69,7 +70,11 @@ static const u32 ccube_indices[6] = {
     0, 1, 2,   2, 3, 0,
 };
 
-struct cmesh_t *load_mesh(crenderer_t *rd) {
+cmesh_t *load_mesh(const char *texpath, crenderer_t *rd) {
+    if (texpath == NULL) {
+        // texpath = "../Assets/empty.png";
+        texpath = "../Assets/barrel.png";
+    }
     // ! FIXME: implement yadayada
     cmesh_t *mesh = (cmesh_t *)malloc(sizeof(cmesh_t));
     mesh->index_count = array_len(ccube_indices);
@@ -134,38 +139,54 @@ struct cmesh_t *load_mesh(crenderer_t *rd) {
        .address_mode = VK_SAMPLER_ADDRESS_MODE_REPEAT 
     };
     cgfx_gpu_create_sampler(&sampler_info, &mesh->sampler);
-    cgfx_gpu_image_create_info image_info = {};
 
-    // view_info.image = mesh->normalmap;
-    // view_info.format = cfmt_conv_cfmt_to_vkfmt(normal.fmt);
-    // if (vkCreateImageView(device, &view_info, nullptr, &mesh->normalmapview) != VK_SUCCESS)
-        // LOG_ERROR("Failed to create image view");
+    u32 w, h;
+    VkFormat channels;
+
+    // ! FIXME: what.
+    // ! maybe write a wrapper that supports cgfx_gpu_image or whatever.
+    vkh_image_from_disk(texpath, &w, &h, &channels, &mesh->texture.image, &mesh->texture_memory.memory);
+
+    cgfx_gpu_image_view_create_info view_info = {
+        .format = cfmt_conv_vkfmt_to_cfmt(channels),
+        .view_type = VK_IMAGE_VIEW_TYPE_2D,
+        .subresourceRange = (VkImageSubresourceRange) {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1
+        }
+    };
+    cgfx_gpu_create_image_view(&view_info, &mesh->texture);
 
     const VkDescriptorSetLayoutBinding bindings[] = {
         // binding; descriptorType; descriptorCount; stageFlags; pImmutableSamplers;
-        { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, nullptr },
+        { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, NULL },
+        { 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &mesh->sampler.vksampler },
     };
 
     const VkDescriptorPoolSize poolSizes[] = {
         // type; descriptorCount;
-        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 },
+        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 10 },
+        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 10 },
     };
 
-    VkDescriptorPoolCreateInfo poolInfo{};
+    VkDescriptorPoolCreateInfo poolInfo = {};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.pPoolSizes = poolSizes;
     poolInfo.poolSizeCount = array_len(poolSizes);
     poolInfo.maxSets = 1;
-    if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &mesh->descpool) != VK_SUCCESS)
+    if (vkCreateDescriptorPool(device, &poolInfo, NULL, &mesh->descpool) != VK_SUCCESS)
         LOG_ERROR("Failed to create descriptor pool");
 
-    VkDescriptorSetLayoutCreateInfo layoutinfo{};
+    VkDescriptorSetLayoutCreateInfo layoutinfo = {};
     layoutinfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutinfo.pBindings = bindings;
     layoutinfo.bindingCount = array_len(bindings);
-    vkCreateDescriptorSetLayout(device, &layoutinfo, nullptr, &mesh->setlayout);
+    vkCreateDescriptorSetLayout(device, &layoutinfo, NULL, &mesh->setlayout);
     
-    VkDescriptorSetAllocateInfo setAllocInfo{};
+    VkDescriptorSetAllocateInfo setAllocInfo = {};
     setAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     setAllocInfo.descriptorPool = mesh->descpool;
     setAllocInfo.descriptorSetCount = 1;
@@ -173,19 +194,31 @@ struct cmesh_t *load_mesh(crenderer_t *rd) {
     if (vkAllocateDescriptorSets(device, &setAllocInfo, &mesh->set) != VK_SUCCESS)
         LOG_ERROR("Failed to allocate descriptor sets");
 
-    VkDescriptorBufferInfo bufferinfo{};
+    VkDescriptorBufferInfo bufferinfo = {};
     bufferinfo.buffer = mesh->ub;
     bufferinfo.offset = 0;
     bufferinfo.range = sizeof(ubdata);
 
-    VkWriteDescriptorSet write{};
+    VkWriteDescriptorSet write = {};
     write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     write.pBufferInfo = &bufferinfo;
     write.dstSet = mesh->set;
     write.descriptorCount = 1;
     write.dstBinding = 0;
-    vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
+    vkUpdateDescriptorSets(device, 1, &write, 0, NULL);
+
+    const VkDescriptorImageInfo image_desc_info = {
+        .sampler = mesh->sampler.vksampler,
+        .imageView = mesh->texture.view,
+        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+    };
+
+    write.pBufferInfo = NULL;
+    write.pImageInfo = &image_desc_info;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write.dstBinding = 1;
+    vkUpdateDescriptorSets(device, 1, &write, 0, NULL);
 
     csm_shader_t *cvertex, *fragment;
     csm_load_shader("Unlit/vert", &cvertex);
@@ -232,7 +265,7 @@ static void render(crenderer_t *rd, ccamera *camera, cmesh_t *mesh) {
     mat4 scaling = m4scale(m4init(1.0f), mesh->transform.scale);
     mat4 rotation = m4rotatev(m4init(1.0f), rotationradians);
     mat4 translation = m4translate(m4init(1.0f), mesh->transform.position);
-    ubdata ub{};
+    ubdata ub = {};
     ub.model = m4mul(scaling,  m4mul(rotation, translation));
     ub.projection = cam_get_projection(camera);
     ub.view = cam_get_view(camera);
@@ -241,7 +274,7 @@ static void render(crenderer_t *rd, ccamera *camera, cmesh_t *mesh) {
     const VkDeviceSize offsets[1] = {};
 
     const VkCommandBuffer cmd = crd_get_drawbuffer(rd);
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, mesh->pipeline_layout, 0, 1, &mesh->set, 0, nullptr);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, mesh->pipeline_layout, 0, 1, &mesh->set, 0, NULL);
     vkCmdBindVertexBuffers(cmd, 0, 1, &mesh->vb, offsets);
     vkCmdBindIndexBuffer(cmd, mesh->ib, 0, VK_INDEX_TYPE_UINT32);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, mesh->pipeline);

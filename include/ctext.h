@@ -98,9 +98,6 @@ typedef struct cfont_t
     f32 line_height;
     f32 space_width;
 
-    VkPipeline pipeline;
-    VkPipelineLayout pipeline_layout;
-
     u32 font_index;
     cgfx_gpu_image_t texture;
     cgfx_gpu_memory_t texture_mem;
@@ -128,7 +125,7 @@ typedef struct ctext_font_load_info
     f32 scale;
     ccharset chset;
 } ctext_font_load_info;
-inline ctext_font_load_info ctext_font_load_info_init() {
+static inline ctext_font_load_info ctext_font_load_info_init() {
     return (ctext_font_load_info) {
         .fontPath = 0,
         .scale = 24.0f,

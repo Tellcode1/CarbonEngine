@@ -205,61 +205,6 @@ void ctext_load_font(crenderer_t *rd, const ctext_font_load_info *__restrict pIn
         writeSet.dstArrayElement = i;
         vkUpdateDescriptorSets(device, 1, &writeSet, 0, NULL);
     }
-
-    const VkVertexInputAttributeDescription attributeDescriptions[] = {
-        // location; binding; format; offset;
-        { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0 }, // pos
-        { 1, 0, VK_FORMAT_R32G32_SFLOAT, sizeof(vec3) }, // uv
-    };
-
-    const VkVertexInputBindingDescription bindingDescriptions[] = {
-        // binding; stride; inputRate
-        { 0, sizeof(vec3) + sizeof(vec2), VK_VERTEX_INPUT_RATE_VERTEX }
-    };
-
-    const VkPushConstantRange pushConstants[] = {
-        // stageFlags, offset, size
-        { VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4) + sizeof(f32) },
-    };
-
-    csm_shader_t *vertex, *fragment;
-    csm_load_shader("ctext/vert", &vertex);
-    csm_load_shader("ctext/frag", &fragment);
-
-    csm_shader_t * shaders[] = { vertex, fragment };
-    VkDescriptorSetLayout layouts[] = { rd->ctext->desc_Layout };
-
-    const cvk_pipeline_blend_state blend = cvk_init_pipeline_blend_state(CVK_BLEND_PRESET_ALPHA);
-
-    cvk_pipeline_create_info pc = cvk_init_pipeline_create_info();
-    pc.format = SwapChainImageFormat;
-    pc.subpass = 0;
-    pc.render_pass = crd_get_render_pass(rd);
-    pc.pipeline_layout = (*dst)->pipeline_layout;
-    
-    pc.nAttributeDescriptions = array_len(attributeDescriptions);
-    pc.pAttributeDescriptions = attributeDescriptions;
-
-    pc.nPushConstants = array_len(pushConstants);
-    pc.pPushConstants = pushConstants;
-
-    pc.nBindingDescriptions = array_len(bindingDescriptions);
-    pc.pBindingDescriptions = bindingDescriptions;
-
-    pc.nShaders = array_len(shaders);
-    pc.pShaders = (const struct csm_shader_t *const *)shaders;
-
-    pc.nDescriptorLayouts = array_len(layouts);
-    pc.pDescriptorLayouts = layouts;
-
-    const cg_extent2d RenderExtent = crd_get_render_extent(rd);
-    pc.extent.width = RenderExtent.width;
-    pc.extent.height = RenderExtent.height;
-    pc.blend_state = &blend;
-    pc.samples = Samples;
-    cvk_create_pipeline_layout(&pc, &(*dst)->pipeline_layout);
-    pc.pipeline_layout = (*dst)->pipeline_layout;
-    cvk_create_graphics_pipeline(&pc, &(*dst)->pipeline, CVK_PIPELINE_FLAGS_ENABLE_BLEND | CVK_PIPELINE_FLAGS_UNFORCE_CULLING);
 }
 
 void ctext_end_render(crenderer_t *rd, ccamera *camera, cfont_t *fnt, mat4 model)
@@ -278,19 +223,22 @@ void ctext_end_render(crenderer_t *rd, ccamera *camera, cfont_t *fnt, mat4 model
     pc.model = m4mul(cam_get_projection(camera), cam_get_view(camera));
     pc.scale = fnt->pixel_range;
 
+    const VkPipeline pipeline = rd->ctext->pipeline;
+    const VkPipelineLayout pipeline_layout = rd->ctext->pipeline_layout;
+
     vkCmdPushConstants(
         cmd,
-        fnt->pipeline_layout,
+        pipeline_layout,
         VK_SHADER_STAGE_VERTEX_BIT,
         0, sizeof(mat4) + sizeof(f32),
         &pc
     );
 
     // Viewport && scissor are set by renderer so no need to set them here
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, fnt->pipeline_layout, 0, 1, &rd->ctext->desc_set, 0, NULL);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1, &rd->ctext->desc_set, 0, NULL);
     vkCmdBindVertexBuffers(cmd, 0, 1, &fnt->buffer.vkbuffer, offsets);
     vkCmdBindIndexBuffer(cmd, fnt->buffer.vkbuffer, fnt->index_buffer_offset, VK_INDEX_TYPE_UINT32);
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, fnt->pipeline);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
     vkCmdDrawIndexed(cmd, fnt->index_count, 1, 0, 0, 0);
 }
 
@@ -636,20 +584,18 @@ void ctext_init(struct crenderer_t *rd)
     };
     cgfx_gpu_create_sampler(&sampler_info, &ctext->error_sampler);
 
-    VkImageViewCreateInfo viewInfo = {};
-    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    viewInfo.format = dummyImageFmt;
-    viewInfo.image = ctext->error_image.image;
-    viewInfo.components = (VkComponentMapping){ VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
-    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    viewInfo.subresourceRange.baseMipLevel = 0;
-    viewInfo.subresourceRange.levelCount = 1;
-    viewInfo.subresourceRange.baseArrayLayer = 0;
-    viewInfo.subresourceRange.layerCount = 1;
-    if (vkCreateImageView(device, &viewInfo, NULL, &ctext->error_image.view) != VK_SUCCESS) {
-        LOG_ERROR("Failed to create image view");
-    }
+    const cgfx_gpu_image_view_create_info view_info = {
+        .format = cfmt_conv_vkfmt_to_cfmt(dummyImageFmt),
+        .view_type = VK_IMAGE_VIEW_TYPE_2D,
+        .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        },
+    };
+    cgfx_gpu_create_image_view(&view_info, &ctext->error_image);
 
     const VkDescriptorImageInfo dummyImageInfo = {
         .sampler = ctext->error_sampler.vksampler,
@@ -657,17 +603,73 @@ void ctext_init(struct crenderer_t *rd)
         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     };
 
-    VkWriteDescriptorSet write_set = {};
-    write_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write_set.dstSet = ctext->desc_set;
-    write_set.dstBinding = 0;
-    write_set.descriptorCount = 1;
-    write_set.pImageInfo = &dummyImageInfo;
-    write_set.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    VkWriteDescriptorSet write_set = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = ctext->desc_set,
+        .dstBinding = 0,
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .pImageInfo = &dummyImageInfo,
+    };
     for (int i = 0; i < CTEXT_MAX_FONT_COUNT; i++) {
         write_set.dstArrayElement = i;
         vkUpdateDescriptorSets(device, 1, &write_set, 0, NULL);
     }
+
+        const VkVertexInputAttributeDescription attributeDescriptions[] = {
+        // location; binding; format; offset;
+        { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0 }, // pos
+        { 1, 0, VK_FORMAT_R32G32_SFLOAT, sizeof(vec3) }, // uv
+    };
+
+    const VkVertexInputBindingDescription bindingDescriptions[] = {
+        // binding; stride; inputRate
+        { 0, sizeof(vec3) + sizeof(vec2), VK_VERTEX_INPUT_RATE_VERTEX }
+    };
+
+    const VkPushConstantRange pushConstants[] = {
+        // stageFlags, offset, size
+        { VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4) + sizeof(f32) },
+    };
+
+    csm_shader_t *vertex, *fragment;
+    cassert(csm_load_shader("ctext/vert", &vertex) != -1);
+    cassert(csm_load_shader("ctext/frag", &fragment) != -1);
+
+    csm_shader_t * shaders[] = { vertex, fragment };
+    VkDescriptorSetLayout layouts[] = { rd->ctext->desc_Layout };
+
+    const cvk_pipeline_blend_state blend = cvk_init_pipeline_blend_state(CVK_BLEND_PRESET_ALPHA);
+
+    cvk_pipeline_create_info pc = cvk_init_pipeline_create_info();
+    pc.format = SwapChainImageFormat;
+    pc.subpass = 0;
+    pc.render_pass = crd_get_render_pass(rd);
+    pc.pipeline_layout = ctext->pipeline_layout;
+    
+    pc.nAttributeDescriptions = array_len(attributeDescriptions);
+    pc.pAttributeDescriptions = attributeDescriptions;
+
+    pc.nPushConstants = array_len(pushConstants);
+    pc.pPushConstants = pushConstants;
+
+    pc.nBindingDescriptions = array_len(bindingDescriptions);
+    pc.pBindingDescriptions = bindingDescriptions;
+
+    pc.nShaders = array_len(shaders);
+    pc.pShaders = (const struct csm_shader_t *const *)shaders;
+
+    pc.nDescriptorLayouts = array_len(layouts);
+    pc.pDescriptorLayouts = layouts;
+
+    const cg_extent2d RenderExtent = crd_get_render_extent(rd);
+    pc.extent.width = RenderExtent.width;
+    pc.extent.height = RenderExtent.height;
+    pc.blend_state = &blend;
+    pc.samples = Samples;
+    cvk_create_pipeline_layout(&pc, &ctext->pipeline_layout);
+    pc.pipeline_layout = ctext->pipeline_layout;
+    cvk_create_graphics_pipeline(&pc, &ctext->pipeline, CVK_PIPELINE_FLAGS_ENABLE_BLEND | CVK_PIPELINE_FLAGS_UNFORCE_CULLING);
 }
 
 void ctext__font_resize_buffer(cfont_t *fnt,  u32 new_buffer_size, u32 index_buffer_offset)

@@ -23,12 +23,14 @@ void cvk_create_graphics_pipeline( const cvk_pipeline_create_info *pCreateInfo, 
 		CVK_NOT_EQUAL_TO(pCreateInfo->samples, VK_SAMPLE_COUNT_1_BIT);
 	}
 
-	VkPipelineVertexInputStateCreateInfo vertexInputState = {};
-	vertexInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;	
-	vertexInputState.vertexAttributeDescriptionCount = pCreateInfo->nAttributeDescriptions;
-	vertexInputState.vertexBindingDescriptionCount = pCreateInfo->nBindingDescriptions;
-	vertexInputState.pVertexAttributeDescriptions = pCreateInfo->pAttributeDescriptions;
-	vertexInputState.pVertexBindingDescriptions = pCreateInfo->pBindingDescriptions;
+	VkPipelineVertexInputStateCreateInfo vertexInputState = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+
+		.vertexBindingDescriptionCount = pCreateInfo->nBindingDescriptions,
+		.pVertexBindingDescriptions = pCreateInfo->pBindingDescriptions,
+		.vertexAttributeDescriptionCount = pCreateInfo->nAttributeDescriptions,
+		.pVertexAttributeDescriptions = pCreateInfo->pAttributeDescriptions,
+	};
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = {};
 	inputAssemblyState.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -116,9 +118,7 @@ void cvk_create_graphics_pipeline( const cvk_pipeline_create_info *pCreateInfo, 
 	colorblendState.blendConstants[2] = 0.0f;
 	colorblendState.blendConstants[3] = 0.0f;
 
-	VkPipelineShaderStageCreateInfo *shader_infos = (VkPipelineShaderStageCreateInfo *)malloc(pCreateInfo->nShaders * sizeof(VkPipelineShaderStageCreateInfo));
-	memset(shader_infos, 0, pCreateInfo->nShaders * sizeof(VkPipelineShaderStageCreateInfo));
-
+	VkPipelineShaderStageCreateInfo *shader_infos = (VkPipelineShaderStageCreateInfo *)calloc(pCreateInfo->nShaders, sizeof(VkPipelineShaderStageCreateInfo));
 	for (int i = 0; i < pCreateInfo->nShaders; i++) {
 		shader_infos[i].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		shader_infos[i].stage = (VkShaderStageFlagBits)pCreateInfo->pShaders[i]->stage;
@@ -126,20 +126,22 @@ void cvk_create_graphics_pipeline( const cvk_pipeline_create_info *pCreateInfo, 
 		shader_infos[i].pName = "main";
 	}
 
-	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {};
-	graphicsPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	graphicsPipelineCreateInfo.stageCount = (u32)(pCreateInfo->nShaders);
-	graphicsPipelineCreateInfo.pStages = shader_infos;
-	graphicsPipelineCreateInfo.pVertexInputState = &vertexInputState;
-	graphicsPipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
-	graphicsPipelineCreateInfo.pViewportState = &viewportStateCreateInfo;
-	graphicsPipelineCreateInfo.pRasterizationState = &rasterizerPipelineStateCreateInfo;
-	graphicsPipelineCreateInfo.pMultisampleState = &multisamplerPipelineStageCreateInfo;
-	graphicsPipelineCreateInfo.pColorBlendState = &colorblendState;
-	graphicsPipelineCreateInfo.layout = pCreateInfo->pipeline_layout;
-	graphicsPipelineCreateInfo.renderPass = pCreateInfo->render_pass;
-	graphicsPipelineCreateInfo.subpass = pCreateInfo->subpass;
-	graphicsPipelineCreateInfo.basePipelineHandle = pCreateInfo->old_pipeline;
+	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {
+		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+		.stageCount = pCreateInfo->nShaders,
+		.pStages = shader_infos,
+		.pVertexInputState = &vertexInputState,
+		.pInputAssemblyState = &inputAssemblyState,
+		.pViewportState = &viewportStateCreateInfo,
+		.pRasterizationState = &rasterizerPipelineStateCreateInfo,
+		.pMultisampleState = &multisamplerPipelineStageCreateInfo,
+		.pColorBlendState = &colorblendState,
+		.layout = pCreateInfo->pipeline_layout,
+		.renderPass = pCreateInfo->render_pass,
+		.subpass = pCreateInfo->subpass,
+		.basePipelineHandle = pCreateInfo->old_pipeline,
+		.basePipelineIndex = 0, // ?
+	};
 
 	VkPipelineDynamicStateCreateInfo dynamicStateInfo = {};
 	const VkDynamicState dynamicStates[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };

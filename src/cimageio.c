@@ -82,10 +82,11 @@ cg_tex2D cimg_load_png(const char *path)
     texture.data = (unsigned char*)malloc(rowbytes * texture.h * channels);
     cassert(texture.data != NULL);
 
-    uint8_t **row_pointers = malloc(rowbytes * texture.h);
+    u8 **row_pointers = malloc(sizeof(u8 *) * texture.h);
     for (int y = 0; y < texture.h; y++) {
-        row_pointers[y] = texture.data + y * rowbytes;
+        row_pointers[y] = texture.data + (texture.h - 1 - y) * texture.w * cfmt_get_bytesperpixel(texture.fmt);
     }
+
     png_read_image(png, row_pointers);
 
     png_destroy_read_struct(&png, &info, NULL);
@@ -254,7 +255,7 @@ void cimg_write_png(const cg_tex2D *tex, const char *path)
 
     png_write_info(png, info);
 
-    png_bytep row_pointers[tex->h];
+    png_bytep *row_pointers = malloc(sizeof(png_byte *) * tex->h);
     for (int y = 0; y < tex->h; y++) {
         row_pointers[y] = tex->data + y * tex->w * bytesperpixel;
     }

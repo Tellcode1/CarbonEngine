@@ -28,13 +28,20 @@ extern int cg_hashmap_keysize(const cg_hashmap_t *map);
 extern int cg_hashmap_valuesize(const cg_hashmap_t *map);
 extern void *cg_hashmap_root_node(const cg_hashmap_t *map);
 
-/* WARNING: Doesn't replace the value if a key already exists!! Use cg_hashmap_insert_or_replace() */
+/*
+    WARNING: Doesn't replace the value if a key already exists!! Use cg_hashmap_insert_or_replace()
+    also, if key or value is a string (const char *, not a cg_string_t or something),
+    just pass in the const char *, not a pointer to it!!!
+*/
 extern void cg_hashmap_insert(cg_hashmap_t *map, const void *key, const void *value);
 
 extern void cg_hashmap_insert_or_replace(cg_hashmap_t *map, const void *key, void *value);
 
 /* returns NULL on no find */
 extern void *cg_hashmap_find(const cg_hashmap_t *map, const void *key);
+
+extern void cg_hashmap_serialize(cg_hashmap_t *map, FILE *f);
+extern void cg_hashmap_read(cg_hashmap_t *map, FILE *f);
 
 #ifdef __cplusplus
     }

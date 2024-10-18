@@ -51,51 +51,8 @@ static __attribute_maybe_unused__ VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessengerC
     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
     void* pUserData) {
 
-	cg_string_t *preceder = cg_string_init_str("[VkDBG]");
-	cg_string_t *succeeder = cg_string_init_str("\n");
+	printf("vkdebug: %s\n", pCallbackData->pMessage);
 
-	switch(messageSeverity)
-	{
-		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
-			cg_string_append(preceder, "[WARN]");
-			break;
-		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
-			cg_string_append(preceder, "[INFO]");
-			break;
-		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
-			cg_string_append(preceder, "[ERR]");
-			break;
-		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
-			cg_string_append(preceder, "[VERB]");
-			break;
-		default:
-			cg_string_append(preceder, "[UNKNOWN SEVERITY]");
-			break;
-	}
-
-	switch(messageType)
-	{
-		case VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT:
-			cg_string_append(preceder, "[GEN] ");
-			break;
-		case VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT:
-			cg_string_append(preceder, "[VALTION] ");
-			break;
-		case VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT:
-			cg_string_append(preceder, "[PERF] ");
-			break;
-		case VK_DEBUG_UTILS_MESSAGE_TYPE_DEVICE_ADDRESS_BINDING_BIT_EXT:
-			cg_string_append(preceder, "[ADDR BIND] ");
-			break;
-		default:
-			cg_string_append(preceder, "[UNKNOWN TYPE] ");
-			break;
-	}
-
-	printf("%s%s%s", cg_string_data(preceder), pCallbackData->pMessage, cg_string_data(succeeder));
-
-	cg_string_destroy(preceder);
-	cg_string_destroy(succeeder);
     return VK_FALSE;
 }
 

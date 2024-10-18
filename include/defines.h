@@ -25,11 +25,12 @@
         free(cpath);
         return out;
     }
-    #define cassert_and_ret(expr) if (!((bool)(expr))) { LOG_ERROR("[%s : ln %u] Assertion failed -> %s", __basename(__FILE__), __LINE__, #expr); return; }
-    #define cassert(expr) if (!((bool)(expr))) { LOG_AND_ABORT("[%s : ln %u] Assertion failed -> %s", __basename(__FILE__), __LINE__, #expr); }
+    #define cassert_and_ret(expr) if (!((bool)(expr))) { LOG_ERROR("[%s(%u)] Assertion failed -> %s", __basename(__FILE__), __LINE__, #expr); return; }
+    #define cassert(expr) if (!((bool)(expr))) { LOG_AND_ABORT("[%s(%u)] Assertion failed -> %s", __basename(__FILE__), __LINE__, #expr); }
 #else
-    #define cassert_and_ret(expr) expr
-    #define cassert(expr) expr
+    static inline const char *__basename(const char *path) { return NULL; }
+    #define cassert_and_ret(expr) (void)(expr)
+    #define cassert(expr) (void)(expr)
 #endif
 
 typedef uint64_t u64;

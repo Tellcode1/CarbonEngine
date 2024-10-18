@@ -61,7 +61,7 @@ cg_hashmap_t *cg_hashmap_init(int init_size, int keysize, int valuesize, cg_hash
 
     cg_hashmap_t *map = malloc(sizeof(struct cg_hashmap_t));
     cassert(map != NULL);
-    memset(map, 0, sizeof(struct cg_hashmap_t));
+    (*map) = (cg_hashmap_t){};
 
     if (init_size < 0) {
         init_size = 1;
@@ -249,4 +249,31 @@ void cg_hashmap_insert_or_replace(cg_hashmap_t *map, const void *key, void *valu
     memcpy(map->nodes[i]->value, value, map->valuesize);
     map->nodes[i]->is_occupied = 1;
     map->size++;
+}
+
+void cg_hashmap_serialize(cg_hashmap_t *map, FILE *f) {
+    const int key_size = map->keysize;
+    const int val_size = map->valuesize;
+
+    for (int i = 0; i < map->entries; i++) {
+        if (map->nodes[i] && map->nodes[i]->is_occupied) {
+            void *node_key = map->nodes[i]->key;
+            void *node_value = map->nodes[i]->value;
+
+            fwrite(node_value, val_size, 1, f);
+            fwrite(node_key, key_size, 1, f);
+        }
+    }
+}
+
+void cg_hashmap_read(cg_hashmap_t *map, FILE *f) {
+    void *key = malloc(map->keysize);
+    void *value = malloc(map->valuesize);
+
+    while (fread(value, map->valuesize, 1, f) == 1 && fread(key, map->keysize, 1, f) == 1) {
+        cg_hashmap_insert(map, key, value);
+    }
+
+    free(key);
+    free(value);
 }

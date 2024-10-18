@@ -15,12 +15,15 @@
 // * it shold be like cg_init_ctext(rd); and then you can just do crd_render_text(&info);
 typedef struct cg_ctext_module {
     // TODO Implement
+    // The pipeline should most likely be static
+    VkPipeline pipeline;
+    VkPipelineLayout pipeline_layout;
     VkDescriptorPool desc_pool;
     VkDescriptorSetLayout desc_Layout;
     VkDescriptorSet desc_set;
     cgfx_gpu_image_t error_image;
     cgfx_gpu_sampler_t error_sampler;
-    float model_matrix[4][4];
+    float model_matrix[4][4]; // what the hell?
 } cg_ctext_module;
 
 typedef struct crenderer_t
