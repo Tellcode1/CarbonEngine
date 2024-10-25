@@ -1,5 +1,5 @@
-#ifndef __C_INPUT_HPP__
-#define __C_INPUT_HPP__
+#ifndef __C_INPUT_H__
+#define __C_INPUT_H__
 
 #ifdef __cplusplus
     extern "C" {

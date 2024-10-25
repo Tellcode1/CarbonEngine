@@ -325,9 +325,9 @@ u8* vkh_image_from_disk( const char *path, u32 *width, u32 *height, VkFormat *ch
 
     *width = tex.w;
     *height = tex.h;
-    *channels = cfmt_conv_cfmt_to_vkfmt(tex.fmt);
+    *channels = tex.fmt;
 
-    vkh_image_from_mem(tex.data, tex.w, tex.h, *channels, cfmt_get_bytesperpixel(tex.fmt), dst, dstMem);
+    vkh_image_from_mem(tex.data, tex.w, tex.h, *channels, 4, dst, dstMem);
     return tex.data;
 }
 

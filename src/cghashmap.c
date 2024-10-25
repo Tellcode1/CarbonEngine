@@ -6,7 +6,7 @@
 typedef struct ch_node_t {
     void *key;
     void *value;
-    unsigned char is_occupied;
+    bool is_occupied;
 } ch_node_t;
 
 typedef struct cg_hashmap_t {
@@ -102,7 +102,7 @@ void cg_hashmap_destroy(cg_hashmap_t *map)
 void cg_hashmap_resize(cg_hashmap_t *map, int new_size)
 {
     ch_node_t **old_nodes = map->nodes;
-    int old_entries = map->entries;
+    const int old_entries = map->entries;
 
     if (new_size <= 0) {
         new_size = 1;
@@ -190,6 +190,7 @@ void *cg_hashmap_find(const cg_hashmap_t *map, const void *key)
 
 void cg_hashmap_insert(cg_hashmap_t *map, const void *key, const void *value)
 {
+    // the second check 
     if (!map->nodes || map->size >= (map->entries * 3) / 4) {
         // The check to whether map->entries is greater than 0 is already done in resize();
         cg_hashmap_resize(map, map->entries * 2);

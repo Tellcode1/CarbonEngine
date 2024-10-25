@@ -60,4 +60,4 @@ static __attribute_maybe_unused__ VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessengerC
 	}
 #endif
 
-#endif//__CENGINE_INIT_HPP
+#endif//__CENGINE_INIT_H

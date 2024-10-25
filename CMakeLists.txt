@@ -20,7 +20,7 @@ set(OUTPUT
 
 set(SOURCES
     src/main.c
-    src/cengine.cpp
+    src/cengine.c
     src/cengineinit.c
     src/cinput.c
     
@@ -47,6 +47,7 @@ target_compile_definitions(shadermanager PRIVATE CSM_EXECUTABLE=1)
 target_compile_options(shadermanager PRIVATE -O3 -g)
 
 set(LIBS
+    m
     volk
     SDL2
     freetype
@@ -56,7 +57,7 @@ set(LIBS
     box2d
 )
 
-target_link_options(${OUTPUT} PRIVATE -g -Wall -fopenmp -fpermissive)
-target_compile_options(${OUTPUT} PRIVATE -g -Wall -fopenmp -fpermissive)
+target_link_options(${OUTPUT} PRIVATE -g -Wall -fopenmp -O3)
+target_compile_options(${OUTPUT} PRIVATE -g -Wall -fopenmp -O3)
 target_compile_definitions(${OUTPUT} PRIVATE CSM_EXECUTABLE=0) # avoid making multiple main's 
 target_link_libraries(${OUTPUT} ${LIBS})

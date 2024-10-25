@@ -1,5 +1,5 @@
-#ifndef __C_TEXT_HPP__
-#define __C_TEXT_HPP__
+#ifndef __C_TEXT_H__
+#define __C_TEXT_H__
 
 #ifdef __cplusplus
     extern "C" {
@@ -36,36 +36,21 @@ typedef enum VertAlignment
     CTEXT_VERT_ALIGN_BOTTOM = 2,
 } VertAlignment;
 
-typedef enum ccharset {
-    CHARSET_ASCII = 0,
-    CHARSET_LATIN1_SUPPLEMENT,
-    CHARSET_LATIN_EXTENDED_A,
-    CHARSET_LATIN_EXTENDED_B,
-    CHARSET_GREEK_COPTIC,
-    CHARSET_CYRILLIC,
-    CHARSET_HEBREW,
-    CHARSET_ARABIC,
-    CHARSET_DEVANAGARI,
-    CHARSET_CJK,
-    CHARSET_HANGUL,
-    CHARSET_BASIC_EMOJI,
-    CHARSET_MATHEMATICAL_SYMBOLS,
-    CHARSET_PRIVATE_USE_AREA_A,
-    CHARSET_PRIVATE_USE_AREA_B
-} ccharset;
-
+// Since the hash is to be used for individual characters, we can expect
+// that there will only be one entry for each character.
 static inline unsigned ctext_hash(const void *key, int nbytes) {
     return *(char *)key;
 }
 
+// DEPRECATE THIS YOU FOOL
+// IT WAS ONLY MEANT FOR SIMPLE TESTING
 static const u32 CTEXT_MAX_FONT_COUNT = 8;
 typedef struct cfont_t cfont_t;
-
-typedef struct ctext_font_load_info ctext_font_load_info;
 
 typedef struct ctext_text_render_info {
     HoriAlignment horizontal;
     VertAlignment vertical;
+    vec4 color;
     vec3 position;
     f32 scale;
 } ctext_text_render_info;
@@ -75,7 +60,7 @@ typedef struct ctext_text_render_info {
 extern void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo, const char *fmt, ...);
 extern void ctext_init(struct crenderer_t *rd);
 
-extern void ctext_load_font(crenderer_t *rd, const ctext_font_load_info* pInfo, cfont_t **dst);
+extern void ctext_load_font(crenderer_t *rd, const char *font_path, f32 scale, cfont_t **dst);
 
 extern void ctext_begin_render(crenderer_t *rd, cfont_t *fnt);
 extern void ctext_end_render(crenderer_t *rd, ccamera *camera, cfont_t *fnt, mat4 model);
@@ -118,20 +103,6 @@ typedef struct cfont_t
 } cfont_t;
 
 void ctext__font_resize_buffer(cfont_t *fnt,  u32 new_buffer_size, u32 index_buffer_offset);
-
-typedef struct ctext_font_load_info
-{
-    const char *fontPath;
-    f32 scale;
-    ccharset chset;
-} ctext_font_load_info;
-static inline ctext_font_load_info ctext_font_load_info_init() {
-    return (ctext_font_load_info) {
-        .fontPath = 0,
-        .scale = 24.0f,
-        .chset = CHARSET_ASCII
-    };
-}
 
 #ifdef __cplusplus
     }

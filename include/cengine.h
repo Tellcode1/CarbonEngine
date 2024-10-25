@@ -1,5 +1,5 @@
-#ifndef __C_ENGINE_HPP__
-#define __C_ENGINE_HPP__
+#ifndef __C_ENGINE_H__
+#define __C_ENGINE_H__
 
 #ifdef __cplusplus
     extern "C" {
@@ -66,4 +66,4 @@ extern void cg_update();
     }
 #endif
 
-#endif // __C_ENGINE_HPP__
+#endif // __C_ENGINE_H__

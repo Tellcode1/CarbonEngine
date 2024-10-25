@@ -36,7 +36,7 @@ typedef struct cgfx_gpu_buffer_t {
 } cgfx_gpu_buffer_t;
 
 typedef struct cgfx_gpu_image_create_info {
-    cg_format format;
+    VkFormat format;
     cg_sample_count samples;
     VkImageType type;
     VkImageUsageFlags usage;
@@ -46,7 +46,7 @@ typedef struct cgfx_gpu_image_create_info {
 } cgfx_gpu_image_create_info;
 
 typedef struct cgfx_gpu_image_view_create_info {
-    cg_format format; // May be CFMT_UNKNOWN for automatic fetching of format from image
+    VkFormat format; // May be VK_FORMAT_UNDEFINED for automatic fetching of format from image
     VkImageViewType view_type;
     VkImageSubresourceRange subresourceRange;
 } cgfx_gpu_image_view_create_info;
@@ -59,7 +59,7 @@ typedef struct cgfx_gpu_image_t {
     VkImageView view;
     VkExtent3D extent;
     int miplevels, arraylayers;
-    cg_format format;
+    VkFormat format;
     cg_sample_count samples;
     bool_t is_cubemap, is_render_texture;
 } cgfx_gpu_image_t;
@@ -178,7 +178,7 @@ static inline void cgfx_gpu_create_image(const cgfx_gpu_image_create_info *pInfo
     imageCreateInfo.extent = pInfo->extent;
     imageCreateInfo.mipLevels = pInfo->miplevels;
     imageCreateInfo.arrayLayers = pInfo->arraylayers;
-    imageCreateInfo.format = cfmt_conv_cfmt_to_vkfmt(pInfo->format);
+    imageCreateInfo.format = pInfo->format;
     imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     imageCreateInfo.usage = pInfo->usage;
@@ -191,13 +191,17 @@ static inline void cgfx_gpu_create_image(const cgfx_gpu_image_create_info *pInfo
 
 // vkimage is fetched from image!
 static inline void cgfx_gpu_create_image_view(const cgfx_gpu_image_view_create_info *pInfo, cgfx_gpu_image_t *image) {
-    const cg_format dst_format = (pInfo->format != CFMT_UNKNOWN) ? pInfo->format : image->format;
+    const VkFormat dst_format = (pInfo->format != VK_FORMAT_UNDEFINED) ? pInfo->format : image->format;
     VkImageViewCreateInfo view_info = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image = image->image,
         .viewType = pInfo->view_type,
-        .format = cfmt_conv_cfmt_to_vkfmt(dst_format),
-        .subresourceRange = pInfo->subresourceRange
+        .format = dst_format,
+        .subresourceRange = pInfo->subresourceRange,
+        .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
     };
     cassert(vkCreateImageView(device, &view_info, NULL, &image->view) == VK_SUCCESS);
 }

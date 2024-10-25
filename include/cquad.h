@@ -1,5 +1,5 @@
-#ifndef __C_MESH_HPP__
-#define __C_MESH_HPP__
+#ifndef __C_MESH_H__
+#define __C_MESH_H__
 
 #include <stdio.h>
 #include "defines.h"
@@ -75,7 +75,7 @@ cmesh_t *load_mesh(const char *texpath, crenderer_t *rd) {
         // texpath = "../Assets/empty.png";
         texpath = "../Assets/barrel.png";
     }
-    // ! FIXME: implement yadayada
+    // implement what??? I forgot lmao
     cmesh_t *mesh = (cmesh_t *)malloc(sizeof(cmesh_t));
     mesh->index_count = array_len(ccube_indices);
 
@@ -148,7 +148,7 @@ cmesh_t *load_mesh(const char *texpath, crenderer_t *rd) {
     vkh_image_from_disk(texpath, &w, &h, &channels, &mesh->texture.image, &mesh->texture_memory.memory);
 
     cgfx_gpu_image_view_create_info view_info = {
-        .format = cfmt_conv_vkfmt_to_cfmt(channels),
+        .format = channels,
         .view_type = VK_IMAGE_VIEW_TYPE_2D,
         .subresourceRange = (VkImageSubresourceRange) {
             .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -166,16 +166,16 @@ cmesh_t *load_mesh(const char *texpath, crenderer_t *rd) {
         { 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &mesh->sampler.vksampler },
     };
 
-    const VkDescriptorPoolSize poolSizes[] = {
+    VkDescriptorPoolCreateInfo poolInfo = {};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+
+    poolInfo.pPoolSizes = (VkDescriptorPoolSize[]) {
         // type; descriptorCount;
         { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 10 },
         { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 10 },
     };
+    poolInfo.poolSizeCount = 2;
 
-    VkDescriptorPoolCreateInfo poolInfo = {};
-    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.pPoolSizes = poolSizes;
-    poolInfo.poolSizeCount = array_len(poolSizes);
     poolInfo.maxSets = 1;
     if (vkCreateDescriptorPool(device, &poolInfo, NULL, &mesh->descpool) != VK_SUCCESS)
         LOG_ERROR("Failed to create descriptor pool");
@@ -194,18 +194,20 @@ cmesh_t *load_mesh(const char *texpath, crenderer_t *rd) {
     if (vkAllocateDescriptorSets(device, &setAllocInfo, &mesh->set) != VK_SUCCESS)
         LOG_ERROR("Failed to allocate descriptor sets");
 
-    VkDescriptorBufferInfo bufferinfo = {};
-    bufferinfo.buffer = mesh->ub;
-    bufferinfo.offset = 0;
-    bufferinfo.range = sizeof(ubdata);
+    VkDescriptorBufferInfo bufferinfo = {
+        .buffer = mesh->ub,
+        .offset = 0,
+        .range = sizeof(ubdata)
+    };
 
-    VkWriteDescriptorSet write = {};
-    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    write.pBufferInfo = &bufferinfo;
-    write.dstSet = mesh->set;
-    write.descriptorCount = 1;
-    write.dstBinding = 0;
+    VkWriteDescriptorSet write = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = mesh->set,
+        .dstBinding = 0,
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .pBufferInfo = &bufferinfo,
+    };
     vkUpdateDescriptorSets(device, 1, &write, 0, NULL);
 
     const VkDescriptorImageInfo image_desc_info = {
@@ -214,7 +216,6 @@ cmesh_t *load_mesh(const char *texpath, crenderer_t *rd) {
         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     };
 
-    write.pBufferInfo = NULL;
     write.pImageInfo = &image_desc_info;
     write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     write.dstBinding = 1;
@@ -281,4 +282,4 @@ static void render(crenderer_t *rd, ccamera *camera, cmesh_t *mesh) {
     vkCmdDrawIndexed(cmd, mesh->index_count, 1, 0, 0, 0);
 }
 
-#endif//__C_MESH_HPP__
+#endif//__C_MESH_H__

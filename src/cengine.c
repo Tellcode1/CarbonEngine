@@ -19,9 +19,14 @@ u64 cg_frame_time = 0;
 bool_t cg_framebuffer_resized = 0;
 bool_t cg_application_running = 1;
 
+static u64 currtime;
+
 void cg_initialize_context(const char *window_title, int window_width, int window_height)
 {
     ctx_initialize(window_title, window_width, window_height);
+
+    // This fixes really large values of delta time for the first frame.
+    currtime = SDL_GetPerformanceCounter();
 }
 
 void cg_consume_event(const SDL_Event *event)
@@ -36,11 +41,9 @@ void cg_consume_event(const SDL_Event *event)
 void cg_update() {
     cg_time = (f64)SDL_GetTicks64() * (1.0 / 1000.0);
 
-    // This fixes really large values of delta time for the first frame.
-    static u64 currtime = SDL_GetPerformanceCounter();
     cg_last_frame_time = currtime;
     currtime = SDL_GetPerformanceCounter();
-    cg_delta_time = fdiv(currtime - cg_last_frame_time, SDL_GetPerformanceFrequency());
+    cg_delta_time = (currtime - cg_last_frame_time) / (double)SDL_GetPerformanceFrequency();
 
     // ! FIXME: fixed update is not fixed (sorry)
     cinput_update();

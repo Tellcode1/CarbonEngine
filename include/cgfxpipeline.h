@@ -20,21 +20,27 @@ typedef struct cgfxcamera {
     cgfx_render_texture render_texture;
     VkFramebuffer framebuffer;
     VkRenderPass pass;
-    cg_format fmt;
+    VkFormat fmt;
     cg_extent2d extent;
 } cgfxcamera;
 
-typedef enum cgfx_descriptor_type {
-    CGFX_DESCRIPTOR_TYPE_UNKNOWN = 0,
-    CGFX_DESCRIPTOR_TYPE_UNIFORM_BUFFER = 1,
-    CGFX_DESCRIPTOR_TYPE_SS_BUFFER = 2,
-    CGFX_DESCRIPTOR_TYPE_IMAGE = 3,
-} cgfx_descriptor_type;
+typedef struct cgfx_descriptor {
+    VkDescriptorType type;
+    int binding, array_index;
+    const char *name;
+} cgfx_descriptor;
+
+typedef struct cgfx_descriptor_set {
+    VkDescriptorSet set;
+    VkDescriptorSetLayout layout;
+    cgfx_descriptor *descriptors;
+    int ndescriptors;
+} cgfx_descriptor_set;
 
 // should be like cgfx_update_descriptors("pootis", CGFX_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &uniform_buffer);
 typedef struct cgfx_descriptor_t {
     const char *name;
-    cgfx_descriptor_type type;
+    VkDescriptorType type;
     int binding;
     int set;
     uchar data[ sizeof(void *) ]; // enough to hold one handle
@@ -42,7 +48,7 @@ typedef struct cgfx_descriptor_t {
 
 typedef struct cgfx_pipeline_t {
     const char *name;
-    cg_format format;
+    VkFormat format;
     cgfx_descriptor_t descriptors[ CGFX_MAX_DESCRIPTORS_PER_SHADER ];
     csm_shader_t shaders[ CGFX_MAX_SHADERS_PER_PIPELINE ];
     int nshaders, ndescriptors;

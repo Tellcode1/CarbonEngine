@@ -1,5 +1,5 @@
-#ifndef __C_CAMERA_HPP__
-#define __C_CAMERA_HPP__
+#ifndef __C_CAMERA_H__
+#define __C_CAMERA_H__
 
 #include "stdafx.h"
 #include "vkstdafx.h"
@@ -106,4 +106,4 @@ static inline void cam_update(ccamera *cam, struct crenderer_t *rd) {
     cam->projection = m4perspective(cam->fov, aspect, cam->near_clip, cam->far_clip);
 }
 
-#endif//__C_CAMERA_HPP__
+#endif//__C_CAMERA_H__

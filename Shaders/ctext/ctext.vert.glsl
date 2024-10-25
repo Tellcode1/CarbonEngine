@@ -16,6 +16,9 @@ layout(push_constant) uniform push_constant
 layout(location=0) out
 vec2 f_uv;
 
+layout(location=1) out
+vec4 f_col;
+
 void main() {
     gl_Position = pc.pc_model * vec4(v_vertices, 1.0);
     f_uv = v_uv;

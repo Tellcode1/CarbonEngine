@@ -9,6 +9,8 @@ extern "C" {
     #define CSM_EXECUTABLE 0
 #endif
 
+typedef struct csm_pipeline csm_pipeline;
+
 extern void csm_compile_updated();
 extern void csm_compile_all();
 

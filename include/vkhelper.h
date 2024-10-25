@@ -1,5 +1,5 @@
-#ifndef __VKH_HPP
-#define __VKH_HPP
+#ifndef __VKH_H
+#define __VKH_H
 
 #ifdef __cplusplus
     extern "C" {
@@ -45,4 +45,4 @@ extern void vkh_files_load_binary( const char* path, u8* dst, u32* dstSize);
     }
 #endif
 
-#endif//__VKH_HPP
+#endif//__VKH_H

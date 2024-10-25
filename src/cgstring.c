@@ -1,22 +1,24 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../../include/defines.h"
-#include "../../include/cgstring.h"
+#include "../include/defines.h"
+#include "../include/cgstring.h"
+
+#include "../include/cgcontstdafx.h"
 
 static void cg_string_resize(cg_string_t *str, int new_capacity) {
-    char *new_data = realloc(str->data, new_capacity);
+    char *new_data = cg_cont_realloc(str->data, new_capacity);
     cassert(new_data != NULL);
     str->data = new_data;
     str->capacity = new_capacity;
 }
 
 cg_string_t *cg_string_init(int initial_size) {
-    cg_string_t *str = malloc(sizeof(cg_string_t));
+    cg_string_t *str = cg_cont_alloc(sizeof(cg_string_t));
     cassert(str != NULL);
     
     str->capacity = initial_size > 0 ? initial_size : 1;
-    str->data = malloc(str->capacity);
+    str->data = cg_cont_alloc(str->capacity);
     cassert(str->data != NULL);
     
     str->data[0] = '\0';
@@ -26,12 +28,12 @@ cg_string_t *cg_string_init(int initial_size) {
 
 cg_string_t *cg_string_init_str(const char *init) {
     cassert(init != NULL && strlen(init) > 0);
-    cg_string_t *str = malloc(sizeof(cg_string_t));
+    cg_string_t *str = cg_cont_alloc(sizeof(cg_string_t));
     cassert(str != NULL);
     
     int len = strlen(init);
     str->capacity = len + 1;
-    str->data = malloc(str->capacity);
+    str->data = cg_cont_alloc(str->capacity);
     cassert(str->data != NULL);
     
     strcpy(str->data, init);
@@ -55,8 +57,8 @@ cg_string_t *cg_string_substring(const cg_string_t *str, int start, int length) 
 
 void cg_string_destroy(cg_string_t *str) {
     if (str) {
-        free(str->data);
-        free(str);
+        cg_cont_free(str->data);
+        cg_cont_free(str);
     }
 }
 
@@ -68,14 +70,17 @@ void cg_string_clear(cg_string_t *str) {
 }
 
 int cg_string_length(const cg_string_t *str) {
+    cassert(str != NULL);
     return str->length;
 }
 
 int cg_string_capacity(const cg_string_t *str) {
+    cassert(str != NULL);
     return str->capacity;
 }
 
 const char *cg_string_data(const cg_string_t *str) {
+    cassert(str != NULL);
     return str->data;
 }
 
@@ -101,7 +106,7 @@ void cg_string_append_char(cg_string_t *str, char suffix) {
 
     str->data[str->length] = suffix;
     str->length++;
-    str->data[str->length] = '\0';  // Null terminate the string
+    str->data[str->length] = '\0';
 }
 
 void cg_string_prepend(cg_string_t *str, const char *prefix) {

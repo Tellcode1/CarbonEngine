@@ -16,7 +16,7 @@ catlas_t catlas_init(int init_w, int init_h)
     return atlas;
 }
 
-bool_t catlas_add_image(catlas_t *__restrict__ atlas, int w, int h, const unsigned char *__restrict__ data, int *x, int *y)
+bool_t catlas_add_image(catlas_t *__restrict__ atlas, int w, int h, const unsigned char *__restrict__ data, int *__restrict__ x, int *__restrict__ y)
 {
     const int padding = 4;
     const int prev_h = atlas->height, prev_w = atlas->width;

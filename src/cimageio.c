@@ -67,10 +67,10 @@ cg_tex2D cimg_load_png(const char *path)
     int channels = png_get_channels(png, info);
 
     switch (channels) {
-        case 1: texture.fmt = CFMT_R8_UNORM; break;
-        case 2: texture.fmt = CFMT_RG8_UNORM; break;
-        case 3: texture.fmt = CFMT_RGB8_UNORM; break;
-        case 4: texture.fmt = CFMT_RGBA8_UNORM; break;
+        case 1: texture.fmt = VK_FORMAT_R8_UNORM; break;
+        case 2: texture.fmt = VK_FORMAT_R8G8_UNORM; break;
+        case 3: texture.fmt = VK_FORMAT_R8G8B8_UNORM; break;
+        case 4: texture.fmt = VK_FORMAT_R8G8B8A8_UNORM; break;
         default:
             printf("unsupported file(png) format: channels = %d\n", channels);
             cassert(0);
@@ -84,7 +84,8 @@ cg_tex2D cimg_load_png(const char *path)
 
     u8 **row_pointers = malloc(sizeof(u8 *) * texture.h);
     for (int y = 0; y < texture.h; y++) {
-        row_pointers[y] = texture.data + (texture.h - 1 - y) * texture.w * cfmt_get_bytesperpixel(texture.fmt);
+        // ! Figure out the bpp for vk format :D
+        row_pointers[y] = texture.data + (texture.h - 1 - y) * texture.w * channels; // REPLACE
     }
 
     png_read_image(png, row_pointers);
@@ -123,10 +124,10 @@ cg_tex2D cimg_load_jpg(const char *path)
 
     switch (channels) {
         case 1:
-            img.fmt = CFMT_R8_UNORM;
+            img.fmt = VK_FORMAT_R8_UNORM;
             break;
         case 3:
-            img.fmt = CFMT_RGB8_UNORM;
+            img.fmt = VK_FORMAT_R8G8B8_UNORM;
             break;
         default:
             printf("invalid num channels: %d\n", channels);
@@ -169,88 +170,89 @@ void cimg_write_png(const cg_tex2D *tex, const char *path)
 
     int coltype = -1;
     switch (tex->fmt) {
-        case CFMT_R8_UNORM:
-        case CFMT_R8_SNORM:
-        case CFMT_R8_UINT:
-        case CFMT_R8_SINT:
+        case VK_FORMAT_R8_UNORM:
+        case VK_FORMAT_R8_SNORM:
+        case VK_FORMAT_R8_UINT:
+        case VK_FORMAT_R8_SINT:
             coltype = PNG_COLOR_TYPE_GRAY;
             break;
-        case CFMT_RG8_UNORM:
-        case CFMT_RG8_SNORM:
-        case CFMT_RG8_UINT:
-        case CFMT_RG8_SINT:
+        case VK_FORMAT_R8G8_UNORM:
+        case VK_FORMAT_R8G8_SNORM:
+        case VK_FORMAT_R8G8_UINT:
+        case VK_FORMAT_R8G8_SINT:
             coltype = PNG_COLOR_TYPE_GA;
             break;
-        case CFMT_RGB8_UNORM:
-        case CFMT_RGB8_SNORM:
+        case VK_FORMAT_R8G8B8_UNORM:
+        case VK_FORMAT_R8G8B8_SNORM:
             coltype = PNG_COLOR_TYPE_RGB;
             break;
-        case CFMT_RGBA8_UNORM:
-        case CFMT_RGBA8_SNORM:
-        case CFMT_RGBA8_UINT:
-        case CFMT_RGBA8_SINT:
-        case CFMT_SRGB8_ALPHA8:
+        case VK_FORMAT_R8G8B8A8_UNORM:
+        case VK_FORMAT_R8G8B8A8_SNORM:
+        case VK_FORMAT_R8G8B8A8_UINT:
+        case VK_FORMAT_R8G8B8A8_SINT:
+        case VK_FORMAT_R8G8B8A8_SRGB:
             coltype = PNG_COLOR_TYPE_RGBA;
             break;
-        case CFMT_R16_UNORM:
-        case CFMT_R16_SNORM:
-        case CFMT_R16_UINT:
-        case CFMT_R16_SINT:
-        case CFMT_R16_FLOAT:
+        case VK_FORMAT_R16_UNORM:
+        case VK_FORMAT_R16_SNORM:
+        case VK_FORMAT_R16_UINT:
+        case VK_FORMAT_R16_SINT:
+        case VK_FORMAT_R16_SFLOAT:
             coltype = PNG_COLOR_TYPE_GRAY;
             break;
-        case CFMT_RG16_UNORM:
-        case CFMT_RG16_SNORM:
-        case CFMT_RG16_UINT:
-        case CFMT_RG16_SINT:
-        case CFMT_RG16_FLOAT:
+        case VK_FORMAT_R16G16_UNORM:
+        case VK_FORMAT_R16G16_SNORM:
+        case VK_FORMAT_R16G16_UINT:
+        case VK_FORMAT_R16G16_SINT:
+        case VK_FORMAT_R16G16_SFLOAT:
             coltype = PNG_COLOR_TYPE_GA;
             break;
-        case CFMT_RGB16_UNORM:
-        case CFMT_RGB16_SNORM:
-        case CFMT_RGB16_UINT:
-        case CFMT_RGB16_SINT:
-        case CFMT_RGB16_FLOAT:
+        case VK_FORMAT_R16G16B16_UNORM:
+        case VK_FORMAT_R16G16B16_SNORM:
+        case VK_FORMAT_R16G16B16_UINT:
+        case VK_FORMAT_R16G16B16_SINT:
+        case VK_FORMAT_R16G16B16_SFLOAT:
             coltype = PNG_COLOR_TYPE_RGB;
             break;
-        case CFMT_RGBA16_UNORM:
-        case CFMT_RGBA16_SNORM:
-        case CFMT_RGBA16_UINT:
-        case CFMT_RGBA16_SINT:
-        case CFMT_RGBA16_FLOAT:
+        case VK_FORMAT_R16G16B16A16_UNORM:
+        case VK_FORMAT_R16G16B16A16_SNORM:
+        case VK_FORMAT_R16G16B16A16_UINT:
+        case VK_FORMAT_R16G16B16A16_SINT:
+        case VK_FORMAT_R16G16B16A16_SFLOAT:
             coltype = PNG_COLOR_TYPE_RGBA;
             break;
-        case CFMT_R32_UINT:
-        case CFMT_R32_SINT:
-        case CFMT_R32_FLOAT:
+        case VK_FORMAT_R32_UINT:
+        case VK_FORMAT_R32_SINT:
+        case VK_FORMAT_R32_SFLOAT:
             coltype = PNG_COLOR_TYPE_GRAY;
             break;
-        case CFMT_RG32_UINT:
-        case CFMT_RG32_SINT:
-        case CFMT_RG32_FLOAT:
+        case VK_FORMAT_R32G32_UINT:
+        case VK_FORMAT_R32G32_SINT:
+        case VK_FORMAT_R32G32_SFLOAT:
             coltype = PNG_COLOR_TYPE_GA;
             break;
-        case CFMT_RGB32_UINT:
-        case CFMT_RGB32_SINT:
-        case CFMT_RGB32_FLOAT:
+        case VK_FORMAT_R32G32B32_UINT:
+        case VK_FORMAT_R32G32B32_SINT:
+        case VK_FORMAT_R32G32B32_SFLOAT:
             coltype = PNG_COLOR_TYPE_RGB;
             break;
-        case CFMT_RGBA32_UINT:
-        case CFMT_RGBA32_SINT:
-        case CFMT_RGBA32_FLOAT:
+        case VK_FORMAT_R32G32B32A32_UINT:
+        case VK_FORMAT_R32G32B32A32_SINT:
+        case VK_FORMAT_R32G32B32A32_SFLOAT:
             coltype = PNG_COLOR_TYPE_RGBA;
             break;
-        case CFMT_D16_UNORM:
-        case CFMT_D32_FLOAT:
-        case CFMT_D24_UNORM_S8_UINT:
-        case CFMT_D32_FLOAT_S8_UINT:
+        case VK_FORMAT_D16_UNORM:
+        case VK_FORMAT_D32_SFLOAT:
+        case VK_FORMAT_D24_UNORM_S8_UINT:
+        case VK_FORMAT_D32_SFLOAT_S8_UINT:
         default:
             coltype = -1;
             break;
         break;
     }
 
-    const int bytesperpixel = cfmt_get_bytesperpixel(tex->fmt);
+    // ! REPLACE
+    const int bytesperpixel = vk_fmt_get_bpp(tex->fmt);
     png_set_IHDR(png, info, tex->w, tex->h, bytesperpixel * 8, coltype, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
 
     png_write_info(png, info);

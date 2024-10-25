@@ -1,3 +1,6 @@
+#include <stdlib.h>
+#include <math.h>
+
 #include "../include/defines.h"
 #include "../include/stdafx.h"
 #include "../include/cengine.h"
@@ -6,7 +9,7 @@
 #include "../include/cgstring.h"
 
 #include "../include/camera.h"
-// #include "../include/mesh.hpp"
+// #include "../include/mesh.H"
 #include "../include/cquad.h"
 
 #include "../include/cimage.h"
@@ -52,11 +55,11 @@ int main(int argc, char *argv[]) {
     cg_initialize_context("kilometers per second (edgy)(im cool now ok?)", 800, 600);
 
     crenderer_config rdconf = crender_config_init();
-    rdconf.vsync_enabled = 1;
-    rdconf.buffer_mode = CG_BUFFER_MODE_SINGLE_BUFFERED;
+    rdconf.vsync_enabled = 0;
+    rdconf.buffer_mode = CG_BUFFER_MODE_TRIPLE_BUFFERED;
     rdconf.window_resizable = 0;
-    rdconf.multisampling_enable = 0;
-    rdconf.samples = CG_SAMPLE_COUNT_1_SAMPLES;
+    rdconf.multisampling_enable = 1;
+    rdconf.samples = CG_SAMPLE_COUNT_4_SAMPLES;
     crenderer_t *rd = crenderer_init(&rdconf);
 
     // * get a better name for this
@@ -70,11 +73,7 @@ int main(int argc, char *argv[]) {
     u32 numFrames = 0;
 
     cfont_t *amongus;
-    ctext_font_load_info infoo = ctext_font_load_info_init();
-    infoo.fontPath = "../Assets/roboto.ttf";
-    infoo.chset = CHARSET_ASCII;
-    infoo.scale = 32.0f;
-    ctext_load_font(rd, &infoo, &amongus);
+    ctext_load_font(rd, "../Assets/roboto.ttf", 32.0f, &amongus);
 
     int curr_showing_fps = 0;
 
@@ -114,7 +113,6 @@ int main(int argc, char *argv[]) {
         const float speed = 16.0f;
         b2Vec2 body_add = (b2Vec2){0.0f,0.0f};
 
-        bool_t moved = 0;
         if (cinput_is_key_held(SDL_SCANCODE_A))
             body_add.x -= 1.0f;
         if (cinput_is_key_held(SDL_SCANCODE_D))
@@ -127,18 +125,11 @@ int main(int argc, char *argv[]) {
             vec2 *body_add_v = ((vec2 *)&body_add);
             *body_add_v = v2muls(v2normalize(*body_add_v), speed);
             b2Body_SetLinearVelocity(player.player_id, *((b2Vec2 *)body_add_v));
-            moved = 1;
         }
 
-        {
-            b2World_Step(worldId, timeStep, subStepCount);
-            b2Vec2 player_position = b2Body_GetPosition(player.player_id);
-            mesh->transform.position = (vec3){ player_position.x, player_position.y, 0.0f };
-        }
-
-        if (moved) {
-            b2Body_SetLinearVelocity(player.player_id, (b2Vec2){ 0.0f, b2Body_GetLinearVelocity(player.player_id).y });
-        }
+        b2World_Step(worldId, timeStep, subStepCount);
+        b2Vec2 player_position = b2Body_GetPosition(player.player_id);
+        mesh->transform.position = (vec3){ player_position.x, player_position.y, 0.0f };
 
         SDL_Event event;
         while(SDL_PollEvent(&event)) {
@@ -146,7 +137,7 @@ int main(int argc, char *argv[]) {
         }
 
         // Profiling code
-        totalTime += cg_get_delta_time();
+        totalTime += dt;
         numFrames++;
         if (totalTime >= updateTime) {
             curr_showing_fps = ceilf(numFrames / totalTime);
@@ -165,6 +156,7 @@ int main(int argc, char *argv[]) {
             info.vertical = CTEXT_VERT_ALIGN_TOP;
             info.scale = 1.0f;
             info.position = (vec3){-1.0f, -1.0f, 0.0f};
+            info.color = (vec4){1.0f,1.0f,1.0f,1.0f};
             ctext_render(amongus, &info, "%u %s frames", curr_showing_fps, "joosy");
             
             info.horizontal = CTEXT_HORI_ALIGN_CENTER;
@@ -178,8 +170,6 @@ int main(int argc, char *argv[]) {
             render(rd, &camera, ground);
 
             crd_end_render(rd);
-        } else {
-            LOG_INFO("Skipped a frame!");
         }
     }
 

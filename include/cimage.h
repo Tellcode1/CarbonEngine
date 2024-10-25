@@ -9,7 +9,7 @@
 
 typedef struct cg_tex2D {
     int w, h;
-    cg_format fmt;
+    VkFormat fmt;
     unsigned char *data;
 } cg_tex2D;
 
