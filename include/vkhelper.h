@@ -24,7 +24,7 @@ extern VkCommandBuffer vkh_cmd_begin();
 /* WARNING: waitForExecution = false implies you take responsibility of freeing the commandBuffer! */
 extern VkResult vkh_cmd_end( VkCommandBuffer cmd, VkQueue queue, bool waitForExecution);
 
-extern void vkh_stage_image_transfer( VkImage dst, void* data, u32 width, u32 height, u32 channels);
+extern void vkh_stage_image_transfer(VkImage dst, const void* data, int width, int height);
 
 extern void vkh_image_from_mem( u8 *buffer, u32 width, u32 height, VkFormat format, u32 channels, VkImage *dst, VkDeviceMemory *dstMem);
 extern u8* vkh_image_from_disk( const char *path, u32 *width, u32 *height, VkFormat *channels, VkImage *dst, VkDeviceMemory *dstMem);

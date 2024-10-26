@@ -208,34 +208,38 @@ void vkh_files_load_binary( const char* path, u8* dst, u32* dstSize) {
     fclose(f);
 }
 
-void vkh_stage_image_transfer( VkImage dst, void *data, u32 width, u32 height, u32 channels)
+void vkh_stage_image_transfer( VkImage dst, const void *data, int width, int height)
 {
     VkBuffer stagingBuffer = VK_NULL_HANDLE;
     VkDeviceMemory stagingBufferMemory = VK_NULL_HANDLE;
 
-    VkBufferCreateInfo stagingBufferInfo = {};
-    stagingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    stagingBufferInfo.size = width * height * channels;
-    stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    stagingBufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    VkMemoryRequirements mem_req;
+    vkGetImageMemoryRequirements(device, dst, &mem_req);
+
+    const VkBufferCreateInfo stagingBufferInfo = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .size = mem_req.size,
+        .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+    };
 
     vkCreateBuffer(device, &stagingBufferInfo, NULL, &stagingBuffer);
 
     VkMemoryRequirements stagingBufferRequirements;
     vkGetBufferMemoryRequirements(device, stagingBuffer, &stagingBufferRequirements);
 
-    VkMemoryAllocateInfo stagingBufferAllocInfo = {};
-    stagingBufferAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    stagingBufferAllocInfo.allocationSize = stagingBufferRequirements.size;
-    stagingBufferAllocInfo.memoryTypeIndex = vkh_get_mem_type(stagingBufferRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    const VkMemoryAllocateInfo stagingBufferAllocInfo = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .allocationSize = stagingBufferRequirements.size,
+        .memoryTypeIndex = vkh_get_mem_type(stagingBufferRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+    };
 
     vkAllocateMemory(device, &stagingBufferAllocInfo, NULL, &stagingBufferMemory);
     vkBindBufferMemory(device, stagingBuffer, stagingBufferMemory, 0);
 
     void *stagingBufferMapped;
-    if (vkMapMemory(device, stagingBufferMemory, 0, width * height * channels, 0, &stagingBufferMapped) != VK_SUCCESS)
-        LOG_ERROR("Failed to map staging buffer memory!");
-    memcpy(stagingBufferMapped, data, width * height * channels);
+    cassert(vkMapMemory(device, stagingBufferMemory, 0, mem_req.size, 0, &stagingBufferMapped) == VK_SUCCESS);
+    memcpy(stagingBufferMapped, data, mem_req.size);
     vkUnmapMemory(device, stagingBufferMemory);
 
     const VkCommandBuffer cmd = vkh_cmd_begin(device);
@@ -273,7 +277,7 @@ void vkh_stage_image_transfer( VkImage dst, void *data, u32 width, u32 height, u
 void vkh_image_from_mem( u8 *buffer, u32 width, u32 height, VkFormat format, u32 channels, VkImage *dst, VkDeviceMemory *dstMem)
 {
     vkh_image_create_empty(width, height, format, VK_SAMPLE_COUNT_1_BIT, channels, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, NULL, dst, dstMem);
-    vkh_stage_image_transfer(*dst, buffer, width, height, channels);
+    vkh_stage_image_transfer(*dst, buffer, width, height);
 }
 
 void vkh_image_create_empty( u32 width, u32 height, VkFormat format, VkSampleCountFlagBits samples, u32 channels, VkImageUsageFlags usage, int *image_size, VkImage *dst, VkDeviceMemory *dstMem)

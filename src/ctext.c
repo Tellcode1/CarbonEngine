@@ -145,7 +145,7 @@ void ctext_load_font(crenderer_t *rd, const char *font_path, f32 scale, cfont_t 
     cgfx_gpu_memory_allocate(imageMemoryRequirements.size, CGFX_MEMORY_USAGE_GPU_LOCAL, &(*dst)->texture_mem);
     cgfx_gpu_memory_bind_image(&(*dst)->texture_mem, 0, &(*dst)->texture);
 
-    vkh_stage_image_transfer((*dst)->texture.image, (*dst)->atlas.data, (*dst)->atlas.width, (*dst)->atlas.height, 1);
+    vkh_stage_image_transfer((*dst)->texture.image, (*dst)->atlas.data, (*dst)->atlas.width, (*dst)->atlas.height);
 
     const cgfx_gpu_sampler_create_info sampler_info = {
         .filter = VK_FILTER_LINEAR,

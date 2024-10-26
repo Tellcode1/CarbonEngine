@@ -13,6 +13,8 @@
 #include "math/mat.h"
 
 #include "cimage.h"
+#include "sprite.h"
+#include "undescriptorset.h"
 
 #include "../external/box2d/include/box2d/box2d.h"
 
@@ -34,23 +36,15 @@ typedef struct cmesh_t {
     VkBuffer vb;
     VkDeviceMemory vbm;
 
-    VkBuffer ib;
-    VkDeviceMemory ibm;
-
-    VkBuffer ub;
-    VkDeviceMemory ubm;
     void *ubmapped;
 
     cgfx_gpu_sampler_t sampler;
-    cgfx_gpu_image_t texture;
-    cgfx_gpu_memory_t texture_memory;
+    sprite_t *spr;
 
     VkPipeline pipeline;
     VkPipelineLayout pipeline_layout;
 
-    VkDescriptorPool descpool;
-    VkDescriptorSet set;
-    VkDescriptorSetLayout setlayout;
+    undescriptorset set;
 
     int index_count;
     b2BodyId body;
@@ -83,13 +77,17 @@ typedef struct body_parameters {
     f32 restitution;
 } body_parameters;
 
-cmesh_t *load_mesh(const char *texpath, body_parameters *body, crenderer_t *rd) {
-    if (texpath == NULL) {
-        // texpath = "../Assets/empty.png";
-        texpath = "../Assets/barrel.png";
-    }
-    // implement what??? I forgot lmao
+int align_up(int size, int alignment) {
+    return (size + alignment - 1) & ~(alignment - 1);
+}
+
+cmesh_t *load_mesh(sprite_t *spr, body_parameters *body, crenderer_t *rd) {
     cmesh_t *mesh = (cmesh_t *)malloc(sizeof(cmesh_t));
+    if (spr == NULL) {
+        mesh->spr = sprite_empty;
+    } else {
+        mesh->spr = spr;
+    }
     mesh->index_count = array_len(ccube_indices);
 
     mesh->transform.position = (vec3){ body->position.x, body->position.y, 0.0f };
@@ -99,37 +97,25 @@ cmesh_t *load_mesh(const char *texpath, body_parameters *body, crenderer_t *rd) 
     const int cvertexsize = sizeof(ccube_vertices);
     const int indexsize = sizeof(ccube_indices);
 
+    VkPhysicalDeviceProperties properties;
+    vkGetPhysicalDeviceProperties(physDevice, &properties);
+
+    const int ub_alignment = properties.limits.minUniformBufferOffsetAlignment;
+
     vkh_buffer_create(
-        cvertexsize,
-        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+        align_up(cvertexsize + indexsize, ub_alignment) + sizeof(ubdata),
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
         &mesh->vb, &mesh->vbm, 0
     );
 
-    vkh_buffer_create(
-        indexsize,
-        VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        &mesh->ib, &mesh->ibm, 0
-    );
-
-    vkh_buffer_create(
-        sizeof(ubdata),
-        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        &mesh->ub, &mesh->ubm, 0
-    );
-
-    vkMapMemory(device, mesh->ubm, 0, sizeof(ubdata), 0, &mesh->ubmapped);
-
     void *mapped;
-    vkMapMemory(device, mesh->vbm, 0, cvertexsize, 0, &mapped);
+    vkMapMemory(device, mesh->vbm, 0, cvertexsize + indexsize, 0, &mapped);
     memcpy(mapped, ccube_vertices, cvertexsize);
+    memcpy(mapped + cvertexsize, ccube_indices, indexsize);
     vkUnmapMemory(device, mesh->vbm);
 
-    vkMapMemory(device, mesh->ibm, 0, indexsize, 0, &mapped);
-    memcpy(mapped, ccube_indices, indexsize);
-    vkUnmapMemory(device, mesh->ibm);
+    vkMapMemory(device, mesh->vbm, align_up(cvertexsize + indexsize, ub_alignment), sizeof(ubdata), 0, &mesh->ubmapped);
 
     const VkVertexInputAttributeDescription attributeDescriptions[] = {
         // location; binding; format; offset;
@@ -153,69 +139,22 @@ cmesh_t *load_mesh(const char *texpath, body_parameters *body, crenderer_t *rd) 
     };
     cgfx_gpu_create_sampler(&sampler_info, &mesh->sampler);
 
-    u32 w, h;
-    VkFormat channels;
-
-    // ! FIXME: what.
-    // ! maybe write a wrapper that supports cgfx_gpu_image or whatever.
-    vkh_image_from_disk(texpath, &w, &h, &channels, &mesh->texture.image, &mesh->texture_memory.memory);
-
-    cgfx_gpu_image_view_create_info view_info = {
-        .format = channels,
-        .view_type = VK_IMAGE_VIEW_TYPE_2D,
-        .subresourceRange = (VkImageSubresourceRange) {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .baseMipLevel = 0,
-            .levelCount = 1,
-            .baseArrayLayer = 0,
-            .layerCount = 1
-        }
-    };
-    cgfx_gpu_create_image_view(&view_info, &mesh->texture);
-
     const VkDescriptorSetLayoutBinding bindings[] = {
         // binding; descriptorType; descriptorCount; stageFlags; pImmutableSamplers;
         { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, NULL },
         { 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &mesh->sampler.vksampler },
     };
-
-    VkDescriptorPoolCreateInfo poolInfo = {};
-    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-
-    poolInfo.pPoolSizes = (VkDescriptorPoolSize[]) {
-        // type; descriptorCount;
-        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 10 },
-        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 10 },
-    };
-    poolInfo.poolSizeCount = 2;
-
-    poolInfo.maxSets = 1;
-    if (vkCreateDescriptorPool(device, &poolInfo, NULL, &mesh->descpool) != VK_SUCCESS)
-        LOG_ERROR("Failed to create descriptor pool");
-
-    VkDescriptorSetLayoutCreateInfo layoutinfo = {};
-    layoutinfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutinfo.pBindings = bindings;
-    layoutinfo.bindingCount = array_len(bindings);
-    vkCreateDescriptorSetLayout(device, &layoutinfo, NULL, &mesh->setlayout);
-    
-    VkDescriptorSetAllocateInfo setAllocInfo = {};
-    setAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    setAllocInfo.descriptorPool = mesh->descpool;
-    setAllocInfo.descriptorSetCount = 1;
-    setAllocInfo.pSetLayouts = &mesh->setlayout;
-    if (vkAllocateDescriptorSets(device, &setAllocInfo, &mesh->set) != VK_SUCCESS)
-        LOG_ERROR("Failed to allocate descriptor sets");
+    create_undescriptor_set(&mesh->set, bindings, array_len(bindings));
 
     VkDescriptorBufferInfo bufferinfo = {
-        .buffer = mesh->ub,
-        .offset = 0,
+        .buffer = mesh->vb,
+        .offset = align_up(cvertexsize + indexsize, ub_alignment),
         .range = sizeof(ubdata)
     };
 
     VkWriteDescriptorSet write = {
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet = mesh->set,
+        .dstSet = mesh->set.set,
         .dstBinding = 0,
         .descriptorCount = 1,
         .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -225,7 +164,7 @@ cmesh_t *load_mesh(const char *texpath, body_parameters *body, crenderer_t *rd) 
 
     const VkDescriptorImageInfo image_desc_info = {
         .sampler = mesh->sampler.vksampler,
-        .imageView = mesh->texture.view,
+        .imageView = sprite_get_internal_view(mesh->spr),
         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     };
 
@@ -241,7 +180,7 @@ cmesh_t *load_mesh(const char *texpath, body_parameters *body, crenderer_t *rd) 
     cassert(cvertex != NULL && fragment != NULL);
 
     const csm_shader_t *shaders[] = { cvertex, fragment };
-    const VkDescriptorSetLayout layouts[] = { mesh->setlayout };
+    const VkDescriptorSetLayout layouts[] = { mesh->set.layout };
 
     const cg_extent2d RenderExtent = crd_get_render_extent(rd);
     cvk_pipeline_create_info pc = cvk_init_pipeline_create_info();
@@ -300,16 +239,16 @@ static void render(crenderer_t *rd, ccamera *camera, cmesh_t *mesh) {
     mat4 translation = m4translate(m4init(1.0f), mesh->transform.position);
     ubdata ub = {};
     ub.model = m4mul(scaling,  m4mul(rotation, translation));
-    ub.projection = cam_get_projection(camera);
     ub.view = cam_get_view(camera);
+    ub.projection = cam_get_projection(camera);
     memcpy(mesh->ubmapped, &ub, sizeof(ubdata));
 
     const VkDeviceSize offsets[1] = {};
 
     const VkCommandBuffer cmd = crd_get_drawbuffer(rd);
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, mesh->pipeline_layout, 0, 1, &mesh->set, 0, NULL);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, mesh->pipeline_layout, 0, 1, &mesh->set.set, 0, NULL);
     vkCmdBindVertexBuffers(cmd, 0, 1, &mesh->vb, offsets);
-    vkCmdBindIndexBuffer(cmd, mesh->ib, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdBindIndexBuffer(cmd, mesh->vb, sizeof(ccube_vertices), VK_INDEX_TYPE_UINT32);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, mesh->pipeline);
     vkCmdDrawIndexed(cmd, mesh->index_count, 1, 0, 0, 0);
 }

@@ -14,8 +14,7 @@
 
 #include "../include/cimage.h"
 
-#define GROUND_LAYER 0
-#define PLAYER_LAYER 1
+#include "../include/world.h"
 
 typedef struct player_t {
     int anim_frame;
@@ -29,7 +28,7 @@ player_t player_init(crenderer_t *rd, b2WorldId *world_id) {
 
     body_parameters params = {
         .world = *world_id,
-        .position = (vec2){0.0f, 4.0f},
+        .position = (vec2){0.0f, 10.0f},
         .scale = (vec2){1.0f, 1.0f},
         .type = b2_dynamicBody,
         .density = 1.0f,
@@ -40,6 +39,41 @@ player_t player_init(crenderer_t *rd, b2WorldId *world_id) {
     player.player_id = player.mesh->body;
 
     return player;
+}
+
+void player_handle_input(player_t *player, cmesh_t *ground) {
+    bool jump = 0;
+    const float speed = 16.0f;
+    b2Vec2 body_add = (b2Vec2){0.0f,0.0f};
+
+    const b2Vec2 body_velocity = b2Body_GetLinearVelocity(player->player_id);
+    if (body_velocity.x > -10.0f && cinput_is_key_held(SDL_SCANCODE_A))
+        body_add.x -= 1.0f;
+    if (body_velocity.x < 10.0f && cinput_is_key_held(SDL_SCANCODE_D))
+        body_add.x += 1.0f;
+    if (cinput_is_key_pressed(SDL_SCANCODE_SPACE)) {
+        const float rayLength = 1.0f;
+        b2Vec2 rayStart = b2Body_GetPosition(player->player_id);
+        b2Vec2 rayEnd = b2Add(rayStart, (b2Vec2){0.0f, -rayLength});
+        const b2RayCastInput input = {
+            .maxFraction = 1.0f,
+            .origin = rayStart,
+            .translation = (b2Vec2){ 0.0f, -1.0f, }
+        };
+        b2ShapeId player_shape;
+        b2Body_GetShapes(ground->body, &player_shape, 1);
+        b2CastOutput out = b2Shape_RayCast(player_shape, &input);
+        if (out.hit) {
+            jump = 1;
+        }
+    }
+    if (body_add.x != 0.0f || body_add.y != 0.0f || jump) {
+        body_add = b2MulSV(speed, b2Normalize(body_add));
+        if (jump) {
+            body_add.y += 30.0f;
+        }
+        b2Body_ApplyLinearImpulseToCenter(player->player_id, body_add, 1);
+    }
 }
 
 int main(int argc, char *argv[]) {
@@ -78,7 +112,7 @@ int main(int argc, char *argv[]) {
 
     body_parameters params = {
         .world = worldId,
-        .position = (vec2){0.0f, -5.0f},
+        .position = (vec2){0.0f, -0.0f},
         .scale = (vec2){(f32)INT16_MAX, 1.0f},
         .type = b2_staticBody,
         .density = 1.0f,
@@ -92,6 +126,25 @@ int main(int argc, char *argv[]) {
     const float timeStep = 1.0f / 60.0f;
     const int subStepCount = 4;
 
+    block_t world[ WORLD_W * WORLD_H ];
+    for (int j = 0; j < WORLD_H; j++) {
+        for (int i = 0; i < WORLD_W; i++) {
+            block_t *block = &world[j * WORLD_W + i];
+            block->x = 0;
+            block->y = 0;
+            body_parameters params = {
+                .world = worldId,
+                .position = (vec2){(f32)i, (f32)j},
+                .scale = (vec2){1.0f, 1.0f},
+                .type = b2_staticBody,
+                .density = 1.0f,
+                .friction = 1.0f,
+                .restitution = 0.0f,
+            };
+            block->mesh = load_mesh(sprite_empty, &params, rd);
+        }
+    }
+
     // What in the unholy f%$ where you doing
     LOG_DEBUG("Initialized in %ld ms (%.3f s)", SDL_GetTicks64(), SDL_GetTicks64() / 1000.0f);
     while(cg_running())
@@ -99,38 +152,7 @@ int main(int argc, char *argv[]) {
         cg_update();
         const double dt = cg_get_delta_time();
 
-        bool jump = 0;
-        const float speed = 16.0f;
-        b2Vec2 body_add = (b2Vec2){0.0f,0.0f};
-
-        const b2Vec2 body_velocity = b2Body_GetLinearVelocity(player.player_id);
-        if (body_velocity.x > -10.0f && cinput_is_key_held(SDL_SCANCODE_A))
-            body_add.x -= 1.0f;
-        if (body_velocity.x < 10.0f && cinput_is_key_held(SDL_SCANCODE_D))
-            body_add.x += 1.0f;
-        if (cinput_is_key_pressed(SDL_SCANCODE_SPACE)) {
-            const float rayLength = 1.0f;
-            b2Vec2 rayStart = b2Body_GetPosition(player.player_id);
-            b2Vec2 rayEnd = b2Add(rayStart, (b2Vec2){0.0f, -rayLength});
-            const b2RayCastInput input = {
-                .maxFraction = 1.0f,
-                .origin = rayStart,
-                .translation = (b2Vec2){ 0.0f, -1.0f, }
-            };
-            b2ShapeId player_shape;
-            b2Body_GetShapes(ground->body, &player_shape, 1);
-            b2CastOutput out = b2Shape_RayCast(player_shape, &input);
-            if (out.hit) {
-                jump = 1;
-            }
-        }
-        if (body_add.x != 0.0f || body_add.y != 0.0f || jump) {
-            body_add = b2MulSV(speed, b2Normalize(body_add));
-            if (jump) {
-                body_add.y += 30.0f;
-            }
-            b2Body_ApplyLinearImpulseToCenter(player.player_id, body_add, 1);
-        }
+        player_handle_input(&player, ground);
 
         accumulator += dt;
         while (accumulator >= timeStep) {
@@ -179,6 +201,12 @@ int main(int argc, char *argv[]) {
             render(rd, &camera, player.mesh);
             render(rd, &camera, ground);
 
+            for (int j = 0; j < WORLD_H; j++) {
+            for (int i = 0; i < WORLD_W; i++) {
+                block_t *block = &world[j * WORLD_W + i];
+                render(rd, &camera, block->mesh);
+            }
+        }
             crd_end_render(rd);
         }
     }

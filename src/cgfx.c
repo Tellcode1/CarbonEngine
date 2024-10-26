@@ -12,6 +12,8 @@
 
 #include "../include/cdevicememory.h"
 
+#include "../include/sprite.h"
+
 #include <SDL2/SDL_vulkan.h>
 
 VkInstance instance = NULL;
@@ -222,7 +224,6 @@ void create_framebuffers_and_swapchain_image_views(crenderer_t *rd) {
 crenderer_t *crenderer_init( const crenderer_config *conf)
 {
     struct crenderer_t *rd = (crenderer_t *)calloc(1, sizeof(struct crenderer_t));
-    device = device;
 
     memcpy(&rd->config, conf, sizeof(crenderer_config));
 
@@ -389,6 +390,8 @@ crenderer_t *crenderer_init( const crenderer_config *conf)
         vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->image_available_semaphore);
         vkCreateFence(device, &fenceCreateInfo, NULL, &data->in_flight_fence);
 	}
+
+    sprite_empty = sprite_load_disk("../Assets/empty.png");
 
     return rd;
 }

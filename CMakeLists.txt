@@ -34,6 +34,7 @@ set(SOURCES
     src/containersunity.c
 
     src/cimageio.c
+    src/sprite.c
 )
 
 add_library(spirv-reflect STATIC ${CMAKE_SOURCE_DIR}/external/SPIRV-Reflect/spirv_reflect.c)
