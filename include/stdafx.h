@@ -17,42 +17,57 @@
 
 #define DEBUG
 
-#define __LOG()     va_list args; \
-                    va_start(args, fmt); \
-                    vfprintf(stderr, preceder, args); \
-                    vfprintf(stderr, fmt, args); \
-                    vfprintf(stderr, succeeder, args); \
-                    va_end(args)
+static inline void __CG_LOG(va_list args, const char *succeeder, const char *preceder, const char *str, unsigned char err) {
+    FILE *out = (err) ? stderr : stdout;
+    vfprintf(out, preceder, args);
+    vfprintf(out, str, args);
+    vfprintf(out, succeeder, args);
+}
 
 static inline void LOG_ERROR(const char * fmt, ...) {
     const char * preceder = "error: ";
     const char * succeeder = "\n";
-    __LOG();
+    va_list args;
+    va_start(args, fmt);
+    __CG_LOG(args, succeeder, preceder, fmt, 1);
+    va_end(args);
 }
 
 static inline void LOG_AND_ABORT(const char * fmt, ...) {
     const char * preceder = "fatal error: ";
     const char * succeeder = "\nabort.\n";
-    __LOG();
+    va_list args;
+    va_start(args, fmt);
+    __CG_LOG(args, succeeder, preceder, fmt, 1);
+    va_end(args);
     abort();
 }
 
 static inline void LOG_WARNING(const char * fmt, ...) {
     const char * preceder =  "warning: ";
     const char * succeeder = "\n";
-    __LOG();
+    va_list args;
+    va_start(args, fmt); 
+    __CG_LOG(args, succeeder, preceder, fmt, 0);
+    va_end(args);
 }
 
 static inline void LOG_INFO(const char * fmt, ...) {
     const char * preceder =  "info: ";
     const char * succeeder = "\n";
-    __LOG();
+    va_list args;
+    va_start(args, fmt); 
+    __CG_LOG(args, succeeder, preceder, fmt, 0);
+    va_end(args);
 }
 
 static inline void LOG_DEBUG(const char * fmt, ...) {
     const char * preceder =  "debug: ";
     const char * succeeder = "\n";
-    __LOG();
+    va_list args;
+    va_start(args, fmt); 
+    __CG_LOG(args, succeeder, preceder, fmt, 0);
+    va_end(args);
 }
 
 #undef __LOG

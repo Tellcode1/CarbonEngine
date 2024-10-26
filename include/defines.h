@@ -20,10 +20,12 @@
 #ifndef NDEBUG
     //  ISO C++ doesn't allow conversion of __FILE__ to a char * (its a const char *).
     static inline const char *__basename(const char *path) {
-        char *cpath = strdup(path);
-        const char *out = basename(cpath);
-        free(cpath);
-        return out;
+        char *ret = strrchr(path, '/');
+        if (ret) {
+            return ret + 1;
+        } else {
+            return path;
+        }
     }
     #define cassert_and_ret(expr) if (!((bool)(expr))) { LOG_ERROR("[%s(%u)] Assertion failed -> %s", __basename(__FILE__), __LINE__, #expr); return; }
     #define cassert(expr) if (!((bool)(expr))) { LOG_AND_ABORT("[%s(%u)] Assertion failed -> %s", __basename(__FILE__), __LINE__, #expr); }

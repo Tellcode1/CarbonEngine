@@ -36,7 +36,7 @@ typedef u32 cvk_pipeline_flags;
 #define CVK_ResultCheck(func) __cvk_resultFunc(func, __basename(__FILE__), __PRETTY_FUNCTION__, __LINE__)
 
 static void __cvk_defaultResultCheckFunc(const VkResult result, const char *FILE, const char *FUNC, unsigned long LINE) {
-	if (result != VK_SUCCESS) LOG_ERROR("In file %s:\n        In function %s at line %lu:\n        Function returned error code %i", FILE, FUNC, LINE, result);
+	if (result != VK_SUCCESS) LOG_ERROR("[%s:%lu] %s: func returned %i", FILE, LINE, FUNC, result);
 }
 
 /*

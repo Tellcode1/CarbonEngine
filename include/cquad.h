@@ -14,6 +14,8 @@
 
 #include "cimage.h"
 
+#include "../external/box2d/include/box2d/box2d.h"
+
 typedef struct Transform {
     vec3 position;
     vec3 scale;
@@ -51,6 +53,7 @@ typedef struct cmesh_t {
     VkDescriptorSetLayout setlayout;
 
     int index_count;
+    b2BodyId body;
 } cmesh_t;
 
 typedef struct cvertex {
@@ -70,7 +73,17 @@ static const u32 ccube_indices[6] = {
     0, 1, 2,   2, 3, 0,
 };
 
-cmesh_t *load_mesh(const char *texpath, crenderer_t *rd) {
+typedef struct body_parameters {
+    b2WorldId world;
+    vec2 position;
+    vec2 scale;
+    b2BodyType type;
+    f32 density;
+    f32 friction;
+    f32 restitution;
+} body_parameters;
+
+cmesh_t *load_mesh(const char *texpath, body_parameters *body, crenderer_t *rd) {
     if (texpath == NULL) {
         // texpath = "../Assets/empty.png";
         texpath = "../Assets/barrel.png";
@@ -79,9 +92,9 @@ cmesh_t *load_mesh(const char *texpath, crenderer_t *rd) {
     cmesh_t *mesh = (cmesh_t *)malloc(sizeof(cmesh_t));
     mesh->index_count = array_len(ccube_indices);
 
-    mesh->transform.position = (vec3){};
+    mesh->transform.position = (vec3){ body->position.x, body->position.y, 0.0f };
     mesh->transform.rotation = (vec3){};
-    mesh->transform.scale = (vec3){ 1.0f, 1.0f, 0.0f };
+    mesh->transform.scale = (vec3){ body->scale.x, body->scale.y, 0.0f };
 
     const int cvertexsize = sizeof(ccube_vertices);
     const int indexsize = sizeof(ccube_indices);
@@ -257,6 +270,25 @@ cmesh_t *load_mesh(const char *texpath, crenderer_t *rd) {
     cvk_create_pipeline_layout(&pc, &mesh->pipeline_layout);
     pc.pipeline_layout = mesh->pipeline_layout;
     cvk_create_graphics_pipeline(&pc, &mesh->pipeline, 0);
+
+    b2BodyDef bodyDef = b2DefaultBodyDef();
+    bodyDef.type = body->type;
+    bodyDef.position = (b2Vec2){body->position.x, body->position.y};
+    bodyDef.fixedRotation = 1;
+    b2BodyId body_id = b2CreateBody(body->world, &bodyDef);
+
+    b2Polygon dynamicBox = b2MakeBox(body->scale.x, body->scale.y);
+
+    b2ShapeDef shapeDef = b2DefaultShapeDef();
+    shapeDef.density = body->density;
+    shapeDef.friction = body->friction;
+    shapeDef.restitution = body->restitution;
+    b2CreatePolygonShape(body_id, &shapeDef, &dynamicBox);
+
+    mesh->body = body_id;
+
+    b2Vec2 temp = b2Body_GetPosition(body_id);
+    mesh->transform.position = (vec3){temp.x, temp.y, 0.0f};
 
     return mesh;
 }

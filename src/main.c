@@ -14,39 +14,32 @@
 
 #include "../include/cimage.h"
 
-#include "../external/box2d/include/box2d/box2d.h"
+#define GROUND_LAYER 0
+#define PLAYER_LAYER 1
 
 typedef struct player_t {
     int anim_frame;
     cmesh_t *mesh;
     b2BodyId player_id;
+    bool is_on_ground;
 } player_t;
 
 player_t player_init(crenderer_t *rd, b2WorldId *world_id) {
     player_t player = {};
-    player.mesh = load_mesh(NULL, rd);
 
-    b2BodyDef bodyDef = b2DefaultBodyDef();
-    bodyDef.type = b2_dynamicBody;
-    bodyDef.position = (b2Vec2){0.0f, 4.0f};
-    bodyDef.fixedRotation = 1;
-    b2BodyId player_id = b2CreateBody(*world_id, &bodyDef);
-
-    b2Polygon dynamicBox = b2MakeBox(1.0f, 1.0f);
-
-    b2ShapeDef shapeDef = b2DefaultShapeDef();
-    shapeDef.density = 1.0f;
-    shapeDef.friction = 0.7f;
-    shapeDef.restitution = 0.0f;
-    b2CreatePolygonShape(player_id, &shapeDef, &dynamicBox);
-
-    player.player_id = player_id;
+    body_parameters params = {
+        .world = *world_id,
+        .position = (vec2){0.0f, 4.0f},
+        .scale = (vec2){1.0f, 1.0f},
+        .type = b2_dynamicBody,
+        .density = 1.0f,
+        .friction = 1.0f,
+        .restitution = 0.0f,
+    };
+    player.mesh = load_mesh(NULL, &params, rd );
+    player.player_id = player.mesh->body;
 
     return player;
-}
-
-void player_move(player_t *player, vec2 v) {
-    b2Body_ApplyLinearImpulseToCenter(player->player_id, (b2Vec2){ v.x, v.y }, 1);
 }
 
 int main(int argc, char *argv[]) {
@@ -55,8 +48,8 @@ int main(int argc, char *argv[]) {
     cg_initialize_context("kilometers per second (edgy)(im cool now ok?)", 800, 600);
 
     crenderer_config rdconf = crender_config_init();
-    rdconf.vsync_enabled = 0;
-    rdconf.buffer_mode = CG_BUFFER_MODE_TRIPLE_BUFFERED;
+    rdconf.vsync_enabled = 1;
+    rdconf.buffer_mode = CG_BUFFER_MODE_DOUBLE_BUFFERED;
     rdconf.window_resizable = 0;
     rdconf.multisampling_enable = 1;
     rdconf.samples = CG_SAMPLE_COUNT_4_SAMPLES;
@@ -77,29 +70,25 @@ int main(int argc, char *argv[]) {
 
     int curr_showing_fps = 0;
 
-    cmesh_t *mesh = load_mesh(NULL, rd);
-    cmesh_t *ground = load_mesh(NULL, rd);
-
-    ground->transform.scale.x = 100.0f;
-    ground->transform.position.y = -5.0f;
-
     ccamera camera = ccamera_init();
 
     b2WorldDef worldDef = b2DefaultWorldDef();
     worldDef.gravity = (b2Vec2){ 0.0f, -9.8f };
     b2WorldId worldId = b2CreateWorld(&worldDef);
 
-    b2BodyDef groundBodyDef = b2DefaultBodyDef();
-    groundBodyDef.position = (b2Vec2){ground->transform.position.x, ground->transform.position.y};
-    b2BodyId groundId = b2CreateBody(worldId, &groundBodyDef);
-
-    b2Polygon groundBox = b2MakeBox(ground->transform.scale.x / 2.0f, ground->transform.scale.y / 2.0f);
-
-    b2ShapeDef groundShapeDef = b2DefaultShapeDef();
-    b2CreatePolygonShape(groundId, &groundShapeDef, &groundBox);
-
+    body_parameters params = {
+        .world = worldId,
+        .position = (vec2){0.0f, -5.0f},
+        .scale = (vec2){(f32)INT16_MAX, 1.0f},
+        .type = b2_staticBody,
+        .density = 1.0f,
+        .friction = 1.0f,
+        .restitution = 0.0f,
+    };
+    cmesh_t *ground = load_mesh(NULL, &params, rd);
     player_t player = player_init(rd, &worldId);
 
+    float accumulator = 0.0f;
     const float timeStep = 1.0f / 60.0f;
     const int subStepCount = 4;
 
@@ -110,26 +99,47 @@ int main(int argc, char *argv[]) {
         cg_update();
         const double dt = cg_get_delta_time();
 
+        bool jump = 0;
         const float speed = 16.0f;
         b2Vec2 body_add = (b2Vec2){0.0f,0.0f};
 
-        if (cinput_is_key_held(SDL_SCANCODE_A))
+        const b2Vec2 body_velocity = b2Body_GetLinearVelocity(player.player_id);
+        if (body_velocity.x > -10.0f && cinput_is_key_held(SDL_SCANCODE_A))
             body_add.x -= 1.0f;
-        if (cinput_is_key_held(SDL_SCANCODE_D))
+        if (body_velocity.x < 10.0f && cinput_is_key_held(SDL_SCANCODE_D))
             body_add.x += 1.0f;
-        if (cinput_is_key_held(SDL_SCANCODE_W))
-            body_add.y += 1.0f;
-        if (cinput_is_key_held(SDL_SCANCODE_S))
-            body_add.y -= 1.0f;
-        if (body_add.x != 0.0f || body_add.y != 0.0f) {
-            vec2 *body_add_v = ((vec2 *)&body_add);
-            *body_add_v = v2muls(v2normalize(*body_add_v), speed);
-            b2Body_SetLinearVelocity(player.player_id, *((b2Vec2 *)body_add_v));
+        if (cinput_is_key_pressed(SDL_SCANCODE_SPACE)) {
+            const float rayLength = 1.0f;
+            b2Vec2 rayStart = b2Body_GetPosition(player.player_id);
+            b2Vec2 rayEnd = b2Add(rayStart, (b2Vec2){0.0f, -rayLength});
+            const b2RayCastInput input = {
+                .maxFraction = 1.0f,
+                .origin = rayStart,
+                .translation = (b2Vec2){ 0.0f, -1.0f, }
+            };
+            b2ShapeId player_shape;
+            b2Body_GetShapes(ground->body, &player_shape, 1);
+            b2CastOutput out = b2Shape_RayCast(player_shape, &input);
+            if (out.hit) {
+                jump = 1;
+            }
+        }
+        if (body_add.x != 0.0f || body_add.y != 0.0f || jump) {
+            body_add = b2MulSV(speed, b2Normalize(body_add));
+            if (jump) {
+                body_add.y += 30.0f;
+            }
+            b2Body_ApplyLinearImpulseToCenter(player.player_id, body_add, 1);
         }
 
-        b2World_Step(worldId, timeStep, subStepCount);
-        b2Vec2 player_position = b2Body_GetPosition(player.player_id);
-        mesh->transform.position = (vec3){ player_position.x, player_position.y, 0.0f };
+        accumulator += dt;
+        while (accumulator >= timeStep) {
+            b2World_Step(worldId, timeStep, subStepCount);
+            b2Vec2 player_position = b2Body_GetPosition(player.player_id);
+            player.mesh->transform.position = (vec3){ player_position.x, player_position.y, 0.0f };
+            camera.position = (vec3){ player_position.x, player_position.y, 10.0f };
+            accumulator -= timeStep;
+        }
 
         SDL_Event event;
         while(SDL_PollEvent(&event)) {
@@ -166,7 +176,7 @@ int main(int argc, char *argv[]) {
 
             ctext_end_render(rd, &camera, amongus, m4init(1.0f));
 
-            render(rd, &camera, mesh);
+            render(rd, &camera, player.mesh);
             render(rd, &camera, ground);
 
             crd_end_render(rd);
