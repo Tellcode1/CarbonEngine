@@ -1,7 +1,7 @@
-#include "../include/vkhelper.h"
-#include "../include/cvk.h"
-#include "../include/cgfx.h"
-#include "../include/cimage.h"
+#include "../include/lunaVK.h"
+#include "../include/lunaPipeline.h"
+#include "../include/lunaGFX.h"
+#include "../include/lunaImage.h"
 
 #include "../include/cgvector.h"
 
@@ -11,7 +11,7 @@
 VkCommandPool pool = VK_NULL_HANDLE;
 VkCommandBuffer buffer = VK_NULL_HANDLE;
 
-void vkh_buffer_create( u64 size, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags, VkBuffer *dstBuffer, VkDeviceMemory *retMem, bool externallyAllocated)
+void luna_VK_CreateBuffer( u64 size, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags, VkBuffer *dstBuffer, VkDeviceMemory *retMem, bool externallyAllocated)
 {
     if(size == 0) {
         return;
@@ -38,7 +38,7 @@ void vkh_buffer_create( u64 size, VkBufferUsageFlags usageFlags, VkMemoryPropert
         VkMemoryAllocateInfo allocInfo = {};
         allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         allocInfo.allocationSize = bufferMemoryRequirements.size;
-        allocInfo.memoryTypeIndex = vkh_get_mem_type(bufferMemoryRequirements.memoryTypeBits, propertyFlags);
+        allocInfo.memoryTypeIndex = luna_VK_GetMemType(bufferMemoryRequirements.memoryTypeBits, propertyFlags);
         if (vkAllocateMemory(device, &allocInfo, NULL, &newMemory) != VK_SUCCESS)
         {
             LOG_ERROR("failed to alloc gpu memory for buffer");
@@ -51,7 +51,7 @@ void vkh_buffer_create( u64 size, VkBufferUsageFlags usageFlags, VkMemoryPropert
     *dstBuffer = newBuffer;
 }
 
-void vkh_buffer_stage_transfer( VkBuffer dst, void *data, u64 size)
+void luna_VK_StageBufferTransfer( VkBuffer dst, void *data, u64 size)
 {
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
@@ -72,7 +72,7 @@ void vkh_buffer_stage_transfer( VkBuffer dst, void *data, u64 size)
     VkMemoryAllocateInfo stagingBufferAlloc = {};
     stagingBufferAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     stagingBufferAlloc.allocationSize = stagingBufferMemoryRequirements.size;
-    stagingBufferAlloc.memoryTypeIndex = vkh_get_mem_type(stagingBufferMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    stagingBufferAlloc.memoryTypeIndex = luna_VK_GetMemType(stagingBufferMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     if (vkAllocateMemory(device, &stagingBufferAlloc, NULL, &stagingBufferMemory) != VK_SUCCESS)
     {
         printf("Failed to allocate staging buffer memory!");
@@ -89,7 +89,7 @@ void vkh_buffer_stage_transfer( VkBuffer dst, void *data, u64 size)
     vkFreeMemory(device, stagingBufferMemory, NULL);
 }
 
-u32 vkh_get_mem_type( const u32 memoryTypeBits, const VkMemoryPropertyFlags memoryProperties)
+u32 luna_VK_GetMemType( const u32 memoryTypeBits, const VkMemoryPropertyFlags memoryProperties)
 {
     VkPhysicalDeviceMemoryProperties properties;
 	vkGetPhysicalDeviceMemoryProperties(physDevice, &properties);
@@ -103,7 +103,7 @@ u32 vkh_get_mem_type( const u32 memoryTypeBits, const VkMemoryPropertyFlags memo
     return UINT32_MAX;
 }
 
-VkCommandBuffer vkh_cmd_begin_from( VkCommandBuffer src)
+VkCommandBuffer luna_VK_BeginCommandBufferFrom( VkCommandBuffer src)
 {
     VkCommandBufferBeginInfo beginInfo = {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -114,7 +114,7 @@ VkCommandBuffer vkh_cmd_begin_from( VkCommandBuffer src)
     return src;
 }
 
-VkCommandBuffer vkh_cmd_begin()
+VkCommandBuffer luna_VK_BeginCommandBuffer()
 {
     if (!pool) {
         VkCommandPoolCreateInfo cmdPoolCreateInfo = {};
@@ -133,10 +133,10 @@ VkCommandBuffer vkh_cmd_begin()
     cmdAllocInfo.commandPool = pool;
     vkAllocateCommandBuffers(device, &cmdAllocInfo, &buffer);
 
-    return vkh_cmd_begin_from(buffer);
+    return luna_VK_BeginCommandBufferFrom(buffer);
 }
 
-VkResult vkh_cmd_end( VkCommandBuffer cmd, VkQueue queue, bool waitForExecution)
+VkResult luna_VK_EndCommandBuffer( VkCommandBuffer cmd, VkQueue queue, bool waitForExecution)
 {
     VkResult res = vkEndCommandBuffer(cmd);
     if (res != VK_SUCCESS) return res;
@@ -188,7 +188,7 @@ VkResult vkh_cmd_end( VkCommandBuffer cmd, VkQueue queue, bool waitForExecution)
 //     fclose(f);
 // }
 
-void vkh_files_load_binary( const char* path, u8* dst, u32* dstSize) {
+void luna_VK_LoadBinaryFile( const char* path, u8* dst, u32* dstSize) {
     FILE *f = fopen(path, "rb");
     cassert(f != NULL);
 
@@ -208,7 +208,7 @@ void vkh_files_load_binary( const char* path, u8* dst, u32* dstSize) {
     fclose(f);
 }
 
-void vkh_stage_image_transfer( VkImage dst, const void *data, int width, int height)
+void luna_VK_StageImageTransfer( VkImage dst, const void *data, int width, int height)
 {
     VkBuffer stagingBuffer = VK_NULL_HANDLE;
     VkDeviceMemory stagingBufferMemory = VK_NULL_HANDLE;
@@ -231,7 +231,7 @@ void vkh_stage_image_transfer( VkImage dst, const void *data, int width, int hei
     const VkMemoryAllocateInfo stagingBufferAllocInfo = {
         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
         .allocationSize = stagingBufferRequirements.size,
-        .memoryTypeIndex = vkh_get_mem_type(stagingBufferRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+        .memoryTypeIndex = luna_VK_GetMemType(stagingBufferRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
     };
 
     vkAllocateMemory(device, &stagingBufferAllocInfo, NULL, &stagingBufferMemory);
@@ -242,9 +242,9 @@ void vkh_stage_image_transfer( VkImage dst, const void *data, int width, int hei
     memcpy(stagingBufferMapped, data, mem_req.size);
     vkUnmapMemory(device, stagingBufferMemory);
 
-    const VkCommandBuffer cmd = vkh_cmd_begin(device);
+    const VkCommandBuffer cmd = luna_VK_BeginCommandBuffer(device);
 
-    vkh_transition_image_layout(
+    luna_VK_TransitionTextureLayout(
         cmd, dst, 1, VK_IMAGE_ASPECT_COLOR_BIT,
         VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
         0, VK_ACCESS_TRANSFER_WRITE_BIT,
@@ -261,26 +261,26 @@ void vkh_stage_image_transfer( VkImage dst, const void *data, int width, int hei
     region.imageSubresource.mipLevel = 0;
     vkCmdCopyBufferToImage(cmd, stagingBuffer, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-    vkh_transition_image_layout(
+    luna_VK_TransitionTextureLayout(
             cmd, dst, 1, VK_IMAGE_ASPECT_COLOR_BIT,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
             0, VK_ACCESS_TRANSFER_WRITE_BIT,
             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT
         );
 
-    vkh_cmd_end(cmd, TransferQueue, true);
+    luna_VK_EndCommandBuffer(cmd, TransferQueue, true);
 
     vkDestroyBuffer(device, stagingBuffer, NULL);
     vkFreeMemory(device, stagingBufferMemory, NULL);
 }
 
-void vkh_image_from_mem( u8 *buffer, u32 width, u32 height, VkFormat format, u32 channels, VkImage *dst, VkDeviceMemory *dstMem)
+void luna_VK_CreateTextureFromMemory( u8 *buffer, u32 width, u32 height, VkFormat format, u32 channels, VkImage *dst, VkDeviceMemory *dstMem)
 {
-    vkh_image_create_empty(width, height, format, VK_SAMPLE_COUNT_1_BIT, channels, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, NULL, dst, dstMem);
-    vkh_stage_image_transfer(*dst, buffer, width, height);
+    luna_VK_CreateTextureEmpty(width, height, format, VK_SAMPLE_COUNT_1_BIT, channels, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, NULL, dst, dstMem);
+    luna_VK_StageImageTransfer(*dst, buffer, width, height);
 }
 
-void vkh_image_create_empty( u32 width, u32 height, VkFormat format, VkSampleCountFlagBits samples, u32 channels, VkImageUsageFlags usage, int *image_size, VkImage *dst, VkDeviceMemory *dstMem)
+void luna_VK_CreateTextureEmpty( u32 width, u32 height, VkFormat format, VkSampleCountFlagBits samples, u32 channels, VkImageUsageFlags usage, int *image_size, VkImage *dst, VkDeviceMemory *dstMem)
 {
     VkImageCreateInfo imageCreateInfo = {};
     imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -309,7 +309,7 @@ void vkh_image_create_empty( u32 width, u32 height, VkFormat format, VkSampleCou
     // allow for preallocated memory.
     if (dstMem != NULL) {
 
-        const u32 localDeviceMemoryIndex = vkh_get_mem_type(imageMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        const u32 localDeviceMemoryIndex = luna_VK_GetMemType(imageMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
         VkMemoryAllocateInfo allocInfo = {};
         allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -321,9 +321,9 @@ void vkh_image_create_empty( u32 width, u32 height, VkFormat format, VkSampleCou
     }
 }
 
-u8* vkh_image_from_disk( const char *path, u32 *width, u32 *height, VkFormat *channels, VkImage *dst, VkDeviceMemory *dstMem)
+u8* luna_VK_CreateTextureFromDisk( const char *path, u32 *width, u32 *height, VkFormat *channels, VkImage *dst, VkDeviceMemory *dstMem)
 {
-    cg_tex2D tex = cimg_load(path);
+    luna_Image tex = luna_ImageLoad(path);
 
     cassert(tex.data != NULL);
 
@@ -331,11 +331,11 @@ u8* vkh_image_from_disk( const char *path, u32 *width, u32 *height, VkFormat *ch
     *height = tex.h;
     *channels = tex.fmt;
 
-    vkh_image_from_mem(tex.data, tex.w, tex.h, *channels, 4, dst, dstMem);
+    luna_VK_CreateTextureFromMemory(tex.data, tex.w, tex.h, *channels, 4, dst, dstMem);
     return tex.data;
 }
 
-void vkh_transition_image_layout( VkCommandBuffer cmd, VkImage image,
+void luna_VK_TransitionTextureLayout( VkCommandBuffer cmd, VkImage image,
 										 u32 mipLevels,
                                          VkImageAspectFlagBits aspect,
 										 VkImageLayout oldLayout,
@@ -365,13 +365,13 @@ void vkh_transition_image_layout( VkCommandBuffer cmd, VkImage image,
 // void help::Images::LoadFromDisk(const char *path, u8 channels, u8 **dst, u32 *dstWidth, u32 *dstHeight)
 // {
 //     // {Chef's kiss}
-//     ctex2D tex = cimg_load(path);
+//     ctex2D tex = luna_ImageLoad(path);
 //     *dst = tex.data;
 //     *dstWidth = tex.w;
 //     *dstHeight = tex.h;
 // }
 
-bool vkh_get_supported_fmt( VkPhysicalDevice physDevice, VkSurfaceKHR surface, VkFormat *dstFormat, VkColorSpaceKHR *dstColorSpace)
+bool luna_VK_GetSupportedFormat( VkPhysicalDevice physDevice, VkSurfaceKHR surface, VkFormat *dstFormat, VkColorSpaceKHR *dstColorSpace)
 {
 	CVK_REQUIRED_PTR(device);
 	CVK_REQUIRED_PTR(physDevice);
@@ -418,7 +418,7 @@ bool vkh_get_supported_fmt( VkPhysicalDevice physDevice, VkSurfaceKHR surface, V
 	return VK_FALSE;
 }
 
-u32 vkh_get_image_count(VkPhysicalDevice physDevice, VkSurfaceKHR surface)
+u32 luna_VK_GetSurfaceImageCount(VkPhysicalDevice physDevice, VkSurfaceKHR surface)
 {
 	CVK_REQUIRED_PTR(physDevice);
 	CVK_REQUIRED_PTR(surface);

@@ -9,7 +9,7 @@
 #include "vkstdafx.h"
 #include "../external/volk/volk.h"
 
-struct crenderer_config;
+struct luna_Renderer_Config;
 union SDL_Event;
 
 extern u8 cg_current_frame;

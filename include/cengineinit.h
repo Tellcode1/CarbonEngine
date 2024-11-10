@@ -39,17 +39,21 @@ static SDL_UNUSED const char* RequiredDeviceExtensions[] = {
 	VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 };
 
-// ! FIND A WAY TO CHECK IF FEATURE IS AVAILABLE
+// we'll just request them as needed
 
-const static VkPhysicalDeviceFeatures WantedFeatures = {
+static const VkPhysicalDeviceFeatures WantedFeatures = {
 	.samplerAnisotropy = VK_TRUE,
 };
 
-static __attribute_maybe_unused__ VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessengerCallback(
+static SDL_UNUSED VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessengerCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
     VkDebugUtilsMessageTypeFlagsEXT messageType,
     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
     void* pUserData) {
+
+	(void)messageSeverity;
+	(void)messageType;
+	(void)pUserData;
 
 	printf("vkdebug: %s\n", pCallbackData->pMessage);
 

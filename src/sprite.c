@@ -1,6 +1,6 @@
 #include "../include/sprite.h"
-#include "../include/vkhelper.h"
-#include "../include/cimage.h"
+#include "../include/lunaVK.h"
+#include "../include/lunaImage.h"
 
 typedef struct sprite_t {
     int w,h;
@@ -32,7 +32,7 @@ sprite_t *sprite_load_mem(const unsigned char *data, int w, int h, VkFormat fmt)
     VkMemoryRequirements imageMemoryRequirements;
     vkGetImageMemoryRequirements(device, spr->image, &imageMemoryRequirements);
 
-    const u32 localDeviceMemoryIndex = vkh_get_mem_type(imageMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    const u32 localDeviceMemoryIndex = luna_VK_GetMemType(imageMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     const VkMemoryAllocateInfo allocInfo = {
         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
@@ -43,7 +43,7 @@ sprite_t *sprite_load_mem(const unsigned char *data, int w, int h, VkFormat fmt)
     cassert(vkAllocateMemory(device, &allocInfo, NULL, &spr->mem) == VK_SUCCESS);
     vkBindImageMemory(device, spr->image, spr->mem, 0);
 
-    vkh_stage_image_transfer(spr->image, data, w, h);
+    luna_VK_StageImageTransfer(spr->image, data, w, h);
 
     const VkImageViewCreateInfo view_info = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -68,7 +68,7 @@ sprite_t *sprite_load_mem(const unsigned char *data, int w, int h, VkFormat fmt)
 
 sprite_t *sprite_load_disk(const char *path)
 {
-    cg_tex2D tex = cimg_load(path);
+    luna_Image tex = luna_ImageLoad(path);
     sprite_t *spr = sprite_load_mem(tex.data, tex.w, tex.h, tex.fmt);
     free(tex.data);
     return spr;

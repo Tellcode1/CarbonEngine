@@ -1,13 +1,13 @@
-#include "../../include/cvk.h"
+#include "../../include/lunaPipeline.h"
 #include "../../include/cshadermanagerdev.h"
 #include "../../include/cgvector.h"
 
-cvk_result_check_fn __cvk_resultFunc = __cvk_defaultResultCheckFunc; // To not cause nullptr dereference. SetResultCheckFunc also checks for nullptr and handles it.
-u32 cvk_flag_register = 0;
+luna_GPU_ResultCheckFn __cvk_resultFunc = __cvk_defaultResultCheckFunc; // To not cause nullptr dereference. SetResultCheckFunc also checks for nullptr and handles it.
+u32 luna_GPU_vk_flag_register = 0;
 
-#define HAS_FLAG(flag) ((cvk_flag_register & flag) || (flags & flag))
+#define HAS_FLAG(flag) ((luna_GPU_vk_flag_register & flag) || (flags & flag))
 
-void cvk_create_graphics_pipeline( const cvk_pipeline_create_info *pCreateInfo, VkPipeline *dstPipeline, u32 flags)
+void luna_GPU_CreateGraphicsPipeline( const luna_GPU_PipelineCreateInfo *pCreateInfo, VkPipeline *dstPipeline, u32 flags)
 {
 	CVK_REQUIRED_PTR(device);
 	CVK_REQUIRED_PTR(pCreateInfo);
@@ -91,7 +91,7 @@ void cvk_create_graphics_pipeline( const cvk_pipeline_create_info *pCreateInfo, 
 
 	if(HAS_FLAG(CVK_PIPELINE_FLAGS_ENABLE_BLEND))
 	{
-		const cvk_pipeline_blend_state  *blendState = pCreateInfo->blend_state;
+		const luna_GPU_PipelineBlendState  *blendState = pCreateInfo->blend_state;
 
 		colorblendAttachmentState.blendEnable = VK_TRUE;
 		colorblendAttachmentState.srcColorBlendFactor = blendState->srcColorBlendFactor;
@@ -174,7 +174,7 @@ void cvk_create_graphics_pipeline( const cvk_pipeline_create_info *pCreateInfo, 
 	free(shader_infos);
 }
 
-void cvk_create_render_pass(cvk_render_pass_create_info const *pCreateInfo, VkRenderPass *dstRenderPass, u32 flags)
+void luna_GPU_CreateRenderPass(luna_GPU_RenderPassCreateInfo const *pCreateInfo, VkRenderPass *dstRenderPass, u32 flags)
 {
 	CVK_REQUIRED_PTR(device);
     CVK_REQUIRED_PTR(pCreateInfo);
@@ -267,7 +267,7 @@ void cvk_create_render_pass(cvk_render_pass_create_info const *pCreateInfo, VkRe
     CVK_ResultCheck(vkCreateRenderPass(device, &renderPassInfo, VK_NULL_HANDLE, dstRenderPass));
 }
 
-void cvk_create_pipeline_layout(cvk_pipeline_create_info const *pCreateInfo, VkPipelineLayout *dstLayout)
+void luna_GPU_CreatePipelineLayout(luna_GPU_PipelineCreateInfo const *pCreateInfo, VkPipelineLayout *dstLayout)
 {
 	CVK_REQUIRED_PTR(device);
 	CVK_REQUIRED_PTR(pCreateInfo);
@@ -297,7 +297,7 @@ void cvk_create_pipeline_layout(cvk_pipeline_create_info const *pCreateInfo, VkP
 	CVK_ResultCheck(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, VK_NULL_HANDLE, dstLayout));
 }
 
-void cvk_create_swapchain(cvk_swapchain_create_info const* pCreateInfo, VkSwapchainKHR *dstSwapchain)
+void luna_GPU_CreateSwapchain(luna_GPU_SwapchainCreateInfo const* pCreateInfo, VkSwapchainKHR *dstSwapchain)
 {
 	CVK_REQUIRED_PTR(device);
 	CVK_REQUIRED_PTR(pCreateInfo);
@@ -324,9 +324,9 @@ void cvk_create_swapchain(cvk_swapchain_create_info const* pCreateInfo, VkSwapch
 	CVK_ResultCheck(vkCreateSwapchainKHR(device, &swapChainCreateInfo, VK_NULL_HANDLE, dstSwapchain));
 }
 
-cvk_pipeline_blend_state cvk_init_pipeline_blend_state(cvk_blend_preset preset)
+luna_GPU_PipelineBlendState luna_GPU_InitPipelineBlendState(luna_GPU_PipelineBlendPreset preset)
 {
-	cvk_pipeline_blend_state ret = {};
+	luna_GPU_PipelineBlendState ret = {};
 	ret.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
 	switch(preset)

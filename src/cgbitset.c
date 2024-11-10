@@ -43,16 +43,14 @@ cg_bitset_bit cg_bitset_access_bit(cg_bitset_t *set, int bitindex)
     return (set->data[bitindex / 8] & (1 << (bitindex % 8))) != 0;
 }
 
-void cg_bitset_copy_from(cg_bitset_t *dst, cg_bitset_t *src)
+void cg_bitset_copy_from(cg_bitset_t *dst, const cg_bitset_t *src)
 {
     if (src->size != dst->size && dst->data) {
         free(dst->data);
         dst->data = malloc(src->size);
         dst->size = src->size;
     }
-    // FOR TESTING MOVE THE DATA
-    // !FIXME: revert
-    memmove(dst->data, src->data, src->size);
+    memcpy(dst->data, src->data, src->size);
 }
 
 void cg_bitset_destroy(cg_bitset_t *set)

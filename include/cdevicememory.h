@@ -1,58 +1,58 @@
-#ifndef __CGFX_MEMORY_H
-#define __CGFX_MEMORY_H
+#ifndef __LUNA_GPU_MEMORY_H
+#define __LUNA_GPU_MEMORY_H
 
 // ! doesn't take into account alignment, etc.
 // * This is so when we eventually have to switch to an allocator it's much easier
 
-#include "cgfxstdafx.h"
+#include "lunaGFXstdafx.h"
 
-typedef enum cgfx_memory_usage_bits {
-    CGFX_MEMORY_USAGE_GPU_LOCAL = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-    CGFX_MEMORY_USAGE_CPU_VISIBLE = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-    CGFX_MEMORY_USAGE_CPU_READABLE = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, // ? what are these two supposed to actually be??
-    CGFX_MEMORY_USAGE_CPU_WRITEABLE = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-    CGFX_MEMORY_USAGE_LAZILY_ALLOCATED = VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT,
+typedef enum luna_GPU_MemoryUsageBits {
+    LUNA_GPU_MEMORY_USAGE_GPU_LOCAL = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+    LUNA_GPU_MEMORY_USAGE_CPU_VISIBLE = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+    LUNA_GPU_MEMORY_USAGE_CPU_READABLE = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, // ? what are these two supposed to actually be??
+    LUNA_GPU_MEMORY_USAGE_CPU_WRITEABLE = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+    LUNA_GPU_MEMORY_USAGE_LAZILY_ALLOCATED = VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT,
     // ext i think
-    CGFX_MEMORY_USAGE_PROTECTED = VK_MEMORY_PROPERTY_PROTECTED_BIT,
-    CGFX_MEMORY_USAGE_DEVICE_COHERENT = VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD,
-    CGFX_MEMORY_USAGE_DEVICE_UNCACHED = VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD
-} cgfx_memory_usage_bits;
-typedef unsigned cgfx_memory_usage_t;
+    LUNA_GPU_MEMORY_USAGE_PROTECTED = VK_MEMORY_PROPERTY_PROTECTED_BIT,
+    LUNA_GPU_MEMORY_USAGE_DEVICE_COHERENT = VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD,
+    LUNA_GPU_MEMORY_USAGE_DEVICE_UNCACHED = VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD
+} luna_GPU_MemoryUsageBits;
+typedef unsigned luna_GPU_MemoryUsage;
 
-typedef struct cgfx_gpu_memory_t {
+typedef struct luna_GPU_Memory {
     VkDeviceMemory memory;
-    cgfx_memory_usage_t usage;
+    luna_GPU_MemoryUsage usage;
     int size;
-} cgfx_gpu_memory_t;
+} luna_GPU_Memory;
 
-typedef struct cgfx_gpu_allocated_object_t {
+typedef struct luna_GPU_AllocatedObject {
     int size, memory_offset; // , alignment?
-    cgfx_gpu_memory_t *memory;
-} cgfx_gpu_allocated_object_t;
+    luna_GPU_Memory *memory;
+} luna_GPU_AllocatedObject;
 
-typedef struct cgfx_gpu_buffer_t {
-    cgfx_gpu_allocated_object_t allocation;
+typedef struct luna_GPU_Buffer {
+    luna_GPU_AllocatedObject allocation;
     VkBuffer vkbuffer;
-} cgfx_gpu_buffer_t;
+} luna_GPU_Buffer;
 
-typedef struct cgfx_gpu_image_create_info {
+typedef struct luna_GPU_TextureCreateInfo {
     VkFormat format;
-    cg_sample_count samples;
+    lunaSampleCount samples;
     VkImageType type;
     VkImageUsageFlags usage;
     VkExtent3D extent;
     int arraylayers;
     int miplevels;
-} cgfx_gpu_image_create_info;
+} luna_GPU_TextureCreateInfo;
 
-typedef struct cgfx_gpu_image_view_create_info {
+typedef struct luna_GPU_TextureViewCreateInfo {
     VkFormat format; // May be VK_FORMAT_UNDEFINED for automatic fetching of format from image
     VkImageViewType view_type;
     VkImageSubresourceRange subresourceRange;
-} cgfx_gpu_image_view_create_info;
+} luna_GPU_TextureViewCreateInfo;
 
-typedef struct cgfx_gpu_image_t {
-    cgfx_gpu_allocated_object_t allocation;
+typedef struct luna_GPU_Texture {
+    luna_GPU_AllocatedObject allocation;
     VkImageLayout layout;
     VkImageAspectFlags aspect;
     VkImage image;
@@ -60,32 +60,32 @@ typedef struct cgfx_gpu_image_t {
     VkExtent3D extent;
     int miplevels, arraylayers;
     VkFormat format;
-    cg_sample_count samples;
-    bool_t is_cubemap, is_render_texture;
-} cgfx_gpu_image_t;
+    lunaSampleCount samples;
+    bool is_cubemap, is_render_texture;
+} luna_GPU_Texture;
 
-typedef struct cgfx_gpu_sampler_create_info {
+typedef struct luna_GPU_SamplerCreateInfo {
     VkFilter filter;
     VkSamplerMipmapMode mipmap_mode;
     VkSamplerAddressMode address_mode;
     f32 max_anisotropy;
     f32 mip_lod_bias, min_lod, max_lod;
-} cgfx_gpu_sampler_create_info;
+} luna_GPU_SamplerCreateInfo;
 
-typedef struct cgfx_gpu_sampler_t {
+typedef struct luna_GPU_Sampler {
     VkFilter filter;
     VkSamplerMipmapMode mipmap_mode;
     VkSamplerAddressMode address_mode;
     f32 max_anisotropy;
     f32 mip_lod_bias, min_lod, max_lod;
     VkSampler vksampler;
-} cgfx_gpu_sampler_t;
+} luna_GPU_Sampler;
 
 // I think we should make like a cgfx_err_t enum
 
 // these parameters should be replaced
-// properties should be replaced by usage. Like CGFX_MEMORY_USAGE_GPU, CPU_TO_GPU, GPU_TO_CPU, etc.
-static void inline cgfx_gpu_memory_allocate(VkDeviceSize size, cgfx_memory_usage_t usage, cgfx_gpu_memory_t *dst) {
+// properties should be replaced by usage. Like LUNA_GPU_MEMORY_USAGE_GPU, CPU_TO_GPU, GPU_TO_CPU, etc.
+inline static void luna_GPU_AllocateMemory(VkDeviceSize size, luna_GPU_MemoryUsage usage, luna_GPU_Memory *dst) {
     dst->size = size;
     dst->usage = usage;
     const VkMemoryPropertyFlags properties = (VkMemoryPropertyFlags)usage;
@@ -109,7 +109,7 @@ static void inline cgfx_gpu_memory_allocate(VkDeviceSize size, cgfx_memory_usage
     }
 }
 
-static inline void cgfx_gpu_create_buffer(int size, VkBufferUsageFlags usage, cgfx_gpu_buffer_t *dst) {
+inline static void luna_GPU_create_buffer(int size, VkBufferUsageFlags usage, luna_GPU_Buffer *dst) {
     dst->allocation.size = size;
     VkBufferCreateInfo buffer_info = {};
     buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -118,37 +118,37 @@ static inline void cgfx_gpu_create_buffer(int size, VkBufferUsageFlags usage, cg
     vkCreateBuffer(device, &buffer_info, NULL, &dst->vkbuffer);
 }
 
-static inline void cgfx_gpu_memory_free(cgfx_gpu_memory_t *mem) {
+inline static void luna_GPU_memory_free(luna_GPU_Memory *mem) {
     vkFreeMemory(device, mem->memory, NULL);
 }
 
 // I think these given an error when, say offset is too big so maybe we can check their return values?
-static inline void cgfx_gpu_memory_bind_buffer(cgfx_gpu_memory_t *mem, int offset, cgfx_gpu_buffer_t *buffer) {
+inline static void luna_GPU_memory_bind_buffer(luna_GPU_Memory *mem, int offset, luna_GPU_Buffer *buffer) {
     buffer->allocation.memory = mem;
     buffer->allocation.memory_offset = offset;
     vkBindBufferMemory(device, buffer->vkbuffer, mem->memory, offset);
 }
-static inline void cgfx_gpu_memory_bind_image(cgfx_gpu_memory_t *mem, int offset, cgfx_gpu_image_t *image) {
-    image->allocation.memory = mem;
-    image->allocation.memory_offset = offset;
-    vkBindImageMemory(device, image->image, mem->memory, offset);
+inline static void luna_GPU_BindImageToMemory(luna_GPU_Memory *mem, int offset, luna_GPU_Texture *tex) {
+    tex->allocation.memory = mem;
+    tex->allocation.memory_offset = offset;
+    vkBindImageMemory(device, tex->image, mem->memory, offset);
 }
 
 // I think they should be renamed to like buffer_destroy() because they aren't freeing the memory, are they?
-static inline void cgfx_gpu_buffer_free(cgfx_gpu_buffer_t *buffer) {
+inline static void luna_GPU_buffer_free(luna_GPU_Buffer *buffer) {
     if (buffer->vkbuffer) {
         vkDestroyBuffer(device, buffer->vkbuffer, NULL);
     }
 }
 
-static inline void cgfx_gpu_image_free(cgfx_gpu_image_t *image) {
-    if (image->image) {
-        vkDestroyImage(device, image->image, NULL);
-        vkDestroyImageView(device, image->view, NULL);
+inline static void luna_GPU_image_free(luna_GPU_Texture *tex) {
+    if (tex->image) {
+        vkDestroyImage(device, tex->image, NULL);
+        vkDestroyImageView(device, tex->view, NULL);
     }
 }
 
-static inline void cgfx_gpu_create_sampler(const cgfx_gpu_sampler_create_info *pInfo, cgfx_gpu_sampler_t *sampler) {
+inline static void luna_GPU_CreateSampler(const luna_GPU_SamplerCreateInfo *pInfo, luna_GPU_Sampler *sampler) {
     sampler->filter = pInfo->filter;
     sampler->mipmap_mode = pInfo->mipmap_mode;
     sampler->address_mode = pInfo->address_mode;
@@ -171,7 +171,7 @@ static inline void cgfx_gpu_create_sampler(const cgfx_gpu_sampler_create_info *p
     cassert(vkCreateSampler(device, &samplerInfo, NULL, &sampler->vksampler) == VK_SUCCESS);
 }
 
-static inline void cgfx_gpu_create_image(const cgfx_gpu_image_create_info *pInfo, cgfx_gpu_image_t *image) {
+inline static void luna_GPU_CreateTexture(const luna_GPU_TextureCreateInfo *pInfo, luna_GPU_Texture *tex) {
     VkImageCreateInfo imageCreateInfo = {};
     imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imageCreateInfo.imageType = pInfo->type;
@@ -184,17 +184,17 @@ static inline void cgfx_gpu_create_image(const cgfx_gpu_image_create_info *pInfo
     imageCreateInfo.usage = pInfo->usage;
     imageCreateInfo.samples = (VkSampleCountFlagBits)pInfo->samples;
     imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    if (vkCreateImage(device, &imageCreateInfo, NULL, &image->image) != VK_SUCCESS) {
+    if (vkCreateImage(device, &imageCreateInfo, NULL, &tex->image) != VK_SUCCESS) {
         LOG_ERROR("Failed to create image");
     }
 }
 
 // vkimage is fetched from image!
-static inline void cgfx_gpu_create_image_view(const cgfx_gpu_image_view_create_info *pInfo, cgfx_gpu_image_t *image) {
-    const VkFormat dst_format = (pInfo->format != VK_FORMAT_UNDEFINED) ? pInfo->format : image->format;
+inline static void luna_GPU_CreateTextureView(const luna_GPU_TextureViewCreateInfo *pInfo, luna_GPU_Texture *tex) {
+    const VkFormat dst_format = (pInfo->format != VK_FORMAT_UNDEFINED) ? pInfo->format : tex->format;
     VkImageViewCreateInfo view_info = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = image->image,
+        .image = tex->image,
         .viewType = pInfo->view_type,
         .format = dst_format,
         .subresourceRange = pInfo->subresourceRange,
@@ -203,11 +203,7 @@ static inline void cgfx_gpu_create_image_view(const cgfx_gpu_image_view_create_i
         .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
         .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
     };
-    cassert(vkCreateImageView(device, &view_info, NULL, &image->view) == VK_SUCCESS);
+    cassert(vkCreateImageView(device, &view_info, NULL, &tex->view) == VK_SUCCESS);
 }
 
-static inline void cgfx_gpu_image_transition_layout(VkCommandBuffer cmd, cgfx_gpu_image_t *image, VkImageLayout new_layout) {
-    // vkh_transition_image_layout(cmd, image->image, image->miplevels, image->aspect, image->layout, new_layout, );
-}
-
-#endif//__CGFX_MEMORY_H
+#endif//__LUNA_GPU_MEMORY_H

@@ -1,5 +1,5 @@
-#ifndef __CGFXSTDAFX_H
-#define __CGFXSTDAFX_H
+#ifndef __LUNA_GFX_STDAFX_H
+#define __LUNA_GFX_STDAFX_H
 
 #ifdef __cplusplus
     extern "C" {
@@ -7,24 +7,34 @@
 
 #include "../external/volk/volk.h"
 
-#ifdef bool_t
-    typedef bool_t cg_bool_t;
-#else
-    typedef unsigned char cg_bool_t;
+#ifndef bool
+    typedef unsigned char bool;
 #endif
 
-typedef enum cengine_vsync_bits {
-    CG_VSYNC_DISABLED = 0,
-    CG_VSYNC_ENABLED = 1
-} cengine_vsync_bits;
-typedef cg_bool_t cg_vsync;
+typedef enum luna_Window_OptionBits {
+    LUNA_WINDOW_OPTION_VSYNC           = 1 << 0,
+    LUNA_WINDOW_OPTION_RESIZABLE       = 1 << 1,
+    LUNA_WINDOW_OPTION_BORDERLESS      = 1 << 2,
+    LUNA_WINDOW_OPTION_FULLSCREEN      = 1 << 3,
+    LUNA_WINDOW_OPTION_MAXIMIZED       = 1 << 4,
+    LUNA_WINDOW_OPTION_MINIMIZED       = 1 << 5,
+    LUNA_WINDOW_OPTION_HIDDEN          = 1 << 6,
+    LUNA_WINDOW_OPTION_HIGH_DPI        = 1 << 7,
+    LUNA_WINDOW_OPTION_ALWAYS_ON_TOP   = 1 << 8,
+} luna_Window_OptionBits;
 
-typedef enum cg_buffering_mode_bits {
+typedef enum luna_Window_VSyncBits {
+    LUNA_WINDOW_VSYNC_DISABLED = 0,
+    LUNA_WINDOW_VSYNC_ENABLED = 1
+} luna_Window_VSyncBits;
+typedef bool luna_Window_VSync;
+
+typedef enum luna_Window_BufferModeBits {
     CG_BUFFER_MODE_SINGLE_BUFFERED = 0,
     CG_BUFFER_MODE_DOUBLE_BUFFERED = 1,
     CG_BUFFER_MODE_TRIPLE_BUFFERED = 2,
-} cg_buffering_mode_bits;
-typedef unsigned cg_buffering_mode;
+} luna_Window_BufferModeBits;
+typedef unsigned lunaBufferMode;
 
 typedef enum cg_sample_count_bits {
     CG_SAMPLE_COUNT_MAX_SUPPORTED = 0xFFFFFFFF,
@@ -36,11 +46,11 @@ typedef enum cg_sample_count_bits {
     CG_SAMPLE_COUNT_16_SAMPLES = 16,
     CG_SAMPLE_COUNT_32_SAMPLES = 32,
 } cg_sample_count_bits;
-typedef unsigned cg_sample_count;
+typedef unsigned lunaSampleCount;
 
-typedef struct cg_extent2d {
+typedef struct lunaExtent2D {
     int width, height;
-} cg_extent2d;
+} lunaExtent2D;
 
 #include <vulkan/vulkan.h>
 
@@ -120,4 +130,4 @@ static inline int vk_fmt_get_bpp(VkFormat format) {
     }
 #endif
 
-#endif//__CGFXTEXTURE_H
+#endif//__LUNA_GFX_STDAFX_H

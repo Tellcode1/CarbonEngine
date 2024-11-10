@@ -7,7 +7,7 @@
 
 #include <math.h>
 
-typedef unsigned char v3bool_t;
+typedef unsigned char v3bool;
 typedef struct vec3 {
     float x,y,z;
 } vec3;
@@ -54,8 +54,8 @@ static inline vec3 v3cross(const vec3 v1, const vec3 v2) {
     };
 }
 
-static inline v3bool_t v3areeq(const vec3 v1, const vec3 v2) {
-    return (v3bool_t)( v1.x == v2.x && v1.y == v2.y && v1.z == v2.z  );
+static inline v3bool v3areeq(const vec3 v1, const vec3 v2) {
+    return (v3bool)( v1.x == v2.x && v1.y == v2.y && v1.z == v2.z  );
 }
 
 #ifdef __cplusplus

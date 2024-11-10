@@ -12,7 +12,7 @@ typedef struct cg_vector_t {
     void *m_data;
 } cg_vector_t;
 
-typedef unsigned char cg_vector_bool_t;
+typedef unsigned char cg_vector_bool;
 
 /*
     initial_size may be 0
@@ -36,8 +36,8 @@ extern void cg_vector_copy_from(const cg_vector_t *src, cg_vector_t *dst);
 // src is destroyed and unusable after this call!
 extern void cg_vector_move_from(cg_vector_t *src, cg_vector_t *dst);
 
-extern cg_vector_bool_t cg_vector_empty(const cg_vector_t *vec);
-extern cg_vector_bool_t cg_vector_equal(const cg_vector_t *vec1, const cg_vector_t *vec2);
+extern cg_vector_bool cg_vector_empty(const cg_vector_t *vec);
+extern cg_vector_bool cg_vector_equal(const cg_vector_t *vec1, const cg_vector_t *vec2);
 
 // WARNING: sizeof(*elem) != vec->typesize is UNDEFINED!
 extern void cg_vector_push_back(cg_vector_t *vec, const void *elem);

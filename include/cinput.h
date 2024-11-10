@@ -6,7 +6,7 @@
 #endif
 
 #include <SDL2/SDL.h>
-#include "../include/stdafx.h"
+#include "../include/lunaGFX.h"
 #include "../include/cgbitset.h"
 #include "../include/math/vec2.h"
 
@@ -31,18 +31,16 @@ static inline void cinput_init() {
     last_frame_mouse_position = (vec2){};
 }
 
-static inline void cinput_update() {
-    // i32 mx, my;
-    // SDL_GetMouseState(&mx, &my);
+static inline void cinput_update(const luna_Renderer_t *rd) {
+    int mx, my;
+    SDL_GetMouseState(&mx, &my);
 
-    // * do we actually have to make renderer a parameter to cinput
-    // * oh god no please.
-    // const f32 width = (f32)vctx::RenderExtent.width;
-    // const f32 height = (f32)vctx::RenderExtent.height;
+    const f32 width = (f32)luna_Renderer_GetRenderExtent(rd).width;
+    const f32 height = (f32)luna_Renderer_GetRenderExtent(rd).height;
 
-    // last_frame_mouse_position = mouse_position;
-    // mouse_position.x = (f32(mx) / width)  * 2.0f - 1.0f;
-    // mouse_position.y = (f32(my) / height) * 2.0f - 1.0f;
+    last_frame_mouse_position = mouse_position;
+    mouse_position.x = ((f32)mx / width)  * 2.0f - 1.0f;
+    mouse_position.y = ((f32)my / height) * 2.0f - 1.0f;
 
     const u8 *const sdl_kb_state = SDL_GetKeyboardState(NULL);
     cg_bitset_copy_from(&cinput_last_frame_kb_state, &cinput_kb_state);

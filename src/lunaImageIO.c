@@ -1,4 +1,4 @@
-#include "../include/cimage.h"
+#include "../include/lunaImage.h"
 #include "../include/defines.h"
 
 #include <stdlib.h>
@@ -12,21 +12,21 @@ const char* get_file_extension(const char *path) {
     return dot + 1;
 }
 
-cg_tex2D cimg_load(const char *path)
+luna_Image luna_ImageLoad(const char *path)
 {
     const char *ext = get_file_extension(path);
     if (strcmp(ext, "jpeg") == 0 || strcmp(ext, "jpg") == 0) {
-        return cimg_load_jpg(path);
+        return luna_ImageLoadJPEG(path);
     } else if (strcmp(ext, "png") == 0) {
-        return cimg_load_png(path);
+        return luna_ImageLoadPNG(path);
     }
     cassert(0);
-    return (cg_tex2D){};
+    return (luna_Image){};
 }
 
-cg_tex2D cimg_load_png(const char *path)
+luna_Image luna_ImageLoadPNG(const char *path)
 {
-    cg_tex2D texture = {};
+    luna_Image texture = {};
     
     FILE *f = fopen(path, "rb");
     cassert(f != NULL);
@@ -97,12 +97,12 @@ cg_tex2D cimg_load_png(const char *path)
     return texture;
 }
 
-cg_tex2D cimg_load_jpg(const char *path)
+luna_Image luna_ImageLoadJPEG(const char *path)
 {
     struct jpeg_decompress_struct cinfo;
     struct jpeg_error_mgr jerr;
     FILE *f;
-    cg_tex2D img = {};
+    luna_Image img = {};
 
     if ((f = fopen(path, "rb")) == NULL) {
         fprintf(stderr, "cimageload :: couldn't open file \"%s\" Are you sure that it exists?\n", path);
@@ -151,7 +151,7 @@ cg_tex2D cimg_load_jpg(const char *path)
     return img;
 }
 
-void cimg_write_png(const cg_tex2D *tex, const char *path)
+void luna_ImageWritePNG(const luna_Image *tex, const char *path)
 {
     FILE *f = fopen(path, "wb");
     cassert(f != NULL);
@@ -251,7 +251,6 @@ void cimg_write_png(const cg_tex2D *tex, const char *path)
         break;
     }
 
-    // ! REPLACE
     const int bytesperpixel = vk_fmt_get_bpp(tex->fmt);
     png_set_IHDR(png, info, tex->w, tex->h, bytesperpixel * 8, coltype, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
 
@@ -262,6 +261,7 @@ void cimg_write_png(const cg_tex2D *tex, const char *path)
         row_pointers[y] = tex->data + y * tex->w * bytesperpixel;
     }
     png_write_image(png, row_pointers);
+    free(row_pointers);
 
     png_write_end(png, NULL);
 

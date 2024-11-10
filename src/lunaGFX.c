@@ -1,12 +1,12 @@
-#include "../include/cgfx.h"
+#include "../include/lunaGFX.h"
 #include "../include/cgfxdef.h"
 
 #include "../include/vkstdafx.h"
 #include "../include/stdafx.h"
 #include "../include/math/math.h"
-#include "../include/cvk.h"
+#include "../include/lunaPipeline.h"
 #include "../include/cengine.h"
-#include "../include/vkhelper.h"
+#include "../include/lunaVK.h"
 
 #include "../include/cgvector.h"
 
@@ -38,34 +38,34 @@ VkQueue ComputeQueue = VK_NULL_HANDLE;
 VkQueue TransferQueue = VK_NULL_HANDLE;
 VkSampleCountFlagBits Samples = VK_SAMPLE_COUNT_1_BIT;
 
-int crd_get_renderer_frame(const crenderer_t *rd)
+int luna_Renderer_GetFrame(const luna_Renderer_t *rd)
 {
     return rd->renderer_frame;
 }
 
-VkCommandBuffer crd_get_drawbuffer(const crenderer_t *rd)
+VkCommandBuffer luna_Renderer_GetDrawBuffer(const luna_Renderer_t *rd)
 {
     return *(VkCommandBuffer *)cg_vector_get(&rd->drawBuffers, rd->renderer_frame);
 }
 
-VkRenderPass crd_get_render_pass(const crenderer_t *rd)
+VkRenderPass luna_Renderer_GetRenderPass(const luna_Renderer_t *rd)
 {
     return rd->render_pass;
 }
 
-cg_extent2d crd_get_render_extent(const crenderer_t *rd)
+lunaExtent2D luna_Renderer_GetRenderExtent(const luna_Renderer_t *rd)
 {
     return rd->render_extent;
 }
 
-void crenderer_destroy(crenderer_t *rd)
+void luna_Renderer_Destroy(luna_Renderer_t *rd)
 {
     vkDeviceWaitIdle(device);
 
     for (int i = 0; i < SwapChainImageCount; i++) {
-        cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(&rd->renderData, i);
+        lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
         // weeeee
-        cgfx_gpu_image_free(&data->depth_image);
+        luna_GPU_image_free(&data->depth_image);
         vkDestroyFramebuffer(device, data->color_framebuffer, NULL);
         // CHECKMEOUTPARTNER: Uhh, these are causing vulkan validation layer errors...
         // vkDestroySemaphore(device, data->image_available_semaphore, NULL);
@@ -73,7 +73,7 @@ void crenderer_destroy(crenderer_t *rd)
         // vkDestroyFence(device, data->in_flight_fence, NULL);
     }
     cg_vector_destroy(&rd->renderData);
-    cgfx_gpu_memory_free(&rd->depth_image_memory);
+    luna_GPU_memory_free(&rd->depth_image_memory);
     vkFreeCommandBuffers(device, rd->commandPool, cg_vector_size(&rd->drawBuffers), (VkCommandBuffer *)cg_vector_data(&rd->drawBuffers));
     vkDestroyCommandPool(device, rd->commandPool, NULL);
 
@@ -82,15 +82,15 @@ void crenderer_destroy(crenderer_t *rd)
     if (rd->ctext) {
         // ! FIXME: Implement
     }
-    if (rd->config.multisampling_enable) {
-        cgfx_gpu_image_free(&rd->color_image);
-        cgfx_gpu_memory_free(&rd->color_image_memory);
+    if (rd->flags & CG_RENDERER_MULTISAMPLING_ENABLE) {
+        luna_GPU_image_free(&rd->color_image);
+        luna_GPU_memory_free(&rd->color_image_memory);
     }
     vkDestroyRenderPass(device, rd->render_pass, NULL);
     free(rd);
 }
 
-void create_optional_images(crenderer_t *rd)
+void create_optional_images(luna_Renderer_t *rd)
 {
     vkGetSwapchainImagesKHR(device, rd->swapchain, &SwapChainImageCount, NULL);
     VkImage *swapchainImages = (VkImage *)malloc(SwapChainImageCount * sizeof(VkImage));
@@ -98,9 +98,9 @@ void create_optional_images(crenderer_t *rd)
 
     cg_vector_resize(&rd->renderData, SwapChainImageCount);
 
-    if (rd->config.multisampling_enable) {
+    if (rd->flags & CG_RENDERER_MULTISAMPLING_ENABLE) {
         int color_image_size = 0;
-        vkh_image_create_empty(
+        luna_VK_CreateTextureEmpty(
             rd->render_extent.width, rd->render_extent.height,
             SwapChainImageFormat,
             Samples,
@@ -109,10 +109,10 @@ void create_optional_images(crenderer_t *rd)
             &color_image_size,
             &rd->color_image.image, NULL
         );
-        cgfx_gpu_memory_allocate(color_image_size, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, &rd->color_image_memory);
-        cgfx_gpu_memory_bind_image(&rd->color_image_memory, 0, &rd->color_image);
+        luna_GPU_AllocateMemory(color_image_size, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, &rd->color_image_memory);
+        luna_GPU_BindImageToMemory(&rd->color_image_memory, 0, &rd->color_image);
 
-        cgfx_gpu_image_view_create_info resolve_view_info = {
+        luna_GPU_TextureViewCreateInfo resolve_view_info = {
             .format = SwapChainImageFormat,
             .view_type = VK_IMAGE_VIEW_TYPE_2D,
             .subresourceRange = (VkImageSubresourceRange) {
@@ -123,18 +123,16 @@ void create_optional_images(crenderer_t *rd)
                 .layerCount = 1,
             }
         };
-        cgfx_gpu_create_image_view(&resolve_view_info, &rd->color_image);
-        printf("%i\n", SwapChainImageFormat);
-        cassert(0 !=  SwapChainImageFormat);
+        luna_GPU_CreateTextureView(&resolve_view_info, &rd->color_image);
     }
 
     // attachment vector will be like <color resolve, depth attachment, swapchain image>
     for (int i = 0; i < (int)SwapChainImageCount; i++) {
-        cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(&rd->renderData, i);
-        data->sc_image = (cgfx_gpu_image_t){};
+        lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
+        data->sc_image = (luna_GPU_Texture){};
         data->sc_image.image = swapchainImages[i];
 
-        const cgfx_gpu_image_create_info image_info = {
+        const luna_GPU_TextureCreateInfo image_info = {
             .format = VK_FORMAT_D32_SFLOAT,
             .samples = Samples,
             .type = VK_IMAGE_TYPE_2D,
@@ -143,19 +141,19 @@ void create_optional_images(crenderer_t *rd)
             .arraylayers = 1,
             .miplevels = 1,
         };
-        cgfx_gpu_create_image(&image_info, &data->depth_image);
+        luna_GPU_CreateTexture(&image_info, &data->depth_image);
 
         if (i == 0) {
             VkMemoryRequirements memReqs = {};
             vkGetImageMemoryRequirements(device, data->depth_image.image, &memReqs);
 
             rd->shadow_image_size = memReqs.size;
-            cgfx_gpu_memory_allocate(rd->shadow_image_size * SwapChainImageCount, CGFX_MEMORY_USAGE_GPU_LOCAL, &rd->depth_image_memory);
+            luna_GPU_AllocateMemory(rd->shadow_image_size * SwapChainImageCount, LUNA_GPU_MEMORY_USAGE_GPU_LOCAL, &rd->depth_image_memory);
         }
 
-        cgfx_gpu_memory_bind_image(&rd->depth_image_memory, i * rd->shadow_image_size, &data->depth_image);
+        luna_GPU_BindImageToMemory(&rd->depth_image_memory, i * rd->shadow_image_size, &data->depth_image);
 
-        const cgfx_gpu_image_view_create_info view_info = {
+        const luna_GPU_TextureViewCreateInfo view_info = {
             .format = VK_FORMAT_D32_SFLOAT,
             .view_type = VK_IMAGE_VIEW_TYPE_2D,
             .subresourceRange = (VkImageSubresourceRange){
@@ -166,17 +164,17 @@ void create_optional_images(crenderer_t *rd)
                 .layerCount = 1,
             },
         };
-        cgfx_gpu_create_image_view(&view_info, &data->depth_image);
+        luna_GPU_CreateTextureView(&view_info, &data->depth_image);
     }
 
     free(swapchainImages);
 }
 
-void create_framebuffers_and_swapchain_image_views(crenderer_t *rd) {
+void create_framebuffers_and_swapchain_image_views(luna_Renderer_t *rd) {
     cg_vector_t /* VkImageView */ attachments = cg_vector_init(sizeof(VkImageView), 3);
 
     for (int i = 0; i < (int)SwapChainImageCount; i++) {
-        cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(&rd->renderData, i);
+        lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
 
         // we don't know anything about the swapchain_image, as it's a swapchain image
         // so we have to manually create the image view;
@@ -198,7 +196,7 @@ void create_framebuffers_and_swapchain_image_views(crenderer_t *rd) {
         const VkImageView depth_image_view = data->depth_image.view;
 
         cg_vector_clear(&attachments);
-        if (rd->config.multisampling_enable) {
+        if (rd->flags & CG_RENDERER_MULTISAMPLING_ENABLE) {
             cg_vector_push_set(&attachments, (VkImageView[]){ rd->color_image.view, depth_image_view, swapchain_image_view }, 3);
         }
         else {
@@ -221,18 +219,31 @@ void create_framebuffers_and_swapchain_image_views(crenderer_t *rd) {
     cg_vector_destroy(&attachments);
 }
 
-crenderer_t *crenderer_init( const crenderer_config *conf)
+luna_Renderer_t *luna_Renderer_Init(const luna_Renderer_Config *conf)
 {
-    struct crenderer_t *rd = (crenderer_t *)calloc(1, sizeof(struct crenderer_t));
+    if (conf->multisampling_enable == 1) {
+        LOG_ERROR("config samples must not be 1 if multisampling is enabled.");
+        cassert(conf->samples != CG_SAMPLE_COUNT_1_SAMPLES);
+    }
+    struct luna_Renderer_t *rd = (luna_Renderer_t *)calloc(1, sizeof(struct luna_Renderer_t));
 
-    memcpy(&rd->config, conf, sizeof(crenderer_config));
+    if (conf->multisampling_enable) {
+        rd->flags |= CG_RENDERER_MULTISAMPLING_ENABLE;
+    }
+    if (conf->window_resizable) {
+        rd->flags |= CG_RENDERER_WINDOW_RESIZABLE;
+    }
+    if (conf->vsync_enabled) {
+        rd->flags |= CG_RENDERER_VSYNC_ENABLE;
+    }
+    rd->buffer_mode = conf->buffer_mode;
 
     /* Initialize graphics singleton */
     {
-        if (!vkh_get_supported_fmt(physDevice, surface, &SwapChainImageFormat, &SwapChainColorSpace)) {
+        if (!luna_VK_GetSupportedFormat(physDevice, surface, &SwapChainImageFormat, &SwapChainColorSpace)) {
             LOG_AND_ABORT("No supported format for display.");
         }
-        SwapChainImageCount = vkh_get_image_count(physDevice, surface);
+        SwapChainImageCount = luna_VK_GetSurfaceImageCount(physDevice, surface);
 
         u32 queueCount = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, NULL);
@@ -245,7 +256,7 @@ crenderer_t *crenderer_init( const crenderer_config *conf)
         u32 i = 0;
         for (u32 j = 0; j < queueCount; j++) {
             const VkQueueFamilyProperties queueFamily = ((VkQueueFamilyProperties *)cg_vector_data(&queueFamilies))[j];
-            VkBool32 presentSupport = false;
+            VkBool32 presentSupport;
             vkGetPhysicalDeviceSurfaceSupportKHR(physDevice, i, surface, &presentSupport);
             
             if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT && queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) {
@@ -310,14 +321,14 @@ crenderer_t *crenderer_init( const crenderer_config *conf)
         present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
     }
 
-    cvk_swapchain_create_info scio = {};
+    luna_GPU_SwapchainCreateInfo scio = {};
     scio.extent.width = rd->render_extent.width;
     scio.extent.height = rd->render_extent.height;
     scio.present_mode = present_mode;
     scio.format = SwapChainImageFormat;
     scio.color_space = SwapChainColorSpace;
     scio.image_count = SwapChainImageCount;
-    cvk_create_swapchain(&scio, &rd->swapchain);
+    luna_GPU_CreateSwapchain(&scio, &rd->swapchain);
 
     VkSampleCountFlagBits conf_samples;
     if (conf->samples == CG_SAMPLE_COUNT_MAX_SUPPORTED) {
@@ -329,11 +340,11 @@ crenderer_t *crenderer_init( const crenderer_config *conf)
     Samples = samples;
 
     if (conf->multisampling_enable) {
-        cvk_flag_register |= CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING;
+        luna_GPU_vk_flag_register |= CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING;
         rd->attachment_count++;
     }
-    cvk_flag_register |= CVK_PIPELINE_FLAGS_FORCE_DEPTH_CHECK;
-    cvk_flag_register |= CVK_PIPELINE_FLAGS_FORCE_CULLING;
+    luna_GPU_vk_flag_register |= CVK_PIPELINE_FLAGS_FORCE_DEPTH_CHECK;
+    luna_GPU_vk_flag_register |= CVK_PIPELINE_FLAGS_FORCE_CULLING;
     rd->attachment_count++;
 
     VkCommandPoolCreateInfo cmdPoolCreateInfo = {};
@@ -348,9 +359,9 @@ crenderer_t *crenderer_init( const crenderer_config *conf)
     const int frames_in_flight = 1 + (int)conf->buffer_mode;
 
     rd->drawBuffers = cg_vector_init(sizeof(VkCommandBuffer), frames_in_flight);
-    rd->renderData = cg_vector_init(sizeof(cg_framerender_data), frames_in_flight);
+    rd->renderData = cg_vector_init(sizeof(lunaFrameRenderData), frames_in_flight);
 
-    cg_framerender_data data = {};
+    lunaFrameRenderData data = {};
     for (int i = 0; i < frames_in_flight; i++) {
         cg_vector_push_back(&rd->drawBuffers, &data);
         cg_vector_push_back(&rd->renderData, &data);
@@ -365,12 +376,12 @@ crenderer_t *crenderer_init( const crenderer_config *conf)
 
     rd->depth_buffer_format = VK_FORMAT_D32_SFLOAT; // replace (probably)
 
-    cvk_render_pass_create_info rpi = {};
+    luna_GPU_RenderPassCreateInfo rpi = {};
     rpi.format = SwapChainImageFormat;
     rpi.depthBufferFormat = rd->depth_buffer_format;
     rpi.subpass = 0;
     rpi.samples = samples;
-    cvk_create_render_pass(&rpi, &rd->render_pass, cvk_flag_register);
+    luna_GPU_CreateRenderPass(&rpi, &rd->render_pass, luna_GPU_vk_flag_register);
 
     create_optional_images(rd);
     create_framebuffers_and_swapchain_image_views(rd);
@@ -385,7 +396,7 @@ crenderer_t *crenderer_init( const crenderer_config *conf)
             VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, NULL, VK_FENCE_CREATE_SIGNALED_BIT
         };
 
-        cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(&rd->renderData, i);
+        lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
         vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->render_finish_semaphore);
         vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->image_available_semaphore);
         vkCreateFence(device, &fenceCreateInfo, NULL, &data->in_flight_fence);
@@ -396,7 +407,7 @@ crenderer_t *crenderer_init( const crenderer_config *conf)
     return rd;
 }
 
-void crenderer_resize(crenderer_t *rd) {
+void crenderer_resize(luna_Renderer_t *rd) {
     vkDeviceWaitIdle(device);
 
     const VkSemaphoreCreateInfo semaphoreCreateInfo = {
@@ -408,15 +419,15 @@ void crenderer_resize(crenderer_t *rd) {
     };
     
     // adhoc method of resetting them
-    for (int i = 0; i < (1 + (int)rd->config.buffer_mode); i++) {
-        cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(&rd->renderData, i);
+    for (int i = 0; i < (1 + (int)rd->buffer_mode); i++) {
+        lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
         vkDestroySemaphore(device, data->image_available_semaphore, NULL);
         vkDestroySemaphore(device, data->render_finish_semaphore, NULL);
         vkDestroyFence(device, data->in_flight_fence, NULL);
     }
     for (u32 i = 0; i < SwapChainImageCount; i++)
     {
-        cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(&rd->renderData, i);
+        lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
         vkDestroyImageView(device, data->sc_image.view, NULL); // as the view was silently smushed into the structure, we just kinda smush it out as well.
         vkDestroyFramebuffer(device, data->color_framebuffer, NULL);
     }
@@ -437,14 +448,14 @@ void crenderer_resize(crenderer_t *rd) {
     w = cmclamp((u32)w, min_width, max_width);
     h = cmclamp((u32)h, min_height, max_height);
 
-    rd->render_extent = (cg_extent2d){ w, h };
+    rd->render_extent = (lunaExtent2D){ w, h };
 
     VkSwapchainKHR old_swapchain = rd->swapchain;
 
     VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR;
 
-    if (rd->config.vsync_enabled) {
-        switch (rd->config.buffer_mode) {
+    if (rd->flags & CG_RENDERER_VSYNC_ENABLE) {
+        switch (rd->buffer_mode) {
             case CG_BUFFER_MODE_SINGLE_BUFFERED:
             case CG_BUFFER_MODE_DOUBLE_BUFFERED:
             default:
@@ -459,7 +470,7 @@ void crenderer_resize(crenderer_t *rd) {
         present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
     }
 
-    cvk_swapchain_create_info scio = {};
+    luna_GPU_SwapchainCreateInfo scio = {};
     scio.extent.width = rd->render_extent.width;
     scio.extent.height = rd->render_extent.height;
     scio.present_mode = present_mode;
@@ -467,17 +478,17 @@ void crenderer_resize(crenderer_t *rd) {
     scio.color_space = SwapChainColorSpace;
     scio.image_count = SwapChainImageCount;
     scio.old_swapchain = old_swapchain;
-    cvk_create_swapchain(&scio, &rd->swapchain);
+    luna_GPU_CreateSwapchain(&scio, &rd->swapchain);
     vkDestroySwapchainKHR(device, old_swapchain, NULL);
 
-    cgfx_gpu_image_free(&rd->color_image);
+    luna_GPU_image_free(&rd->color_image);
 
     create_optional_images(rd);
     create_framebuffers_and_swapchain_image_views(rd);
 
     for (u32 i = 0; i < SwapChainImageCount; i++)
     {
-        cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(&rd->renderData, i);
+        lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
         vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->render_finish_semaphore);
         vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->image_available_semaphore);
         vkCreateFence(device, &fenceCreateInfo, NULL, &data->in_flight_fence);
@@ -486,9 +497,9 @@ void crenderer_resize(crenderer_t *rd) {
     cg__reset_frame_buffer_resized();
 }
 
-bool_t crd_begin_render(crenderer_t *rd)
+bool luna_Renderer_BeginRender(luna_Renderer_t *rd)
 {
-    cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(&rd->renderData, rd->renderer_frame);
+    lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, rd->renderer_frame);
 
     vkWaitForFences(device, 1, &data->in_flight_fence, VK_TRUE, UINT64_MAX);
 
@@ -511,7 +522,7 @@ bool_t crd_begin_render(crenderer_t *rd)
 
     // * Maybe the user should have control of the clear color but I don't really care lmao
 
-    VkFramebuffer fb = (*(cg_framerender_data *)(cg_vector_get(&rd->renderData, rd->imageIndex))).color_framebuffer;
+    VkFramebuffer fb = (*(lunaFrameRenderData *)(cg_vector_get(&rd->renderData, rd->imageIndex))).color_framebuffer;
     
     // Why was this static?
     VkRenderPassBeginInfo renderPassInfo = {
@@ -556,7 +567,7 @@ bool_t crd_begin_render(crenderer_t *rd)
     return true;
 }
 
-void crd_end_render(crenderer_t *rd)
+void luna_Renderer_EndRender(luna_Renderer_t *rd)
 {
     const VkCommandBuffer drawBuffer = *(VkCommandBuffer *)cg_vector_get(&rd->drawBuffers, rd->renderer_frame);
 
@@ -566,7 +577,7 @@ void crd_end_render(crenderer_t *rd)
 	VkSubmitInfo submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-    cg_framerender_data *data = (cg_framerender_data *)cg_vector_get(&rd->renderData, rd->renderer_frame);
+    const lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, rd->renderer_frame);
     const VkSemaphore waitSemaphores[] = {data->image_available_semaphore};
     const VkSemaphore signalSemaphores[] = {data->render_finish_semaphore};
 
@@ -598,5 +609,5 @@ void crd_end_render(crenderer_t *rd)
         crenderer_resize(rd);
     }
 
-    rd->renderer_frame = (rd->renderer_frame + 1) % (1 + (int)rd->config.buffer_mode);
+    rd->renderer_frame = (rd->renderer_frame + 1) % (1 + (int)rd->buffer_mode);
 }

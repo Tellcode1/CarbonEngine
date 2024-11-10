@@ -58,9 +58,12 @@ static inline vec4 m4mulv4(const mat4 m, const vec4 v) {
 
 static inline mat4 m4scale(const mat4 m, const vec3 v) {
     mat4 matrix = m4init(1.0f);
-    for (int i = 0; i < 3; i++) {
-        matrix.data[i] = v4muls(m.data[i], ((float *)&v)[i]);
-    }
+    // for (int i = 0; i < 3; i++) {
+    //     matrix.data[i] = v4muls(m.data[i], ((float *)&v)[i]);
+    // }
+    matrix.data[0] = v4muls(m.data[0], v.x);
+    matrix.data[1] = v4muls(m.data[1], v.y);
+    matrix.data[2] = v4muls(m.data[2], v.z);
     matrix.data[3] = m.data[3];
     return matrix;
 }

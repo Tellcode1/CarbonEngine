@@ -10,7 +10,7 @@ cg_vector_t setify(u32 i1, u32 i2, u32 i3, u32 i4) {
 	cg_vector_t ret = cg_vector_init(sizeof(u32), 4);
     u32 nums[4] = {i1, i2, i3, i4};
 	for (int j = 0; j < array_len(nums); j++) {
-		int e = nums[j];
+		const u32 e = nums[j];
 		bool already_in = false;
 		for (int i = 0; i < cg_vector_size(&ret); i++) {
 			if (e == *(u32 *)cg_vector_get(&ret, i))

@@ -9,16 +9,15 @@
 
 #define CB_CONCAT(x, y) x##y
 
-#define array_len(arr) (sizeof(arr) / sizeof(arr[0]))
+#define array_len(arr) ((int)(sizeof(arr) / sizeof(arr[0])))
 
 #include "stdafx.h"
-#include <libgen.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
 
 #ifndef NDEBUG
-    //  ISO C++ doesn't allow conversion of __FILE__ to a char * (its a const char *).
+    // we don't use libgen's basename because ISO C++ doesn't allow conversion of __FILE__ to a char * (its a const char *).
     static inline const char *__basename(const char *path) {
         char *ret = strrchr(path, '/');
         if (ret) {
@@ -31,6 +30,7 @@
     #define cassert(expr) if (!((bool)(expr))) { LOG_AND_ABORT("[%s(%u)] Assertion failed -> %s", __basename(__FILE__), __LINE__, #expr); }
 #else
     static inline const char *__basename(const char *path) { return NULL; }
+    // These are typecasted to void because they give warnings because result (its like expr != NULL) is not used
     #define cassert_and_ret(expr) (void)(expr)
     #define cassert(expr) (void)(expr)
 #endif
@@ -48,14 +48,10 @@ typedef int32_t i32;
 typedef int16_t i16;
 typedef int8_t i8;
 
-// These aren't guranteed to be 32/64 bits. (I think so, I may be wrong)
+// They ARE 32 and 64 bits by IEEE-754 but aren't set by the standard
+// But there is a 99.9% chance that they will be
 typedef float f32;
 typedef double f64;
-
-// I think bool_t is defined by some libraries so just to be safe.
-#ifndef bool_t
-    #define bool_t bool
-#endif
 
 #ifdef __cplusplus
     }

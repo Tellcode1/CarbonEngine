@@ -14,7 +14,7 @@ void cg_bitset_set_bit_to(cg_bitset_t *set, int bitindex, cg_bitset_bit to);
 void cg_bitset_clear_bit(cg_bitset_t *set, int bitindex);
 void cg_bitset_toggle_bit(cg_bitset_t *set, int bitindex);
 cg_bitset_bit cg_bitset_access_bit(cg_bitset_t *set, int bitindex);
-void cg_bitset_copy_from(cg_bitset_t *dst, cg_bitset_t *src);
+void cg_bitset_copy_from(cg_bitset_t *dst, const cg_bitset_t *src);
 void cg_bitset_destroy(cg_bitset_t *set);
 
 #endif//__CBITSET_H

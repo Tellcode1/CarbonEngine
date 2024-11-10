@@ -27,13 +27,13 @@ set(SOURCES
     src/ctext.c
     src/cshadermanager.c
     
-    src/cvk.c
-    src/cgfx.c
-    src/vkhelper.c
+    src/lunaPipeline.c
+    src/lunaGFX.c
+    src/lunaVK.c
 
     src/containersunity.c
 
-    src/cimageio.c
+    src/lunaImageIO.c
     src/sprite.c
 )
 
@@ -58,7 +58,7 @@ set(LIBS
     box2d
 )
 
-target_link_options(${OUTPUT} PRIVATE -g -Wall -fopenmp -O3)
-target_compile_options(${OUTPUT} PRIVATE -g -Wall -fopenmp -O3)
+target_link_options(${OUTPUT} PRIVATE -g -Wall -Wextra -fopenmp)
+target_compile_options(${OUTPUT} PRIVATE -g -Wall -Wextra -fopenmp)
 target_compile_definitions(${OUTPUT} PRIVATE CSM_EXECUTABLE=0) # avoid making multiple main's 
 target_link_libraries(${OUTPUT} ${LIBS})

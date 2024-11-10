@@ -3,12 +3,6 @@
 #include "../../include/cghashmap.h"
 #include "../../include/defines.h"
 
-typedef struct ch_node_t {
-    void *key;
-    void *value;
-    bool is_occupied;
-} ch_node_t;
-
 typedef struct cg_hashmap_t {
     ch_node_t **nodes;
     cg_hashmap_hash_fn hash_fn;
@@ -47,7 +41,7 @@ unsigned cg_hashmap_std_hash(const void *bytes, int nbytes) {
     return hash;
 };
 
-bool_t cg_hashmap_std_key_eq(const void *key1, const void *key2, unsigned long nbytes) {
+bool cg_hashmap_std_key_eq(const void *key1, const void *key2, unsigned long nbytes) {
     if (key1 == key2) {
         return 1;
     } else {
@@ -163,7 +157,7 @@ int cg_hashmap_valuesize(const cg_hashmap_t *map)
     return map->valuesize;
 }
 
-void *cg_hashmap_root_node(const cg_hashmap_t *map)
+ch_node_t **cg_hashmap_root_node(const cg_hashmap_t *map)
 {
     return map->nodes;
 }

@@ -12,7 +12,7 @@
 
 struct csm_shader_t;
 
-typedef void (*cvk_result_check_fn) (const VkResult result, const char *__restrict__ FILE, const char *__restrict__ FUNC, unsigned long LINE);
+typedef void (*luna_GPU_ResultCheckFn) (const VkResult result, const char *__restrict__ FILE, const char *__restrict__ FUNC, unsigned long LINE);
 
 #define CVK_REQUIRED_PTR(ptr) if((ptr) == NULL) LOG_AND_ABORT(#ptr" :  Required parameter \""#ptr"\" specified as NULL.\n", __basename(__FILE__), __LINE__, __PRETTY_FUNCTION__)
 #define CVK_NOT_EQUAL_TO(val, to) if((val) == (to)) LOG_AND_ABORT(#val" == "#to". Value \""#val"\" must not be equal to "#to".\n", __basename(__FILE__), __LINE__, __PRETTY_FUNCTION__)
@@ -42,13 +42,13 @@ static void __cvk_defaultResultCheckFunc(const VkResult result, const char *FILE
 /*
 	Used internally. Do NOT modify by yourselves! Use SetResultCheckFunc instead.
 */
-extern cvk_result_check_fn __cvk_resultFunc;
+extern luna_GPU_ResultCheckFn __cvk_resultFunc;
 
 /*
 	Set the result checking function for the API. This is called every time the program requests something in the order of vkCreate* that this namespace has a hold of.
 	Use NULL to deattach the function.
 */
-static inline void cvk_set_result_check_fn(cvk_result_check_fn func)
+static inline void luna_GPU_SetResultCheckFn(luna_GPU_ResultCheckFn func)
 {
 	if (func != NULL)
 		__cvk_resultFunc = func;
@@ -56,17 +56,17 @@ static inline void cvk_set_result_check_fn(cvk_result_check_fn func)
 		func = __cvk_defaultResultCheckFunc;
 }
 
-extern u32 cvk_flag_register;
+extern u32 luna_GPU_vk_flag_register;
 
 /*
 *	FORWARD DECLARATIONS
 */
-typedef struct cvk_pipeline_create_info cvk_pipeline_create_info;
-typedef struct cvk_swapchain_create_info cvk_swapchain_create_info;
-typedef struct cvk_render_pass_create_info cvk_render_pass_create_info;
-typedef struct cvk_pipeline_blend_state cvk_pipeline_blend_state;
+typedef struct luna_GPU_PipelineCreateInfo luna_GPU_PipelineCreateInfo;
+typedef struct luna_GPU_SwapchainCreateInfo luna_GPU_SwapchainCreateInfo;
+typedef struct luna_GPU_RenderPassCreateInfo luna_GPU_RenderPassCreateInfo;
+typedef struct luna_GPU_PipelineBlendState luna_GPU_PipelineBlendState;
 
-typedef enum cvk_blend_preset
+typedef enum luna_GPU_PipelineBlendPreset
 {
 	CVK_BLEND_PRESET_NONE                  = 0,
 	CVK_BLEND_PRESET_ALPHA                 = 1,
@@ -75,9 +75,9 @@ typedef enum cvk_blend_preset
 	CVK_BLEND_PRESET_PREMULTIPLIED_ALPHA   = 4,
 	CVK_BLEND_PRESET_SUBTRACTIVE           = 5,
 	CVK_BLEND_PRESET_SCREEN                = 6,
-} cvk_blend_preset;
+} luna_GPU_PipelineBlendPreset;
 
-typedef struct cvk_pipeline_blend_state
+typedef struct luna_GPU_PipelineBlendState
 {
 	VkBlendFactor            srcColorBlendFactor;
 	VkBlendFactor            dstColorBlendFactor;
@@ -86,10 +86,10 @@ typedef struct cvk_pipeline_blend_state
 	VkBlendFactor            dstAlphaBlendFactor;
 	VkBlendOp                alphaBlendOp;
 	VkColorComponentFlags    colorWriteMask;
-} cvk_pipeline_blend_state;
-extern cvk_pipeline_blend_state cvk_init_pipeline_blend_state(cvk_blend_preset preset);
+} luna_GPU_PipelineBlendState;
+extern luna_GPU_PipelineBlendState luna_GPU_InitPipelineBlendState(luna_GPU_PipelineBlendPreset preset);
 
-typedef struct cvk_pipeline_create_info
+typedef struct luna_GPU_PipelineCreateInfo
 {
 	VkRenderPass 	 	render_pass;
 	VkPipelineLayout 	pipeline_layout;
@@ -106,7 +106,7 @@ typedef struct cvk_pipeline_create_info
 	VkSampleCountFlagBits samples;
 
 	// Ignored if flags does not contain PIPELINE_CREATE_FLAGS_ENABLE_BLEND
-	const cvk_pipeline_blend_state* blend_state;
+	const luna_GPU_PipelineBlendState* blend_state;
 
 	/*
 	*	Array pointers are allowed to be NULL
@@ -122,10 +122,10 @@ typedef struct cvk_pipeline_create_info
 	int nDescriptorLayouts;
 	int nPushConstants;
 	int nShaders;
-} cvk_pipeline_create_info;
-#define cvk_init_pipeline_create_info() (cvk_pipeline_create_info){.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, .samples = VK_SAMPLE_COUNT_1_BIT}
+} luna_GPU_PipelineCreateInfo;
+#define luna_GPU_InitPipelineCreateInfo() (luna_GPU_PipelineCreateInfo){.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, .samples = VK_SAMPLE_COUNT_1_BIT}
 
-typedef struct cvk_swapchain_create_info
+typedef struct luna_GPU_SwapchainCreateInfo
 {
 	VkExtent2D extent;
 	VkPresentModeKHR present_mode;
@@ -133,10 +133,10 @@ typedef struct cvk_swapchain_create_info
 	VkFormat format;
 	VkColorSpaceKHR color_space;
 	VkSwapchainKHR old_swapchain;
-} cvk_swapchain_create_info;
-extern cvk_swapchain_create_info cvk_init_swapchain_create_info();
+} luna_GPU_SwapchainCreateInfo;
+extern luna_GPU_SwapchainCreateInfo luna_GPU_InitSwapchainCreateInfo();
 
-typedef struct cvk_render_pass_create_info
+typedef struct luna_GPU_RenderPassCreateInfo
 {
 	u64 subpass;
 	VkFormat format;
@@ -144,15 +144,15 @@ typedef struct cvk_render_pass_create_info
 
 	// Ignored if flags does not contain PIPELINE_CREATE_FLAGS_ENABLE_MULTISAMPLING
 	VkSampleCountFlagBits samples;
-} cvk_render_pass_create_info;
-#define cvk_init_render_pass_create_info() (cvk_render_pass_create_info){ .samples = VK_SAMPLE_COUNT_1_BIT}
+} luna_GPU_RenderPassCreateInfo;
+#define luna_GPU_InitRenderPassCreateInfo() (luna_GPU_RenderPassCreateInfo){ .samples = VK_SAMPLE_COUNT_1_BIT}
 
-extern void cvk_create_graphics_pipeline(cvk_pipeline_create_info const* pCreateInfo, VkPipeline* dstPipeline, u32 flags);
-extern void cvk_create_depth_pipeline(cvk_pipeline_create_info const* pCreateInfo, VkPipeline* dstPipeline, u32 flags);
-extern void cvk_create_pipeline_layout(cvk_pipeline_create_info const* pCreateInfo, VkPipelineLayout* dstLayout);
-extern void cvk_create_render_pass(cvk_render_pass_create_info const* pCreateInfo, VkRenderPass* dstRenderPass, u32 flags);
-extern void cvk_create_depth_pass(cvk_render_pass_create_info const* pCreateInfo, VkRenderPass* dstRenderPass, u32 flags);
-extern void cvk_create_swapchain(cvk_swapchain_create_info const* pCreateInfo, VkSwapchainKHR* dstSwapchain);
+extern void luna_GPU_CreateGraphicsPipeline(luna_GPU_PipelineCreateInfo const* pCreateInfo, VkPipeline* dstPipeline, u32 flags);
+extern void luna_GPU_CreateDepthPipeline(luna_GPU_PipelineCreateInfo const* pCreateInfo, VkPipeline* dstPipeline, u32 flags);
+extern void luna_GPU_CreatePipelineLayout(luna_GPU_PipelineCreateInfo const* pCreateInfo, VkPipelineLayout* dstLayout);
+extern void luna_GPU_CreateRenderPass(luna_GPU_RenderPassCreateInfo const* pCreateInfo, VkRenderPass* dstRenderPass, u32 flags);
+extern void luna_GPU_CreateDepthPass(luna_GPU_RenderPassCreateInfo const* pCreateInfo, VkRenderPass* dstRenderPass, u32 flags);
+extern void luna_GPU_CreateSwapchain(luna_GPU_SwapchainCreateInfo const* pCreateInfo, VkSwapchainKHR* dstSwapchain);
 
 #ifdef __cplusplus
 	}

@@ -6,11 +6,7 @@
 #include "math/math.h"
 #include "math/vec3.h"
 #include "math/mat.h"
-#include "cgfx.h"
-
-// typedef struct cgfx_render_Texture {
-
-// } cgfx_render_texture;
+#include "lunaGFX.h"
 
 typedef struct ccamera {
     // TODO: move to uniform buffer with data like current app time, delta time, etc.
@@ -49,19 +45,19 @@ static inline ccamera ccamera_init() {
     };
 }
 
-static inline const mat4 cam_get_projection(ccamera *cam) {
+static inline mat4 cam_get_projection(ccamera *cam) {
     return cam->projection;
 }
 
-static inline const mat4 cam_get_view(ccamera *cam) {
+static inline mat4 cam_get_view(ccamera *cam) {
     return cam->view;
 }
 
-static inline const vec3 cam_get_up(ccamera *cam) {
+static inline vec3 cam_get_up(ccamera *cam) {
     return cam->up;
 }
 
-static inline const vec3 cam_get_front(ccamera *cam) {
+static inline vec3 cam_get_front(ccamera *cam) {
     return cam->front;
 }
 
@@ -85,7 +81,7 @@ static inline void cam_set_position(ccamera *cam, const vec3 pos) {
     cam->position = pos;
 }
 
-static inline void cam_update(ccamera *cam, struct crenderer_t *rd) {
+static inline void cam_update(ccamera *cam, struct luna_Renderer_t *rd) {
     const float yaw_rads = cmdeg2rad(cam->yaw), pitch_rads = cmdeg2rad(cam->pitch);
     const float cospitch = cosf(pitch_rads);
     vec3 new_front;
@@ -101,7 +97,7 @@ static inline void cam_update(ccamera *cam, struct crenderer_t *rd) {
 
     cam->view = m4lookat(cam->position, v3add(cam->position, cam->front), cam->up);
 
-    const cg_extent2d RenderExtent = crd_get_render_extent(rd);
+    const lunaExtent2D RenderExtent = luna_Renderer_GetRenderExtent(rd);
     const f32 aspect = (f32)RenderExtent.width / (f32)RenderExtent.height;
     cam->projection = m4perspective(cam->fov, aspect, cam->near_clip, cam->far_clip);
 }

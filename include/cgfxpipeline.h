@@ -1,9 +1,9 @@
 #ifndef __CGFX_DESCRIPTORS_H
 #define __CGFX_DESCRIPTORS_H
 
-#include "cgfxstdafx.h"
+#include "lunaGFXstdafx.h"
 #include "cshadermanagerdev.h"
-#include "cgfx.h"
+#include "lunaGFX.h"
 
 #define CGFX_MAX_SHADERS_PER_PIPELINE (10)
 #define CGFX_MAX_DESCRIPTORS_PER_SHADER (10)
@@ -21,7 +21,7 @@ typedef struct cgfxcamera {
     VkFramebuffer framebuffer;
     VkRenderPass pass;
     VkFormat fmt;
-    cg_extent2d extent;
+    lunaExtent2D extent;
 } cgfxcamera;
 
 typedef struct cgfx_descriptor {

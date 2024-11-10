@@ -7,7 +7,7 @@
 
 #include <math.h>
 
-typedef unsigned char v2bool_t;
+typedef unsigned char v2bool;
 typedef struct vec2 {
     float x,y;
 } vec2;
@@ -48,8 +48,8 @@ static inline float v2dot(const vec2 v1, const vec2 v2) {
     return (v1.x * v2.x + v1.y * v2.y);
 }
 
-static inline v2bool_t v2areeq(const vec2 v1, const vec2 v2) {
-    return (v2bool_t)( v1.x == v2.x && v1.y == v2.y  );
+static inline v2bool v2areeq(const vec2 v1, const vec2 v2) {
+    return (v2bool)( v1.x == v2.x && v1.y == v2.y  );
 }
 
 #ifdef __cplusplus

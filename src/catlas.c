@@ -16,14 +16,15 @@ catlas_t catlas_init(int init_w, int init_h)
     return atlas;
 }
 
-bool_t catlas_add_image(catlas_t *__restrict__ atlas, int w, int h, const unsigned char *__restrict__ data, int *__restrict__ x, int *__restrict__ y)
+bool catlas_add_image(catlas_t *__restrict__ atlas, int w, int h, const unsigned char *__restrict__ data, int *__restrict__ x, int *__restrict__ y)
 {
     const int padding = 4;
     const int prev_h = atlas->height, prev_w = atlas->width;
-    bool_t realloc_needed = 0;
+    bool realloc_needed = 0;
     if (w > atlas->width) {
         // ! This doesn't work because the old image is not correctly copied by realloc
         // ! It'll be fixed by copying over the data row by row
+        // probably doesn't need fixing right now, will delay it for another eon
         // TODO: FIXME
         atlas->width = w;
         realloc_needed = 1;

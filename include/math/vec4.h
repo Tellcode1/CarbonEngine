@@ -7,7 +7,7 @@
 
 #include <math.h>
 
-typedef unsigned char v4bool_t;
+typedef unsigned char v4bool;
 typedef struct vec4 {
     float x,y,z,w;
 } vec4;
@@ -48,8 +48,8 @@ static inline float v4dot(const vec4 v1, const vec4 v2) {
     return (v1.x * v2.x + v1.y * v2.y + v1.z * v2.z + v1.w * v2.w);
 }
 
-static inline v4bool_t v4areeq(const vec4 v1, const vec4 v2) {
-    return (v4bool_t)( v1.x == v2.x && v1.y == v2.y && v1.z == v2.z && v1.w == v2.w  );
+static inline v4bool v4areeq(const vec4 v1, const vec4 v2) {
+    return (v4bool)( v1.x == v2.x && v1.y == v2.y && v1.z == v2.z && v1.w == v2.w  );
 }
 
 #ifdef __cplusplus

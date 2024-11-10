@@ -1,6 +1,6 @@
 #include "../include/cgfxpipeline.h"
 #include "../include/cshadermanagerdev.h"
-#include "../include/cvk.h"
+#include "../include/lunaPipeline.h"
 
 void cgfx_make_pipeline(  const cgfx_pipeline_create_info *pInfo, cgfx_abstract_descriptor_t *dst )
 {

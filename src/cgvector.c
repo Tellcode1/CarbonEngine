@@ -85,12 +85,12 @@ void cg_vector_move_from(cg_vector_t *src, cg_vector_t *dst)
     src->m_data = NULL;
 }
 
-cg_vector_bool_t cg_vector_empty(const cg_vector_t *vec)
+cg_vector_bool cg_vector_empty(const cg_vector_t *vec)
 {
     return (vec->m_size == 0);
 }
 
-cg_vector_bool_t cg_vector_equal(const cg_vector_t *vec1, const cg_vector_t *vec2)
+cg_vector_bool cg_vector_equal(const cg_vector_t *vec1, const cg_vector_t *vec2)
 {
     if (vec1->m_size != vec2->m_size || vec1->m_typesize != vec2->m_typesize)
         return (memcmp(vec1->m_data, vec2->m_data, vec1->m_size * vec1->m_typesize) == 0);

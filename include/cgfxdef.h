@@ -8,7 +8,7 @@
     extern "C" {
 #endif
 
-#include "cgfx.h"
+#include "lunaGFX.h"
 #include "cgvector.h"
 #include "cdevicememory.h"
 
@@ -21,17 +21,24 @@ typedef struct cg_ctext_module {
     VkDescriptorPool desc_pool;
     VkDescriptorSetLayout desc_Layout;
     VkDescriptorSet desc_set;
-    cgfx_gpu_image_t error_image;
-    cgfx_gpu_sampler_t error_sampler;
+    luna_GPU_Texture error_image;
+    luna_GPU_Sampler error_sampler;
     float model_matrix[4][4]; // what the hell?
 } cg_ctext_module;
 
-typedef struct crenderer_t
+typedef enum cg_renderer_flag_bits {
+    CG_RENDERER_MULTISAMPLING_ENABLE = 1 << 0,
+    CG_RENDERER_VSYNC_ENABLE = 1 << 1,
+    CG_RENDERER_WINDOW_RESIZABLE = 1 << 2,
+} cg_renderer_flag_bits;
+
+typedef struct luna_Renderer_t
 {
-    crenderer_config config;
+    unsigned flags;
+    lunaBufferMode buffer_mode;
 
     VkRenderPass render_pass;
-    cg_extent2d render_extent;
+    lunaExtent2D render_extent;
 
     VkSwapchainKHR swapchain;
     VkCommandPool commandPool;
@@ -41,10 +48,10 @@ typedef struct crenderer_t
     u32 imageIndex;
 
     int shadow_image_size; // the size of ONE depth texture. Multiply by SwapchainImageCount to get total size
-    cgfx_gpu_memory_t depth_image_memory;
+    luna_GPU_Memory depth_image_memory;
 
-    cgfx_gpu_image_t color_image;
-    cgfx_gpu_memory_t color_image_memory;
+    luna_GPU_Texture color_image;
+    luna_GPU_Memory color_image_memory;
 
     VkFormat depth_buffer_format;
 
@@ -52,7 +59,7 @@ typedef struct crenderer_t
     cg_vector_t drawBuffers;
 
     cg_ctext_module *ctext;
-} crenderer_t;
+} luna_Renderer_t;
 
 #ifdef __cplusplus
     }

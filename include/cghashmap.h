@@ -5,11 +5,17 @@
     extern "C" {
 #endif
 
+typedef struct ch_node_t {
+    void *key;
+    void *value;
+    bool is_occupied;
+} ch_node_t;
+
 typedef struct cg_hashmap_t cg_hashmap_t;
 typedef unsigned (*cg_hashmap_hash_fn)(const void *bytes, int nbytes);
-typedef bool_t (*cg_hashmap_key_equal_fn)(const void *key1, const void *key2, unsigned long keysize);
+typedef bool (*cg_hashmap_key_equal_fn)(const void *key1, const void *key2, unsigned long keysize);
 
-extern bool_t cg_hashmap_std_key_eq(const void *key1, const void *key2, unsigned long nbytes);
+extern bool cg_hashmap_std_key_eq(const void *key1, const void *key2, unsigned long nbytes);
 extern unsigned cg_hashmap_std_hash(const void *bytes, int nbytes);
 
 /*
@@ -26,7 +32,7 @@ extern int cg_hashmap_size(const cg_hashmap_t *map);
 extern int cg_hashmap_capacity(const cg_hashmap_t *map);
 extern int cg_hashmap_keysize(const cg_hashmap_t *map);
 extern int cg_hashmap_valuesize(const cg_hashmap_t *map);
-extern void *cg_hashmap_root_node(const cg_hashmap_t *map);
+extern ch_node_t **cg_hashmap_root_node(const cg_hashmap_t *map);
 
 /*
     WARNING: Doesn't replace the value if a key already exists!! Use cg_hashmap_insert_or_replace()

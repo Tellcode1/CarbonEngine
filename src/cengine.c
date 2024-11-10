@@ -16,8 +16,8 @@ u64 cg_frame_start = 0;
 u64 cg_fixed_frame_start = 0;
 u64 cg_frame_time = 0;
 
-bool_t cg_framebuffer_resized = 0;
-bool_t cg_application_running = 1;
+bool cg_framebuffer_resized = 0;
+bool cg_application_running = 1;
 
 static u64 currtime;
 
@@ -44,7 +44,4 @@ void cg_update() {
     cg_last_frame_time = currtime;
     currtime = SDL_GetPerformanceCounter();
     cg_delta_time = (currtime - cg_last_frame_time) / (double)SDL_GetPerformanceFrequency();
-
-    // ! FIXME: fixed update is not fixed (sorry)
-    cinput_update();
 }

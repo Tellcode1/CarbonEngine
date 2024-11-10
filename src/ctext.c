@@ -1,10 +1,10 @@
 #include "../include/ctext.h"
-#include "../include/cgfx.h"
+#include "../include/lunaGFX.h"
 
 #include "../include/cshadermanager.h"
-#include "../include/cvk.h"
-#include "../include/vkhelper.h"
-#include "../include/cimage.h"
+#include "../include/lunaPipeline.h"
+#include "../include/lunaVK.h"
+#include "../include/lunaImage.h"
 
 #include "../include/cgfxdef.h"
 
@@ -13,6 +13,8 @@
 #include <freetype2/ft2build.h>
 #include FT_FREETYPE_H
 #include FT_GLYPH_H
+
+#include "../include/ctext_font_file.h"
 
 #define MAX(a,b) ({ __typeof__(a) a_ = a; __typeof__(a) b_ = b; (a_ > b_) ? a_ : b_; })
 
@@ -29,26 +31,7 @@ typedef struct ctext_text_drawcall_t {
     u32 *indices;
 } ctext_text_drawcall_t;
 
-/* I have no idea what any of this is */
-
-void ctext_load_font(crenderer_t *rd, const char *font_path, f32 scale, cfont_t **dst)
-{
-	if (!rd || !dst)
-	{
-		LOG_ERROR("pInfo or dst is NULL!");
-		return;
-	}
-
-    cassert_and_ret(scale > 0.0f);
-
-    *dst = calloc(1, sizeof(cfont_t));
-
-    //
-    const f32 ceil_scale = ceilf(scale);
-    (*dst)->pixel_range = ceil_scale;
-    (*dst)->glyph_map = cg_hashmap_init(16, sizeof(char), sizeof(ctext_glyph), NULL, NULL);
-    (*dst)->drawcalls = cg_vector_init(sizeof(ctext_text_drawcall_t), 4);
-
+void ctext_load_font_from_ft(const char *font_path, int scale, cfont_t *dstref) {
     FT_Library lib; FT_Face face;
     if (FT_Init_FreeType(&lib))
     {
@@ -60,15 +43,17 @@ void ctext_load_font(crenderer_t *rd, const char *font_path, f32 scale, cfont_t 
         LOG_ERROR("failed to load font file: %s\n", font_path);
         FT_Done_FreeType(lib);
     }
-    FT_Set_Pixel_Sizes(face, 0, 256);
+    FT_Set_Pixel_Sizes(face, 0, scale);
+
+    strncpy(dstref->family_name, face->family_name, 128);
+    strncpy(dstref->style_name, face->style_name, 128);
 
     if (face->size->metrics.height) {
-        (*dst)->line_height = -face->size->metrics.height / (f32)face->units_per_EM;
+        dstref->line_height = -face->size->metrics.height / (f32)face->units_per_EM;
     } else {
-        // ! This doesn't work. find out why
-        (*dst)->line_height = -(f32)(face->ascender - face->descender) / face->size->metrics.y_scale;
+        dstref->line_height = -(f32)(face->ascender - face->descender) / face->size->metrics.y_scale;
     }
-    (*dst)->atlas = catlas_init(4096, 4096);
+    dstref->atlas = catlas_init(4096, 4096);
 
     for (int i = 0; i < 256; ++i) {
         FT_UInt glyph_index = FT_Get_Char_Index(face, i);
@@ -76,6 +61,11 @@ void ctext_load_font(crenderer_t *rd, const char *font_path, f32 scale, cfont_t 
             continue;
         }
         if (FT_Load_Glyph(face, glyph_index, FT_LOAD_DEFAULT)) {
+            continue;
+        }
+
+        if (i == ' ') {
+            dstref->space_width = (f32)face->glyph->metrics.horiAdvance / (f32)face->units_per_EM;
             continue;
         }
 
@@ -87,7 +77,7 @@ void ctext_load_font(crenderer_t *rd, const char *font_path, f32 scale, cfont_t 
         const unsigned char *buffer = g->bitmap.buffer;
 
         int x,y;
-        if (catlas_add_image(&(*dst)->atlas, w, h, buffer, &x, &y)) {
+        if (catlas_add_image(&dstref->atlas, w, h, buffer, &x, &y)) {
             printf("atlas error\n");
             continue;
         }
@@ -106,55 +96,71 @@ void ctext_load_font(crenderer_t *rd, const char *font_path, f32 scale, cfont_t 
             .y0 = box.yMin / (f32)face->units_per_EM,
             .y1 = box.yMax / (f32)face->units_per_EM,
 
-            .l = (float)(x) / (*dst)->atlas.width,
-            .r = (float)(x + w) / (*dst)->atlas.width,
-            .b = (float)(y + h) / (*dst)->atlas.height,
-            .t = (float)(y) / (*dst)->atlas.height,
+            .l = (float)(x) / dstref->atlas.width,
+            .r = (float)(x + w) / dstref->atlas.width,
+            .b = (float)(y + h) / dstref->atlas.height,
+            .t = (float)(y) / dstref->atlas.height,
 
             .advance = (f32)face->glyph->metrics.horiAdvance / (f32)face->units_per_EM
         };
 
         const char glyphi = i;
-        cg_hashmap_insert((*dst)->glyph_map, &glyphi, &retglyph);
+        cg_hashmap_insert(dstref->glyph_map, &glyphi, &retglyph);
     }
 
     FT_Done_Face(face);
     FT_Done_FreeType(lib);
+}
 
-    cg_tex2D tex = {};
-    tex.w = (*dst)->atlas.width;
-    tex.h = (*dst)->atlas.height;
-    tex.fmt = VK_FORMAT_R8_UINT;
-    tex.data = (*dst)->atlas.data;
-    cimg_write_png(&tex, "skdlfj.png");
+/* I have no idea what any of this is */
 
-    cgfx_gpu_image_create_info image_info = {
+void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scale, cfont_t **dst)
+{
+	if (!rd || !dst) {
+		LOG_ERROR("pInfo or dst is NULL!");
+	}
+
+    cassert_and_ret(scale > 0.0f);
+
+    *dst = calloc(1, sizeof(cfont_t));
+
+    cfont_t *dstref = *dst;
+
+    dstref->glyph_map = cg_hashmap_init(16, sizeof(char), sizeof(ctext_glyph), NULL, NULL);
+    dstref->drawcalls = cg_vector_init(sizeof(ctext_text_drawcall_t), 4);
+
+    if (ctext_ff_read("atlas.ff", dstref) != 0) {
+        ctext_load_font_from_ft(font_path, scale, dstref);
+        ctext_ff_write("atlas.ff", dstref);
+    }
+
+    luna_GPU_TextureCreateInfo image_info = {
         .format = VK_FORMAT_R8_UNORM,
         .samples = CG_SAMPLE_COUNT_1_SAMPLES,
         .type = VK_IMAGE_TYPE_2D,
         .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-        .extent = (VkExtent3D){ .width = (*dst)->atlas.width, .height = (*dst)->atlas.height, .depth = 1 },
+        .extent = (VkExtent3D){ .width = dstref->atlas.width, .height = dstref->atlas.height, .depth = 1 },
         .arraylayers = 1,
         .miplevels = 1
     };
-    cgfx_gpu_create_image(&image_info, &(*dst)->texture);
+    luna_GPU_CreateTexture(&image_info, &dstref->texture);
 
     VkMemoryRequirements imageMemoryRequirements;
-    vkGetImageMemoryRequirements(device, (*dst)->texture.image, &imageMemoryRequirements);
+    vkGetImageMemoryRequirements(device, dstref->texture.image, &imageMemoryRequirements);
 
-    cgfx_gpu_memory_allocate(imageMemoryRequirements.size, CGFX_MEMORY_USAGE_GPU_LOCAL, &(*dst)->texture_mem);
-    cgfx_gpu_memory_bind_image(&(*dst)->texture_mem, 0, &(*dst)->texture);
+    luna_GPU_AllocateMemory(imageMemoryRequirements.size, LUNA_GPU_MEMORY_USAGE_GPU_LOCAL, &dstref->texture_mem);
+    luna_GPU_BindImageToMemory(&dstref->texture_mem, 0, &dstref->texture);
 
-    vkh_stage_image_transfer((*dst)->texture.image, (*dst)->atlas.data, (*dst)->atlas.width, (*dst)->atlas.height);
+    luna_VK_StageImageTransfer(dstref->texture.image, dstref->atlas.data, dstref->atlas.width, dstref->atlas.height);
 
-    const cgfx_gpu_sampler_create_info sampler_info = {
+    const luna_GPU_SamplerCreateInfo sampler_info = {
         .filter = VK_FILTER_LINEAR,
         .mipmap_mode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
         .address_mode = VK_SAMPLER_ADDRESS_MODE_REPEAT
     };
-    cgfx_gpu_create_sampler(&sampler_info, &(*dst)->sampler);
+    luna_GPU_CreateSampler(&sampler_info, &dstref->sampler);
 
-    cgfx_gpu_image_view_create_info view_info = {
+    luna_GPU_TextureViewCreateInfo view_info = {
         .format = VK_FORMAT_R8_UNORM,
         .view_type = VK_IMAGE_VIEW_TYPE_2D,
         .subresourceRange = (VkImageSubresourceRange){
@@ -165,11 +171,11 @@ void ctext_load_font(crenderer_t *rd, const char *font_path, f32 scale, cfont_t 
             .layerCount = 1,
         }
     };
-    cgfx_gpu_create_image_view(&view_info, &(*dst)->texture);
+    luna_GPU_CreateTextureView(&view_info, &dstref->texture);
 
     const VkDescriptorImageInfo ctext_error_image_info = {
-        .sampler = (*dst)->sampler.vksampler,
-        .imageView = (*dst)->texture.view,
+        .sampler = dstref->sampler.vksampler,
+        .imageView = dstref->texture.view,
         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
     };
 
@@ -188,12 +194,12 @@ void ctext_load_font(crenderer_t *rd, const char *font_path, f32 scale, cfont_t 
     }
 }
 
-void ctext_end_render(crenderer_t *rd, ccamera *camera, cfont_t *fnt, mat4 model)
+void ctext_end_render(luna_Renderer_t *rd, ccamera *camera, cfont_t *fnt, mat4 model)
 {
     if (!fnt->to_render)
         return;
 
-    const VkCommandBuffer cmd = crd_get_drawbuffer(rd);
+    const VkCommandBuffer cmd = luna_Renderer_GetDrawBuffer(rd);
     const VkDeviceSize offsets[] = { 0 };
 
     struct push_constants {
@@ -219,6 +225,36 @@ void ctext_end_render(crenderer_t *rd, ccamera *camera, cfont_t *fnt, mat4 model
     vkCmdBindIndexBuffer(cmd, fnt->buffer.vkbuffer, fnt->index_buffer_offset, VK_INDEX_TYPE_UINT32);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
     vkCmdDrawIndexed(cmd, fnt->index_count, 1, 0, 0, 0);
+}
+
+
+void ctext__font_resize_buffer(cfont_t *fnt,  int new_buffer_size)
+{
+    int new_allocation_size;
+
+    if (fnt->allocated_size < new_buffer_size) {
+        new_allocation_size = MAX(fnt->allocated_size * 2, new_buffer_size);
+    }
+    else if (new_buffer_size < (fnt->allocated_size / 3)) {
+        new_allocation_size = MAX(fnt->allocated_size / 3, new_buffer_size);
+    }
+    else
+        return;
+
+    vkDeviceWaitIdle(device);
+    
+    luna_GPU_buffer_free(&fnt->buffer);
+    luna_GPU_memory_free(&fnt->buffer_mem);
+
+    luna_GPU_AllocateMemory(new_allocation_size, LUNA_GPU_MEMORY_USAGE_GPU_LOCAL | LUNA_GPU_MEMORY_USAGE_CPU_WRITEABLE, &fnt->buffer_mem);
+
+    luna_GPU_create_buffer(
+        new_allocation_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        &fnt->buffer
+    );
+    luna_GPU_memory_bind_buffer(&fnt->buffer_mem, 0, &fnt->buffer);
+
+    fnt->allocated_size = new_allocation_size;
 }
 
 static cg_vector_t split_string(const cg_string_t *str) {
@@ -249,7 +285,7 @@ static cg_vector_t split_string(const cg_string_t *str) {
     return result;
 }
 
-void ctext_begin_render(crenderer_t *rd, cfont_t *fnt)
+void ctext_begin_render(cfont_t *fnt)
 {
     if (cg_vector_size(&fnt->drawcalls) == 0) {
         fnt->to_render = false;
@@ -268,7 +304,7 @@ void ctext_begin_render(crenderer_t *rd, cfont_t *fnt)
     const u32 total_index_byte_size = total_index_count * sizeof(u32);
     const u32 total_buffer_size = total_index_byte_size + total_vertex_byte_size;
 
-    ctext__font_resize_buffer(fnt, total_buffer_size, total_vertex_byte_size);
+    ctext__font_resize_buffer(fnt, total_buffer_size);
 
     uint8_t *mapped;
     vkMapMemory(device, fnt->buffer_mem.memory, 0, fnt->allocated_size, 0, (void **)&mapped);
@@ -513,7 +549,7 @@ void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo, const char 
     cg_string_destroy(str);
 }
 
-void ctext_init(struct crenderer_t *rd)
+void ctext_init(struct luna_Renderer_t *rd)
 {
     rd->ctext = calloc(1, sizeof(cg_ctext_module));
     cg_ctext_module *ctext = rd->ctext;
@@ -560,16 +596,16 @@ void ctext_init(struct crenderer_t *rd)
     // No need to store image memory because it won't ever be deleted (probably)
     // ! you should probably store it and free it.
     VkDeviceMemory dummyImageMemory;
-    free(vkh_image_from_disk("../Assets/error.png", &width, &height, &dummyImageFmt, &ctext->error_image.image, &dummyImageMemory));
+    free(luna_VK_CreateTextureFromDisk("../Assets/error.png", &width, &height, &dummyImageFmt, &ctext->error_image.image, &dummyImageMemory));
 
-    const cgfx_gpu_sampler_create_info sampler_info = {
+    const luna_GPU_SamplerCreateInfo sampler_info = {
         .filter = VK_FILTER_LINEAR,
         .mipmap_mode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
         .address_mode = VK_SAMPLER_ADDRESS_MODE_REPEAT
     };
-    cgfx_gpu_create_sampler(&sampler_info, &ctext->error_sampler);
+    luna_GPU_CreateSampler(&sampler_info, &ctext->error_sampler);
 
-    const cgfx_gpu_image_view_create_info view_info = {
+    const luna_GPU_TextureViewCreateInfo view_info = {
         .format = dummyImageFmt,
         .view_type = VK_IMAGE_VIEW_TYPE_2D,
         .subresourceRange = {
@@ -580,7 +616,7 @@ void ctext_init(struct crenderer_t *rd)
             .layerCount = 1,
         },
     };
-    cgfx_gpu_create_image_view(&view_info, &ctext->error_image);
+    luna_GPU_CreateTextureView(&view_info, &ctext->error_image);
 
     const VkDescriptorImageInfo dummyImageInfo = {
         .sampler = ctext->error_sampler.vksampler,
@@ -624,12 +660,12 @@ void ctext_init(struct crenderer_t *rd)
     csm_shader_t * shaders[] = { vertex, fragment };
     VkDescriptorSetLayout layouts[] = { rd->ctext->desc_Layout };
 
-    const cvk_pipeline_blend_state blend = cvk_init_pipeline_blend_state(CVK_BLEND_PRESET_ALPHA);
+    const luna_GPU_PipelineBlendState blend = luna_GPU_InitPipelineBlendState(CVK_BLEND_PRESET_ALPHA);
 
-    cvk_pipeline_create_info pc = cvk_init_pipeline_create_info();
+    luna_GPU_PipelineCreateInfo pc = luna_GPU_InitPipelineCreateInfo();
     pc.format = SwapChainImageFormat;
     pc.subpass = 0;
-    pc.render_pass = crd_get_render_pass(rd);
+    pc.render_pass = luna_Renderer_GetRenderPass(rd);
     pc.pipeline_layout = ctext->pipeline_layout;
     
     pc.nAttributeDescriptions = array_len(attributeDescriptions);
@@ -647,41 +683,97 @@ void ctext_init(struct crenderer_t *rd)
     pc.nDescriptorLayouts = array_len(layouts);
     pc.pDescriptorLayouts = layouts;
 
-    const cg_extent2d RenderExtent = crd_get_render_extent(rd);
+    const lunaExtent2D RenderExtent = luna_Renderer_GetRenderExtent(rd);
     pc.extent.width = RenderExtent.width;
     pc.extent.height = RenderExtent.height;
     pc.blend_state = &blend;
     pc.samples = Samples;
-    cvk_create_pipeline_layout(&pc, &ctext->pipeline_layout);
+    luna_GPU_CreatePipelineLayout(&pc, &ctext->pipeline_layout);
     pc.pipeline_layout = ctext->pipeline_layout;
-    cvk_create_graphics_pipeline(&pc, &ctext->pipeline, CVK_PIPELINE_FLAGS_ENABLE_BLEND | CVK_PIPELINE_FLAGS_UNFORCE_CULLING);
+    luna_GPU_CreateGraphicsPipeline(&pc, &ctext->pipeline, CVK_PIPELINE_FLAGS_ENABLE_BLEND | CVK_PIPELINE_FLAGS_UNFORCE_CULLING);
 }
 
-void ctext__font_resize_buffer(cfont_t *fnt,  u32 new_buffer_size, u32 index_buffer_offset)
+void ctext_ff_write(const char *path, const cfont_t *fnt)
 {
-    u32 new_allocation_size;
+    ctext_ff_header header = {
+        .line_height = fnt->line_height,
+        .space_width = fnt->space_width,
+        .bmpwidth = fnt->atlas.width,
+        .bmpheight = fnt->atlas.height,
+        .numglyphs = cg_hashmap_size(fnt->glyph_map)
+    };
 
-    if (fnt->allocated_size < new_buffer_size) {
-        new_allocation_size = MAX(fnt->allocated_size * 2, new_buffer_size);
+    strncpy(header.family_name, fnt->family_name, 128);
+    strncpy(header.style_name, fnt->style_name, 128);
+
+    FILE *f = fopen(path, "wb");
+    cassert(f != NULL);
+
+    fwrite(&header, sizeof(ctext_ff_header), 1, f);
+    ch_node_t **glyph_map_root = cg_hashmap_root_node(fnt->glyph_map);
+    for (int i = 0; i < cg_hashmap_capacity(fnt->glyph_map); i++) {
+        const ch_node_t *node = glyph_map_root[i];
+        if (node && node->is_occupied) {
+            const int node_key = *(char *)node->key;
+            const ctext_glyph *node_value = (ctext_glyph *)node->value;
+
+            const ctext_glyph_entry entry = {
+                .codepoint = node_key,
+                .advance = node_value->advance,
+                .x0 = node_value->x0,
+                .x1 = node_value->x1,
+                .y0 = node_value->y0,
+                .y1 = node_value->y1,
+                .l = node_value->l,
+                .b = node_value->b,
+                .r = node_value->r,
+                .t = node_value->t,
+            };
+            fwrite(&entry, sizeof(ctext_glyph_entry), 1, f);
+        }
     }
-    else if (new_buffer_size < (fnt->allocated_size / 3)) {
-        new_allocation_size = MAX(fnt->allocated_size / 3, new_buffer_size);
+    fwrite(fnt->atlas.data, fnt->atlas.width * fnt->atlas.height, 1, f);
+    fclose(f);
+}
+
+int ctext_ff_read(const char *path, cfont_t *fnt) {
+    // warning, we somehow need to check if the cache is the exact font file the user is requesting for...
+    FILE *f = fopen(path, "rb");
+    if (f == NULL) {
+        return 1;
     }
-    else
-        return;
 
-    vkDeviceWaitIdle(device);
-    
-    cgfx_gpu_buffer_free(&fnt->buffer);
-    cgfx_gpu_memory_free(&fnt->buffer_mem);
+    ctext_ff_header header;
+    fread(&header, sizeof(ctext_ff_header), 1, f);
 
-    cgfx_gpu_memory_allocate(new_allocation_size, CGFX_MEMORY_USAGE_GPU_LOCAL | CGFX_MEMORY_USAGE_CPU_WRITEABLE, &fnt->buffer_mem);
+    strncpy(fnt->family_name, header.family_name, 128);
+    strncpy(fnt->style_name, header.style_name, 128);
 
-    cgfx_gpu_create_buffer(
-        new_allocation_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-        &fnt->buffer
-    );
-    cgfx_gpu_memory_bind_buffer(&fnt->buffer_mem, 0, &fnt->buffer);
+    fnt->line_height = header.line_height;
+    fnt->space_width = header.space_width;
+    fnt->atlas.width = header.bmpwidth;
+    fnt->atlas.height = header.bmpheight;
 
-    fnt->allocated_size = new_allocation_size;
+    for (int i = 0; i < header.numglyphs; i++) {
+        ctext_glyph_entry entry;
+        fread(&entry, sizeof(ctext_glyph_entry), 1, f);
+
+        char glyphi = entry.codepoint;
+        ctext_glyph glyph;
+        
+        glyph.advance = entry.advance;
+        glyph.x0 = entry.x0;
+        glyph.x1 = entry.x1;
+        glyph.y0 = entry.y0;
+        glyph.y1 = entry.y1;
+        glyph.l = entry.l;
+        glyph.b = entry.b;
+        glyph.r = entry.r;
+        glyph.t = entry.t;
+        cg_hashmap_insert(fnt->glyph_map, &glyphi, &glyph);
+    }
+    fnt->atlas.data = calloc(header.bmpwidth, header.bmpheight);
+    fread(fnt->atlas.data, header.bmpwidth * header.bmpheight, 1, f);
+    fclose(f);
+    return 0;
 }
