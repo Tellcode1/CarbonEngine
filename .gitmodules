@@ -7,6 +7,3 @@
 [submodule "external/SPIRV-Reflect"]
 	path = external/SPIRV-Reflect
 	url = https://github.com/KhronosGroup/SPIRV-Reflect.git
-[submodule "external/box2d"]
-	path = external/box2d
-	url = https://github.com/erincatto/box2d.git

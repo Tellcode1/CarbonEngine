@@ -6,16 +6,35 @@
 #endif
 
 #include "sprite.h"
+#include "undescriptorset.h"
+#include "lunaPipeline.h"
+#include "lunaVK.h"
+#include "cshadermanager.h"
 
-#define WORLD_W 1
-#define WORLD_H 1
+#define WORLD_W 100
+#define WORLD_H 100
+#define HALF_WIDTH 0.1f
 
 typedef struct block_t {
-    int x,y; // The position of the block in the grid
-    b2BodyId body;
+    vec2 position;
     sprite_t *spr;
     bool to_render;
 } block_t;
+
+typedef struct ubdata {
+    mat4 model;
+    mat4 view;
+    mat4 projection;
+} ubdata;
+
+typedef struct cvertex {
+    vec3 position;
+    vec2 tex_coords;
+} cvertex;
+
+int align_up(int size, int alignment) {
+    return (size + alignment - 1) & ~(alignment - 1);
+}
 
 typedef struct world_t {
     luna_Renderer_t *rd;
@@ -35,7 +54,7 @@ typedef struct world_t {
     block_t grid[ WORLD_H ][ WORLD_W ];
 } world_t;
 
-void world_init(luna_Renderer_t *rd, sprite_t *spr, b2WorldId *b2_world_id, world_t **worldptr) {
+void world_init(luna_Renderer_t *rd, sprite_t *spr, world_t **worldptr) {
     *worldptr = calloc(1, sizeof(world_t));
     world_t *world = *worldptr;
     world->rd = rd;
@@ -62,9 +81,6 @@ void world_init(luna_Renderer_t *rd, sprite_t *spr, b2WorldId *b2_world_id, worl
         &world->ib, &world->ibm, 0
     );
 
-    int iter = 0;
-    bool gaming = 1;
-
     cvertex *vertex_mapped;
     u32 *index_mapped;
     vkMapMemory(device, world->vbm, 0, vertex_size, 0, (void **)&vertex_mapped);
@@ -72,45 +88,30 @@ void world_init(luna_Renderer_t *rd, sprite_t *spr, b2WorldId *b2_world_id, worl
 
     for (int j = 0; j < WORLD_H; j++) {
         for (int i = 0; i < WORLD_W; i++) {
-            float pootis = (float)j - 2.0f;
-            float dispenser = (float)i;
+            const float x_pos = j * HALF_WIDTH;
+            const float y_pos = i * HALF_WIDTH;
 
-            static const float HALF_WIDTH = 5.0f;
-            vertex_mapped[0] = (cvertex){ (vec3){pootis + HALF_WIDTH, dispenser + HALF_WIDTH, 0.0f}, { 0.0f, 0.0f } };
-            vertex_mapped[1] = (cvertex){ (vec3){pootis - HALF_WIDTH, dispenser + HALF_WIDTH, 0.0f}, { 1.0f, 0.0f } };
-            vertex_mapped[2] = (cvertex){ (vec3){pootis - HALF_WIDTH, dispenser - HALF_WIDTH, 0.0f}, { 1.0f, 1.0f } };
-            vertex_mapped[3] = (cvertex){ (vec3){pootis + HALF_WIDTH, dispenser - HALF_WIDTH, 0.0f}, { 0.0f, 1.0f } };
+            vertex_mapped[0] = (cvertex){ (vec3){x_pos + HALF_WIDTH, y_pos + HALF_WIDTH, 0.0f}, { 0.0f, 0.0f } };
+            vertex_mapped[1] = (cvertex){ (vec3){x_pos - HALF_WIDTH, y_pos + HALF_WIDTH, 0.0f}, { 1.0f, 0.0f } };
+            vertex_mapped[2] = (cvertex){ (vec3){x_pos - HALF_WIDTH, y_pos - HALF_WIDTH, 0.0f}, { 1.0f, 1.0f } };
+            vertex_mapped[3] = (cvertex){ (vec3){x_pos + HALF_WIDTH, y_pos - HALF_WIDTH, 0.0f}, { 0.0f, 1.0f } };
 
-            index_mapped[0] = iter;
-            index_mapped[1] = iter + 1;
-            index_mapped[2] = iter + 2;
-            index_mapped[3] = iter + 2;
-            index_mapped[4] = iter + 3;
-            index_mapped[5] = iter;
+            const int vertex_offset = j * WORLD_H + i;
+            index_mapped[0] = vertex_offset;
+            index_mapped[1] = vertex_offset + 1;
+            index_mapped[2] = vertex_offset + 2;
+            index_mapped[3] = vertex_offset + 2;
+            index_mapped[4] = vertex_offset + 3;
+            index_mapped[5] = vertex_offset;
 
             index_mapped += 6;
             vertex_mapped += 4;
-            iter += 4;
 
-            world->grid[j][i].to_render = gaming;
+            world->grid[j][i].to_render = 1;
 
             block_t *block = &world->grid[j][i];
-            
-            b2BodyDef bodyDef = b2DefaultBodyDef();
-            bodyDef.type = b2_staticBody;
-            bodyDef.position = (b2Vec2){pootis, dispenser};
-            bodyDef.fixedRotation = 1;
-            block->body = b2CreateBody(*b2_world_id, &bodyDef);
-
-            b2Polygon dynamicBox = b2MakeSquare(HALF_WIDTH);
-
-            b2ShapeDef shapeDef = b2DefaultShapeDef();
-            shapeDef.density = 1.0f;
-            shapeDef.friction = 0.0f;
-            shapeDef.restitution = 0.0f;
-            b2CreatePolygonShape(block->body, &shapeDef, &dynamicBox);
-
             block->spr = spr;
+            block->position = (vec2){ x_pos, y_pos };
         }
     }
 
@@ -217,7 +218,7 @@ void world_render(ccamera *camera, world_t *world) {
     ubdata ub = {};
     ub.model = m4init(1.0f);
     ub.view = cam_get_view(camera);
-    ub.projection = camera->projection;
+    ub.projection = camera->ortho;
     *((ubdata *)world->ubmapped) = ub;
 
     VkDeviceSize offsets = 0;
@@ -228,30 +229,50 @@ void world_render(ccamera *camera, world_t *world) {
     vkCmdBindVertexBuffers(cmd, 0, 1, &world->vb, &offsets);
 
     VkDeviceSize vertex_offset = 0;
-    VkDeviceSize index_offset = 0;
-    vkCmdBindIndexBuffer(cmd, world->ib, index_offset, VK_INDEX_TYPE_UINT32);
-    vkCmdDrawIndexed(cmd, WORLD_W * WORLD_H * 6, 1, 0, vertex_offset, 0);
+    vkCmdBindIndexBuffer(cmd, world->ib, 0, VK_INDEX_TYPE_UINT32);
+    // vkCmdDrawIndexed(cmd, WORLD_W * WORLD_H * 6, 1, 0, vertex_offset, 0);
 
-    // for (int j = 0; j < WORLD_H; j++) {
-    //     for (int i = 0; i < WORLD_W; i++) {
-    //         if (!world->grid[j][i].to_render) {
-    //             vertex_offset += sizeof(cvertex) * 4;
-    //             index_offset += sizeof(uint32_t) * 6;
-    //             continue;
-    //         }
-            
+    for (int j = 0; j < WORLD_H; j++) {
+        for (int i = 0; i < WORLD_W; i++) {
+            if (!world->grid[j][i].to_render) {
+                vertex_offset += 4;
+                continue;
+            }
 
-    //         vertex_offset += sizeof(cvertex) * 4;
-    //         index_offset += sizeof(uint32_t) * 6;
-    //     }
-    // }
+            vkCmdDrawIndexed(cmd, 6, 1, 0, vertex_offset, 0);
+            vertex_offset += 4;
+        }
+    }
 }
 
-void world_update(ccamera *camera, world_t *world) {
+void world_update(ccamera *camera, const luna_Renderer_t *rd, world_t *world) {
     int mx, my;
-    if (SDL_BUTTON(SDL_GetMouseState(&mx, &my)) == SDL_BUTTON_LEFT) {
-        (void)camera;
-        (void)world;
+    if (SDL_GetMouseState(&mx, &my) & SDL_BUTTON(SDL_BUTTON_LEFT)) {
+        cam_update(camera, rd);
+        vec2 mp = cinput_get_mouse_position();
+        const vec2 translated_mouse_position = v2add(v2muls(mp, 10.0f), (vec2){ camera->position.x, camera->position.y });
+
+        printf("%f %f %f\n", camera->position.x, camera->position.y, camera->position.z);
+        printf("%f %f %f\n", camera->front.x, camera->front.y, camera->front.z);
+        printf("%f %f %f\n", camera->right.x, camera->right.y, camera->right.z);
+        for (int j = 0; j < 4; j++) {
+            for (int i = 0; i < 4; i++) {
+                printf("%f ", ((float *)&camera->view)[j * 4 + i]);
+            }
+            puts("");
+        }
+        puts("");
+
+        for (int j = 0; j < WORLD_H; j++) {
+            for (int i = 0; i < WORLD_W; i++) {
+                const vec2 blockpos = world->grid[j][i].position;
+                const bool horizontal = translated_mouse_position.x > (blockpos.x - HALF_WIDTH) && translated_mouse_position.x < (blockpos.x + HALF_WIDTH);
+                const bool vertical = translated_mouse_position.y > (blockpos.y - HALF_WIDTH) && translated_mouse_position.y < (blockpos.y + HALF_WIDTH);
+                if (horizontal && vertical) {
+                    world->grid[j][i].to_render = 0;
+                }
+            }
+        }
     }
 }
 

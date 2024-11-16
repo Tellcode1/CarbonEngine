@@ -62,7 +62,7 @@ void luna_Renderer_Destroy(luna_Renderer_t *rd)
 {
     vkDeviceWaitIdle(device);
 
-    for (int i = 0; i < SwapChainImageCount; i++) {
+    for (int i = 0; i < (int)SwapChainImageCount; i++) {
         lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
         // weeeee
         luna_GPU_image_free(&data->depth_image);
@@ -104,7 +104,6 @@ void create_optional_images(luna_Renderer_t *rd)
             rd->render_extent.width, rd->render_extent.height,
             SwapChainImageFormat,
             Samples,
-            4,
             VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
             &color_image_size,
             &rd->color_image.image, NULL

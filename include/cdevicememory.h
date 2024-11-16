@@ -109,7 +109,7 @@ inline static void luna_GPU_AllocateMemory(VkDeviceSize size, luna_GPU_MemoryUsa
     }
 }
 
-inline static void luna_GPU_create_buffer(int size, VkBufferUsageFlags usage, luna_GPU_Buffer *dst) {
+inline static void luna_GPU_CreateBuffer(int size, VkBufferUsageFlags usage, luna_GPU_Buffer *dst) {
     dst->allocation.size = size;
     VkBufferCreateInfo buffer_info = {};
     buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -123,7 +123,7 @@ inline static void luna_GPU_memory_free(luna_GPU_Memory *mem) {
 }
 
 // I think these given an error when, say offset is too big so maybe we can check their return values?
-inline static void luna_GPU_memory_bind_buffer(luna_GPU_Memory *mem, int offset, luna_GPU_Buffer *buffer) {
+inline static void luna_GPU_BindBufferToMemory(luna_GPU_Memory *mem, int offset, luna_GPU_Buffer *buffer) {
     buffer->allocation.memory = mem;
     buffer->allocation.memory_offset = offset;
     vkBindBufferMemory(device, buffer->vkbuffer, mem->memory, offset);

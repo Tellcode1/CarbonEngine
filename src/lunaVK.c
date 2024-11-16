@@ -51,7 +51,7 @@ void luna_VK_CreateBuffer( u64 size, VkBufferUsageFlags usageFlags, VkMemoryProp
     *dstBuffer = newBuffer;
 }
 
-void luna_VK_StageBufferTransfer( VkBuffer dst, void *data, u64 size)
+void luna_VK_StageBufferTransfer(VkBuffer dst, void *data, u64 size)
 {
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
@@ -85,8 +85,19 @@ void luna_VK_StageBufferTransfer( VkBuffer dst, void *data, u64 size)
     memcpy(mapped, data, size);
     vkUnmapMemory(device, stagingBufferMemory);
 
+    const VkBufferCopy copy = {
+        .srcOffset = 0,
+        .dstOffset = 0,
+        .size = size
+    };
+    
+    VkCommandBuffer cmd = luna_VK_BeginCommandBuffer();
+    vkCmdCopyBuffer(cmd, stagingBuffer, dst, 1, &copy);
+    luna_VK_EndCommandBuffer(cmd, TransferQueue, 1);
+
     vkDestroyBuffer(device, stagingBuffer, NULL);
     vkFreeMemory(device, stagingBufferMemory, NULL);
+
 }
 
 u32 luna_VK_GetMemType( const u32 memoryTypeBits, const VkMemoryPropertyFlags memoryProperties)
@@ -208,7 +219,7 @@ void luna_VK_LoadBinaryFile( const char* path, u8* dst, u32* dstSize) {
     fclose(f);
 }
 
-void luna_VK_StageImageTransfer( VkImage dst, const void *data, int width, int height)
+void luna_VK_StageImageTransfer(VkImage dst, const void *data, int width, int height)
 {
     VkBuffer stagingBuffer = VK_NULL_HANDLE;
     VkDeviceMemory stagingBufferMemory = VK_NULL_HANDLE;
@@ -274,13 +285,13 @@ void luna_VK_StageImageTransfer( VkImage dst, const void *data, int width, int h
     vkFreeMemory(device, stagingBufferMemory, NULL);
 }
 
-void luna_VK_CreateTextureFromMemory( u8 *buffer, u32 width, u32 height, VkFormat format, u32 channels, VkImage *dst, VkDeviceMemory *dstMem)
+void luna_VK_CreateTextureFromMemory( u8 *buffer, u32 width, u32 height, VkFormat format, VkImage *dst, VkDeviceMemory *dstMem)
 {
-    luna_VK_CreateTextureEmpty(width, height, format, VK_SAMPLE_COUNT_1_BIT, channels, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, NULL, dst, dstMem);
+    luna_VK_CreateTextureEmpty(width, height, format, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, NULL, dst, dstMem);
     luna_VK_StageImageTransfer(*dst, buffer, width, height);
 }
 
-void luna_VK_CreateTextureEmpty( u32 width, u32 height, VkFormat format, VkSampleCountFlagBits samples, u32 channels, VkImageUsageFlags usage, int *image_size, VkImage *dst, VkDeviceMemory *dstMem)
+void luna_VK_CreateTextureEmpty(u32 width, u32 height, VkFormat format, VkSampleCountFlagBits samples, VkImageUsageFlags usage, int *image_size, VkImage *dst, VkDeviceMemory *dstMem)
 {
     VkImageCreateInfo imageCreateInfo = {};
     imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -321,7 +332,7 @@ void luna_VK_CreateTextureEmpty( u32 width, u32 height, VkFormat format, VkSampl
     }
 }
 
-u8* luna_VK_CreateTextureFromDisk( const char *path, u32 *width, u32 *height, VkFormat *channels, VkImage *dst, VkDeviceMemory *dstMem)
+u8* luna_VK_CreateTextureFromDisk(const char *path, u32 *width, u32 *height, VkFormat *channels, VkImage *dst, VkDeviceMemory *dstMem)
 {
     luna_Image tex = luna_ImageLoad(path);
 
@@ -331,7 +342,7 @@ u8* luna_VK_CreateTextureFromDisk( const char *path, u32 *width, u32 *height, Vk
     *height = tex.h;
     *channels = tex.fmt;
 
-    luna_VK_CreateTextureFromMemory(tex.data, tex.w, tex.h, *channels, 4, dst, dstMem);
+    luna_VK_CreateTextureFromMemory(tex.data, tex.w, tex.h, *channels, dst, dstMem);
     return tex.data;
 }
 
@@ -361,15 +372,6 @@ void luna_VK_TransitionTextureLayout( VkCommandBuffer cmd, VkImage image,
     barrier.dstAccessMask = dstAccessMask;
     vkCmdPipelineBarrier(cmd, sourceStage, destinationStage, 0, 0, NULL, 0, NULL, 1, &barrier);
 }
-
-// void help::Images::LoadFromDisk(const char *path, u8 channels, u8 **dst, u32 *dstWidth, u32 *dstHeight)
-// {
-//     // {Chef's kiss}
-//     ctex2D tex = luna_ImageLoad(path);
-//     *dst = tex.data;
-//     *dstWidth = tex.w;
-//     *dstHeight = tex.h;
-// }
 
 bool luna_VK_GetSupportedFormat( VkPhysicalDevice physDevice, VkSurfaceKHR surface, VkFormat *dstFormat, VkColorSpaceKHR *dstColorSpace)
 {

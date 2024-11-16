@@ -19,16 +19,16 @@ typedef enum key_state_bits
 } key_state_bits;
 typedef u8 key_state;
 
-extern vec2 mouse_position;
-extern vec2 last_frame_mouse_position;
+extern vec2 cinput_mouse_position;
+extern vec2 cinput_last_frame_mouse_position;
 extern cg_bitset_t cinput_kb_state;
 extern cg_bitset_t cinput_last_frame_kb_state;
 
 static inline void cinput_init() {
     cinput_kb_state = cg_bitset_init( SDL_NUM_SCANCODES );
     cinput_last_frame_kb_state = cg_bitset_init( SDL_NUM_SCANCODES );
-    mouse_position = (vec2){};
-    last_frame_mouse_position = (vec2){};
+    cinput_mouse_position = (vec2){};
+    cinput_last_frame_mouse_position = (vec2){};
 }
 
 static inline void cinput_update(const luna_Renderer_t *rd) {
@@ -38,9 +38,10 @@ static inline void cinput_update(const luna_Renderer_t *rd) {
     const f32 width = (f32)luna_Renderer_GetRenderExtent(rd).width;
     const f32 height = (f32)luna_Renderer_GetRenderExtent(rd).height;
 
-    last_frame_mouse_position = mouse_position;
-    mouse_position.x = ((f32)mx / width)  * 2.0f - 1.0f;
-    mouse_position.y = ((f32)my / height) * 2.0f - 1.0f;
+    cinput_last_frame_mouse_position = cinput_mouse_position;
+    cinput_mouse_position.x = ((f32)mx / width)  * 2.0f - 1.0f;
+    cinput_mouse_position.y = ((f32)my / height) * 2.0f - 1.0f;
+    cinput_mouse_position.y *= -1.0f;
 
     const u8 *const sdl_kb_state = SDL_GetKeyboardState(NULL);
     cg_bitset_copy_from(&cinput_last_frame_kb_state, &cinput_kb_state);
@@ -81,6 +82,18 @@ static inline bool cinput_is_key_pressed(const SDL_Scancode sc) {
 
 static inline bool cinput_is_key_released(const SDL_Scancode sc) {
     return cinput_get_key_state(sc) == KB_STATE_RELEASED;
+}
+
+static inline vec2 cinput_get_mouse_position(void) {
+    return cinput_mouse_position;
+}
+
+static inline vec2 cinput_get_last_frame_mouse_position(void) {
+    return cinput_last_frame_mouse_position;
+}
+
+static inline vec2 cinput_get_mouse_delta(void) {
+    return v2sub(cinput_get_last_frame_mouse_position(), cinput_get_mouse_position());
 }
 
 #ifdef __cplusplus

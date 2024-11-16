@@ -8,12 +8,17 @@
 #include "math/mat.h"
 #include "lunaGFX.h"
 
+// If you draw a quad with this width, it'll cover the whole screen
+#define CAMERA_ORTHO_W 10.0f
+#define CAMERA_ORTHO_H 10.0f
+
 typedef struct ccamera {
     // TODO: move to uniform buffer with data like current app time, delta time, etc.
     // To be honest i dont know what delta time is supposed to be
     // doing on the GPU except for particle simulations but you ought to
     // use something like push constants for that. Not my fault ;D
-    mat4 projection;
+    mat4 perspective;
+    mat4 ortho;
     mat4 view;
 
     vec3 position;
@@ -30,7 +35,8 @@ typedef struct ccamera {
 
 static inline ccamera ccamera_init() {
     return (ccamera) {
-        .projection = {},
+        .perspective = {},
+        .ortho = m4ortho(-CAMERA_ORTHO_W, CAMERA_ORTHO_W, -CAMERA_ORTHO_H, CAMERA_ORTHO_H, 0.1f, 100.0f),
         .view = {},
         .position = (vec3){0.0f, 0.0f, 10.0f},
         .front = (vec3){0.0f, 0.0f,  1.0f},
@@ -46,7 +52,7 @@ static inline ccamera ccamera_init() {
 }
 
 static inline mat4 cam_get_projection(ccamera *cam) {
-    return cam->projection;
+    return cam->perspective;
 }
 
 static inline mat4 cam_get_view(ccamera *cam) {
@@ -99,7 +105,7 @@ static inline void cam_update(ccamera *cam, struct luna_Renderer_t *rd) {
 
     const lunaExtent2D RenderExtent = luna_Renderer_GetRenderExtent(rd);
     const f32 aspect = (f32)RenderExtent.width / (f32)RenderExtent.height;
-    cam->projection = m4perspective(cam->fov, aspect, cam->near_clip, cam->far_clip);
+    cam->perspective = m4perspective(cam->fov, aspect, cam->near_clip, cam->far_clip);
 }
 
 #endif//__C_CAMERA_H__

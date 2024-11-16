@@ -144,16 +144,26 @@ static inline mat4 m4lookat(const vec3 eye, const vec3 center, const vec3 up) {
     return ret;
 }
 
-static inline mat4 m4perspective(float fovradians, float aspect_ratio, float z_near, float z_far) {
+static inline mat4 m4perspective(float fovradians, float aspect_ratio, float near, float far) {
     const float halftan = tanf(fovradians * 0.5f);
 
     mat4 result = {};
     result.data[0].x = 1.0f / (aspect_ratio * halftan);
     result.data[1].y = -(1.0f / (halftan)); // y flip
-    result.data[2].z = -(z_far + z_near) / (z_far - z_near);
+    result.data[2].z = -(far + near) / (far - near);
     result.data[2].w = -1.0f;
-    result.data[3].z = -(2.0f * z_far * z_near) / (z_far - z_near);
+    result.data[3].z = -(2.0f * far * near) / (far - near);
     return result;
+}
+
+static inline mat4 m4ortho(float left, float right, float bottom, float top, float near, float far) {
+    return (mat4){
+      (vec4){ 2.0f / (right - left), 0.0f, 0.0f, 0.0f },
+      (vec4){ 0.0f, 2.0f / (bottom - top), 0.0f, 0.0f },
+      (vec4){ 0.0f, 0.0f, 1.0f / (near - far), 0.0f   },
+      // I wonder if anyone uses such a small font for vscode haha
+      (vec4){ -(right + left) / (right - left), -(bottom + top) / (bottom - top), near / (near - far), 1.0f }
+    };
 }
 
 #ifdef __cplusplus

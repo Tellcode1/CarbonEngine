@@ -16,7 +16,7 @@
 
 #include "../include/ctext_font_file.h"
 
-#define MAX(a,b) ({ __typeof__(a) a_ = a; __typeof__(a) b_ = b; (a_ > b_) ? a_ : b_; })
+#define MAX(a,b) ( (a > b) ? a : b )
 
 typedef struct cglyph_vertex_t {
     vec3 pos;
@@ -248,11 +248,11 @@ void ctext__font_resize_buffer(cfont_t *fnt,  int new_buffer_size)
 
     luna_GPU_AllocateMemory(new_allocation_size, LUNA_GPU_MEMORY_USAGE_GPU_LOCAL | LUNA_GPU_MEMORY_USAGE_CPU_WRITEABLE, &fnt->buffer_mem);
 
-    luna_GPU_create_buffer(
+    luna_GPU_CreateBuffer(
         new_allocation_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
         &fnt->buffer
     );
-    luna_GPU_memory_bind_buffer(&fnt->buffer_mem, 0, &fnt->buffer);
+    luna_GPU_BindBufferToMemory(&fnt->buffer_mem, 0, &fnt->buffer);
 
     fnt->allocated_size = new_allocation_size;
 }

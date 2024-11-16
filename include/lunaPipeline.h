@@ -61,10 +61,20 @@ extern u32 luna_GPU_vk_flag_register;
 /*
 *	FORWARD DECLARATIONS
 */
+typedef struct luna_VK_Pipeline luna_VK_Pipeline;
 typedef struct luna_GPU_PipelineCreateInfo luna_GPU_PipelineCreateInfo;
 typedef struct luna_GPU_SwapchainCreateInfo luna_GPU_SwapchainCreateInfo;
 typedef struct luna_GPU_RenderPassCreateInfo luna_GPU_RenderPassCreateInfo;
 typedef struct luna_GPU_PipelineBlendState luna_GPU_PipelineBlendState;
+
+#define LUNA_VK_MAX_SHADERS_PER_PIPELINE 8
+
+typedef struct luna_VK_Pipeline {
+    VkPipeline pipeline;
+    VkPipelineLayout layout;
+    int nshaders;
+    csm_shader_t *shaders[ LUNA_VK_MAX_SHADERS_PER_PIPELINE ];
+} luna_VK_Pipeline;
 
 typedef enum luna_GPU_PipelineBlendPreset
 {

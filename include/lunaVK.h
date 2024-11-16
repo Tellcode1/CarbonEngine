@@ -26,19 +26,23 @@ extern VkResult luna_VK_EndCommandBuffer(VkCommandBuffer cmd, VkQueue queue, boo
 
 extern void luna_VK_StageImageTransfer(VkImage dst, const void* data, int width, int height);
 
-extern void luna_VK_CreateTextureFromMemory(u8 *buffer, u32 width, u32 height, VkFormat format, u32 channels, VkImage *dst, VkDeviceMemory *dstMem);
+extern void luna_VK_CreateTextureFromMemory(u8 *buffer, u32 width, u32 height, VkFormat format, VkImage *dst, VkDeviceMemory *dstMem);
+
 extern u8* luna_VK_CreateTextureFromDisk(const char *path, u32 *width, u32 *height, VkFormat *channels, VkImage *dst, VkDeviceMemory *dstMem);
 
-extern void luna_VK_CreateTextureEmpty(u32 width, u32 height, VkFormat format, VkSampleCountFlagBits samples, u32 channels, VkImageUsageFlags usage, int *image_size, VkImage *dst, VkDeviceMemory *dstMem);
+extern void luna_VK_CreateTextureEmpty(u32 width, u32 height, VkFormat format, VkSampleCountFlagBits samples, VkImageUsageFlags usage, int *image_size, VkImage *dst, VkDeviceMemory *dstMem);
 
-extern bool luna_VK_GetSupportedFormat(VkPhysicalDevice physDevice, VkSurfaceKHR surface, VkFormat* dstFormat, VkColorSpaceKHR* dstColorSpace);
-extern u32 luna_VK_GetSurfaceImageCount(VkPhysicalDevice physDevice, VkSurfaceKHR surface);
 extern void luna_VK_TransitionTextureLayout(
     VkCommandBuffer cmd, VkImage image, u32 mipLevels, VkImageAspectFlagBits aspect,
     VkImageLayout oldLayout, VkImageLayout newLayout,
     VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
     VkPipelineStageFlags sourceStage, VkPipelineStageFlags destinationStage
 );
+
+extern bool luna_VK_GetSupportedFormat(VkPhysicalDevice physDevice, VkSurfaceKHR surface, VkFormat* dstFormat, VkColorSpaceKHR* dstColorSpace);
+
+extern u32 luna_VK_GetSurfaceImageCount(VkPhysicalDevice physDevice, VkSurfaceKHR surface);
+
 extern void luna_VK_LoadBinaryFile(const char* path, u8* dst, u32* dstSize);
 
 #ifdef __cplusplus

@@ -139,7 +139,7 @@ luna_Image luna_ImageLoadJPEG(const char *path)
     img.data = (unsigned char*)malloc(img.w * img.h * channels);
 
     unsigned char *bufarr[1];
-    for (int i = 0; i < cinfo.output_height; i++) {
+    for (int i = 0; i < (int)cinfo.output_height; i++) {
         bufarr[0] = img.data + i * img.w * channels;
         jpeg_read_scanlines(&cinfo, bufarr, 1);
     }
