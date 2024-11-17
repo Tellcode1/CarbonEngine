@@ -19,10 +19,12 @@ typedef enum key_state_bits
 } key_state_bits;
 typedef u8 key_state;
 
-extern vec2 cinput_mouse_position;
-extern vec2 cinput_last_frame_mouse_position;
-extern cg_bitset_t cinput_kb_state;
-extern cg_bitset_t cinput_last_frame_kb_state;
+static vec2 cinput_mouse_position;
+static vec2 cinput_last_frame_mouse_position;
+static cg_bitset_t cinput_kb_state;
+static cg_bitset_t cinput_last_frame_kb_state;
+static unsigned cinput_mouse_state;
+static unsigned cinput_last_frame_mouse_state;
 
 static inline void cinput_init() {
     cinput_kb_state = cg_bitset_init( SDL_NUM_SCANCODES );
@@ -33,7 +35,8 @@ static inline void cinput_init() {
 
 static inline void cinput_update(const luna_Renderer_t *rd) {
     int mx, my;
-    SDL_GetMouseState(&mx, &my);
+    cinput_last_frame_mouse_state = cinput_mouse_state;
+    cinput_mouse_state = SDL_GetMouseState(&mx, &my);
 
     const f32 width = (f32)luna_Renderer_GetRenderExtent(rd).width;
     const f32 height = (f32)luna_Renderer_GetRenderExtent(rd).height;
@@ -94,6 +97,15 @@ static inline vec2 cinput_get_last_frame_mouse_position(void) {
 
 static inline vec2 cinput_get_mouse_delta(void) {
     return v2sub(cinput_get_last_frame_mouse_position(), cinput_get_mouse_position());
+}
+
+// button is 1 for left mouse, 2 for middle, 3 for right
+static inline bool cinput_is_mouse_pressed(int button) {
+    return cinput_mouse_state & SDL_BUTTON(button) && !(cinput_last_frame_mouse_state & SDL_BUTTON(button));
+}
+
+static inline bool cinput_is_mouse_held(int button) {
+    return cinput_mouse_state & SDL_BUTTON(button);
 }
 
 #ifdef __cplusplus

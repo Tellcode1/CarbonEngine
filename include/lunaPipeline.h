@@ -73,7 +73,7 @@ typedef struct luna_VK_Pipeline {
     VkPipeline pipeline;
     VkPipelineLayout layout;
     int nshaders;
-    csm_shader_t *shaders[ LUNA_VK_MAX_SHADERS_PER_PIPELINE ];
+    struct csm_shader_t *shaders[ LUNA_VK_MAX_SHADERS_PER_PIPELINE ];
 } luna_VK_Pipeline;
 
 typedef enum luna_GPU_PipelineBlendPreset

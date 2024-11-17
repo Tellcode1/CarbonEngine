@@ -22,7 +22,6 @@ set(SOURCES
     src/main.c
     src/cengine.c
     src/cengineinit.c
-    src/cinput.c
     
     src/ctext.c
     src/cshadermanager.c

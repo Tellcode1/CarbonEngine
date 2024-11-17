@@ -19,7 +19,21 @@
 
 #include "../include/cshadermanager.h"
 
+#include "../include/lunaUI.h"
+
+void pressed(luna_UI_Button *self) {
+    (void)self;
+    puts("launching nukes to your location!!");
+    puts("I'm sorry, my head is just aching, I'm so sorry...");
+}
+
+void hoover(luna_UI_Button *self) {
+    self->color = (vec4){ 0.6f, 0.6f, 0.6f, 1.0f };
+}
+
 int main(int argc, char *argv[]) {
+    (void)argc;
+    (void)argv;
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);
 
     cg_initialize_context("kilometers per second (edgy)(im cool now ok?)", 800, 600);
@@ -55,6 +69,22 @@ int main(int argc, char *argv[]) {
     world_t *world;
     world_init(rd, sprite_empty, &world);
 
+    luna_UI_Init(rd, sprite_empty);
+
+    luna_UI_Button *bton = luna_UI_CreateButton(&bton);
+    bton->size.x = 10.0f;
+    bton->size.y = 10.0f;
+    bton->pressed = pressed;
+    bton->hover = hoover;
+
+    luna_UI_Button *bton2 = luna_UI_CreateButton(&bton);
+    bton2->size.x = 10.0f;
+    bton2->size.y = 10.0f;
+    bton2->pressed = pressed;
+    bton2->hover = hoover;
+    bton2->position.x = 10.0f;
+    bton2->position.y = 10.0f;
+
     // What in the unholy f%$ where you doing
     LOG_DEBUG("Initialized in %ld ms (%.3f s)", SDL_GetTicks64(), SDL_GetTicks64() / 1000.0f);
     while(cg_running())
@@ -85,7 +115,7 @@ int main(int argc, char *argv[]) {
 
         cinput_update(rd);
         cam_update(&camera, rd);
-        world_update(&camera, rd, world);
+        world_update(&camera, world);
 
         vec3 move = (vec3){ 0.0f, 0.0f, 0.0f };
         if (cinput_is_key_held(SDL_SCANCODE_W)) {
@@ -101,6 +131,14 @@ int main(int argc, char *argv[]) {
             move.x += 20.0f;
         }
         cam_move(&camera, v3muls(move, dt));
+
+        luna_UI_Update(&camera);
+        if (!bton->was_hovered) { // If the mouse is NOT on the button, change it back to it's default color
+            bton->color = (vec4){ 1.0f, 1.0f, 1.0f, 1.0f };
+        }
+        if (!bton2->was_hovered) {
+            bton2->color = (vec4){ 1.0f, 1.0f, 1.0f, 1.0f };
+        }
 
         if (luna_Renderer_BeginRender(rd)) {
             ctext_begin_render(amongus);
@@ -120,7 +158,10 @@ int main(int argc, char *argv[]) {
 
             ctext_end_render(rd, &camera, amongus, m4init(1.0f));
 
-            world_render(&camera, world);
+            // world_render(&camera, world);
+
+            luna_UI_Render(&camera, rd);
+
             luna_Renderer_EndRender(rd);
         }
     }

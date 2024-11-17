@@ -22,7 +22,6 @@ typedef struct block_t {
 } block_t;
 
 typedef struct ubdata {
-    mat4 model;
     mat4 view;
     mat4 projection;
 } ubdata;
@@ -133,7 +132,7 @@ void world_init(luna_Renderer_t *rd, sprite_t *spr, world_t **worldptr) {
 
     const VkPushConstantRange pushConstants[] = { 
         // stageFlags, offset, size
-        {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(vec3)}
+        {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(mat4) + sizeof(vec4)}
     };
     luna_GPU_SamplerCreateInfo sampler_info = {
        .filter = VK_FILTER_LINEAR,
@@ -216,7 +215,6 @@ void world_init(luna_Renderer_t *rd, sprite_t *spr, world_t **worldptr) {
 
 void world_render(ccamera *camera, world_t *world) {
     ubdata ub = {};
-    ub.model = m4init(1.0f);
     ub.view = cam_get_view(camera);
     ub.projection = camera->ortho;
     *((ubdata *)world->ubmapped) = ub;
@@ -230,7 +228,15 @@ void world_render(ccamera *camera, world_t *world) {
 
     VkDeviceSize vertex_offset = 0;
     vkCmdBindIndexBuffer(cmd, world->ib, 0, VK_INDEX_TYPE_UINT32);
-    // vkCmdDrawIndexed(cmd, WORLD_W * WORLD_H * 6, 1, 0, vertex_offset, 0);
+
+    struct push_constants {
+        mat4 model;
+        vec4 color;
+    } pc;
+
+    pc.model = m4init(1.0f);
+    pc.color = (vec4){ 1.0f, 1.0f, 1.0f, 1.0f };
+    vkCmdPushConstants(cmd, world->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(struct push_constants), &pc);
 
     for (int j = 0; j < WORLD_H; j++) {
         for (int i = 0; i < WORLD_W; i++) {
@@ -245,23 +251,13 @@ void world_render(ccamera *camera, world_t *world) {
     }
 }
 
-void world_update(ccamera *camera, const luna_Renderer_t *rd, world_t *world) {
+void world_update(ccamera *camera, world_t *world) {
     int mx, my;
     if (SDL_GetMouseState(&mx, &my) & SDL_BUTTON(SDL_BUTTON_LEFT)) {
-        cam_update(camera, rd);
-        vec2 mp = cinput_get_mouse_position();
-        const vec2 translated_mouse_position = v2add(v2muls(mp, 10.0f), (vec2){ camera->position.x, camera->position.y });
-
-        printf("%f %f %f\n", camera->position.x, camera->position.y, camera->position.z);
-        printf("%f %f %f\n", camera->front.x, camera->front.y, camera->front.z);
-        printf("%f %f %f\n", camera->right.x, camera->right.y, camera->right.z);
-        for (int j = 0; j < 4; j++) {
-            for (int i = 0; i < 4; i++) {
-                printf("%f ", ((float *)&camera->view)[j * 4 + i]);
-            }
-            puts("");
-        }
-        puts("");
+        const vec2 translated_mouse_position = v2add(
+            v2muls(cinput_get_mouse_position(), 10.0f),
+            (vec2){ camera->position.x, camera->position.y }
+        );
 
         for (int j = 0; j < WORLD_H; j++) {
             for (int i = 0; i < WORLD_W; i++) {

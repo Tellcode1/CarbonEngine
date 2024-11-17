@@ -9,6 +9,11 @@ vec2 f_tex_coords;
 
 layout(set = 0, binding = 1) uniform sampler2D f_texture;
 
+layout (push_constant) uniform push_constants {
+    mat4 model;
+    vec4 color;
+} pc;
+
 void main() {
-    o_color = texture(f_texture, f_tex_coords);
+    o_color = texture(f_texture, f_tex_coords) * pc.color;
 }

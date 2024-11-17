@@ -250,6 +250,7 @@ void luna_ImageWritePNG(const luna_Image *tex, const char *path)
             break;
         break;
     }
+    cassert(coltype != -1);
 
     const int bytesperpixel = vk_fmt_get_bpp(tex->fmt);
     png_set_IHDR(png, info, tex->w, tex->h, bytesperpixel * 8, coltype, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);

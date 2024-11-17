@@ -206,7 +206,7 @@ void ctext_end_render(luna_Renderer_t *rd, ccamera *camera, cfont_t *fnt, mat4 m
         mat4 model;
     } pc;
 
-    pc.model = m4mul(cam_get_projection(camera), cam_get_view(camera));
+    pc.model = m4mul(camera->ortho, m4mul(cam_get_view(camera), model));
 
     const VkPipeline pipeline = rd->ctext->pipeline;
     const VkPipelineLayout pipeline_layout = rd->ctext->pipeline_layout;
@@ -578,7 +578,7 @@ void ctext_init(struct luna_Renderer_t *rd)
     setLayoutInfo.pBindings = bindings;
     setLayoutInfo.bindingCount = array_len(bindings);
     if (vkCreateDescriptorSetLayout(device, &setLayoutInfo, NULL, &ctext->desc_Layout) != VK_SUCCESS) {
-        LOG_ERROR("%s Failto create descriptor set layout");
+        LOG_ERROR("Failed to create descriptor set layout");
     }
 
     VkDescriptorSetAllocateInfo setAllocInfo = {};
