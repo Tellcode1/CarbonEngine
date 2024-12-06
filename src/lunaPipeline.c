@@ -1,13 +1,147 @@
-#include "../../include/lunaPipeline.h"
-#include "../../include/cshadermanagerdev.h"
-#include "../../include/cgvector.h"
+#include "../include/lunaPipeline.h"
+#include "../include/cshadermanagerdev.h"
+#include "../include/cgvector.h"
+#include "../include/cengine.h"
+#include "../include/cgfxdef.h"
+#include "../include/lunaUI.h"
 
 luna_GPU_ResultCheckFn __cvk_resultFunc = __cvk_defaultResultCheckFunc; // To not cause nullptr dereference. SetResultCheckFunc also checks for nullptr and handles it.
 u32 luna_GPU_vk_flag_register = 0;
 
+SystemPipelines g_Pipelines;
+
 #define HAS_FLAG(flag) ((luna_GPU_vk_flag_register & flag) || (flags & flag))
 
-void luna_GPU_CreateGraphicsPipeline( const luna_GPU_PipelineCreateInfo *pCreateInfo, VkPipeline *dstPipeline, u32 flags)
+VkPipeline base_pipeline = NULL;
+VkPipelineCache cache = NULL;
+
+void __BakeUnlitPipeline( luna_Renderer_t *rd ) {
+	csm_shader_t *vertex, *fragment;
+    csm_load_shader("Unlit/vert", &vertex);
+    csm_load_shader("Unlit/frag", &fragment);
+
+    cassert(vertex != NULL && fragment != NULL);
+
+    const csm_shader_t *shaders[] = { vertex, fragment };
+    const VkDescriptorSetLayout layouts[] = { camera.set.layout, luna_ui_ctx.set.layout };
+
+    const lunaExtent2D RenderExtent = luna_Renderer_GetRenderExtent(rd);
+
+	const VkVertexInputAttributeDescription attributeDescriptions[] = {
+        // location; binding; format; offset;
+        { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0 }, // pos
+        { 1, 0, VK_FORMAT_R32G32_SFLOAT, sizeof(vec3) }, // texcoord
+    };
+
+    const VkVertexInputBindingDescription bindingDescriptions[] = {
+        // binding; stride; inputRate
+        { 0, sizeof(cvertex), VK_VERTEX_INPUT_RATE_VERTEX }
+    };
+
+    const VkPushConstantRange pushConstants[] = { 
+        // stageFlags, offset, size
+        {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(mat4) + sizeof(vec4)}
+    };
+
+	luna_GPU_PipelineCreateInfo pc = luna_GPU_InitPipelineCreateInfo();
+    pc.format = SwapChainImageFormat;
+    pc.subpass = 0;
+    pc.render_pass = luna_Renderer_GetRenderPass(rd);
+
+    pc.nAttributeDescriptions = array_len(attributeDescriptions);
+    pc.pAttributeDescriptions = attributeDescriptions;
+
+    pc.nPushConstants = array_len(pushConstants);
+    pc.pPushConstants = pushConstants;
+
+    pc.nBindingDescriptions = array_len(bindingDescriptions);
+    pc.pBindingDescriptions = bindingDescriptions;
+
+    pc.nShaders = array_len(shaders);
+    pc.pShaders = shaders;
+
+    pc.nDescriptorLayouts = array_len(layouts);
+    pc.pDescriptorLayouts = layouts;
+
+    pc.extent.width = RenderExtent.width;
+    pc.extent.height = RenderExtent.height;
+    pc.samples = Samples;
+    luna_GPU_CreatePipelineLayout(&pc, &g_Pipelines.Unlit.pipeline_layout);
+    pc.pipeline_layout = g_Pipelines.Unlit.pipeline_layout;
+    luna_GPU_CreateGraphicsPipeline(&pc, &g_Pipelines.Unlit.pipeline, 0);
+}
+
+void __BakeCtextPipeline( luna_Renderer_t *rd ) {
+	const VkVertexInputAttributeDescription attributeDescriptions[] = {
+        // location; binding; format; offset;
+        { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0 }, // pos
+        { 1, 0, VK_FORMAT_R32G32_SFLOAT, sizeof(vec3) }, // uv
+    };
+
+    const VkVertexInputBindingDescription bindingDescriptions[] = {
+        // binding; stride; inputRate
+        { 0, sizeof(vec3) + sizeof(vec2), VK_VERTEX_INPUT_RATE_VERTEX }
+    };
+
+	struct push_constants {
+		mat4 model;
+		vec4 color;
+		vec4 outline_color;
+	};
+
+    const VkPushConstantRange pushConstants[] = {
+        // stageFlags, offset, size
+        { VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(struct push_constants) },
+    };
+
+    csm_shader_t *vertex, *fragment;
+    cassert(csm_load_shader("ctext/vert", &vertex) != -1);
+    cassert(csm_load_shader("ctext/frag", &fragment) != -1);
+
+    csm_shader_t * shaders[] = { vertex, fragment };
+    VkDescriptorSetLayout layouts[] = { camera.set.layout, rd->ctext->desc_set.layout };
+
+    const luna_GPU_PipelineBlendState blend = luna_GPU_InitPipelineBlendState(CVK_BLEND_PRESET_ALPHA);
+
+    luna_GPU_PipelineCreateInfo pc = luna_GPU_InitPipelineCreateInfo();
+    pc.format = SwapChainImageFormat;
+    pc.subpass = 0;
+    pc.render_pass = luna_Renderer_GetRenderPass(rd);
+
+    pc.nAttributeDescriptions = array_len(attributeDescriptions);
+    pc.pAttributeDescriptions = attributeDescriptions;
+
+    pc.nPushConstants = array_len(pushConstants);
+    pc.pPushConstants = pushConstants;
+
+    pc.nBindingDescriptions = array_len(bindingDescriptions);
+    pc.pBindingDescriptions = bindingDescriptions;
+
+    pc.nShaders = array_len(shaders);
+    pc.pShaders = (const struct csm_shader_t *const *)shaders;
+
+    pc.nDescriptorLayouts = array_len(layouts);
+    pc.pDescriptorLayouts = layouts;
+
+    const lunaExtent2D RenderExtent = luna_Renderer_GetRenderExtent(rd);
+    pc.extent.width = RenderExtent.width;
+    pc.extent.height = RenderExtent.height;
+    pc.blend_state = &blend;
+    pc.samples = Samples;
+
+    luna_GPU_CreatePipelineLayout(&pc, &g_Pipelines.Ctext.pipeline_layout);
+    pc.pipeline_layout = g_Pipelines.Ctext.pipeline_layout;
+    luna_GPU_CreateGraphicsPipeline(&pc, &g_Pipelines.Ctext.pipeline, CVK_PIPELINE_FLAGS_ENABLE_BLEND);
+}
+
+void luna_VK_BakeGlobalPipelines( luna_Renderer_t *rd )
+{
+	__BakeUnlitPipeline(rd);
+	//__BakeLitPipeline(rd); // Not yet implemented
+	__BakeCtextPipeline(rd);
+}
+
+void luna_GPU_CreateGraphicsPipeline(const luna_GPU_PipelineCreateInfo *pCreateInfo, VkPipeline *dstPipeline, u32 flags)
 {
 	CVK_REQUIRED_PTR(device);
 	CVK_REQUIRED_PTR(pCreateInfo);
@@ -168,8 +302,12 @@ void luna_GPU_CreateGraphicsPipeline( const luna_GPU_PipelineCreateInfo *pCreate
 		graphicsPipelineCreateInfo.pDepthStencilState = &depthStencilState;
 	}
 
+	graphicsPipelineCreateInfo.basePipelineHandle = base_pipeline;
+
 	// if(cacheIsNull) cacheCreator.join();
 	CVK_ResultCheck(vkCreateGraphicsPipelines(device, pCreateInfo->cache, 1, &graphicsPipelineCreateInfo, VK_NULL_HANDLE, dstPipeline));
+
+	base_pipeline = *dstPipeline;
 
 	free(shader_infos);
 }

@@ -7,6 +7,7 @@
 
 #include "defines.h"
 #include "vkstdafx.h"
+#include "camera.h"
 #include "../external/volk/volk.h"
 
 struct luna_Renderer_Config;

@@ -3,6 +3,7 @@
 
 #include "../external/box2d/include/box2d/box2d.h"
 #include "../include/math/vec2.h"
+#include <SDL2/SDL.h>
 
 typedef struct player_t {
     vec2 pos;
@@ -28,7 +29,20 @@ player_t player_init(b2WorldId world) {
 }
 
 void player_update(player_t *pl) {
-    
+    vec2 move = (vec2){ 0.0f, 0.0f, 0.0f };
+    if (cinput_is_key_held(SDL_SCANCODE_UP)) {
+        move.y += 20.0f;
+    }
+    if (cinput_is_key_held(SDL_SCANCODE_DOWN)) {
+        move.y -= 20.0f;
+    }
+    if (cinput_is_key_held(SDL_SCANCODE_LEFT)) {
+        move.x -= 20.0f;
+    }
+    if (cinput_is_key_held(SDL_SCANCODE_RIGHT)) {
+        move.x += 20.0f;
+    }
+    pl->pos = v2add(pl->pos, move);
 }
 
 #endif

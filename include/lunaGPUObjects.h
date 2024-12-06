@@ -4,6 +4,8 @@
 // ! doesn't take into account alignment, etc.
 // * This is so when we eventually have to switch to an allocator it's much easier
 
+// This header should be fragmented into multiple, each for their own object.
+
 #include "lunaGFXstdafx.h"
 
 typedef enum luna_GPU_MemoryUsageBits {

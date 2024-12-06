@@ -1,5 +1,0 @@
-#include "cgvector.c"
-#include "cgstring.c"
-#include "cghashmap.c"
-#include "cgbitset.c"
-#include "catlas.c"

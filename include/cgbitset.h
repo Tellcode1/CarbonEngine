@@ -1,6 +1,8 @@
 #ifndef __CBITSET_H
 #define __CBITSET_H
 
+#include "defines.h"
+
 typedef struct cg_bitset_t {
     u8 *data;
     int size;

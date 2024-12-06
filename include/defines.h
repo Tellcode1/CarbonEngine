@@ -26,8 +26,8 @@
             return path;
         }
     }
-    #define cassert_and_ret(expr) if (!((bool)(expr))) { LOG_ERROR("[%s(%u)] Assertion failed -> %s", __basename(__FILE__), __LINE__, #expr); return; }
-    #define cassert(expr) if (!((bool)(expr))) { LOG_AND_ABORT("[%s(%u)] Assertion failed -> %s", __basename(__FILE__), __LINE__, #expr); }
+    #define cassert_and_ret(expr) if (!((bool)(expr))) { LOG_ERROR("[%s:%u:%s] Assertion failed -> %s", __basename(__FILE__), __LINE__, __PRETTY_FUNCTION__, #expr); return; }
+    #define cassert(expr) if (!((bool)(expr))) { LOG_AND_ABORT("[%s:%u:%s] Assertion failed -> %s", __basename(__FILE__), __LINE__, __PRETTY_FUNCTION__, #expr); }
 #else
     static inline const char *__basename(const char *path) { return NULL; }
     // These are typecasted to void because they give warnings because result (its like expr != NULL) is not used

@@ -58,28 +58,19 @@ typedef struct ctext_text_render_info {
     bool scale_for_fit; // calculates the scale needed to fit the text into a box
 } ctext_text_render_info;
 
-typedef enum ctext_text_render_flags {
-    CTEXT_RENDER_SCALE_FOR_FIT = 1,
-} ctext_text_render_flags;
-
-typedef enum ctext_text_flags {
-    // Standard ctext uses signed distance fields which get better text but are slower to make
-    // ctext caches these images so it's only a one time cost.
-    // Disabling this is not recommended
-    CTEXT_DISABLE_SDF = 1,
-} ctext_text_flags;
-
-// Hmm.. sprintf doesn't work with unicode I guess.
-// I'll figure out what to do later.
-extern void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo, const char *fmt, ...);
+// Initializes the text renderer for ONLY that renderer
 extern void ctext_init(struct luna_Renderer_t *rd);
 
 extern void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scale, cfont_t **dst);
 
 extern void ctext_begin_render(cfont_t *fnt);
-extern void ctext_end_render(luna_Renderer_t *rd, ccamera *camera, cfont_t *fnt, mat4 model);
+
+extern void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo, const char *fmt, ...);
+
+extern void ctext_end_render(luna_Renderer_t *rd, cfont_t *fnt, mat4 model);
 
 // Get the scale needed to fit the string in a box
+// The scale is calculated as if both the string and the box were at (0,0)
 extern float ctext_get_scale_for_fit(const cfont_t *fnt, const cg_string_t *str, vec2 bbox);
 
 typedef struct ctext_glyph

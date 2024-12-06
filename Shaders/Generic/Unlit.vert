@@ -11,10 +11,11 @@ vec2 v_tex_coords;
 layout(location=0) out
 vec2 f_tex_coords;
 
-layout(set = 0, binding = 0, std140) uniform uniform_buffer {
+layout(set = 0, binding = 0, std140) uniform camera_buffer {
+    mat4 perspective;
+    mat4 ortho;
     mat4 view;
-    mat4 projection;
-} ub;
+} cam_ub;
 
 layout (push_constant) uniform push_constants {
     mat4 model;
@@ -23,5 +24,5 @@ layout (push_constant) uniform push_constants {
 
 void main() {
     f_tex_coords = v_tex_coords;
-    gl_Position = ub.projection * ub.view * pc.model * vec4(v_vertices, 1.0);
+    gl_Position = cam_ub.ortho * cam_ub.view * pc.model * vec4(v_vertices, 1.0);
 }

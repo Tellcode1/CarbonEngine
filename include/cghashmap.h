@@ -5,6 +5,9 @@
     extern "C" {
 #endif
 
+#include <stdbool.h>
+#include <stdio.h>
+
 typedef struct ch_node_t {
     void *key;
     void *value;

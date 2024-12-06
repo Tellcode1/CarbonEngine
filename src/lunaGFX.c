@@ -14,6 +14,8 @@
 
 #include "../include/sprite.h"
 
+#include "../include/camera.h"
+
 #include <SDL2/SDL_vulkan.h>
 
 VkInstance instance = NULL;
@@ -37,6 +39,9 @@ VkQueue PresentQueue = VK_NULL_HANDLE;
 VkQueue ComputeQueue = VK_NULL_HANDLE;
 VkQueue TransferQueue = VK_NULL_HANDLE;
 VkSampleCountFlagBits Samples = VK_SAMPLE_COUNT_1_BIT;
+
+luna_DescriptorPool g_pool;
+ccamera camera;
 
 int luna_Renderer_GetFrame(const luna_Renderer_t *rd)
 {
@@ -82,11 +87,7 @@ void luna_Renderer_Destroy(luna_Renderer_t *rd)
     vkDestroySwapchainKHR(device, rd->swapchain, NULL);
 
     if (rd->ctext) {
-        vkDestroyPipelineLayout(device, rd->ctext->pipeline.pipeline_layout, NULL);
-        vkDestroyPipeline(device, rd->ctext->pipeline.pipeline, NULL);
-
         vkDestroyDescriptorSetLayout(device, rd->ctext->desc_set.layout, NULL);
-        vkDestroyDescriptorPool(device, rd->ctext->desc_pool.pool, NULL);
 
         vkDestroyImage(device, rd->ctext->error_image.image, NULL);
         vkDestroyImageView(device, rd->ctext->error_image.view, NULL);
@@ -411,7 +412,11 @@ luna_Renderer_t *luna_Renderer_Init(const luna_Renderer_Config *conf)
         cassert(vkCreateFence(device, &fenceCreateInfo, NULL, &data->in_flight_fence) == VK_SUCCESS);
 	}
 
+    luna_DescriptorPool_Init(&g_pool);
+
     sprite_empty = sprite_load_disk("../Assets/empty.png");
+
+    camera = ccamera_init();
 
     return rd;
 }
@@ -494,7 +499,7 @@ void crenderer_resize(luna_Renderer_t *rd) {
     luna_GPU_CreateSwapchain(&scio, &rd->swapchain);
     vkDestroySwapchainKHR(device, old_swapchain, NULL);
 
-    luna_GPU_DestroyImage(&rd->color_image);
+    // luna_GPU_DestroyImage(&rd->color_image);
 
     create_optional_images(rd);
     create_framebuffers_and_swapchain_image_views(rd);

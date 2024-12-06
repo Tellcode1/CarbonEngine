@@ -6,10 +6,13 @@
 #endif
 
 #include "sprite.h"
-#include "undescriptorset.h"
+#include "lunaDescriptors.h"
 #include "lunaPipeline.h"
 #include "lunaVK.h"
 #include "cshadermanager.h"
+#include "cinput.h"
+#include "camera.h"
+#include "math/mat.h"
 
 #define WORLD_W 100
 #define WORLD_H 100
@@ -31,7 +34,7 @@ typedef struct cvertex {
     vec2 tex_coords;
 } cvertex;
 
-int align_up(int size, int alignment) {
+static int align_up(int size, int alignment) {
     return (size + alignment - 1) & ~(alignment - 1);
 }
 
@@ -49,12 +52,11 @@ typedef struct world_t {
     VkPipelineLayout pipeline_layout;
 
     luna_GPU_Sampler sampler;
-    luna_DescriptorPool pool;
     luna_DescriptorSet set;
     block_t grid[ WORLD_H ][ WORLD_W ];
 } world_t;
 
-void world_init(luna_Renderer_t *rd, sprite_t *spr, world_t **worldptr) {
+static void world_init(luna_Renderer_t *rd, sprite_t *spr, world_t **worldptr) {
     *worldptr = calloc(1, sizeof(world_t));
     world_t *world = *worldptr;
     world->rd = rd;
@@ -144,17 +146,9 @@ void world_init(luna_Renderer_t *rd, sprite_t *spr, world_t **worldptr) {
 
     const VkDescriptorSetLayoutBinding bindings[] = {
         // binding; descriptorType; descriptorCount; stageFlags; pImmutableSamplers;
-        { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, NULL },
-        { 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &world->sampler.vksampler },
+        { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &world->sampler.vksampler },
     };
-    luna_DescriptorPool_Init(&world->pool);
-    luna_AllocateDescriptorSet(&world->pool, bindings, array_len(bindings), &world->set);
-
-    VkDescriptorBufferInfo bufferinfo = {
-        .buffer = world->vb,
-        .offset = align_up(vertex_size, ub_alignment),
-        .range = sizeof(ubdata)
-    };
+    luna_AllocateDescriptorSet(&g_pool, bindings, array_len(bindings), &world->set);
 
     VkWriteDescriptorSet write = {
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -162,9 +156,7 @@ void world_init(luna_Renderer_t *rd, sprite_t *spr, world_t **worldptr) {
         .dstBinding = 0,
         .descriptorCount = 1,
         .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        .pBufferInfo = &bufferinfo,
     };
-    vkUpdateDescriptorSets(device, 1, &write, 0, NULL);
 
     const VkDescriptorImageInfo image_desc_info = {
         .sampler = world->sampler.vksampler,
@@ -174,7 +166,7 @@ void world_init(luna_Renderer_t *rd, sprite_t *spr, world_t **worldptr) {
 
     write.pImageInfo = &image_desc_info;
     write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    write.dstBinding = 1;
+    write.dstBinding = 0;
     vkUpdateDescriptorSets(device, 1, &write, 0, NULL);
 
     csm_shader_t *cvertex, *fragment;
@@ -184,7 +176,7 @@ void world_init(luna_Renderer_t *rd, sprite_t *spr, world_t **worldptr) {
     cassert(cvertex != NULL && fragment != NULL);
 
     const csm_shader_t *shaders[] = { cvertex, fragment };
-    const VkDescriptorSetLayout layouts[] = { world->set.layout };
+    const VkDescriptorSetLayout layouts[] = { camera.set.layout, world->set.layout };
 
     const lunaExtent2D RenderExtent = luna_Renderer_GetRenderExtent(rd);
     luna_GPU_PipelineCreateInfo pc = luna_GPU_InitPipelineCreateInfo();
@@ -215,16 +207,16 @@ void world_init(luna_Renderer_t *rd, sprite_t *spr, world_t **worldptr) {
     luna_GPU_CreateGraphicsPipeline(&pc, &world->pipeline, 0);
 }
 
-void world_render(ccamera *camera, world_t *world) {
+static void world_render(world_t *world) {
     ubdata ub = {};
-    ub.view = cam_get_view(camera);
-    ub.projection = camera->ortho;
+    ub.view = cam_get_view(&camera);
+    ub.projection = camera.ortho;
     *((ubdata *)world->ubmapped) = ub;
 
     VkDeviceSize offsets = 0;
 
     const VkCommandBuffer cmd = luna_Renderer_GetDrawBuffer(world->rd);
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, world->pipeline_layout, 0, 1, &world->set.set, 0, NULL);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, world->pipeline_layout, 0, 1, &camera.set.set, 0, NULL);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, world->pipeline);
     vkCmdBindVertexBuffers(cmd, 0, 1, &world->vb, &offsets);
 
@@ -253,12 +245,12 @@ void world_render(ccamera *camera, world_t *world) {
     }
 }
 
-void world_update(ccamera *camera, world_t *world) {
+static void world_update(world_t *world) {
     int mx, my;
     if (SDL_GetMouseState(&mx, &my) & SDL_BUTTON(SDL_BUTTON_LEFT)) {
         const vec2 translated_mouse_position = v2add(
             v2muls(cinput_get_mouse_position(), 10.0f),
-            (vec2){ camera->position.x, camera->position.y }
+            (vec2){ camera.position.x, camera.position.y }
         );
 
         for (int j = 0; j < WORLD_H; j++) {

@@ -8,6 +8,7 @@
 #include "../external/volk/volk.h"
 
 #include "defines.h"
+#include "lunaGFX.h"
 #include "vkstdafx.h"
 
 struct csm_shader_t;
@@ -75,6 +76,13 @@ typedef struct luna_VK_Pipeline {
     int nshaders;
     struct csm_shader_t *shaders[ LUNA_VK_MAX_SHADERS_PER_PIPELINE ];
 } luna_VK_Pipeline;
+
+typedef struct SystemPipelines {
+	luna_VK_Pipeline Unlit;
+	luna_VK_Pipeline Lit;
+	luna_VK_Pipeline Ctext;
+} SystemPipelines;
+extern SystemPipelines g_Pipelines;
 
 typedef enum luna_GPU_PipelineBlendPreset
 {
@@ -154,6 +162,8 @@ typedef struct luna_GPU_RenderPassCreateInfo
 	VkSampleCountFlagBits samples;
 } luna_GPU_RenderPassCreateInfo;
 #define luna_GPU_InitRenderPassCreateInfo() (luna_GPU_RenderPassCreateInfo){ .samples = VK_SAMPLE_COUNT_1_BIT}
+
+extern void luna_VK_BakeGlobalPipelines( luna_Renderer_t *rd );
 
 extern void luna_GPU_CreateGraphicsPipeline(luna_GPU_PipelineCreateInfo const* pCreateInfo, VkPipeline* dstPipeline, u32 flags);
 extern void luna_GPU_CreateDepthPipeline(luna_GPU_PipelineCreateInfo const* pCreateInfo, VkPipeline* dstPipeline, u32 flags);

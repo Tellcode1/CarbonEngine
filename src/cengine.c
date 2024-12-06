@@ -2,6 +2,7 @@
 #include "../include/ctext.h"
 #include "../include/cinput.h"
 #include "../include/cengineinit.h"
+#include "../include/camera.h"
 
 #include <SDL2/SDL.h>
 
@@ -20,6 +21,14 @@ bool cg_framebuffer_resized = 0;
 bool cg_application_running = 1;
 
 static u64 currtime;
+
+// CINPUT VARS
+vec2 cinput_mouse_position;
+vec2 cinput_last_frame_mouse_position;
+cg_bitset_t cinput_kb_state;
+cg_bitset_t cinput_last_frame_kb_state;
+unsigned cinput_mouse_state;
+unsigned cinput_last_frame_mouse_state;
 
 void cg_initialize_context(const char *window_title, int window_width, int window_height)
 {

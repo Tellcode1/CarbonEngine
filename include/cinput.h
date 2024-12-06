@@ -19,12 +19,13 @@ typedef enum key_state_bits
 } key_state_bits;
 typedef u8 key_state;
 
-static vec2 cinput_mouse_position;
-static vec2 cinput_last_frame_mouse_position;
-static cg_bitset_t cinput_kb_state;
-static cg_bitset_t cinput_last_frame_kb_state;
-static unsigned cinput_mouse_state;
-static unsigned cinput_last_frame_mouse_state;
+// Turns out, static is bad..
+extern vec2 cinput_mouse_position;
+extern vec2 cinput_last_frame_mouse_position;
+extern cg_bitset_t cinput_kb_state;
+extern cg_bitset_t cinput_last_frame_kb_state;
+extern unsigned cinput_mouse_state;
+extern unsigned cinput_last_frame_mouse_state;
 
 static inline void cinput_init() {
     cinput_kb_state = cg_bitset_init( SDL_NUM_SCANCODES );

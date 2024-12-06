@@ -11,7 +11,7 @@ vec2 texCoords;
 layout(location=1) in
 vec4 f_col;
 
-layout(set=0,binding=0) uniform
+layout(set=1,binding=0) uniform
 sampler2D bitmap;
 
 layout (push_constant) uniform push_constants {

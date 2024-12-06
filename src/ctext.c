@@ -15,6 +15,7 @@
 #include FT_GLYPH_H
 
 #include "../include/ctext_font_file.h"
+#include "../include/lunaGFX.h"
 
 #define MAX(a,b) ( (a > b) ? a : b )
 
@@ -250,19 +251,21 @@ void ctext__font_resize_buffer(cfont_t *fnt, int new_buffer_size)
     fnt->allocated_size = new_allocation_size;
 }
 
-void ctext__render_drawcalls(luna_Renderer_t *rd, ccamera *camera, cfont_t *fnt, const mat4 *model) {
+void ctext__render_drawcalls(luna_Renderer_t *rd, cfont_t *fnt, const mat4 *model) {
     const VkCommandBuffer cmd = luna_Renderer_GetDrawBuffer(rd);
     const VkDeviceSize offsets[] = { 0 };
 
     struct push_constants pc = {};
 
-    pc.model = m4mul(camera->ortho, m4mul(cam_get_view(camera), *model));
+    pc.model = *model;
 
-    const VkPipeline pipeline = rd->ctext->pipeline.pipeline;
-    const VkPipelineLayout pipeline_layout = rd->ctext->pipeline.pipeline_layout;
+    const VkPipeline pipeline = g_Pipelines.Ctext.pipeline;
+    const VkPipelineLayout pipeline_layout = g_Pipelines.Ctext.pipeline_layout;
+
+    const VkDescriptorSet sets[] = { camera.set.set, rd->ctext->desc_set.set };
 
     // Viewport && scissor are set by renderer so no need to set them here
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1, &rd->ctext->desc_set.set, 0, NULL);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 2, sets, 0, NULL);
     vkCmdBindVertexBuffers(cmd, 0, 1, &fnt->buffer.vkbuffer, offsets);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
     vkCmdBindIndexBuffer(cmd, fnt->buffer.vkbuffer, fnt->index_buffer_offset, VK_INDEX_TYPE_UINT32);
@@ -285,10 +288,10 @@ void ctext__render_drawcalls(luna_Renderer_t *rd, ccamera *camera, cfont_t *fnt,
     }
 }
 
-void ctext_end_render(luna_Renderer_t *rd, ccamera *camera, cfont_t *fnt, mat4 model)
+void ctext_end_render(luna_Renderer_t *rd, cfont_t *fnt, mat4 model)
 {
     if (fnt->to_render) {
-        ctext__render_drawcalls(rd, camera, fnt, &model);
+        ctext__render_drawcalls(rd, fnt, &model);
     }
 
     u32 total_vertex_byte_size = 0;
@@ -403,7 +406,7 @@ static void ctext_get_text_size(const cfont_t *fnt, const cg_string_t *str, floa
 
 void ctext_begin_render(cfont_t *fnt)
 {
-    
+    (void)fnt;
 }
 
 static int render_line(
@@ -612,11 +615,10 @@ void ctext_init(struct luna_Renderer_t *rd)
 
     const VkDescriptorSetLayoutBinding bindings[] = {
         // binding; descriptorType; descriptorCount; stageFlags; pImmutableSamplers;
-        (VkDescriptorSetLayoutBinding){ 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, CTEXT_MAX_FONT_COUNT, VK_SHADER_STAGE_FRAGMENT_BIT, NULL },
+        { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, CTEXT_MAX_FONT_COUNT, VK_SHADER_STAGE_FRAGMENT_BIT, NULL },
     };
 
-    luna_DescriptorPool_Init(&ctext->desc_pool);
-    luna_AllocateDescriptorSet(&ctext->desc_pool, bindings, array_len(bindings), &ctext->desc_set);
+    luna_AllocateDescriptorSet(&g_pool, bindings, array_len(bindings), &ctext->desc_set);
 
     u32 width, height;
     VkFormat dummyImageFmt;
@@ -664,61 +666,6 @@ void ctext_init(struct luna_Renderer_t *rd)
         write_set.dstArrayElement = i;
         vkUpdateDescriptorSets(device, 1, &write_set, 0, NULL);
     }
-
-    const VkVertexInputAttributeDescription attributeDescriptions[] = {
-        // location; binding; format; offset;
-        { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0 }, // pos
-        { 1, 0, VK_FORMAT_R32G32_SFLOAT, sizeof(vec3) }, // uv
-    };
-
-    const VkVertexInputBindingDescription bindingDescriptions[] = {
-        // binding; stride; inputRate
-        { 0, sizeof(vec3) + sizeof(vec2), VK_VERTEX_INPUT_RATE_VERTEX }
-    };
-
-    const VkPushConstantRange pushConstants[] = {
-        // stageFlags, offset, size
-        { VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(struct push_constants) },
-    };
-
-    csm_shader_t *vertex, *fragment;
-    cassert(csm_load_shader("ctext/vert", &vertex) != -1);
-    cassert(csm_load_shader("ctext/frag", &fragment) != -1);
-
-    csm_shader_t * shaders[] = { vertex, fragment };
-    VkDescriptorSetLayout layouts[] = { rd->ctext->desc_set.layout };
-
-    const luna_GPU_PipelineBlendState blend = luna_GPU_InitPipelineBlendState(CVK_BLEND_PRESET_ALPHA);
-
-    luna_GPU_PipelineCreateInfo pc = luna_GPU_InitPipelineCreateInfo();
-    pc.format = SwapChainImageFormat;
-    pc.subpass = 0;
-    pc.render_pass = luna_Renderer_GetRenderPass(rd);
-
-    pc.nAttributeDescriptions = array_len(attributeDescriptions);
-    pc.pAttributeDescriptions = attributeDescriptions;
-
-    pc.nPushConstants = array_len(pushConstants);
-    pc.pPushConstants = pushConstants;
-
-    pc.nBindingDescriptions = array_len(bindingDescriptions);
-    pc.pBindingDescriptions = bindingDescriptions;
-
-    pc.nShaders = array_len(shaders);
-    pc.pShaders = (const struct csm_shader_t *const *)shaders;
-
-    pc.nDescriptorLayouts = array_len(layouts);
-    pc.pDescriptorLayouts = layouts;
-
-    const lunaExtent2D RenderExtent = luna_Renderer_GetRenderExtent(rd);
-    pc.extent.width = RenderExtent.width;
-    pc.extent.height = RenderExtent.height;
-    pc.blend_state = &blend;
-    pc.samples = Samples;
-
-    luna_GPU_CreatePipelineLayout(&pc, &ctext->pipeline.pipeline_layout);
-    pc.pipeline_layout = ctext->pipeline.pipeline_layout;
-    luna_GPU_CreateGraphicsPipeline(&pc, &ctext->pipeline.pipeline, CVK_PIPELINE_FLAGS_ENABLE_BLEND);
 }
 
 void ctext_ff_write(const char *path, const cfont_t *fnt)

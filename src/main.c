@@ -61,8 +61,6 @@ int main(int argc, char *argv[]) {
 
     int curr_showing_fps = 0;
 
-    ccamera camera = ccamera_init();
-
     float accumulator = 0.0f;
     const float timeStep = 1.0f / 60.0f;
 
@@ -84,6 +82,8 @@ int main(int argc, char *argv[]) {
     bton2->hover = hoover;
     bton2->position.x = 10.0f;
     bton2->position.y = 10.0f;
+
+    luna_VK_BakeGlobalPipelines(rd);
 
     // What in the unholy f%$ where you doing
     LOG_DEBUG("Initialized in %ld ms (%.3f s)", SDL_GetTicks64(), SDL_GetTicks64() / 1000.0f);
@@ -115,7 +115,7 @@ int main(int argc, char *argv[]) {
 
         cinput_update(rd);
         cam_update(&camera, rd);
-        world_update(&camera, world);
+        world_update(world);
 
         vec3 move = (vec3){ 0.0f, 0.0f, 0.0f };
         if (cinput_is_key_held(SDL_SCANCODE_W)) {
@@ -151,7 +151,7 @@ int main(int argc, char *argv[]) {
         if (luna_Renderer_BeginRender(rd)) {
             ctext_begin_render(amongus);
 
-            luna_UI_Render(&camera, rd);
+            luna_UI_Render(rd);
 
             bton->size.x = piss;
             bton->size.y = piss;
@@ -183,9 +183,9 @@ my friendly friend friend pal friend buddy chum pally friend chum buddy)");
             info.position = (vec3){0.0f, 0.0f, sinf(cg_get_time()) * 5.0f};
             ctext_render(amongus, &info, "POOTIS\nSPENCER\nHERE");
 
-            ctext_end_render(rd, &camera, amongus, m4init(1.0f));
+            ctext_end_render(rd, amongus, m4init(1.0f));
 
-            // world_render(&camera, world);
+            // world_render(world);
 
             luna_Renderer_EndRender(rd);
         }

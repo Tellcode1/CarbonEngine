@@ -12,25 +12,17 @@
 #include "lunaPipeline.h"
 #include "cgvector.h"
 #include "lunaGPUObjects.h"
-#include "undescriptorset.h"
+#include "lunaDescriptors.h"
 
 // * it shold be like cg_init_ctext(rd); and then you can just do crd_render_text(&info);
 typedef struct cg_ctext_module {
     // TODO Implement
     // The pipeline should most likely be static
-    luna_VK_Pipeline pipeline;
-    luna_DescriptorPool desc_pool;
     luna_DescriptorSet desc_set;
     luna_GPU_Texture error_image;
     luna_GPU_Sampler error_sampler;
     unsigned flags;
 } cg_ctext_module;
-
-typedef enum cg_renderer_flag_bits {
-    CG_RENDERER_MULTISAMPLING_ENABLE = 1 << 0,
-    CG_RENDERER_VSYNC_ENABLE = 1 << 1,
-    CG_RENDERER_WINDOW_RESIZABLE = 1 << 2,
-} cg_renderer_flag_bits;
 
 typedef struct luna_Renderer_t
 {
@@ -59,6 +51,10 @@ typedef struct luna_Renderer_t
     cg_vector_t drawBuffers;
 
     cg_ctext_module *ctext;
+
+    // These are used to render all the sprites in the game (quad based sprites that is)
+    luna_GPU_Buffer quad_vb;
+    luna_GPU_Memory quad_memory;
 } luna_Renderer_t;
 
 #ifdef __cplusplus

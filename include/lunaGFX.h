@@ -16,6 +16,10 @@
 #include "vkstdafx.h"
 #include "lunaGFXstdafx.h"
 #include "lunaGPUObjects.h"
+#include "lunaDescriptors.h"
+
+extern luna_DescriptorPool g_pool;
+extern struct ccamera camera;
 
 // Move ownership to camera VV
 typedef struct lunaFrameRenderData
@@ -28,14 +32,20 @@ typedef struct lunaFrameRenderData
     VkFence          in_flight_fence;
 } lunaFrameRenderData;
 
+typedef enum cg_renderer_flag_bits {
+    CG_RENDERER_MULTISAMPLING_ENABLE = 1 << 0,
+    CG_RENDERER_VSYNC_ENABLE = 1 << 1,
+    CG_RENDERER_WINDOW_RESIZABLE = 1 << 2,
+} cg_renderer_flag_bits;
+
 typedef struct luna_Renderer_Config {
     lunaSampleCount        samples;
-    lunaBufferMode      buffer_mode;
+    lunaBufferMode         buffer_mode;
     lunaExtent2D           initial_window_size;
     int                    exit_key;
     bool                   multisampling_enable;
     bool                   window_resizable;
-    luna_Window_VSync              vsync_enabled;
+    luna_Window_VSync      vsync_enabled;
 } luna_Renderer_Config;
 
 static inline luna_Renderer_Config crender_config_init() {

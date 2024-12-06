@@ -6,11 +6,19 @@
 #include "math/math.h"
 #include "math/vec3.h"
 #include "math/mat.h"
+#include "lunaGPUObjects.h"
+#include "lunaDescriptors.h"
 #include "lunaGFX.h"
 
 // If you draw a quad with this width, it'll cover the whole screen
 #define CAMERA_ORTHO_W 10.0f
 #define CAMERA_ORTHO_H 10.0f
+
+typedef struct camera_uniform_buffer {
+    mat4 perspective;
+    mat4 ortho;
+    mat4 view;
+} camera_uniform_buffer;
 
 typedef struct ccamera {
     // TODO: move to uniform buffer with data like current app time, delta time, etc.
@@ -31,10 +39,15 @@ typedef struct ccamera {
     f32 fov;
     f32 near_clip;
     f32 far_clip;
+
+    luna_GPU_Buffer ub;
+    luna_GPU_Memory mem;
+    luna_DescriptorSet set;
+    camera_uniform_buffer *mem_mapped;
 } ccamera;
 
 static inline ccamera ccamera_init() {
-    return (ccamera) {
+    ccamera camera = {
         .perspective = {},
         .ortho = m4ortho(-CAMERA_ORTHO_W, CAMERA_ORTHO_W, -CAMERA_ORTHO_H, CAMERA_ORTHO_H, 0.1f, 100.0f),
         .view = {},
@@ -49,6 +62,29 @@ static inline ccamera ccamera_init() {
         .near_clip = 0.1f,
         .far_clip = 1000.0f,
     };
+    luna_GPU_CreateBuffer(sizeof(camera_uniform_buffer), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, &camera.ub);
+    luna_GPU_AllocateMemory(sizeof(camera_uniform_buffer), VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &camera.mem);
+    luna_GPU_BindBufferToMemory(&camera.mem, 0, &camera.ub);
+    VkDescriptorSetLayoutBinding bindings[] = {
+        { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, NULL }
+    };
+    luna_AllocateDescriptorSet(&g_pool, bindings, 1, &camera.set);
+    VkDescriptorBufferInfo bufferinfo = {
+        .buffer = camera.ub.vkbuffer,
+        .offset = 0,
+        .range = sizeof(camera_uniform_buffer)
+    };
+    VkWriteDescriptorSet write = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = camera.set.set,
+        .dstBinding = 0,
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .pBufferInfo = &bufferinfo,
+    };
+    vkUpdateDescriptorSets(device, 1, &write, 0, NULL);
+    vkMapMemory(device, camera.mem.memory, 0, sizeof(camera_uniform_buffer), 0, (void **)&camera.mem_mapped);
+    return camera;
 }
 
 static inline mat4 cam_get_projection(ccamera *cam) {
@@ -106,6 +142,12 @@ static inline void cam_update(ccamera *cam, struct luna_Renderer_t *rd) {
     const lunaExtent2D RenderExtent = luna_Renderer_GetRenderExtent(rd);
     const f32 aspect = (f32)RenderExtent.width / (f32)RenderExtent.height;
     cam->perspective = m4perspective(cam->fov, aspect, cam->near_clip, cam->far_clip);
+
+    camera_uniform_buffer ub = {};
+    ub.perspective = cam->perspective;
+    ub.ortho = cam->ortho;
+    ub.view = cam->view;
+    *(cam->mem_mapped) = ub;
 }
 
 #endif//__C_CAMERA_H__
