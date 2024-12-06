@@ -17,10 +17,8 @@ typedef struct csm_shader_entry {
 
 typedef struct csm_shader_t {
     char name[128];
-    void *shader_module;
+    void *shader_module; // the vk shader handle
     unsigned stage;
-    bool compiled; // for lazy compilation
-    csm_shader_entry entry; // for lazy compilation
 } csm_shader_t;
 
 extern struct csm_shader_t *shader_map;
@@ -33,6 +31,7 @@ typedef struct csm_shader_cache_entry {
     long last_modified;
 } csm_shader_cache_entry;
 
-void __csm_create_shader(struct VkDevice_T *vkdevice, const unsigned *bytes, int nbytes, struct csm_shader_t *out);
+extern void __csm_create_shader(struct VkDevice_T *vkdevice, const unsigned *bytes, int nbytes, struct csm_shader_t *out);
+void __csm_vk_register_shaders(csm_shader_entry *entries, int nentries);
 
 #endif//__CSM_DEV_H

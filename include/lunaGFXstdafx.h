@@ -54,6 +54,7 @@ typedef struct lunaExtent2D {
 
 #include <vulkan/vulkan.h>
 
+// bytes per pixel not bits per pixel
 static inline int vk_fmt_get_bpp(VkFormat format) {
     switch (format) {
         case VK_FORMAT_R8_UNORM:

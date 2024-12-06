@@ -10,9 +10,12 @@ typedef struct cfont_t cfont_t;
 // format of .ff
 // { ctext_ff_header }
 // { ctext_glyph_entry } glyphs
-// bitmap | make format for this? like add serialization api to catlas?
 
 typedef struct ctext_ff_header {
+    // The path is stored so we may easily check if this is the one we're looking for
+    // ctext will look at the path, and if it is the same that the user is looking at, it will just load that instead.
+    // 2nd check will be for the family and style names because I'm sure I'll name a font file piss.ff twice
+    char path[ 128 ];
     char family_name[ 128 ];
     char style_name[ 128 ];
     float line_height,space_width;

@@ -23,8 +23,8 @@
 
 void pressed(luna_UI_Button *self) {
     (void)self;
-    puts("launching nukes to your location!!");
-    puts("I'm sorry, my head is just aching, I'm so sorry...");
+    puts("bye bye!! xoxo");
+    cg_application_running = 0;
 }
 
 void hoover(luna_UI_Button *self) {
@@ -69,15 +69,15 @@ int main(int argc, char *argv[]) {
     world_t *world;
     world_init(rd, sprite_empty, &world);
 
-    luna_UI_Init(rd, sprite_empty);
+    luna_UI_Init(rd);
 
-    luna_UI_Button *bton = luna_UI_CreateButton(&bton);
-    bton->size.x = 10.0f;
-    bton->size.y = 10.0f;
+    luna_UI_Button *bton = luna_UI_CreateButton(sprite_load_disk("../Assets/barrel.png"));
+    bton->size.x = 50.0f;
+    bton->size.y = 50.0f;
     bton->pressed = pressed;
     bton->hover = hoover;
 
-    luna_UI_Button *bton2 = luna_UI_CreateButton(&bton);
+    luna_UI_Button *bton2 = luna_UI_CreateButton(sprite_load_disk("../Assets/barrel.png"));
     bton2->size.x = 10.0f;
     bton2->size.y = 10.0f;
     bton2->pressed = pressed;
@@ -140,17 +140,44 @@ int main(int argc, char *argv[]) {
             bton2->color = (vec4){ 1.0f, 1.0f, 1.0f, 1.0f };
         }
 
+        static float piss = 1.0f;
+        if (cinput_is_key_held(SDL_SCANCODE_UP)) {
+            piss += 1.0f;
+        }
+        if (cinput_is_key_held(SDL_SCANCODE_DOWN)) {
+            piss -= 1.0f;
+        }
+
         if (luna_Renderer_BeginRender(rd)) {
             ctext_begin_render(amongus);
 
+            luna_UI_Render(&camera, rd);
+
+            bton->size.x = piss;
+            bton->size.y = piss;
+
             ctext_text_render_info info = {};
-            info.horizontal = CTEXT_HORI_ALIGN_LEFT;
-            info.vertical = CTEXT_VERT_ALIGN_TOP;
+            info.horizontal = CTEXT_HORI_ALIGN_CENTER;
+            info.vertical = CTEXT_VERT_ALIGN_CENTER;
             info.scale = 1.0f;
-            info.position = (vec3){camera.position.x, camera.position.y, 0.0f};
-            info.color = (vec4){1.0f,1.0f,1.0f,1.0f};
-            ctext_render(amongus, &info, "%u %s frames", curr_showing_fps, "joosy");
-            
+            info.position = (vec3){bton->position.x, bton->position.y, 1.0f};
+            info.color = (vec4){1.0f,0.0f,0.0f,1.0f};
+            info.bbox = bton->size;
+            info.scale_for_fit = 1;
+            ctext_render(amongus, &info,
+R"(hey there buddy chum pal friend buddy pal chum bud friend fella bruther amigo pal friend chumy chum pal
+i dont mean to be rude my friend home slice bread slice dawg
+but i gotta warn ya if u take one more diddly darn step right there
+im gonna have to diddly darn snap ur neck and wowza wouldnt that be a crummy juncture huh?
+do you want that?
+do u wish upon yourself to come into physical experience with a crummy juncture?
+because friend buddy chum friend chum pally pal chum friend if u keep this up
+then well gosh diddly darn
+i just might have to get not so friendly with u
+my friendly friend friend pal friend buddy chum pally friend chum buddy)");
+
+            info.scale = 0.1f;
+            info.scale_for_fit = 0;
             info.horizontal = CTEXT_HORI_ALIGN_CENTER;
             info.vertical = CTEXT_VERT_ALIGN_CENTER;
             info.position = (vec3){0.0f, 0.0f, sinf(cg_get_time()) * 5.0f};
@@ -159,8 +186,6 @@ int main(int argc, char *argv[]) {
             ctext_end_render(rd, &camera, amongus, m4init(1.0f));
 
             // world_render(&camera, world);
-
-            luna_UI_Render(&camera, rd);
 
             luna_Renderer_EndRender(rd);
         }

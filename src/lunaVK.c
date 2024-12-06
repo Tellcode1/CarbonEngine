@@ -219,7 +219,7 @@ void luna_VK_LoadBinaryFile( const char* path, u8* dst, u32* dstSize) {
     fclose(f);
 }
 
-void luna_VK_StageImageTransfer(VkImage dst, const void *data, int width, int height)
+void luna_VK_StageImageTransfer(VkImage dst, const void *data, int width, int height, int image_size)
 {
     VkBuffer stagingBuffer = VK_NULL_HANDLE;
     VkDeviceMemory stagingBufferMemory = VK_NULL_HANDLE;
@@ -249,8 +249,8 @@ void luna_VK_StageImageTransfer(VkImage dst, const void *data, int width, int he
     vkBindBufferMemory(device, stagingBuffer, stagingBufferMemory, 0);
 
     void *stagingBufferMapped;
-    cassert(vkMapMemory(device, stagingBufferMemory, 0, mem_req.size, 0, &stagingBufferMapped) == VK_SUCCESS);
-    memcpy(stagingBufferMapped, data, mem_req.size);
+    cassert(vkMapMemory(device, stagingBufferMemory, 0, stagingBufferRequirements.size, 0, &stagingBufferMapped) == VK_SUCCESS);
+    memcpy(stagingBufferMapped, data, image_size);
     vkUnmapMemory(device, stagingBufferMemory);
 
     const VkCommandBuffer cmd = luna_VK_BeginCommandBuffer(device);
@@ -285,10 +285,10 @@ void luna_VK_StageImageTransfer(VkImage dst, const void *data, int width, int he
     vkFreeMemory(device, stagingBufferMemory, NULL);
 }
 
-void luna_VK_CreateTextureFromMemory( u8 *buffer, u32 width, u32 height, VkFormat format, VkImage *dst, VkDeviceMemory *dstMem)
+void luna_VK_CreateTextureFromMemory(u8 *buffer, u32 width, u32 height, VkFormat format, VkImage *dst, VkDeviceMemory *dstMem)
 {
     luna_VK_CreateTextureEmpty(width, height, format, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, NULL, dst, dstMem);
-    luna_VK_StageImageTransfer(*dst, buffer, width, height);
+    luna_VK_StageImageTransfer(*dst, buffer, width, height, width * height * vk_fmt_get_bpp(format));
 }
 
 void luna_VK_CreateTextureEmpty(u32 width, u32 height, VkFormat format, VkSampleCountFlagBits samples, VkImageUsageFlags usage, int *image_size, VkImage *dst, VkDeviceMemory *dstMem)

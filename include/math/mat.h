@@ -77,6 +77,7 @@ static inline mat4 m4translate(const mat4 m, const vec3 v) {
 }
 
 static inline mat4 m4rotate(const mat4 m, const float angle_rads, const vec3 v) {
+    // I've seen box2d store the angles like this, maybe it's faster
     const float c = cosf(angle_rads);
     const float s = sinf(angle_rads);
 
@@ -116,6 +117,7 @@ static inline mat4 m4rotate(const mat4 m, const float angle_rads, const vec3 v) 
     return result;
 }
 
+// Rotates a matrix along the three axes. The vector v must contain the magnitude for rotation in each axis, in radians`
 static inline mat4 m4rotatev(const mat4 m, const vec3 v) {
     mat4 m1 = m4rotate( m, v.x, ((vec3){1.0f, 0.0f, 0.0f}) );
     mat4 m2 = m4rotate( m, v.y, ((vec3){0.0f, 1.0f, 0.0f}) );
@@ -123,6 +125,7 @@ static inline mat4 m4rotatev(const mat4 m, const vec3 v) {
     return m4mul(m3, m4mul(m2, m1));
 }
 
+// Generates a view matrix
 static inline mat4 m4lookat(const vec3 eye, const vec3 center, const vec3 up) {
     const vec3 f = v3normalize(v3sub(center, eye));
     const vec3 s = v3normalize(v3cross(f, up));

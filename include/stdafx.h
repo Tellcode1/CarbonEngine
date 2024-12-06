@@ -24,6 +24,8 @@ static inline void __CG_LOG(va_list args, const char *succeeder, const char *pre
     vfprintf(out, succeeder, args);
 }
 
+// puts but with formatting and with the preceder "error". does not stop execution of program
+// if you want that, use LOG_AND_ABORT instead.
 static inline void LOG_ERROR(const char * fmt, ...) {
     const char * preceder = "error: ";
     const char * succeeder = "\n";
@@ -33,6 +35,7 @@ static inline void LOG_ERROR(const char * fmt, ...) {
     va_end(args);
 }
 
+// formats the string, puts() it with the preceder "fatal error" and then aborts the program
 static inline void LOG_AND_ABORT(const char * fmt, ...) {
     const char * preceder = "fatal error: ";
     const char * succeeder = "\nabort.\n";
@@ -43,6 +46,7 @@ static inline void LOG_AND_ABORT(const char * fmt, ...) {
     abort();
 }
 
+// puts but with formatting and with the preceder "warning"
 static inline void LOG_WARNING(const char * fmt, ...) {
     const char * preceder =  "warning: ";
     const char * succeeder = "\n";
@@ -52,6 +56,7 @@ static inline void LOG_WARNING(const char * fmt, ...) {
     va_end(args);
 }
 
+// puts but with formatting and with the preceder "info"
 static inline void LOG_INFO(const char * fmt, ...) {
     const char * preceder =  "info: ";
     const char * succeeder = "\n";
@@ -61,6 +66,7 @@ static inline void LOG_INFO(const char * fmt, ...) {
     va_end(args);
 }
 
+// puts but with formatting and with the preceder "debug"
 static inline void LOG_DEBUG(const char * fmt, ...) {
     const char * preceder =  "debug: ";
     const char * succeeder = "\n";

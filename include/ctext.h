@@ -18,7 +18,7 @@
 #include "cgstring.h"
 #include "cghashmap.h"
 #include "catlas.h"
-#include "cdevicememory.h"
+#include "lunaGPUObjects.h"
 
 typedef struct luna_Renderer_t luna_Renderer_t;
 
@@ -53,8 +53,21 @@ typedef struct ctext_text_render_info {
     VertAlignment vertical;
     vec4 color;
     vec3 position;
-    f32 scale;
+    float scale; // if scale_for_fit is 1, this is multiplied by the calculated scale.
+    vec2 bbox; // The bounding box that the scale will be determined for. Only when scale_for_fit is 1
+    bool scale_for_fit; // calculates the scale needed to fit the text into a box
 } ctext_text_render_info;
+
+typedef enum ctext_text_render_flags {
+    CTEXT_RENDER_SCALE_FOR_FIT = 1,
+} ctext_text_render_flags;
+
+typedef enum ctext_text_flags {
+    // Standard ctext uses signed distance fields which get better text but are slower to make
+    // ctext caches these images so it's only a one time cost.
+    // Disabling this is not recommended
+    CTEXT_DISABLE_SDF = 1,
+} ctext_text_flags;
 
 // Hmm.. sprintf doesn't work with unicode I guess.
 // I'll figure out what to do later.
@@ -65,6 +78,9 @@ extern void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scal
 
 extern void ctext_begin_render(cfont_t *fnt);
 extern void ctext_end_render(luna_Renderer_t *rd, ccamera *camera, cfont_t *fnt, mat4 model);
+
+// Get the scale needed to fit the string in a box
+extern float ctext_get_scale_for_fit(const cfont_t *fnt, const cg_string_t *str, vec2 bbox);
 
 typedef struct ctext_glyph
 {
@@ -78,6 +94,7 @@ typedef struct ctext_text_drawcall_t ctext_text_drawcall_t;
 /* Internal CFont struct. Do not modify yourselves! */
 typedef struct cfont_t
 {
+    char path[ 128 ];
     char family_name[ 128 ];
     char style_name[ 128 ];
     catlas_t atlas;

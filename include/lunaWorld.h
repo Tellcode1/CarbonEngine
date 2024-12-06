@@ -5,7 +5,7 @@
     extern "C" {
 #endif
 
-#include "cdevicememory.h"
+#include "lunaGPUObjects.h"
 
 typedef struct luna_World_t luna_World_t;
 

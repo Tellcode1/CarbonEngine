@@ -43,7 +43,7 @@ sprite_t *sprite_load_mem(const unsigned char *data, int w, int h, VkFormat fmt)
     cassert(vkAllocateMemory(device, &allocInfo, NULL, &spr->mem) == VK_SUCCESS);
     vkBindImageMemory(device, spr->image, spr->mem, 0);
 
-    luna_VK_StageImageTransfer(spr->image, data, w, h);
+    luna_VK_StageImageTransfer(spr->image, data, w, h, w * h * vk_fmt_get_bpp(fmt));
 
     const VkImageViewCreateInfo view_info = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,

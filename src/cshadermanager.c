@@ -66,6 +66,10 @@ int main(int argc, char *argv[]) {
         csm_compile_all(NULL);
     } else if (strcmp(cmd, "compile") == 0) {
         csm_compile_updated(NULL);
+    } else {
+        printf("usage: %s <compile list path = \"../compilelist.txt\"> <cmd = compile>\n", argv[0]);
+        printf("%s", CMD_HELP_MSG);
+        return -1;
     }
 
     return 0;
@@ -164,7 +168,9 @@ int read_shader_spirv(const char *output, unsigned **spirv, int *spirvsize) {
 
     err:
     printf("csm :: Could not read in spirv for output path \"%s\"\n", output);
-    fclose(f);
+    if (f) {
+        fclose(f);
+    }
     return -1;
 }
 
@@ -214,7 +220,7 @@ void register_all_shaders(VkDevice vkdevice, struct csm_shader_entry *entries, i
 
         unsigned *spirv;
         int spirvsize = 0;
-        read_shader_spirv((const char *)entries[i].output_path, &spirv, &spirvsize);
+        cassert(read_shader_spirv((const char *)entries[i].output_path, &spirv, &spirvsize) != -1);
         __csm_create_shader(vkdevice, spirv, spirvsize, &shader_map[nshaders + index]);
 
         nshaders++;

@@ -16,8 +16,9 @@
 #include "cshadermanager.h"
 #include "cgvector.h"
 #include "world.h"
-#include "cdevicememory.h"
+#include "lunaGPUObjects.h"
 #include "camera.h"
+#include "sprite.h"
 
 typedef struct luna_UI_Button luna_UI_Button;
 
@@ -26,7 +27,8 @@ typedef void (*luna_UI_button_hover_fn)(luna_UI_Button *bton);
 
 typedef struct luna_UI_Context {
     luna_VK_Pipeline pipeline;
-    undescriptorset set;
+    luna_DescriptorPool pool;
+    luna_DescriptorSet set;
     cg_vector_t btons;
     void *ubmapped;
     luna_GPU_Sampler sampler;
@@ -44,11 +46,12 @@ typedef struct luna_UI_Button {
     vec4 color;
     luna_UI_button_hover_fn hover;
     luna_UI_button_pressed_fn pressed;
+    sprite_t *spr;
     bool was_hovered; // was it being hovered in this frame?
     bool was_pressed; // was the button pressed?
 } luna_UI_Button;
 
-void luna_UI_Init(luna_Renderer_t *rd, sprite_t *spr) {
+void luna_UI_Init(luna_Renderer_t *rd) {
     luna_ui_ctx.btons = cg_vector_init(sizeof(luna_UI_Button), 4);
 
     VkPhysicalDeviceProperties properties;
@@ -123,7 +126,9 @@ void luna_UI_Init(luna_Renderer_t *rd, sprite_t *spr) {
         { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, NULL },
         { 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &luna_ui_ctx.sampler.vksampler },
     };
-    create_undescriptor_set(&luna_ui_ctx.set, bindings, array_len(bindings));
+
+    luna_DescriptorPool_Init(&luna_ui_ctx.pool);
+    luna_AllocateDescriptorSet(&luna_ui_ctx.pool, bindings, array_len(bindings), &luna_ui_ctx.set);
 
     VkDescriptorBufferInfo bufferinfo = {
         .buffer = luna_ui_ctx.vb,
@@ -143,7 +148,7 @@ void luna_UI_Init(luna_Renderer_t *rd, sprite_t *spr) {
 
     const VkDescriptorImageInfo image_desc_info = {
         .sampler = luna_ui_ctx.sampler.vksampler,
-        .imageView = sprite_get_internal_view(spr),
+        .imageView = sprite_get_internal_view(sprite_empty),
         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     };
 
@@ -152,13 +157,13 @@ void luna_UI_Init(luna_Renderer_t *rd, sprite_t *spr) {
     write.dstBinding = 1;
     vkUpdateDescriptorSets(device, 1, &write, 0, NULL);
 
-    csm_shader_t *cvertex, *fragment;
-    csm_load_shader("Unlit/vert", &cvertex);
+    csm_shader_t *vertex, *fragment;
+    csm_load_shader("Unlit/vert", &vertex);
     csm_load_shader("Unlit/frag", &fragment);
 
-    cassert(cvertex != NULL && fragment != NULL);
+    cassert(vertex != NULL && fragment != NULL);
 
-    const csm_shader_t *shaders[] = { cvertex, fragment };
+    const csm_shader_t *shaders[] = { vertex, fragment };
     const VkDescriptorSetLayout layouts[] = { luna_ui_ctx.set.layout };
 
     const lunaExtent2D RenderExtent = luna_Renderer_GetRenderExtent(rd);
@@ -185,16 +190,17 @@ void luna_UI_Init(luna_Renderer_t *rd, sprite_t *spr) {
     pc.extent.width = RenderExtent.width;
     pc.extent.height = RenderExtent.height;
     pc.samples = Samples;
-    luna_GPU_CreatePipelineLayout(&pc, &luna_ui_ctx.pipeline.layout);
-    pc.pipeline_layout = luna_ui_ctx.pipeline.layout;
+    luna_GPU_CreatePipelineLayout(&pc, &luna_ui_ctx.pipeline.pipeline_layout);
+    pc.pipeline_layout = luna_ui_ctx.pipeline.pipeline_layout;
     luna_GPU_CreateGraphicsPipeline(&pc, &luna_ui_ctx.pipeline.pipeline, 0);
 }
 
-luna_UI_Button *luna_UI_CreateButton() {
+luna_UI_Button *luna_UI_CreateButton(sprite_t *spr) {
     luna_UI_Button bton = (luna_UI_Button){};
     bton.position = (vec2){};
     bton.size = (vec2){1.0f,1.0f};
     bton.color = (vec4){ 1.0f, 1.0f, 1.0f, 1.0f };
+    bton.spr = spr;
     cg_vector_push_back(&luna_ui_ctx.btons, &bton);
     return &((luna_UI_Button *)cg_vector_data(&luna_ui_ctx.btons))[ cg_vector_size(&luna_ui_ctx.btons) - 1 ];
 }
@@ -204,7 +210,7 @@ void luna_UI_Render(ccamera *camera, luna_Renderer_t *rd) {
     VkDeviceSize offsets = 0;
 
     const VkCommandBuffer cmd = luna_Renderer_GetDrawBuffer(rd);
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, luna_ui_ctx.pipeline.layout, 0, 1, &luna_ui_ctx.set.set, 0, NULL);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, luna_ui_ctx.pipeline.pipeline_layout, 0, 1, &luna_ui_ctx.set.set, 0, NULL);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, luna_ui_ctx.pipeline.pipeline);
     vkCmdBindVertexBuffers(cmd, 0, 1, &luna_ui_ctx.vb, &offsets);
     vkCmdBindIndexBuffer(cmd, luna_ui_ctx.ib, 0, VK_INDEX_TYPE_UINT32);
@@ -227,7 +233,7 @@ void luna_UI_Render(ccamera *camera, luna_Renderer_t *rd) {
         mat4 translate = m4translate(m4init(1.0f), (vec3){ bton->position.x, bton->position.y, 0.0f });
         pc.model = m4mul(translate, m4mul(rotate, scale));
         pc.color = bton->color;
-        vkCmdPushConstants(cmd, luna_ui_ctx.pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(struct push_constants), &pc);
+        vkCmdPushConstants(cmd, luna_ui_ctx.pipeline.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(struct push_constants), &pc);
 
         VkDeviceSize vertex_offset = 0;
         vkCmdDrawIndexed(cmd, 6, 1, 0, vertex_offset, 0);

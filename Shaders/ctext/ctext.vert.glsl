@@ -8,9 +8,10 @@ vec3 v_vertices;
 layout(location=1) in
 vec2 v_uv;
 
-layout(push_constant) uniform push_constant
-{
-    mat4 pc_model;
+layout (push_constant) uniform push_constants {
+    mat4 model;
+    vec4 color;
+    vec4 outline_color;
 } pc;
 
 layout(location=0) out
@@ -20,6 +21,7 @@ layout(location=1) out
 vec4 f_col;
 
 void main() {
-    gl_Position = pc.pc_model * vec4(v_vertices, 1.0);
+    gl_Position = pc.model * vec4(v_vertices, 1.0);
     f_uv = v_uv;
+    f_col = pc.color;
 }

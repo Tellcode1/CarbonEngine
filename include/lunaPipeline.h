@@ -71,7 +71,7 @@ typedef struct luna_GPU_PipelineBlendState luna_GPU_PipelineBlendState;
 
 typedef struct luna_VK_Pipeline {
     VkPipeline pipeline;
-    VkPipelineLayout layout;
+    VkPipelineLayout pipeline_layout;
     int nshaders;
     struct csm_shader_t *shaders[ LUNA_VK_MAX_SHADERS_PER_PIPELINE ];
 } luna_VK_Pipeline;
@@ -118,9 +118,7 @@ typedef struct luna_GPU_PipelineCreateInfo
 	// Ignored if flags does not contain PIPELINE_CREATE_FLAGS_ENABLE_BLEND
 	const luna_GPU_PipelineBlendState* blend_state;
 
-	/*
-	*	Array pointers are allowed to be NULL
-	*/
+	//	Array pointers are allowed to be NULL
 	const VkVertexInputAttributeDescription *pAttributeDescriptions;
 	const VkVertexInputBindingDescription *pBindingDescriptions;
 	const VkDescriptorSetLayout *pDescriptorLayouts;

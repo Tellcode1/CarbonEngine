@@ -10,7 +10,7 @@
 
 #include "../include/cgvector.h"
 
-#include "../include/cdevicememory.h"
+#include "../include/lunaGPUObjects.h"
 
 #include "../include/sprite.h"
 
@@ -62,29 +62,39 @@ void luna_Renderer_Destroy(luna_Renderer_t *rd)
 {
     vkDeviceWaitIdle(device);
 
-    for (int i = 0; i < (int)SwapChainImageCount; i++) {
+    // we were only making frames_in_flight fences and it was working for some reason!!
+    // that was the reason we were getting errors!
+    for (int i = 0; i < cg_vector_size(&rd->renderData); i++) {
         lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
-        // weeeee
-        luna_GPU_image_free(&data->depth_image);
+        vkDestroyImageView(device, data->sc_image.view, NULL); // as the view was silently smushed into the structure, we just kinda smush it out as well.
         vkDestroyFramebuffer(device, data->color_framebuffer, NULL);
-        // CHECKMEOUTPARTNER: Uhh, these are causing vulkan validation layer errors...
-        // vkDestroySemaphore(device, data->image_available_semaphore, NULL);
-        // vkDestroySemaphore(device, data->render_finish_semaphore, NULL);
-        // vkDestroyFence(device, data->in_flight_fence, NULL);
+
+        vkDestroySemaphore(device, data->image_available_semaphore, NULL);
+        vkDestroySemaphore(device, data->render_finish_semaphore, NULL);
+        vkDestroyFence(device, data->in_flight_fence, NULL);
     }
+
     cg_vector_destroy(&rd->renderData);
-    luna_GPU_memory_free(&rd->depth_image_memory);
+    luna_GPU_FreeMemory(&rd->depth_image_memory);
     vkFreeCommandBuffers(device, rd->commandPool, cg_vector_size(&rd->drawBuffers), (VkCommandBuffer *)cg_vector_data(&rd->drawBuffers));
     vkDestroyCommandPool(device, rd->commandPool, NULL);
 
     vkDestroySwapchainKHR(device, rd->swapchain, NULL);
 
     if (rd->ctext) {
-        // ! FIXME: Implement
+        vkDestroyPipelineLayout(device, rd->ctext->pipeline.pipeline_layout, NULL);
+        vkDestroyPipeline(device, rd->ctext->pipeline.pipeline, NULL);
+
+        vkDestroyDescriptorSetLayout(device, rd->ctext->desc_set.layout, NULL);
+        vkDestroyDescriptorPool(device, rd->ctext->desc_pool.pool, NULL);
+
+        vkDestroyImage(device, rd->ctext->error_image.image, NULL);
+        vkDestroyImageView(device, rd->ctext->error_image.view, NULL);
+        vkDestroySampler(device, rd->ctext->error_sampler.vksampler, NULL);
     }
     if (rd->flags & CG_RENDERER_MULTISAMPLING_ENABLE) {
-        luna_GPU_image_free(&rd->color_image);
-        luna_GPU_memory_free(&rd->color_image_memory);
+        luna_GPU_DestroyImage(&rd->color_image);
+        luna_GPU_FreeMemory(&rd->color_image_memory);
     }
     vkDestroyRenderPass(device, rd->render_pass, NULL);
     free(rd);
@@ -385,7 +395,7 @@ luna_Renderer_t *luna_Renderer_Init(const luna_Renderer_Config *conf)
     create_optional_images(rd);
     create_framebuffers_and_swapchain_image_views(rd);
 
-    for(int i = 0; i < frames_in_flight; i++)
+    for(int i = 0; i < (int)SwapChainImageCount; i++)
 	{
         const VkSemaphoreCreateInfo semaphoreCreateInfo = {
             VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, NULL, 0
@@ -396,9 +406,9 @@ luna_Renderer_t *luna_Renderer_Init(const luna_Renderer_Config *conf)
         };
 
         lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
-        vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->render_finish_semaphore);
-        vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->image_available_semaphore);
-        vkCreateFence(device, &fenceCreateInfo, NULL, &data->in_flight_fence);
+        cassert(vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->render_finish_semaphore) == VK_SUCCESS);
+        cassert(vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->image_available_semaphore) == VK_SUCCESS);
+        cassert(vkCreateFence(device, &fenceCreateInfo, NULL, &data->in_flight_fence) == VK_SUCCESS);
 	}
 
     sprite_empty = sprite_load_disk("../Assets/empty.png");
@@ -418,11 +428,15 @@ void crenderer_resize(luna_Renderer_t *rd) {
     };
     
     // adhoc method of resetting them
-    for (int i = 0; i < (1 + (int)rd->buffer_mode); i++) {
+    for (int i = 0; i < (int)SwapChainImageCount; i++) {
         lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
         vkDestroySemaphore(device, data->image_available_semaphore, NULL);
         vkDestroySemaphore(device, data->render_finish_semaphore, NULL);
         vkDestroyFence(device, data->in_flight_fence, NULL);
+
+        data->image_available_semaphore = NULL;
+        data->render_finish_semaphore = NULL;
+        data->in_flight_fence = NULL;
     }
     for (u32 i = 0; i < SwapChainImageCount; i++)
     {
@@ -480,17 +494,17 @@ void crenderer_resize(luna_Renderer_t *rd) {
     luna_GPU_CreateSwapchain(&scio, &rd->swapchain);
     vkDestroySwapchainKHR(device, old_swapchain, NULL);
 
-    luna_GPU_image_free(&rd->color_image);
+    luna_GPU_DestroyImage(&rd->color_image);
 
     create_optional_images(rd);
     create_framebuffers_and_swapchain_image_views(rd);
 
-    for (u32 i = 0; i < SwapChainImageCount; i++)
+    for (int i = 0; i < (int)SwapChainImageCount; i++)
     {
         lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
-        vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->render_finish_semaphore);
-        vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->image_available_semaphore);
-        vkCreateFence(device, &fenceCreateInfo, NULL, &data->in_flight_fence);
+        cassert(vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->render_finish_semaphore) == VK_SUCCESS);
+        cassert(vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->image_available_semaphore) == VK_SUCCESS);
+        cassert(vkCreateFence(device, &fenceCreateInfo, NULL, &data->in_flight_fence) == VK_SUCCESS);
     }
 
     cg__reset_frame_buffer_resized();

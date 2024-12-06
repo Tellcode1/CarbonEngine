@@ -32,6 +32,7 @@ void cg_vector_destroy(cg_vector_t *vec)
 
 void cg_vector_clear(cg_vector_t *vec)
 {
+    // we don't remove all data here to reduce allocations but this can POSSIBLY hold tons of garbage data
     vec->m_size = 0;
 }
 

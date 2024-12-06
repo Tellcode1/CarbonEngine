@@ -24,7 +24,7 @@ extern VkCommandBuffer luna_VK_BeginCommandBuffer();
 /* WARNING: waitForExecution = false implies you take responsibility of freeing the commandBuffer! */
 extern VkResult luna_VK_EndCommandBuffer(VkCommandBuffer cmd, VkQueue queue, bool waitForExecution);
 
-extern void luna_VK_StageImageTransfer(VkImage dst, const void* data, int width, int height);
+extern void luna_VK_StageImageTransfer(VkImage dst, const void* data, int width, int height, int image_size);
 
 extern void luna_VK_CreateTextureFromMemory(u8 *buffer, u32 width, u32 height, VkFormat format, VkImage *dst, VkDeviceMemory *dstMem);
 

@@ -15,7 +15,7 @@
 #include "stdafx.h"
 #include "vkstdafx.h"
 #include "lunaGFXstdafx.h"
-#include "cdevicememory.h"
+#include "lunaGPUObjects.h"
 
 // Move ownership to camera VV
 typedef struct lunaFrameRenderData

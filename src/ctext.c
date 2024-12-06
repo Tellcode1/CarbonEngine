@@ -29,9 +29,23 @@ typedef struct ctext_text_drawcall_t {
     u32 index_offset;
     cglyph_vertex_t *vertices;
     u32 *indices;
+    vec4 color;
 } ctext_text_drawcall_t;
 
-void ctext_load_font_from_ft(const char *font_path, int scale, cfont_t *dstref) {
+struct push_constants {
+    mat4 model;
+    vec4 color;
+    vec4 outline_color;
+};
+
+typedef enum ctext_err_t {
+    CTEXT_ERR_SUCCESS,
+    CTEXT_ERR_INVALID_GLYPH, // May also mean that there just isn't a glyph
+    CTEXT_ERR_WRONG_CACHE, // This cache is not the one you're looking for
+    CTEXT_ERR_FILE_ERROR,
+} ctext_err_t;
+
+void ctext_load_font_from_ft(const char *font_path, bool sdf, cfont_t *dstref) {
     FT_Library lib; FT_Face face;
     if (FT_Init_FreeType(&lib))
     {
@@ -43,10 +57,10 @@ void ctext_load_font_from_ft(const char *font_path, int scale, cfont_t *dstref) 
         LOG_ERROR("failed to load font file: %s\n", font_path);
         FT_Done_FreeType(lib);
     }
-    FT_Set_Pixel_Sizes(face, 0, scale);
+    FT_Set_Pixel_Sizes(face, 0, 256);
 
-    strncpy(dstref->family_name, face->family_name, 128);
-    strncpy(dstref->style_name, face->style_name, 128);
+    strncpy(dstref->family_name, face->family_name, 127);
+    strncpy(dstref->style_name, face->style_name, 127);
 
     if (face->size->metrics.height) {
         dstref->line_height = -face->size->metrics.height / (f32)face->units_per_EM;
@@ -69,7 +83,8 @@ void ctext_load_font_from_ft(const char *font_path, int scale, cfont_t *dstref) 
             continue;
         }
 
-        FT_Render_Glyph(face->glyph, FT_RENDER_MODE_NORMAL);
+        enum FT_Render_Mode_ render_mode = sdf ? FT_RENDER_MODE_SDF : FT_RENDER_MODE_NORMAL;
+        FT_Render_Glyph(face->glyph, render_mode);
         FT_GlyphSlot g = face->glyph;
 
         const int w = g->bitmap.width;
@@ -120,7 +135,9 @@ void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scale, cfon
 		LOG_ERROR("pInfo or dst is NULL!");
 	}
 
-    cassert_and_ret(scale > 0.0f);
+    if (scale <= 0.0f) {
+        LOG_ERROR("attempting to load a font with 0 fontscale.");
+    }
 
     *dst = calloc(1, sizeof(cfont_t));
 
@@ -129,8 +146,9 @@ void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scale, cfon
     dstref->glyph_map = cg_hashmap_init(16, sizeof(char), sizeof(ctext_glyph), NULL, NULL);
     dstref->drawcalls = cg_vector_init(sizeof(ctext_text_drawcall_t), 4);
 
-    if (ctext_ff_read("atlas.ff", dstref) != 0) {
-        ctext_load_font_from_ft(font_path, scale, dstref);
+    // we somehow need multiple font cache support
+    if (ctext_ff_read("atlas.ff", dstref) != CTEXT_ERR_SUCCESS) {
+        ctext_load_font_from_ft(font_path, 0, dstref);
         ctext_ff_write("atlas.ff", dstref);
     }
 
@@ -151,7 +169,14 @@ void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scale, cfon
     luna_GPU_AllocateMemory(imageMemoryRequirements.size, LUNA_GPU_MEMORY_USAGE_GPU_LOCAL, &dstref->texture_mem);
     luna_GPU_BindImageToMemory(&dstref->texture_mem, 0, &dstref->texture);
 
-    luna_VK_StageImageTransfer(dstref->texture.image, dstref->atlas.data, dstref->atlas.width, dstref->atlas.height);
+    const int atlas_w = dstref->atlas.width, atlas_h = dstref->atlas.height;
+    luna_VK_StageImageTransfer(
+        dstref->texture.image,
+        dstref->atlas.data,
+        atlas_w,
+        atlas_h,
+        atlas_w * atlas_h * vk_fmt_get_bpp(VK_FORMAT_R8_UNORM)
+    );
 
     const luna_GPU_SamplerCreateInfo sampler_info = {
         .filter = VK_FILTER_LINEAR,
@@ -173,7 +198,7 @@ void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scale, cfon
     };
     luna_GPU_CreateTextureView(&view_info, &dstref->texture);
 
-    const VkDescriptorImageInfo ctext_error_image_info = {
+    const VkDescriptorImageInfo ctext_bitmap_image_info = {
         .sampler = dstref->sampler.vksampler,
         .imageView = dstref->texture.view,
         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
@@ -181,11 +206,11 @@ void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scale, cfon
 
     VkWriteDescriptorSet writeSet = {
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet = rd->ctext->desc_set,
+        .dstSet = rd->ctext->desc_set.set,
         .dstBinding = 0,
         .descriptorCount = 1,
         .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        .pImageInfo = &ctext_error_image_info
+        .pImageInfo = &ctext_bitmap_image_info
     };
     for (int i = 0; i < CTEXT_MAX_FONT_COUNT; i++)
     {
@@ -194,41 +219,7 @@ void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scale, cfon
     }
 }
 
-void ctext_end_render(luna_Renderer_t *rd, ccamera *camera, cfont_t *fnt, mat4 model)
-{
-    if (!fnt->to_render)
-        return;
-
-    const VkCommandBuffer cmd = luna_Renderer_GetDrawBuffer(rd);
-    const VkDeviceSize offsets[] = { 0 };
-
-    struct push_constants {
-        mat4 model;
-    } pc;
-
-    pc.model = m4mul(camera->ortho, m4mul(cam_get_view(camera), model));
-
-    const VkPipeline pipeline = rd->ctext->pipeline;
-    const VkPipelineLayout pipeline_layout = rd->ctext->pipeline_layout;
-
-    vkCmdPushConstants(
-        cmd,
-        pipeline_layout,
-        VK_SHADER_STAGE_VERTEX_BIT,
-        0, sizeof(struct push_constants),
-        &pc
-    );
-
-    // Viewport && scissor are set by renderer so no need to set them here
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1, &rd->ctext->desc_set, 0, NULL);
-    vkCmdBindVertexBuffers(cmd, 0, 1, &fnt->buffer.vkbuffer, offsets);
-    vkCmdBindIndexBuffer(cmd, fnt->buffer.vkbuffer, fnt->index_buffer_offset, VK_INDEX_TYPE_UINT32);
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-    vkCmdDrawIndexed(cmd, fnt->index_count, 1, 0, 0, 0);
-}
-
-
-void ctext__font_resize_buffer(cfont_t *fnt,  int new_buffer_size)
+void ctext__font_resize_buffer(cfont_t *fnt, int new_buffer_size)
 {
     int new_allocation_size;
 
@@ -243,8 +234,10 @@ void ctext__font_resize_buffer(cfont_t *fnt,  int new_buffer_size)
 
     vkDeviceWaitIdle(device);
     
-    luna_GPU_buffer_free(&fnt->buffer);
-    luna_GPU_memory_free(&fnt->buffer_mem);
+    if (fnt->buffer.vkbuffer) {
+        luna_GPU_DestroyBuffer(&fnt->buffer);
+        luna_GPU_FreeMemory(&fnt->buffer_mem);
+    }
 
     luna_GPU_AllocateMemory(new_allocation_size, LUNA_GPU_MEMORY_USAGE_GPU_LOCAL | LUNA_GPU_MEMORY_USAGE_CPU_WRITEABLE, &fnt->buffer_mem);
 
@@ -255,6 +248,98 @@ void ctext__font_resize_buffer(cfont_t *fnt,  int new_buffer_size)
     luna_GPU_BindBufferToMemory(&fnt->buffer_mem, 0, &fnt->buffer);
 
     fnt->allocated_size = new_allocation_size;
+}
+
+void ctext__render_drawcalls(luna_Renderer_t *rd, ccamera *camera, cfont_t *fnt, const mat4 *model) {
+    const VkCommandBuffer cmd = luna_Renderer_GetDrawBuffer(rd);
+    const VkDeviceSize offsets[] = { 0 };
+
+    struct push_constants pc = {};
+
+    pc.model = m4mul(camera->ortho, m4mul(cam_get_view(camera), *model));
+
+    const VkPipeline pipeline = rd->ctext->pipeline.pipeline;
+    const VkPipelineLayout pipeline_layout = rd->ctext->pipeline.pipeline_layout;
+
+    // Viewport && scissor are set by renderer so no need to set them here
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1, &rd->ctext->desc_set.set, 0, NULL);
+    vkCmdBindVertexBuffers(cmd, 0, 1, &fnt->buffer.vkbuffer, offsets);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+    vkCmdBindIndexBuffer(cmd, fnt->buffer.vkbuffer, fnt->index_buffer_offset, VK_INDEX_TYPE_UINT32);
+
+    int offset = 0;
+    for (int i = 0; i < cg_vector_size(&fnt->drawcalls); i++) {
+        ctext_text_drawcall_t *drawcall = (ctext_text_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
+
+        pc.color = drawcall->color;
+        vkCmdPushConstants(
+            cmd,
+            pipeline_layout,
+            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            0, sizeof(struct push_constants),
+            &pc
+        );
+
+        vkCmdDrawIndexed(cmd, drawcall->index_count, 1, 0, offset, 0);
+        offset += drawcall->vertex_count;
+    }
+}
+
+void ctext_end_render(luna_Renderer_t *rd, ccamera *camera, cfont_t *fnt, mat4 model)
+{
+    if (fnt->to_render) {
+        ctext__render_drawcalls(rd, camera, fnt, &model);
+    }
+
+    u32 total_vertex_byte_size = 0;
+    u32 total_index_count = 0;
+
+    for (int i = 0; i < cg_vector_size(&fnt->drawcalls); i++) {
+        const ctext_text_drawcall_t *drawcall = (ctext_text_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
+        total_vertex_byte_size += drawcall->vertex_count * sizeof(cglyph_vertex_t);
+        total_index_count += drawcall->index_count;
+    }
+
+    const u32 total_index_byte_size = total_index_count * sizeof(u32);
+    const u32 total_buffer_size = total_index_byte_size + total_vertex_byte_size;
+
+    ctext__font_resize_buffer(fnt, total_buffer_size);
+
+    uint8_t *mapped;
+    vkMapMemory(device, fnt->buffer_mem.memory, 0, fnt->allocated_size, 0, (void **)&mapped);
+
+    // this may be dumb but I am too
+
+    u32 vertex_copy_iterator = 0;
+    u32 index_copy_iterator = 0;
+    for (int i = 0; i < cg_vector_size(&fnt->drawcalls); i++) {
+        const ctext_text_drawcall_t *drawcall = (ctext_text_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
+        memcpy(
+            mapped + vertex_copy_iterator,
+            drawcall->vertices,
+            drawcall->vertex_count * sizeof(cglyph_vertex_t)
+        );
+        memcpy(
+            mapped + total_vertex_byte_size + index_copy_iterator,
+            drawcall->indices,
+            drawcall->index_count * sizeof(u32)
+        );
+        vertex_copy_iterator += drawcall->vertex_count * sizeof(cglyph_vertex_t);
+        index_copy_iterator += drawcall->index_count * sizeof(u32);
+    }
+    vkUnmapMemory(device, fnt->buffer_mem.memory);
+
+    fnt->index_buffer_offset = total_vertex_byte_size;
+    fnt->index_count = total_index_count;
+    fnt->to_render = true;
+
+    fnt->chars_drawn = 0;
+    
+    for (int i = 0; i < cg_vector_size(&fnt->drawcalls); i++) {
+        ctext_text_drawcall_t *drawcall = (ctext_text_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
+        free(drawcall->vertices);
+    }
+    cg_vector_clear(&fnt->drawcalls);
 }
 
 static cg_vector_t split_string(const cg_string_t *str) {
@@ -285,142 +370,97 @@ static cg_vector_t split_string(const cg_string_t *str) {
     return result;
 }
 
-void ctext_begin_render(cfont_t *fnt)
-{
-    if (cg_vector_size(&fnt->drawcalls) == 0) {
-        fnt->to_render = false;
-        return;
+// Get the unscaled size of the string
+// Warning: slow
+static void ctext_get_text_size(const cfont_t *fnt, const cg_string_t *str, float *w, float *h) {
+    const int len = cg_string_length(str);
+    float width = 0.0f, height = fnt->line_height;
+
+    for (int i = 0; i < len; i++) {
+        const char c = str->data[i];
+        switch (c) {
+            case ' ':
+                width += fnt->space_width;
+                continue;
+            case '\t':
+                width += fnt->space_width * 4.0f;
+                continue;
+            case '\n':
+                height += fnt->line_height;
+                continue;
+            default:
+                const ctext_glyph *glyph = (ctext_glyph *)cg_hashmap_find(fnt->glyph_map, &c);
+                if (!glyph) {
+                    continue;
+                }
+                width += glyph->advance;
+                continue;
+        }
     }
-
-    u32 total_vertex_byte_size = 0;
-    u32 total_index_count = 0;
-
-    for (int i = 0; i < cg_vector_size(&fnt->drawcalls); i++) {
-        const ctext_text_drawcall_t *drawcall = (ctext_text_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
-        total_vertex_byte_size += drawcall->vertex_count * sizeof(cglyph_vertex_t);
-        total_index_count += drawcall->index_count;
-    }
-
-    const u32 total_index_byte_size = total_index_count * sizeof(u32);
-    const u32 total_buffer_size = total_index_byte_size + total_vertex_byte_size;
-
-    ctext__font_resize_buffer(fnt, total_buffer_size);
-
-    uint8_t *mapped;
-    vkMapMemory(device, fnt->buffer_mem.memory, 0, fnt->allocated_size, 0, (void **)&mapped);
-
-    u32 vertex_copy_iterator = 0;
-    u32 index_copy_iterator = 0;
-    for (int i = 0; i < cg_vector_size(&fnt->drawcalls); i++) {
-        const ctext_text_drawcall_t *drawcall = (ctext_text_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
-        memcpy(mapped + vertex_copy_iterator, drawcall->vertices, drawcall->vertex_count * sizeof(cglyph_vertex_t));
-        memcpy(mapped + total_vertex_byte_size + index_copy_iterator, drawcall->indices, drawcall->index_count * sizeof(u32));
-        vertex_copy_iterator += drawcall->vertex_count * sizeof(cglyph_vertex_t);
-        index_copy_iterator += drawcall->index_count * sizeof(u32);
-    }
-    vkUnmapMemory(device, fnt->buffer_mem.memory);
-
-    fnt->index_buffer_offset = total_vertex_byte_size;
-    fnt->index_count = total_index_count;
-    fnt->to_render = true;
-
-    fnt->chars_drawn = 0;
-    for (int i = 0; i < cg_vector_size(&fnt->drawcalls); i++) {
-        ctext_text_drawcall_t *drawcall = (ctext_text_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
-        free(drawcall->vertices);
-    }
-    cg_vector_clear(&fnt->drawcalls);
+    if (w) { *w = width;  }
+    if (h) { *h = -height; }
 }
 
-static void render_line(
+void ctext_begin_render(cfont_t *fnt)
+{
+    
+}
+
+static int render_line(
     const cfont_t *fnt,
     const cg_string_t *str,
     const ctext_text_drawcall_t* drawcall,
     const ctext_text_render_info *pInfo,
+    const int glyph_iter,
+    f32 x,
     const f32 y,
-    const cg_vector_t * /* ctext_glyph * */ glyph_table,
-    const cg_hashmap_t * /* <char, int> */ index_table,
-    int *glyph_iter
+    float scale
 ) {
-
-    const f32 scaled_space_width = fnt->space_width * pInfo->scale;
-    const f32 scaled_tab_width = scaled_space_width * 4.0f;
-
-    cglyph_vertex_t* vertex_output_data = drawcall->vertices + (*glyph_iter) * 4;
-    u32* index_output_data = drawcall->indices + (*glyph_iter) * 6;
-    u32 index_offset = fnt->chars_drawn * 4;
-
-    f32 width = 0.0f;
-    int local_glyph_iter = *glyph_iter;
     const int len = cg_string_length(str);
+
+    int iter = 0;
     for (int i = 0; i < len; i++) {
-        const char c = cg_string_data(str)[i];
+        const char c = str->data[i];
         switch (c) {
             case ' ':
-                width += scaled_space_width;
+                x += fnt->space_width;
                 continue;
             case '\t':
-                width += scaled_tab_width;
-                continue;
-            case '\n':
+                x += fnt->space_width * 4.0f;
                 continue;
             default:
-                int *indexptr = (int *)cg_hashmap_find(index_table, &c);
-                int index = *indexptr;
-                ctext_glyph *glyph = ((ctext_glyph **)cg_vector_data(glyph_table))[ index ];
-                width += glyph->advance * pInfo->scale;
-                local_glyph_iter++;
+                const ctext_glyph *glyph = (const ctext_glyph *)cg_hashmap_find(fnt->glyph_map, &c);
+                if (!glyph) {
+                    LOG_INFO("no glyph when rendering char %c", c);
+                    continue;
+                }
+                const f32 glyph_x0 = glyph->x0 + x;
+                const f32 glyph_x1 = glyph->x1 + x;
+                const f32 glyph_y0 = glyph->y0 + y;
+                const f32 glyph_y1 = glyph->y1 + y;
+
+                const int index_offset = (fnt->chars_drawn + iter) * 4;
+                cglyph_vertex_t *v_out = drawcall->vertices + (glyph_iter + iter) * 4;
+                v_out[0] = (cglyph_vertex_t){ v3muls((vec3){glyph_x0, glyph_y0, pInfo->position.z}, scale), (vec2){glyph->l, glyph->b}, };
+                v_out[1] = (cglyph_vertex_t){ v3muls((vec3){glyph_x1, glyph_y0, pInfo->position.z}, scale), (vec2){glyph->r, glyph->b}, };
+                v_out[2] = (cglyph_vertex_t){ v3muls((vec3){glyph_x1, glyph_y1, pInfo->position.z}, scale), (vec2){glyph->r, glyph->t}, };
+                v_out[3] = (cglyph_vertex_t){ v3muls((vec3){glyph_x0, glyph_y1, pInfo->position.z}, scale), (vec2){glyph->l, glyph->t}  };
+
+                u32 *i_out = drawcall->indices + (glyph_iter + iter) * 6;
+                i_out[0] = index_offset;
+                i_out[1] = index_offset + 1;
+                i_out[2] = index_offset + 2;
+                i_out[3] = index_offset + 2;
+                i_out[4] = index_offset + 3;
+                i_out[5] = index_offset;
+
+                x += glyph->advance;
+                iter++;
                 continue;
         }
     }
 
-    f32 x =
-    (pInfo->horizontal == CTEXT_HORI_ALIGN_CENTER) ?
-                pInfo->position.x - width / 2.0f
-                :
-                (pInfo->horizontal == CTEXT_HORI_ALIGN_RIGHT) ?
-                    pInfo->position.x - width
-                    :
-                    pInfo->position.x;
-
-    for (int i = 0; i < len; i++) {
-        switch (cg_string_data(str)[i]) {
-            case ' ':
-                x += scaled_space_width;
-                continue;
-            case '\t':
-                x += scaled_tab_width;
-                continue;
-            default:
-                const ctext_glyph *glyph = (const ctext_glyph *)cg_hashmap_find(fnt->glyph_map, &(cg_string_data(str)[i]));
-                const f32 glyph_x0 = glyph->x0 * pInfo->scale + x;
-                const f32 glyph_x1 = glyph->x1 * pInfo->scale + x;
-                const f32 glyph_y0 = glyph->y0 * pInfo->scale + y;
-                const f32 glyph_y1 = glyph->y1 * pInfo->scale + y;
-
-                const f32 scaled_z = pInfo->position.z * pInfo->scale;
-
-                vertex_output_data[0] = (cglyph_vertex_t){ (vec3){glyph_x0, glyph_y0, scaled_z}, (vec2){glyph->l, glyph->b}, };
-                vertex_output_data[1] = (cglyph_vertex_t){ (vec3){glyph_x1, glyph_y0, scaled_z}, (vec2){glyph->r, glyph->b}, };
-                vertex_output_data[2] = (cglyph_vertex_t){ (vec3){glyph_x1, glyph_y1, scaled_z}, (vec2){glyph->r, glyph->t}, };
-                vertex_output_data[3] = (cglyph_vertex_t){ (vec3){glyph_x0, glyph_y1, scaled_z}, (vec2){glyph->l, glyph->t} };
-
-                index_output_data[0] = index_offset;
-                index_output_data[1] = index_offset + 1;
-                index_output_data[2] = index_offset + 2;
-                index_output_data[3] = index_offset + 2;
-                index_output_data[4] = index_offset + 3;
-                index_output_data[5] = index_offset;
-
-                vertex_output_data += 4;
-                index_output_data += 6;
-                index_offset += 4;
-
-                x += glyph->advance * pInfo->scale;
-                (*glyph_iter)++;
-                continue;
-        }
-    }
+    return iter;
 }
 
 static inline int get_effective_length(const char *buf, int buflen) {
@@ -439,49 +479,81 @@ void gen_vertices(
     ctext_text_drawcall_t* drawcall,
     const ctext_text_render_info *pInfo,
     const cg_string_t *str,
-    const cg_vector_t * /* ctext_glyph * */ glyph_table,
-    const cg_hashmap_t * /* <char, int> */ index_table
-) {
-    if (cg_string_length(str) == 0)
+    const float scale
+)
+{
+    if (cg_string_length(str) == 0) {
         return;
+    }
 
     cg_vector_t splitted_strings = split_string(str);
+    const int old_chars_drawn = fnt->chars_drawn, line_count = splitted_strings.m_size;
 
+    // this is here because the functions above this are supposed to
+    // make sure line count is not 0
+    cassert(line_count > 0);
 
-    f32 y = pInfo->position.y;
-    const f32 text_size = ((fnt->line_height * pInfo->scale) * cg_vector_size(&splitted_strings));
+    float text_w, text_h;
+    ctext_get_text_size(fnt, str, &text_w, &text_h);
+
+    float ypos = pInfo->position.y;
+
     switch(pInfo->vertical)
     {
         case CTEXT_VERT_ALIGN_CENTER:
-            y = y - text_size / 2.0f;
+            ypos -= text_h / 2.0f;
             break;
-
         case CTEXT_VERT_ALIGN_BOTTOM:
-            y = y - text_size;
+            ypos -= text_h;
             break;
-
         case CTEXT_VERT_ALIGN_TOP:
             break;
-
         default:
             __builtin_unreachable();
-            LOG_ERROR("Invalid vertical alignment. Specified (int)%u. (Implement?)\n", pInfo->vertical);
+            LOG_ERROR("Invalid vertical alignment. Specified (int)%u. (Implement?)", pInfo->vertical);
             break;
         break;
     }
 
-    const i32 old_chars_drawn = fnt->chars_drawn;
-    const int lines_size = cg_vector_size(&splitted_strings);
-    const f32 scaled_line_height = fnt->line_height * pInfo->scale;
+    for (int i = 0; i < line_count; i++) {;
+        // render_line returns the number of chars DRAWN. not the number of characters in the string.
+        const cg_string_t *line = ((cg_string_t **)cg_vector_data(&splitted_strings))[i];
 
-    int glyph_iter = 0;
-    for (int i = 0; i < lines_size; i++) {;
-        render_line(fnt, *(cg_string_t **)cg_vector_get(&splitted_strings, i), drawcall, pInfo, y + i * scaled_line_height, glyph_table, index_table, &glyph_iter);
-        fnt->chars_drawn = old_chars_drawn + glyph_iter;
+        ctext_get_text_size(fnt, line, &text_w, &text_h);
+
+        float xpos = pInfo->position.x;
+        switch(pInfo->horizontal) {
+            case CTEXT_HORI_ALIGN_CENTER:
+                xpos -= text_w / 2.0f;
+                break;
+            case CTEXT_HORI_ALIGN_RIGHT:
+                xpos -= text_w;
+                break;
+            case CTEXT_HORI_ALIGN_LEFT:
+                break;
+            default:
+                __builtin_unreachable();
+                LOG_ERROR("Invalid horizontal alignment. Specified (int)%u. (Implement?)", pInfo->horizontal);
+                break;
+        }
+
+        fnt->chars_drawn += render_line(
+            fnt,
+            line,
+            drawcall,
+            pInfo,
+            // This gives us the number of characters this function call has drawn.
+            // only this call.
+            MAX(fnt->chars_drawn - old_chars_drawn, 0),
+            xpos,
+            pInfo->position.y + (i * fnt->line_height),
+            scale
+        );
     }
 
-    for (int i = 0; i < lines_size; i++) {
-        cg_string_destroy( ((cg_string_t **)cg_vector_data(&splitted_strings))[i] );
+    for (int i = 0; i < line_count; i++) {
+        cg_string_t *str = ((cg_string_t **)cg_vector_data(&splitted_strings))[i];
+        cg_string_destroy(str);
     }
     cg_vector_destroy(&splitted_strings);
 }
@@ -505,26 +577,6 @@ void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo, const char 
 
         str = cg_string_init_str(buffer);
     }
-    cg_vector_t /* ctext_glyph * */ glyph_table = cg_vector_init(sizeof(ctext_glyph *), effective_length);
-    cg_hashmap_t * /*<char, int>*/ index_table = cg_hashmap_init(effective_length, sizeof(char), sizeof(int), NULL, NULL);
-
-    const int formatted_str_len = cg_string_length(str);
-    const char *formatted_str_data = cg_string_data(str);
-
-    int pen = 0;
-    for (int i = 0; i < formatted_str_len; i++) {
-        const char c = formatted_str_data[i];
-        if (c == '\000')
-            break;
-        else if (c == ' ' || c == '\t' || c == '\n')
-            continue;
-        else if (cg_hashmap_find(index_table, &c) == NULL) {
-            const ctext_glyph *glyph = (ctext_glyph *)cg_hashmap_find(fnt->glyph_map, &c);
-            cg_vector_push_back(&glyph_table, &glyph);
-            cg_hashmap_insert(index_table, &c, &pen);
-            pen++;
-        }
-    }
 
     const u32 vertex_count = effective_length * 4;
     const u32 index_count = effective_length * 6;
@@ -537,15 +589,19 @@ void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo, const char 
     drawcall.index_offset = (vertex_count * sizeof(cglyph_vertex_t));
     drawcall.indices = (u32 *)((uchar *)allocation + drawcall.index_offset);
 
-    gen_vertices(fnt, &drawcall, pInfo, str, &glyph_table, index_table);
+    drawcall.color = pInfo->color;
+
+    float scale = pInfo->scale ;
+    if (pInfo->scale_for_fit) {
+        scale *= ctext_get_scale_for_fit(fnt, str, pInfo->bbox);
+    }
+    gen_vertices(fnt, &drawcall, pInfo, str, scale);
 
     drawcall.vertex_count = effective_length * 4;
     drawcall.index_count = effective_length * 6;
 
     cg_vector_push_back(&fnt->drawcalls, &drawcall);
 
-    cg_vector_destroy(&glyph_table);
-    cg_hashmap_destroy(index_table);
     cg_string_destroy(str);
 }
 
@@ -559,36 +615,8 @@ void ctext_init(struct luna_Renderer_t *rd)
         (VkDescriptorSetLayoutBinding){ 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, CTEXT_MAX_FONT_COUNT, VK_SHADER_STAGE_FRAGMENT_BIT, NULL },
     };
 
-    const VkDescriptorPoolSize poolSizes[] = {
-        // type; descriptorCount;
-        (VkDescriptorPoolSize){ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, CTEXT_MAX_FONT_COUNT },
-    };
-
-    VkDescriptorPoolCreateInfo poolInfo = {};
-    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.pPoolSizes = poolSizes;
-    poolInfo.poolSizeCount = array_len(poolSizes);
-    poolInfo.maxSets = 1;
-    if (vkCreateDescriptorPool(device, &poolInfo, NULL, &ctext->desc_pool) != VK_SUCCESS) {
-        LOG_ERROR("Failed to create descriptor pool");
-    }
-
-    VkDescriptorSetLayoutCreateInfo setLayoutInfo = {};
-    setLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    setLayoutInfo.pBindings = bindings;
-    setLayoutInfo.bindingCount = array_len(bindings);
-    if (vkCreateDescriptorSetLayout(device, &setLayoutInfo, NULL, &ctext->desc_Layout) != VK_SUCCESS) {
-        LOG_ERROR("Failed to create descriptor set layout");
-    }
-
-    VkDescriptorSetAllocateInfo setAllocInfo = {};
-    setAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    setAllocInfo.descriptorPool = ctext->desc_pool;
-    setAllocInfo.descriptorSetCount = 1;
-    setAllocInfo.pSetLayouts = &ctext->desc_Layout;
-    if (vkAllocateDescriptorSets(device, &setAllocInfo, &ctext->desc_set) != VK_SUCCESS) {
-        LOG_ERROR("Failed to allocate descriptor sets");
-    }
+    luna_DescriptorPool_Init(&ctext->desc_pool);
+    luna_AllocateDescriptorSet(&ctext->desc_pool, bindings, array_len(bindings), &ctext->desc_set);
 
     u32 width, height;
     VkFormat dummyImageFmt;
@@ -626,7 +654,7 @@ void ctext_init(struct luna_Renderer_t *rd)
 
     VkWriteDescriptorSet write_set = {
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet = ctext->desc_set,
+        .dstSet = ctext->desc_set.set,
         .dstBinding = 0,
         .descriptorCount = 1,
         .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -650,7 +678,7 @@ void ctext_init(struct luna_Renderer_t *rd)
 
     const VkPushConstantRange pushConstants[] = {
         // stageFlags, offset, size
-        { VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mat4) },
+        { VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(struct push_constants) },
     };
 
     csm_shader_t *vertex, *fragment;
@@ -658,7 +686,7 @@ void ctext_init(struct luna_Renderer_t *rd)
     cassert(csm_load_shader("ctext/frag", &fragment) != -1);
 
     csm_shader_t * shaders[] = { vertex, fragment };
-    VkDescriptorSetLayout layouts[] = { rd->ctext->desc_Layout };
+    VkDescriptorSetLayout layouts[] = { rd->ctext->desc_set.layout };
 
     const luna_GPU_PipelineBlendState blend = luna_GPU_InitPipelineBlendState(CVK_BLEND_PRESET_ALPHA);
 
@@ -666,8 +694,7 @@ void ctext_init(struct luna_Renderer_t *rd)
     pc.format = SwapChainImageFormat;
     pc.subpass = 0;
     pc.render_pass = luna_Renderer_GetRenderPass(rd);
-    pc.pipeline_layout = ctext->pipeline_layout;
-    
+
     pc.nAttributeDescriptions = array_len(attributeDescriptions);
     pc.pAttributeDescriptions = attributeDescriptions;
 
@@ -688,9 +715,10 @@ void ctext_init(struct luna_Renderer_t *rd)
     pc.extent.height = RenderExtent.height;
     pc.blend_state = &blend;
     pc.samples = Samples;
-    luna_GPU_CreatePipelineLayout(&pc, &ctext->pipeline_layout);
-    pc.pipeline_layout = ctext->pipeline_layout;
-    luna_GPU_CreateGraphicsPipeline(&pc, &ctext->pipeline, CVK_PIPELINE_FLAGS_ENABLE_BLEND | CVK_PIPELINE_FLAGS_UNFORCE_CULLING);
+
+    luna_GPU_CreatePipelineLayout(&pc, &ctext->pipeline.pipeline_layout);
+    pc.pipeline_layout = ctext->pipeline.pipeline_layout;
+    luna_GPU_CreateGraphicsPipeline(&pc, &ctext->pipeline.pipeline, CVK_PIPELINE_FLAGS_ENABLE_BLEND);
 }
 
 void ctext_ff_write(const char *path, const cfont_t *fnt)
@@ -703,6 +731,7 @@ void ctext_ff_write(const char *path, const cfont_t *fnt)
         .numglyphs = cg_hashmap_size(fnt->glyph_map)
     };
 
+    strncpy(header.path, fnt->path, 128);
     strncpy(header.family_name, fnt->family_name, 128);
     strncpy(header.style_name, fnt->style_name, 128);
 
@@ -733,6 +762,14 @@ void ctext_ff_write(const char *path, const cfont_t *fnt)
         }
     }
     fwrite(fnt->atlas.data, fnt->atlas.width * fnt->atlas.height, 1, f);
+
+    const luna_Image img = (luna_Image){
+        .w = fnt->atlas.width,
+        .h = fnt->atlas.height,
+        .data = fnt->atlas.data,
+        .fmt = VK_FORMAT_R8_UNORM
+    };
+    luna_ImageWritePNG(&img, "PISS.png");
     fclose(f);
 }
 
@@ -746,6 +783,14 @@ int ctext_ff_read(const char *path, cfont_t *fnt) {
     ctext_ff_header header;
     fread(&header, sizeof(ctext_ff_header), 1, f);
 
+    bool correct_cache_file = (strncmp(header.path, path, 128) == 0);
+    if (!correct_cache_file) {
+        // the user is requesting a different font file
+        fclose(f);
+        return CTEXT_ERR_WRONG_CACHE;
+    }
+
+    strncpy(fnt->path, header.path, 128);
     strncpy(fnt->family_name, header.family_name, 128);
     strncpy(fnt->style_name, header.style_name, 128);
 
@@ -774,6 +819,18 @@ int ctext_ff_read(const char *path, cfont_t *fnt) {
     }
     fnt->atlas.data = calloc(header.bmpwidth, header.bmpheight);
     fread(fnt->atlas.data, header.bmpwidth * header.bmpheight, 1, f);
+
     fclose(f);
-    return 0;
+
+    return CTEXT_ERR_SUCCESS; // return 0
+}
+
+float ctext_get_scale_for_fit(const cfont_t *fnt, const cg_string_t *str, vec2 bbox)
+{
+    float width, height;
+    ctext_get_text_size(fnt, str, &width, &height);
+
+    float scale_x = bbox.x / width;
+    float scale_y = bbox.y / height;
+    return fminf(scale_x, scale_y);
 }

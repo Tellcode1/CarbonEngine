@@ -17,7 +17,7 @@ cg_string_t *cg_string_init(int initial_size) {
     cg_string_t *str = cg_cont_alloc(sizeof(cg_string_t));
     cassert(str != NULL);
     
-    str->capacity = initial_size > 0 ? initial_size : 1;
+    str->capacity = (initial_size > 0) ? initial_size : 1;
     str->data = cg_cont_alloc(str->capacity);
     cassert(str->data != NULL);
     

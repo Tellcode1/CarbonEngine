@@ -49,7 +49,8 @@ typedef struct world_t {
     VkPipelineLayout pipeline_layout;
 
     luna_GPU_Sampler sampler;
-    undescriptorset set;
+    luna_DescriptorPool pool;
+    luna_DescriptorSet set;
     block_t grid[ WORLD_H ][ WORLD_W ];
 } world_t;
 
@@ -146,7 +147,8 @@ void world_init(luna_Renderer_t *rd, sprite_t *spr, world_t **worldptr) {
         { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, NULL },
         { 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &world->sampler.vksampler },
     };
-    create_undescriptor_set(&world->set, bindings, array_len(bindings));
+    luna_DescriptorPool_Init(&world->pool);
+    luna_AllocateDescriptorSet(&world->pool, bindings, array_len(bindings), &world->set);
 
     VkDescriptorBufferInfo bufferinfo = {
         .buffer = world->vb,

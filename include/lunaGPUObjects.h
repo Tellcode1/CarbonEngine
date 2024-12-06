@@ -9,13 +9,8 @@
 typedef enum luna_GPU_MemoryUsageBits {
     LUNA_GPU_MEMORY_USAGE_GPU_LOCAL = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
     LUNA_GPU_MEMORY_USAGE_CPU_VISIBLE = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-    LUNA_GPU_MEMORY_USAGE_CPU_READABLE = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, // ? what are these two supposed to actually be??
     LUNA_GPU_MEMORY_USAGE_CPU_WRITEABLE = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
     LUNA_GPU_MEMORY_USAGE_LAZILY_ALLOCATED = VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT,
-    // ext i think
-    LUNA_GPU_MEMORY_USAGE_PROTECTED = VK_MEMORY_PROPERTY_PROTECTED_BIT,
-    LUNA_GPU_MEMORY_USAGE_DEVICE_COHERENT = VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD,
-    LUNA_GPU_MEMORY_USAGE_DEVICE_UNCACHED = VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD
 } luna_GPU_MemoryUsageBits;
 typedef unsigned luna_GPU_MemoryUsage;
 
@@ -31,8 +26,8 @@ typedef struct luna_GPU_AllocatedObject {
 } luna_GPU_AllocatedObject;
 
 typedef struct luna_GPU_Buffer {
-    luna_GPU_AllocatedObject allocation;
     VkBuffer vkbuffer;
+    luna_GPU_AllocatedObject allocation;
 } luna_GPU_Buffer;
 
 typedef struct luna_GPU_TextureCreateInfo {
@@ -118,7 +113,7 @@ inline static void luna_GPU_CreateBuffer(int size, VkBufferUsageFlags usage, lun
     vkCreateBuffer(device, &buffer_info, NULL, &dst->vkbuffer);
 }
 
-inline static void luna_GPU_memory_free(luna_GPU_Memory *mem) {
+inline static void luna_GPU_FreeMemory(luna_GPU_Memory *mem) {
     vkFreeMemory(device, mem->memory, NULL);
 }
 
@@ -134,17 +129,20 @@ inline static void luna_GPU_BindImageToMemory(luna_GPU_Memory *mem, int offset, 
     vkBindImageMemory(device, tex->image, mem->memory, offset);
 }
 
-// I think they should be renamed to like buffer_destroy() because they aren't freeing the memory, are they?
-inline static void luna_GPU_buffer_free(luna_GPU_Buffer *buffer) {
+inline static void luna_GPU_DestroyBuffer(luna_GPU_Buffer *buffer) {
     if (buffer->vkbuffer) {
         vkDestroyBuffer(device, buffer->vkbuffer, NULL);
+    } else {
+        LOG_INFO("Attempt to destroy a buffer which is NULL");
     }
 }
 
-inline static void luna_GPU_image_free(luna_GPU_Texture *tex) {
+inline static void luna_GPU_DestroyImage(luna_GPU_Texture *tex) {
     if (tex->image) {
         vkDestroyImage(device, tex->image, NULL);
         vkDestroyImageView(device, tex->view, NULL);
+    } else {
+        LOG_INFO("Attempt to destroy an image which is NULL");
     }
 }
 

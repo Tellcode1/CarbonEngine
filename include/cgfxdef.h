@@ -9,21 +9,21 @@
 #endif
 
 #include "lunaGFX.h"
+#include "lunaPipeline.h"
 #include "cgvector.h"
-#include "cdevicememory.h"
+#include "lunaGPUObjects.h"
+#include "undescriptorset.h"
 
 // * it shold be like cg_init_ctext(rd); and then you can just do crd_render_text(&info);
 typedef struct cg_ctext_module {
     // TODO Implement
     // The pipeline should most likely be static
-    VkPipeline pipeline;
-    VkPipelineLayout pipeline_layout;
-    VkDescriptorPool desc_pool;
-    VkDescriptorSetLayout desc_Layout;
-    VkDescriptorSet desc_set;
+    luna_VK_Pipeline pipeline;
+    luna_DescriptorPool desc_pool;
+    luna_DescriptorSet desc_set;
     luna_GPU_Texture error_image;
     luna_GPU_Sampler error_sampler;
-    float model_matrix[4][4]; // what the hell?
+    unsigned flags;
 } cg_ctext_module;
 
 typedef enum cg_renderer_flag_bits {
