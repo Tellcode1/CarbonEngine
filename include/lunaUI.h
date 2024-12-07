@@ -27,7 +27,7 @@ typedef void (*luna_UI_button_pressed_fn)(luna_UI_Button *bton);
 typedef void (*luna_UI_button_hover_fn)(luna_UI_Button *bton);
 
 typedef struct luna_UI_Context {
-    luna_DescriptorSet set;
+    luna_DescriptorSet *set;
     cg_vector_t btons;
     void *ubmapped;
     luna_GPU_Sampler sampler;

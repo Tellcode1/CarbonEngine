@@ -3,10 +3,12 @@
 
 #include "vkstdafx.h"
 #include "math/math.h"
+#include "cgvector.h"
 
 // WARNING: Currently only supports the first 11 descriptor types.
 
-#define PISS_CANARY 293012
+#define POOL_CANARY 293012
+#define SET_CANARY 120983
 
 typedef struct luna_DescriptorPoolSize {
     VkDescriptorType type;
@@ -14,22 +16,38 @@ typedef struct luna_DescriptorPoolSize {
     int using; // how many are being used
 } luna_DescriptorPoolSize;
 
+typedef struct luna_DescriptorSet luna_DescriptorSet;
+
 typedef struct luna_DescriptorPool {
     int canary;
     VkDescriptorPool pool;
-    int child_sets, max_child_sets;
+    int max_child_sets;
     luna_DescriptorPoolSize descriptors[ 11 ];
+    luna_DescriptorSet **sets;
+    int nsets;
 } luna_DescriptorPool;
 
 typedef struct luna_DescriptorSet {
+    int canary;
     VkDescriptorSetLayout layout;
     VkDescriptorSet set;
-    const luna_DescriptorPool *pool;
+    luna_DescriptorPool *pool;
+    VkWriteDescriptorSet *writes;
+    int nwrites;
 } luna_DescriptorSet;
 
+static inline void luna_DescriptorSetSubmitWrite(luna_DescriptorSet *set, const VkWriteDescriptorSet *write) {
+    set->writes = realloc(set->writes, (set->nwrites+1) * sizeof(VkWriteDescriptorSet));
+    cassert(set->writes != NULL);
+    memcpy(&set->writes[set->nwrites], write, sizeof(VkWriteDescriptorSet));
+    set->nwrites++;
+    vkUpdateDescriptorSets(device, 1, write, 0, 0);
+}
+
 static inline void __luna_DescriptorPool_Allocate(luna_DescriptorPool *pool) {
-    VkDescriptorPoolSize allocations[ 11 ] = {};
+    VkDescriptorPoolSize allocations[11] = {};
     int descriptors_written = 0;
+
     for (int i = 0; i < 11; i++) {
         if (pool->descriptors[i].capacity == 0) {
             continue;
@@ -37,20 +55,66 @@ static inline void __luna_DescriptorPool_Allocate(luna_DescriptorPool *pool) {
         allocations[descriptors_written] = (VkDescriptorPoolSize){ pool->descriptors[i].type, pool->descriptors[i].capacity };
         descriptors_written++;
     }
-    bool need_more_max_sets = (pool->child_sets + 1) > pool->max_child_sets;
-    // if (descriptors_written == 0 && !need_more_max_sets) {
-    //     return;
-    // }
+
+    bool need_more_max_sets = (pool->nsets + 1) > pool->max_child_sets;
     if (need_more_max_sets) {
-        pool->max_child_sets = cmmax(pool->max_child_sets * 2, 1);
+            pool->max_child_sets = cmmax(pool->max_child_sets * 2, 1);
     }
+
     VkDescriptorPoolCreateInfo poolInfo = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .maxSets = pool->max_child_sets,
         .poolSizeCount = descriptors_written,
         .pPoolSizes = allocations
     };
-    cassert(vkCreateDescriptorPool(device, &poolInfo, NULL, &pool->pool) == VK_SUCCESS);
+
+    VkDescriptorPool new_pool;
+    cassert(vkCreateDescriptorPool(device, &poolInfo, NULL, &new_pool) == VK_SUCCESS);
+
+    VkDescriptorSet *new_sets = malloc(sizeof(VkDescriptorSet) * pool->nsets);
+    cassert(new_sets != NULL);
+
+    if (pool->nsets > 0) {
+        VkDescriptorSetLayout layouts[ pool->nsets ];
+        for (int i = 0; i < pool->nsets; i++) {
+            layouts[i] = pool->sets[i]->layout;
+        }
+
+        VkDescriptorSetAllocateInfo setAllocInfo = {};
+        setAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        setAllocInfo.descriptorPool = new_pool;
+        setAllocInfo.descriptorSetCount = pool->nsets;
+        setAllocInfo.pSetLayouts = layouts;
+        cassert(vkAllocateDescriptorSets(device, &setAllocInfo, new_sets) == VK_SUCCESS);
+    
+        for (int i = 0; i < pool->nsets; i++) {
+            luna_DescriptorSet *old_set = pool->sets[i];
+
+            cassert(old_set->canary == SET_CANARY);
+
+            for (int writei = 0; writei < old_set->nwrites; writei++) {
+                VkWriteDescriptorSet *write = &old_set->writes[writei];
+                VkCopyDescriptorSet copy = {
+                    .sType = VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET,
+                    .srcSet = old_set->set,
+                    .srcBinding = write->dstBinding,
+                    .srcArrayElement = write->dstArrayElement,
+                    .dstSet = new_sets[i],
+                    .dstBinding = write->dstBinding,
+                    .dstArrayElement = write->dstArrayElement,
+                    .descriptorCount = write->descriptorCount,
+                };
+                vkUpdateDescriptorSets(device, 0, NULL, 1, &copy);
+            }
+
+            old_set->set = new_sets[i];
+        }
+    }
+
+    if (pool->pool) {
+        vkDestroyDescriptorPool(device, pool->pool, NULL);
+    }
+    pool->pool = new_pool;
 }
 
 static inline void luna_DescriptorPool_Init(luna_DescriptorPool *dst) {
@@ -69,53 +133,65 @@ static inline void luna_DescriptorPool_Init(luna_DescriptorPool *dst) {
         { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 0, 0 },
     };
     memcpy(dst->descriptors, pool_sizes, sizeof(pool_sizes));
+    dst->sets = malloc(sizeof(luna_DescriptorSet *));
     dst->max_child_sets = 1;
-    dst->child_sets = 0;
-    dst->canary = PISS_CANARY;
+    dst->nsets = 0;
+    dst->canary = POOL_CANARY;
     __luna_DescriptorPool_Allocate(dst);
-    cassert(dst->canary == PISS_CANARY);
+    cassert(dst->canary == POOL_CANARY);
 }
 
-static inline void luna_AllocateDescriptorSet(luna_DescriptorPool *pool, const VkDescriptorSetLayoutBinding *bindings, int nbindings, luna_DescriptorSet *dst) {
-    cassert(pool->canary == PISS_CANARY);
+static inline void luna_AllocateDescriptorSet(luna_DescriptorPool *pool, const VkDescriptorSetLayoutBinding *bindings, int nbindings, luna_DescriptorSet **dst) {
+    cassert(pool->canary == POOL_CANARY);
+
     bool need_realloc = 0;
     for (int i = 0; i < 11; i++) {
         for (int j = 0; j < nbindings; j++) {
             luna_DescriptorPoolSize *descriptor = &pool->descriptors[i];
             if (descriptor->type == bindings[j].descriptorType) {
-                descriptor->capacity = 100;
+                descriptor->capacity = cmmax(descriptor->capacity * 2, (int)bindings[j].descriptorCount);
                 need_realloc = 1;
             }
         }
     }
 
-    if (need_realloc || ((pool->child_sets + 1) > pool->max_child_sets)) {
-        if ((pool->child_sets + 1) > pool->max_child_sets) {
+    if (need_realloc || ((pool->nsets + 1) > pool->max_child_sets)) {
+        if ((pool->nsets + 1) > pool->max_child_sets) {
             pool->max_child_sets = cmmax(pool->max_child_sets * 2, 1);
+            pool->sets = realloc(pool->sets, pool->max_child_sets * sizeof(luna_DescriptorSet));
         }
 
         __luna_DescriptorPool_Allocate(pool);
     }
 
-    cassert(pool->canary == PISS_CANARY);
+    luna_DescriptorSet *set = calloc(1, sizeof(luna_DescriptorSet));
+
+    pool->sets[pool->nsets] = set;
+    pool->nsets++;
+
+    (*dst) = set;
+
+    set->canary = SET_CANARY;
+    set->pool = pool;
+    set->writes = malloc(sizeof(VkWriteDescriptorSet));
+    cassert(set->writes != NULL);
 
     VkDescriptorSetLayoutCreateInfo layoutinfo = {};
     layoutinfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutinfo.pBindings = bindings;
     layoutinfo.bindingCount = nbindings;
-    cassert(vkCreateDescriptorSetLayout(device, &layoutinfo, NULL, &dst->layout) == VK_SUCCESS);
+    cassert(vkCreateDescriptorSetLayout(device, &layoutinfo, NULL, &set->layout) == VK_SUCCESS);
 
     VkDescriptorSetAllocateInfo setAllocInfo = {};
     setAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     setAllocInfo.descriptorPool = pool->pool;
     setAllocInfo.descriptorSetCount = 1;
-    setAllocInfo.pSetLayouts = &dst->layout;
-    cassert(vkAllocateDescriptorSets(device, &setAllocInfo, &dst->set) == VK_SUCCESS);
+    setAllocInfo.pSetLayouts = &set->layout;
+    cassert(vkAllocateDescriptorSets(device, &setAllocInfo, &set->set) == VK_SUCCESS);
 
-    pool->child_sets++;
-    dst->pool = pool;
-
-    cassert(pool->canary == PISS_CANARY);
+    cassert(pool->canary == POOL_CANARY);
+    cassert(set->canary == SET_CANARY);
 }
+
 
 #endif

@@ -87,7 +87,7 @@ void luna_Renderer_Destroy(luna_Renderer_t *rd)
     vkDestroySwapchainKHR(device, rd->swapchain, NULL);
 
     if (rd->ctext) {
-        vkDestroyDescriptorSetLayout(device, rd->ctext->desc_set.layout, NULL);
+        vkDestroyDescriptorSetLayout(device, rd->ctext->desc_set->layout, NULL);
 
         vkDestroyImage(device, rd->ctext->error_image.image, NULL);
         vkDestroyImageView(device, rd->ctext->error_image.view, NULL);

@@ -52,7 +52,7 @@ int main(int argc, char *argv[]) {
     cinput_init();
     ctext_init(rd);
 
-    const f32 updateTime = 10.0f; // seconds. 1.5f = 1.5 seconds
+    const f32 updateTime = 3.0f; // seconds. 1.5f = 1.5 seconds
     f32 totalTime = 0.0f;
     u32 numFrames = 0;
 

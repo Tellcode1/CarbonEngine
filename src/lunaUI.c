@@ -77,16 +77,16 @@ void luna_UI_Init() {
 
     VkWriteDescriptorSet write = {
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet = luna_ui_ctx.set.set,
+        .dstSet = luna_ui_ctx.set->set,
         .dstBinding = 0,
         .descriptorCount = 1,
         .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         .pBufferInfo = &bufferinfo,
         .pImageInfo = &image_desc_info
     };
-    vkUpdateDescriptorSets(device, 1, &write, 0, NULL);
+    luna_DescriptorSetSubmitWrite(luna_ui_ctx.set, &write);
 
-    cassert(luna_ui_ctx.set.set != VK_NULL_HANDLE && luna_ui_ctx.set.layout != VK_NULL_HANDLE);
+    cassert(luna_ui_ctx.set->set != VK_NULL_HANDLE && luna_ui_ctx.set->layout != VK_NULL_HANDLE);
 }
 
 luna_UI_Button *luna_UI_CreateButton(sprite_t *spr) {
@@ -103,7 +103,7 @@ void luna_UI_Render(luna_Renderer_t *rd) {
 
     VkDeviceSize offsets = 0;
 
-    const VkDescriptorSet sets[] = { camera.set.set, luna_ui_ctx.set.set };
+    const VkDescriptorSet sets[] = { camera.set->set, luna_ui_ctx.set->set };
 
     const VkCommandBuffer cmd = luna_Renderer_GetDrawBuffer(rd);
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_Pipelines.Unlit.pipeline_layout, 0, 2, sets, 0, NULL);

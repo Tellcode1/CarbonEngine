@@ -207,7 +207,7 @@ void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scale, cfon
 
     VkWriteDescriptorSet writeSet = {
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet = rd->ctext->desc_set.set,
+        .dstSet = rd->ctext->desc_set->set,
         .dstBinding = 0,
         .descriptorCount = 1,
         .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -216,7 +216,7 @@ void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scale, cfon
     for (int i = 0; i < CTEXT_MAX_FONT_COUNT; i++)
     {
         writeSet.dstArrayElement = i;
-        vkUpdateDescriptorSets(device, 1, &writeSet, 0, NULL);
+        luna_DescriptorSetSubmitWrite(rd->ctext->desc_set, &writeSet);
     }
 }
 
@@ -262,7 +262,7 @@ void ctext__render_drawcalls(luna_Renderer_t *rd, cfont_t *fnt, const mat4 *mode
     const VkPipeline pipeline = g_Pipelines.Ctext.pipeline;
     const VkPipelineLayout pipeline_layout = g_Pipelines.Ctext.pipeline_layout;
 
-    const VkDescriptorSet sets[] = { camera.set.set, rd->ctext->desc_set.set };
+    const VkDescriptorSet sets[] = { camera.set->set, rd->ctext->desc_set->set };
 
     // Viewport && scissor are set by renderer so no need to set them here
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 2, sets, 0, NULL);
@@ -656,7 +656,7 @@ void ctext_init(struct luna_Renderer_t *rd)
 
     VkWriteDescriptorSet write_set = {
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet = ctext->desc_set.set,
+        .dstSet = ctext->desc_set->set,
         .dstBinding = 0,
         .descriptorCount = 1,
         .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -664,7 +664,7 @@ void ctext_init(struct luna_Renderer_t *rd)
     };
     for (int i = 0; i < CTEXT_MAX_FONT_COUNT; i++) {
         write_set.dstArrayElement = i;
-        vkUpdateDescriptorSets(device, 1, &write_set, 0, NULL);
+        luna_DescriptorSetSubmitWrite(ctext->desc_set, &write_set);
     }
 }
 

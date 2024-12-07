@@ -18,7 +18,7 @@
 typedef struct cg_ctext_module {
     // TODO Implement
     // The pipeline should most likely be static
-    luna_DescriptorSet desc_set;
+    luna_DescriptorSet *desc_set;
     luna_GPU_Texture error_image;
     luna_GPU_Sampler error_sampler;
     unsigned flags;

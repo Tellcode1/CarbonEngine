@@ -23,7 +23,7 @@ void __BakeUnlitPipeline( luna_Renderer_t *rd ) {
     cassert(vertex != NULL && fragment != NULL);
 
     const csm_shader_t *shaders[] = { vertex, fragment };
-    const VkDescriptorSetLayout layouts[] = { camera.set.layout, luna_ui_ctx.set.layout };
+    const VkDescriptorSetLayout layouts[] = { camera.set->layout, luna_ui_ctx.set->layout };
 
     const lunaExtent2D RenderExtent = luna_Renderer_GetRenderExtent(rd);
 
@@ -99,7 +99,7 @@ void __BakeCtextPipeline( luna_Renderer_t *rd ) {
     cassert(csm_load_shader("ctext/frag", &fragment) != -1);
 
     csm_shader_t * shaders[] = { vertex, fragment };
-    VkDescriptorSetLayout layouts[] = { camera.set.layout, rd->ctext->desc_set.layout };
+    VkDescriptorSetLayout layouts[] = { camera.set->layout, rd->ctext->desc_set->layout };
 
     const luna_GPU_PipelineBlendState blend = luna_GPU_InitPipelineBlendState(CVK_BLEND_PRESET_ALPHA);
 

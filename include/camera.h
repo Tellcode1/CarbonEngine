@@ -42,7 +42,7 @@ typedef struct ccamera {
 
     luna_GPU_Buffer ub;
     luna_GPU_Memory mem;
-    luna_DescriptorSet set;
+    luna_DescriptorSet *set;
     camera_uniform_buffer *mem_mapped;
 } ccamera;
 
@@ -76,13 +76,13 @@ static inline ccamera ccamera_init() {
     };
     VkWriteDescriptorSet write = {
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet = camera.set.set,
+        .dstSet = camera.set->set,
         .dstBinding = 0,
         .descriptorCount = 1,
         .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
         .pBufferInfo = &bufferinfo,
     };
-    vkUpdateDescriptorSets(device, 1, &write, 0, NULL);
+    luna_DescriptorSetSubmitWrite(camera.set, &write);
     vkMapMemory(device, camera.mem.memory, 0, sizeof(camera_uniform_buffer), 0, (void **)&camera.mem_mapped);
     return camera;
 }
