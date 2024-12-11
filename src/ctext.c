@@ -6,7 +6,7 @@
 #include "../include/lunaVK.h"
 #include "../include/lunaImage.h"
 
-#include "../include/cgfxdef.h"
+#include "../include/lunaGFXDef.h"
 
 #include "../include/cgfxpipeline.h"
 
@@ -16,6 +16,7 @@
 
 #include "../include/ctext_font_file.h"
 #include "../include/lunaGFX.h"
+#include "../include/sprite.h"
 
 #define MAX(a,b) ( (a > b) ? a : b )
 
@@ -301,6 +302,10 @@ void ctext_end_render(luna_Renderer_t *rd, cfont_t *fnt, mat4 model)
         const ctext_text_drawcall_t *drawcall = (ctext_text_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
         total_vertex_byte_size += drawcall->vertex_count * sizeof(cglyph_vertex_t);
         total_index_count += drawcall->index_count;
+    }
+
+    if (total_vertex_byte_size == 0 || total_index_count == 0) {
+        return;
     }
 
     const u32 total_index_byte_size = total_index_count * sizeof(u32);
@@ -620,37 +625,9 @@ void ctext_init(struct luna_Renderer_t *rd)
 
     luna_AllocateDescriptorSet(&g_pool, bindings, array_len(bindings), &ctext->desc_set);
 
-    u32 width, height;
-    VkFormat dummyImageFmt;
-
-    // No need to store image memory because it won't ever be deleted (probably)
-    // ! you should probably store it and free it.
-    VkDeviceMemory dummyImageMemory;
-    free(luna_VK_CreateTextureFromDisk("../Assets/error.png", &width, &height, &dummyImageFmt, &ctext->error_image.image, &dummyImageMemory));
-
-    const luna_GPU_SamplerCreateInfo sampler_info = {
-        .filter = VK_FILTER_LINEAR,
-        .mipmap_mode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-        .address_mode = VK_SAMPLER_ADDRESS_MODE_REPEAT
-    };
-    luna_GPU_CreateSampler(&sampler_info, &ctext->error_sampler);
-
-    const luna_GPU_TextureViewCreateInfo view_info = {
-        .format = dummyImageFmt,
-        .view_type = VK_IMAGE_VIEW_TYPE_2D,
-        .subresourceRange = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .baseMipLevel = 0,
-            .levelCount = 1,
-            .baseArrayLayer = 0,
-            .layerCount = 1,
-        },
-    };
-    luna_GPU_CreateTextureView(&view_info, &ctext->error_image);
-
-    const VkDescriptorImageInfo dummyImageInfo = {
-        .sampler = ctext->error_sampler.vksampler,
-        .imageView = ctext->error_image.view,
+    const VkDescriptorImageInfo empty_img_info = {
+        .sampler = sprite_get_sampler(sprite_empty),
+        .imageView = sprite_get_internal_view(sprite_empty),
         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     };
 
@@ -660,7 +637,7 @@ void ctext_init(struct luna_Renderer_t *rd)
         .dstBinding = 0,
         .descriptorCount = 1,
         .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        .pImageInfo = &dummyImageInfo,
+        .pImageInfo = &empty_img_info,
     };
     for (int i = 0; i < CTEXT_MAX_FONT_COUNT; i++) {
         write_set.dstArrayElement = i;

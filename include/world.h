@@ -16,7 +16,9 @@
 
 #define WORLD_W 100
 #define WORLD_H 100
-#define HALF_WIDTH 0.1f
+
+// I am so F#$@)ing dumb
+#define HALF_WIDTH 0.5f
 
 typedef struct block_t {
     vec2 position;

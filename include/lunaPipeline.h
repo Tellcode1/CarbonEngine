@@ -73,8 +73,9 @@ typedef struct luna_GPU_PipelineBlendState luna_GPU_PipelineBlendState;
 typedef struct luna_VK_Pipeline {
     VkPipeline pipeline;
     VkPipelineLayout pipeline_layout;
-    int nshaders;
-    struct csm_shader_t *shaders[ LUNA_VK_MAX_SHADERS_PER_PIPELINE ];
+
+	// The common descriptor set layout.
+    VkDescriptorSetLayout descriptor_layout;
 } luna_VK_Pipeline;
 
 typedef struct SystemPipelines {

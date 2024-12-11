@@ -1,12 +1,16 @@
 #include "../include/sprite.h"
 #include "../include/lunaVK.h"
 #include "../include/lunaImage.h"
+#include "../include/lunaGFX.h"
+#include "../include/lunaDescriptors.h"
 
 typedef struct sprite_t {
     int w,h;
     VkImage image;
     VkImageView view;
     VkDeviceMemory mem;
+    luna_GPU_Sampler sampler;
+    luna_DescriptorSet *set;
 } sprite_t;
 
 sprite_t *sprite_empty = NULL;
@@ -63,6 +67,43 @@ sprite_t *sprite_load_mem(const unsigned char *data, int w, int h, VkFormat fmt)
         .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
     };
     cassert(vkCreateImageView(device, &view_info, NULL, &spr->view) == VK_SUCCESS);
+
+    luna_GPU_SamplerCreateInfo sampler_info = {
+        .filter = VK_FILTER_LINEAR,
+        .mipmap_mode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+        .address_mode = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .max_anisotropy = 1.0f,
+        .mip_lod_bias = 0.0f,
+        .min_lod = 0.0f,
+        .max_lod = VK_LOD_CLAMP_NONE,
+    };
+    luna_GPU_CreateSampler(&sampler_info, &spr->sampler);
+
+    VkDescriptorSetLayoutBinding binding = (VkDescriptorSetLayoutBinding) {
+        .binding = 0,
+        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .descriptorCount = 1,
+        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+    };
+    luna_AllocateDescriptorSet(&g_pool, &binding, 1, &spr->set);
+
+    VkDescriptorImageInfo desc_img = {
+        .sampler = spr->sampler.vksampler,
+        .imageView = spr->view,
+        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    };
+
+    VkWriteDescriptorSet write = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = spr->set->set,
+        .dstBinding = 0,
+        .dstArrayElement = 0,
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .pImageInfo = &desc_img,
+    };
+    luna_DescriptorSetSubmitWrite(spr->set, &write);
+    
     return spr;
 }
 
@@ -88,4 +129,14 @@ VkImage sprite_get_internal(const sprite_t *spr)
 VkImageView sprite_get_internal_view(const sprite_t *spr)
 {
     return spr->view;
+}
+
+VkDescriptorSet sprite_get_descriptor(const sprite_t *spr)
+{
+    return spr->set->set;
+}
+
+VkSampler sprite_get_sampler(const sprite_t *spr)
+{
+    return spr->sampler.vksampler;
 }

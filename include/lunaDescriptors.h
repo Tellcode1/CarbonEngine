@@ -44,6 +44,20 @@ static inline void luna_DescriptorSetSubmitWrite(luna_DescriptorSet *set, const 
     vkUpdateDescriptorSets(device, 1, write, 0, 0);
 }
 
+static inline void luna_DescriptorSetDestroy(luna_DescriptorSet *set) {
+    vkDestroyDescriptorSetLayout(device, set->layout, NULL);
+    free(set->writes);
+    free(set);
+}
+
+static inline void luna_DescriptorPoolDestroy(luna_DescriptorPool *pool) {
+    for (int i = 0; i < pool->nsets; i++) {
+        luna_DescriptorSetDestroy(pool->sets[i]);
+    }
+    free(pool->sets);
+    vkDestroyDescriptorPool(device, pool->pool, NULL);
+}
+
 static inline void __luna_DescriptorPool_Allocate(luna_DescriptorPool *pool) {
     VkDescriptorPoolSize allocations[11] = {};
     int descriptors_written = 0;
@@ -75,7 +89,7 @@ static inline void __luna_DescriptorPool_Allocate(luna_DescriptorPool *pool) {
     cassert(new_sets != NULL);
 
     if (pool->nsets > 0) {
-        VkDescriptorSetLayout layouts[ pool->nsets ];
+        VkDescriptorSetLayout *layouts = malloc(sizeof(VkDescriptorSetLayout) * pool->nsets);
         for (int i = 0; i < pool->nsets; i++) {
             layouts[i] = pool->sets[i]->layout;
         }
@@ -86,35 +100,47 @@ static inline void __luna_DescriptorPool_Allocate(luna_DescriptorPool *pool) {
         setAllocInfo.descriptorSetCount = pool->nsets;
         setAllocInfo.pSetLayouts = layouts;
         cassert(vkAllocateDescriptorSets(device, &setAllocInfo, new_sets) == VK_SUCCESS);
-    
-        for (int i = 0; i < pool->nsets; i++) {
-            luna_DescriptorSet *old_set = pool->sets[i];
 
-            cassert(old_set->canary == SET_CANARY);
-
-            for (int writei = 0; writei < old_set->nwrites; writei++) {
-                VkWriteDescriptorSet *write = &old_set->writes[writei];
-                VkCopyDescriptorSet copy = {
-                    .sType = VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET,
-                    .srcSet = old_set->set,
-                    .srcBinding = write->dstBinding,
-                    .srcArrayElement = write->dstArrayElement,
-                    .dstSet = new_sets[i],
-                    .dstBinding = write->dstBinding,
-                    .dstArrayElement = write->dstArrayElement,
-                    .descriptorCount = write->descriptorCount,
-                };
-                vkUpdateDescriptorSets(device, 0, NULL, 1, &copy);
-            }
-
-            old_set->set = new_sets[i];
-        }
+        free(layouts);
     }
+
+    int ncopies = 0;
+    for (int i = 0; i < pool->nsets; i++) {
+        ncopies += pool->sets[i]->nwrites;
+    }
+    VkCopyDescriptorSet *copies = malloc(sizeof(VkCopyDescriptorSet) * ncopies);
+
+    ncopies = 0;
+    for (int i = 0; i < pool->nsets; i++) {
+        luna_DescriptorSet *old_set = pool->sets[i];
+
+        cassert(old_set->canary == SET_CANARY);
+
+        for (int writei = 0; writei < old_set->nwrites; writei++) {
+            VkWriteDescriptorSet *write = &old_set->writes[writei];
+             copies[ncopies] = (VkCopyDescriptorSet){
+                .sType = VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET,
+                .srcSet = old_set->set,
+                .srcBinding = write->dstBinding,
+                .srcArrayElement = write->dstArrayElement,
+                .dstSet = new_sets[i],
+                .dstBinding = write->dstBinding,
+                .dstArrayElement = write->dstArrayElement,
+                .descriptorCount = write->descriptorCount,
+            };
+            ncopies++;
+        }
+        old_set->set = new_sets[i];
+    }
+    vkUpdateDescriptorSets(device, 0, NULL, ncopies, copies);
 
     if (pool->pool) {
         vkDestroyDescriptorPool(device, pool->pool, NULL);
     }
     pool->pool = new_pool;
+
+    free(new_sets);
+    free(copies);
 }
 
 static inline void luna_DescriptorPool_Init(luna_DescriptorPool *dst) {
@@ -149,7 +175,7 @@ static inline void luna_AllocateDescriptorSet(luna_DescriptorPool *pool, const V
         for (int j = 0; j < nbindings; j++) {
             luna_DescriptorPoolSize *descriptor = &pool->descriptors[i];
             if (descriptor->type == bindings[j].descriptorType) {
-                descriptor->capacity = cmmax(descriptor->capacity * 2, (int)bindings[j].descriptorCount);
+                descriptor->capacity = cmmax(descriptor->capacity * 2, (int)bindings[j].descriptorCount + descriptor->capacity);
                 need_realloc = 1;
             }
         }

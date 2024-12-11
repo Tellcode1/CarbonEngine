@@ -17,6 +17,9 @@
 #include "lunaGFXstdafx.h"
 #include "lunaGPUObjects.h"
 #include "lunaDescriptors.h"
+#include "math/vec2.h"
+#include "math/vec3.h"
+#include "math/vec4.h"
 
 extern luna_DescriptorPool g_pool;
 extern struct ccamera camera;
@@ -72,6 +75,8 @@ extern int luna_Renderer_GetFrame(const struct luna_Renderer_t *rd);
 extern struct VkCommandBuffer_T *luna_Renderer_GetDrawBuffer(const luna_Renderer_t *rd);
 extern struct VkRenderPass_T *luna_Renderer_GetRenderPass(const luna_Renderer_t *rd);
 extern struct lunaExtent2D luna_Renderer_GetRenderExtent(const luna_Renderer_t *rd);
+
+extern void luna_Renderer_DrawQuad(luna_Renderer_t *rd, vec3 position, vec3 size, vec4 color);
 
 #ifdef __cplusplus
     }

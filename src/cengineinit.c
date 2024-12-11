@@ -167,12 +167,13 @@ VkInstance CreateInstance(const char* title) {
 		else
 			LOG_ERROR("vkCreateDebugUtilsMessengerEXT proc address not found");
 	}
+
+	cg_vector_destroy(&layerProperties);
 	#endif
 
 	cg_vector_destroy(&SDLExtensions);
 	cg_vector_destroy(&extensions);
 	cg_vector_destroy(&enabledExtensions);
-	cg_vector_destroy(&layerProperties);
 
 	volkLoadInstance(instance);
     return instance;

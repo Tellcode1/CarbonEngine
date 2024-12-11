@@ -58,7 +58,7 @@ void luna_UI_Init() {
 
     const VkDescriptorSetLayoutBinding bindings[] = {
         // binding; descriptorType; descriptorCount; stageFlags; pImmutableSamplers;
-        { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, &luna_ui_ctx.sampler.vksampler },
+        { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL },
     };
 
     luna_AllocateDescriptorSet(&g_pool, bindings, array_len(bindings), &luna_ui_ctx.set);
@@ -138,20 +138,22 @@ void luna_UI_Render(luna_Renderer_t *rd) {
 
 void luna_UI_Update() {
     const bool mouse_pressed = cinput_is_mouse_pressed(SDL_BUTTON_LEFT);
-    const vec2 translated_mouse_position = v2add(
-        v2mulv(cinput_get_mouse_position(), (vec2){ CAMERA_ORTHO_W, CAMERA_ORTHO_H }),
-        (vec2){ camera.position.x, camera.position.y }
-    );
-    const vec2 ortho = (vec2){
-        (1.0f / CAMERA_ORTHO_W),
-        (1.0f / CAMERA_ORTHO_H)
+    const cmrect2d mouse = {
+        .position = v2add(
+            v2mulv(cinput_get_mouse_position(), (vec2){ CAMERA_ORTHO_W, CAMERA_ORTHO_H }),
+            (vec2){ camera.position.x, camera.position.y }
+        ),
+        .size = (vec2){ 0.0f, 0.0f }
     };
+
     for (int i = 0; i < cg_vector_size(&luna_ui_ctx.btons); i++) {
         luna_UI_Button *bton = (luna_UI_Button *)cg_vector_get(&luna_ui_ctx.btons, i);
-        const vec2 orthosize = (vec2){bton->size.x * ortho.x, bton->size.y * ortho.y};
-        const bool horizontal = translated_mouse_position.x > (bton->position.x - orthosize.x) && translated_mouse_position.x < (bton->position.x + orthosize.x);
-        const bool vertical = translated_mouse_position.y > (bton->position.y - orthosize.y) && translated_mouse_position.y < (bton->position.y + orthosize.y);
-        if (horizontal && vertical) {
+        
+        const cmrect2d bton_rect = (cmrect2d) {
+            .position = bton->position,
+            .size = bton->size
+        };
+        if (cmAABB(&mouse, &bton_rect)) {
             bton->was_hovered = 1;
             if (mouse_pressed && bton->pressed) {
                 bton->was_pressed = 1;

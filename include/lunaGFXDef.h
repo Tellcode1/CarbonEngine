@@ -14,13 +14,8 @@
 #include "lunaGPUObjects.h"
 #include "lunaDescriptors.h"
 
-// * it shold be like cg_init_ctext(rd); and then you can just do crd_render_text(&info);
 typedef struct cg_ctext_module {
-    // TODO Implement
-    // The pipeline should most likely be static
     luna_DescriptorSet *desc_set;
-    luna_GPU_Texture error_image;
-    luna_GPU_Sampler error_sampler;
     unsigned flags;
 } cg_ctext_module;
 

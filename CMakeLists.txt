@@ -26,7 +26,6 @@ set(SOURCES
     src/ctext.c
     src/cshadermanager.c
     
-    src/lunaPipeline.c
     src/lunaGFX.c
     src/lunaVK.c
     src/lunaUI.c
@@ -56,7 +55,7 @@ set(LIBS
     spirv-reflect
 )
 
-target_link_options(${OUTPUT} PRIVATE -g -Wall -Wextra)
-target_compile_options(${OUTPUT} PRIVATE -g -Wall -Wextra)
+target_link_options(${OUTPUT} PRIVATE -g -Wall -Wextra -O3)
+target_compile_options(${OUTPUT} PRIVATE -g -Wall -Wextra -O3)
 target_compile_definitions(${OUTPUT} PRIVATE CSM_EXECUTABLE=0) # avoid making multiple main's 
 target_link_libraries(${OUTPUT} ${LIBS})

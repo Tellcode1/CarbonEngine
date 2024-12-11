@@ -11,6 +11,8 @@
 #include "lunaGFX.h"
 
 // If you draw a quad with this width, it'll cover the whole screen
+// oh, and this should technically be doubled when you're rendering quads as they generally take half size
+// that's just to say this is the half width along each direction. Double it and you'll get the full width needed.
 #define CAMERA_ORTHO_W 10.0f
 #define CAMERA_ORTHO_H 10.0f
 

@@ -1,9 +1,11 @@
 #include "../include/lunaGFX.h"
-#include "../include/cgfxdef.h"
+#include "../include/lunaGFXDef.h"
 
 #include "../include/vkstdafx.h"
 #include "../include/stdafx.h"
 #include "../include/math/math.h"
+#include "../include/math/vec2.h"
+#include "../include/math/vec3.h"
 #include "../include/lunaPipeline.h"
 #include "../include/cengine.h"
 #include "../include/lunaVK.h"
@@ -15,6 +17,7 @@
 #include "../include/sprite.h"
 
 #include "../include/camera.h"
+#include "../include/cinput.h"
 
 #include <SDL2/SDL_vulkan.h>
 
@@ -43,6 +46,23 @@ VkSampleCountFlagBits Samples = VK_SAMPLE_COUNT_1_BIT;
 luna_DescriptorPool g_pool;
 ccamera camera;
 
+typedef struct quad_vertex {
+    vec3 position;
+    vec2 tex_coords;
+} quad_vertex;
+
+static const quad_vertex quad_vertices[4] = {
+    (quad_vertex){ (vec3){+0.5f, +0.5f, 0.0f}, { 0.0f, 0.0f } },
+    (quad_vertex){ (vec3){-0.5f, +0.5f, 0.0f}, { 1.0f, 0.0f } },
+    (quad_vertex){ (vec3){-0.5f, -0.5f, 0.0f}, { 1.0f, 1.0f } },
+    (quad_vertex){ (vec3){+0.5f, -0.5f, 0.0f}, { 0.0f, 1.0f } }
+};
+
+static const uint32_t quad_indices[] = {
+    0,1,2,
+    0,2,3
+};
+
 int luna_Renderer_GetFrame(const luna_Renderer_t *rd)
 {
     return rd->renderer_frame;
@@ -61,6 +81,80 @@ VkRenderPass luna_Renderer_GetRenderPass(const luna_Renderer_t *rd)
 lunaExtent2D luna_Renderer_GetRenderExtent(const luna_Renderer_t *rd)
 {
     return rd->render_extent;
+}
+
+void luna_Renderer_DrawQuad(luna_Renderer_t *rd, vec3 position, vec3 size, vec4 color)
+{
+    // this stupid shit helps reduce lag due to me rendering 10,000 quads on my integrated graphics.
+
+    const cmrect2d object = {
+        .position = (vec2){ position.x, position.y },
+        .size = v2muls((vec2){ size.x, size.y }, 0.5f)
+    };
+
+    const cmrect2d cam = {
+        .position = (vec2){ camera.position.x, camera.position.y },
+        .size = (vec2){ CAMERA_ORTHO_W, CAMERA_ORTHO_H }
+    };
+
+    const bool overlap = cmAABB(&object, &cam);
+
+    // If the object isn't in the view of the camera, skip it
+    // This is very helpful in cases there are a lot of quads on the screen as aabb is very much more efficient
+    // than binding the pipelines and vbs
+    if (!overlap) {
+        return;
+    }
+
+    VkCommandBuffer cmd = luna_Renderer_GetDrawBuffer(rd);
+
+    VkDeviceSize offsets = 0;
+
+    struct push_constants {
+        mat4 model;
+        vec4 color;
+    } pc;
+
+    VkDescriptorSet sprite_set = sprite_get_descriptor(sprite_empty);
+    VkDescriptorSet camera_set = camera.set->set;
+    const VkDescriptorSet sets[] = { camera_set, sprite_set };
+
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_Pipelines.Unlit.pipeline_layout, 0, 2, sets, 0, NULL);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_Pipelines.Unlit.pipeline);
+    vkCmdBindVertexBuffers(cmd, 0, 1, &rd->quad_vb.vkbuffer, &offsets);
+    vkCmdBindIndexBuffer(cmd, rd->quad_vb.vkbuffer, sizeof(quad_vertices), VK_INDEX_TYPE_UINT32);
+
+    mat4 scale = m4scale(m4init(1.0f), size);
+    mat4 rotate = m4init(1.0f);
+    mat4 translate = m4translate(m4init(1.0f), position);
+    pc.model = m4mul(translate, m4mul(rotate, scale));
+    pc.color = color;
+    vkCmdPushConstants(cmd, g_Pipelines.Unlit.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(struct push_constants), &pc);
+
+    VkDeviceSize vertex_offset = 0;
+    vkCmdDrawIndexed(cmd, 6, 1, 0, vertex_offset, 0);
+}
+
+void luna_Renderer_PrepareQuadRenderer(luna_Renderer_t *rd)
+{
+    luna_GPU_CreateBuffer(
+        sizeof(quad_vertices) + sizeof(quad_indices),
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        &rd->quad_vb
+    );
+    luna_GPU_AllocateMemory(
+        sizeof(quad_vertices) + sizeof(quad_indices),
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+        &rd->quad_memory
+    );
+    luna_GPU_BindBufferToMemory(&rd->quad_memory, 0, &rd->quad_vb);
+    void *mapped;
+    vkMapMemory(device, rd->quad_memory.memory, 0, VK_WHOLE_SIZE, 0, &mapped);
+
+    memcpy(mapped, quad_vertices, sizeof(quad_vertices));
+    memcpy((char *)mapped + sizeof(quad_vertices), quad_indices, sizeof(quad_indices));
+
+    vkUnmapMemory(device, rd->quad_memory.memory);
 }
 
 void luna_Renderer_Destroy(luna_Renderer_t *rd)
@@ -88,10 +182,6 @@ void luna_Renderer_Destroy(luna_Renderer_t *rd)
 
     if (rd->ctext) {
         vkDestroyDescriptorSetLayout(device, rd->ctext->desc_set->layout, NULL);
-
-        vkDestroyImage(device, rd->ctext->error_image.image, NULL);
-        vkDestroyImageView(device, rd->ctext->error_image.view, NULL);
-        vkDestroySampler(device, rd->ctext->error_sampler.vksampler, NULL);
     }
     if (rd->flags & CG_RENDERER_MULTISAMPLING_ENABLE) {
         luna_GPU_DestroyImage(&rd->color_image);
@@ -329,6 +419,7 @@ luna_Renderer_t *luna_Renderer_Init(const luna_Renderer_Config *conf)
         };
     } else {
         present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
+        present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
     }
 
     luna_GPU_SwapchainCreateInfo scio = {};
@@ -417,6 +508,8 @@ luna_Renderer_t *luna_Renderer_Init(const luna_Renderer_Config *conf)
     sprite_empty = sprite_load_disk("../Assets/empty.png");
 
     camera = ccamera_init();
+
+    luna_Renderer_PrepareQuadRenderer(rd);
 
     return rd;
 }
