@@ -162,32 +162,32 @@ int main(int argc, char *argv[]) {
                 (vec4){ 0.0f, 1.0f, 0.0f, 1.0f }
             );
 
-//             ctext_text_render_info info = {};
-//             info.horizontal = CTEXT_HORI_ALIGN_CENTER;
-//             info.vertical = CTEXT_VERT_ALIGN_CENTER;
-//             info.scale = 1.0f;
-//             info.position = (vec3){bton->position.x, bton->position.y, 1.0f};
-//             info.color = (vec4){1.0f,0.0f,0.0f,1.0f};
-//             info.bbox = bton->size;
-//             info.scale_for_fit = 1;
-//             ctext_render(amongus, &info,
-// R"(hey there buddy chum pal friend buddy pal chum bud friend fella bruther amigo pal friend chumy chum pal
-// i dont mean to be rude my friend home slice bread slice dawg
-// but i gotta warn ya if u take one more diddly darn step right there
-// im gonna have to diddly darn snap ur neck and wowza wouldnt that be a crummy juncture huh?
-// do you want that?
-// do u wish upon yourself to come into physical experience with a crummy juncture?
-// because friend buddy chum friend chum pally pal chum friend if u keep this up
-// then well gosh diddly darn
-// i just might have to get not so friendly with u
-// my friendly friend friend pal friend buddy chum pally friend chum buddy)");
+            ctext_text_render_info info = {};
+            info.horizontal = CTEXT_HORI_ALIGN_CENTER;
+            info.vertical = CTEXT_VERT_ALIGN_CENTER;
+            info.scale = 1.0f;
+            info.position = (vec3){bton->position.x, bton->position.y, 1.0f};
+            info.color = (vec4){1.0f,0.0f,0.0f,1.0f};
+            info.bbox = bton->size;
+            info.scale_for_fit = 1;
+            ctext_render(amongus, &info,
+R"(hey there buddy chum pal friend buddy pal chum bud friend fella bruther amigo pal friend chumy chum pal
+i dont mean to be rude my friend home slice bread slice dawg
+but i gotta warn ya if u take one more diddly darn step right there
+im gonna have to diddly darn snap ur neck and wowza wouldnt that be a crummy juncture huh?
+do you want that?
+do u wish upon yourself to come into physical experience with a crummy juncture?
+because friend buddy chum friend chum pally pal chum friend if u keep this up
+then well gosh diddly darn
+i just might have to get not so friendly with u
+my friendly friend friend pal friend buddy chum pally friend chum buddy)");
 
-//             info.scale = 0.1f;
-//             info.scale_for_fit = 0;
-//             info.horizontal = CTEXT_HORI_ALIGN_CENTER;
-//             info.vertical = CTEXT_VERT_ALIGN_CENTER;
-//             info.position = (vec3){0.0f, 0.0f, sinf(cg_get_time()) * 5.0f};
-//             ctext_render(amongus, &info, "POOTIS\nSPENCER\nHERE");
+            info.scale = 0.1f;
+            info.scale_for_fit = 0;
+            info.horizontal = CTEXT_HORI_ALIGN_CENTER;
+            info.vertical = CTEXT_VERT_ALIGN_CENTER;
+            info.position = (vec3){0.0f, 0.0f, sinf(cg_get_time()) * 5.0f};
+            ctext_render(amongus, &info, "POOTIS\nSPENCER\nHERE");
 
             ctext_end_render(rd, amongus, m4init(1.0f));
 
