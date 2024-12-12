@@ -145,6 +145,8 @@ void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scale, cfon
 
     cfont_t *dstref = *dst;
 
+    dstref->rd = rd;
+
     dstref->glyph_map = cg_hashmap_init(16, sizeof(char), sizeof(ctext_glyph), NULL, NULL);
     dstref->drawcalls = cg_vector_init(sizeof(ctext_text_drawcall_t), 4);
 
@@ -169,7 +171,7 @@ void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scale, cfon
     vkGetImageMemoryRequirements(device, dstref->texture.image, &imageMemoryRequirements);
 
     luna_GPU_AllocateMemory(imageMemoryRequirements.size, LUNA_GPU_MEMORY_USAGE_GPU_LOCAL, &dstref->texture_mem);
-    luna_GPU_BindImageToMemory(&dstref->texture_mem, 0, &dstref->texture);
+    luna_GPU_BindTextureToMemory(&dstref->texture_mem, 0, &dstref->texture);
 
     const int atlas_w = dstref->atlas.width, atlas_h = dstref->atlas.height;
     luna_VK_StageImageTransfer(
@@ -236,7 +238,7 @@ void ctext__font_resize_buffer(cfont_t *fnt, int new_buffer_size)
 
     vkDeviceWaitIdle(device);
     
-    if (fnt->buffer.vkbuffer) {
+    if (fnt->buffer.buffers[0]) {
         luna_GPU_DestroyBuffer(&fnt->buffer);
         luna_GPU_FreeMemory(&fnt->buffer_mem);
     }
@@ -244,7 +246,10 @@ void ctext__font_resize_buffer(cfont_t *fnt, int new_buffer_size)
     luna_GPU_AllocateMemory(new_allocation_size, LUNA_GPU_MEMORY_USAGE_GPU_LOCAL | LUNA_GPU_MEMORY_USAGE_CPU_WRITEABLE, &fnt->buffer_mem);
 
     luna_GPU_CreateBuffer(
-        new_allocation_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        new_allocation_size,
+        LUNA_GPU_ALIGNMENT_UNNECESSARY,
+        1,
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
         &fnt->buffer
     );
     luna_GPU_BindBufferToMemory(&fnt->buffer_mem, 0, &fnt->buffer);
@@ -263,13 +268,14 @@ void ctext__render_drawcalls(luna_Renderer_t *rd, cfont_t *fnt, const mat4 *mode
     const VkPipeline pipeline = g_Pipelines.Ctext.pipeline;
     const VkPipelineLayout pipeline_layout = g_Pipelines.Ctext.pipeline_layout;
 
-    const VkDescriptorSet sets[] = { camera.set->set, rd->ctext->desc_set->set };
+    const VkDescriptorSet sets[] = { camera.sets->set, rd->ctext->desc_set->set };
+    const uint32_t camera_ub_offset = luna_Renderer_GetFrame(rd) * sizeof(camera_uniform_buffer);
 
     // Viewport && scissor are set by renderer so no need to set them here
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 2, sets, 0, NULL);
-    vkCmdBindVertexBuffers(cmd, 0, 1, &fnt->buffer.vkbuffer, offsets);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 2, sets, 1, &camera_ub_offset);
+    vkCmdBindVertexBuffers(cmd, 0, 1, &fnt->buffer.buffers[0], offsets);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-    vkCmdBindIndexBuffer(cmd, fnt->buffer.vkbuffer, fnt->index_buffer_offset, VK_INDEX_TYPE_UINT32);
+    vkCmdBindIndexBuffer(cmd, fnt->buffer.buffers[0], fnt->index_buffer_offset, VK_INDEX_TYPE_UINT32);
 
     int offset = 0;
     for (int i = 0; i < cg_vector_size(&fnt->drawcalls); i++) {
@@ -482,7 +488,7 @@ static inline int get_effective_length(const char *buf, int buflen) {
     return len;
 }
 
-void gen_vertices(
+int gen_vertices(
     cfont_t *fnt,
     ctext_text_drawcall_t* drawcall,
     const ctext_text_render_info *pInfo,
@@ -491,7 +497,7 @@ void gen_vertices(
 )
 {
     if (cg_string_length(str) == 0) {
-        return;
+        return 1;
     }
 
     cg_vector_t splitted_strings = split_string(str);
@@ -503,6 +509,29 @@ void gen_vertices(
 
     float text_w, text_h;
     ctext_get_text_size(fnt, str, &text_w, &text_h);
+
+    const vec2 size = (vec2){text_w * scale, text_h * scale};
+    const cmrect2d rect = {
+        .position = (vec2){pInfo->position.x, pInfo->position.y},
+        .size = v2muls(size, 0.5f)
+    };
+    const cmrect2d cam = {
+        .position = (vec2){ camera.position.x, camera.position.y },
+        .size = (vec2){ CAMERA_ORTHO_W, CAMERA_ORTHO_H }
+    };
+
+    const bool object_is_in_view =
+        fabsf(rect.position.x - cam.position.x) <= (rect.size.x + cam.size.x) &&
+        fabsf(rect.position.y - cam.position.y) <= (rect.size.y + cam.size.y);
+
+    if (!object_is_in_view) {
+        for (int i = 0; i < line_count; i++) {
+            cg_string_t *str = ((cg_string_t **)cg_vector_data(&splitted_strings))[i];
+            cg_string_destroy(str);
+        }
+        cg_vector_destroy(&splitted_strings);
+        return 1;
+    }
 
     float ypos = pInfo->position.y;
 
@@ -564,6 +593,8 @@ void gen_vertices(
         cg_string_destroy(str);
     }
     cg_vector_destroy(&splitted_strings);
+    
+    return 0;
 }
 
 void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo, const char *fmt, ...)
@@ -603,7 +634,14 @@ void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo, const char 
     if (pInfo->scale_for_fit) {
         scale *= ctext_get_scale_for_fit(fnt, str, pInfo->bbox);
     }
-    gen_vertices(fnt, &drawcall, pInfo, str, scale);
+    
+    // can we not have a bounds check before making the vertices?
+    // probably not..
+    if (gen_vertices(fnt, &drawcall, pInfo, str, scale) != 0) {
+        free(allocation);
+        cg_string_destroy(str);
+        return;
+    }
 
     drawcall.vertex_count = effective_length * 4;
     drawcall.index_count = effective_length * 6;

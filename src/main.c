@@ -10,16 +10,16 @@
 
 #include "../include/camera.h"
 // #include "../include/mesh.H"
-#include "../include/lunaWorld.h"
 
 #include "../include/lunaImage.h"
-#include "../include/world.h"
 
 #include "../include/cgfreelist.h"
 
 #include "../include/cshadermanager.h"
 
 #include "../include/lunaUI.h"
+
+#include "../include/lunaObject.h"
 
 void pressed(luna_UI_Button *self) {
     (void)self;
@@ -36,23 +36,20 @@ int main(int argc, char *argv[]) {
     (void)argv;
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);
 
-    cg_initialize_context("kilometers per second (edgy)(im cool now ok?)", 800, 600);
+    const lunaExtent2D window_size = (lunaExtent2D){ 800, 600 };
+
+    cg_initialize_context("kilometers per second (edgy)(im cool now ok?)", window_size.width, window_size.height);
 
     luna_Renderer_Config rdconf = crender_config_init();
     rdconf.vsync_enabled = 1;
     rdconf.buffer_mode = CG_BUFFER_MODE_DOUBLE_BUFFERED;
     rdconf.window_resizable = 0;
+    rdconf.initial_window_size = window_size;
     rdconf.multisampling_enable = 0;
     rdconf.samples = CG_SAMPLE_COUNT_1_SAMPLES;
     luna_Renderer_t *rd = luna_Renderer_Init(&rdconf);
 
-    // * get a better name for this
-    csm_compile_updated();
-
-    cinput_init();
-    ctext_init(rd);
-
-    const f32 updateTime = 3.0f; // seconds. 1.5f = 1.5 seconds
+    const f32 updateTime = 5.0f; // seconds. 1.5f = 1.5 seconds
     f32 totalTime = 0.0f;
     u32 numFrames = 0;
 
@@ -64,14 +61,11 @@ int main(int argc, char *argv[]) {
     float accumulator = 0.0f;
     const float timeStep = 1.0f / 60.0f;
 
-    world_t *world;
-    world_init(rd, sprite_empty, &world);
-
     luna_UI_Init(rd);
 
     luna_UI_Button *bton = luna_UI_CreateButton(sprite_load_disk("../Assets/barrel.png"));
-    bton->size.x = 50.0f;
-    bton->size.y = 50.0f;
+    bton->size.x = 5.0f;
+    bton->size.y = 5.0f;
     bton->pressed = pressed;
     bton->hover = hoover;
 
@@ -83,7 +77,24 @@ int main(int argc, char *argv[]) {
     bton2->position.x = 10.0f;
     bton2->position.y = 10.0f;
 
-    luna_VK_BakeGlobalPipelines(rd);
+    luna_Object_Initialize();
+
+    luna_Object *grnd = luna_CreateObject(
+        "Ground",
+        1,
+        (vec2){ 0.0f, -5.0f },
+        (vec2){ 100.0f, 1.0f }
+    );
+    (void)grnd;
+
+    luna_Object *plr = luna_CreateObject(
+        "Player",
+        0,
+        (vec2){ 0.0f, 0.0f },
+        (vec2){ 1.0f, 1.0f }
+    );
+
+    bool can_jump = 0;
 
     // What in the unholy f%$ where you doing
     LOG_DEBUG("Initialized in %ld ms (%.3f s)", SDL_GetTicks64(), SDL_GetTicks64() / 1000.0f);
@@ -115,7 +126,23 @@ int main(int argc, char *argv[]) {
 
         cinput_update(rd);
         cam_update(&camera, rd);
-        world_update(world);
+
+        luna_ObjectsUpdate();
+        luna_ObjectSetVelocity(plr, (vec2){ 0.0f, luna_ObjectGetVelocity(plr).y });
+
+        vec2 pos = luna_ObjectGetPosition(plr);
+        vec2 start = (vec2){
+            pos.x, pos.y
+        };
+        vec2 end = (vec2){
+            pos.x, pos.y - 0.65f
+        };
+        bool on_ground = luna_ObjectRayCast(plr, luna_ObjectGetPosition(plr), (vec2){0.0f, -0.65f});
+        if (on_ground) {
+            can_jump = 1;
+        } else {
+            can_jump = 0;
+        }
 
         vec3 move = (vec3){ 0.0f, 0.0f, 0.0f };
         if (cinput_is_key_held(SDL_SCANCODE_W)) {
@@ -140,58 +167,45 @@ int main(int argc, char *argv[]) {
             bton2->color = (vec4){ 1.0f, 1.0f, 1.0f, 1.0f };
         }
 
-        static float piss = 1.0f;
-        if (cinput_is_key_held(SDL_SCANCODE_UP)) {
-            piss += 1.0f;
+        move = (vec3){};
+        const float JUMPFORCE = 5.0f;
+        const float XSPEED = 6.0f;
+        if (cinput_is_key_held(SDL_SCANCODE_LEFT)) {
+            move.x -= XSPEED;
         }
-        if (cinput_is_key_held(SDL_SCANCODE_DOWN)) {
-            piss -= 1.0f;
+        if (cinput_is_key_held(SDL_SCANCODE_RIGHT)) {
+            move.x += XSPEED;
         }
+        if (cinput_is_key_pressed(SDL_SCANCODE_SPACE) && can_jump) {
+            move.y += JUMPFORCE;
+            can_jump = 0;
+        }
+        luna_ObjectMove(plr, *(vec2 *)&move);
 
         if (luna_Renderer_BeginRender(rd)) {
             ctext_begin_render(amongus);
 
+            luna_Renderer_DrawLine(rd, 
+                start,
+                end,
+                (vec4){ 1.0f, 0.0f, 0.0f, 1.0f }
+            );
+
             luna_UI_Render(rd);
 
-            bton->size.x = piss;
-            bton->size.y = piss;
-
-            luna_Renderer_DrawQuad(rd,
-                (vec3){ 0.0f, 0.0f, 0.0f },
-                (vec3){ 10.0f, 10.0f, 1.0f},
-                (vec4){ 0.0f, 1.0f, 0.0f, 1.0f }
-            );
+            luna_ObjectsRender(rd);
 
             ctext_text_render_info info = {};
             info.horizontal = CTEXT_HORI_ALIGN_CENTER;
             info.vertical = CTEXT_VERT_ALIGN_CENTER;
-            info.scale = 1.0f;
-            info.position = (vec3){bton->position.x, bton->position.y, 1.0f};
+            info.position = (vec3){0.0f, 0.0f, 0.1f};
             info.color = (vec4){1.0f,0.0f,0.0f,1.0f};
-            info.bbox = bton->size;
+            info.scale = 1.0f;
             info.scale_for_fit = 1;
-            ctext_render(amongus, &info,
-R"(hey there buddy chum pal friend buddy pal chum bud friend fella bruther amigo pal friend chumy chum pal
-i dont mean to be rude my friend home slice bread slice dawg
-but i gotta warn ya if u take one more diddly darn step right there
-im gonna have to diddly darn snap ur neck and wowza wouldnt that be a crummy juncture huh?
-do you want that?
-do u wish upon yourself to come into physical experience with a crummy juncture?
-because friend buddy chum friend chum pally pal chum friend if u keep this up
-then well gosh diddly darn
-i just might have to get not so friendly with u
-my friendly friend friend pal friend buddy chum pally friend chum buddy)");
-
-            info.scale = 0.1f;
-            info.scale_for_fit = 0;
-            info.horizontal = CTEXT_HORI_ALIGN_CENTER;
-            info.vertical = CTEXT_VERT_ALIGN_CENTER;
-            info.position = (vec3){0.0f, 0.0f, sinf(cg_get_time()) * 5.0f};
+            info.bbox = bton2->size;
             ctext_render(amongus, &info, "POOTIS\nSPENCER\nHERE");
 
             ctext_end_render(rd, amongus, m4init(1.0f));
-
-            // world_render(world);
 
             luna_Renderer_EndRender(rd);
         }

@@ -50,6 +50,8 @@ typedef struct luna_Renderer_t
     // These are used to render all the sprites in the game (quad based sprites that is)
     luna_GPU_Buffer quad_vb;
     luna_GPU_Memory quad_memory;
+
+    void *mapped;
 } luna_Renderer_t;
 
 #ifdef __cplusplus

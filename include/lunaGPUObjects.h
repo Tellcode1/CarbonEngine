@@ -8,6 +8,10 @@
 
 #include "lunaGFXstdafx.h"
 
+#define LUNA_GPU_MAX_CHILDREN_PER_OBJECT 8
+#define LUNA_GPU_ALIGNMENT_UNNECESSARY (1)
+#define LUNA_GPU_ALL_CHILDREN (__INT32_MAX__)
+
 typedef enum luna_GPU_MemoryUsageBits {
     LUNA_GPU_MEMORY_USAGE_GPU_LOCAL = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
     LUNA_GPU_MEMORY_USAGE_CPU_VISIBLE = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
@@ -23,12 +27,16 @@ typedef struct luna_GPU_Memory {
 } luna_GPU_Memory;
 
 typedef struct luna_GPU_AllocatedObject {
-    int size, memory_offset; // , alignment?
+    int size, memory_offset;
     luna_GPU_Memory *memory;
 } luna_GPU_AllocatedObject;
 
 typedef struct luna_GPU_Buffer {
-    VkBuffer vkbuffer;
+    VkBuffer buffers[ LUNA_GPU_MAX_CHILDREN_PER_OBJECT ];
+    int nchilds;
+    // The size of the buffer
+    // Even if there are multiple children, this gives only the size of ONE buffer
+    int size, alignment;
     luna_GPU_AllocatedObject allocation;
 } luna_GPU_Buffer;
 
@@ -79,131 +87,25 @@ typedef struct luna_GPU_Sampler {
 } luna_GPU_Sampler;
 
 // I think we should make like a cgfx_err_t enum
+extern void luna_GPU_AllocateMemory(VkDeviceSize size, luna_GPU_MemoryUsage usage, luna_GPU_Memory *dst);
+extern void luna_GPU_FreeMemory(luna_GPU_Memory *mem);
 
-// these parameters should be replaced
-// properties should be replaced by usage. Like LUNA_GPU_MEMORY_USAGE_GPU, CPU_TO_GPU, GPU_TO_CPU, etc.
-inline static void luna_GPU_AllocateMemory(VkDeviceSize size, luna_GPU_MemoryUsage usage, luna_GPU_Memory *dst) {
-    dst->size = size;
-    dst->usage = usage;
-    const VkMemoryPropertyFlags properties = (VkMemoryPropertyFlags)usage;
+// Note: 'nchilds' count of buffers of size 'size' will be created.
+// The size will NOT be divided among the children.
+extern void luna_GPU_CreateBuffer(int size, int alignment, int nchilds, VkBufferUsageFlags usage, luna_GPU_Buffer *dst);
 
-    VkMemoryAllocateInfo alloc_info = {};
-    alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    alloc_info.allocationSize = size;
+// Note: Memory must be able to hold all the buffers!
+// You can get the size of the memory by just looking up the size of one buffer
+// and then multiplying it with the count.
+extern void luna_GPU_BindBufferToMemory(luna_GPU_Memory *mem, int offset, luna_GPU_Buffer *buffer);
+extern void luna_GPU_DestroyBuffer(luna_GPU_Buffer *buffer);
 
-    VkPhysicalDeviceMemoryProperties mem_properties;
-    vkGetPhysicalDeviceMemoryProperties(physDevice, &mem_properties);
+extern void luna_GPU_CreateTexture(const luna_GPU_TextureCreateInfo *pInfo, luna_GPU_Texture *tex);
+extern void luna_GPU_CreateTextureView(const luna_GPU_TextureViewCreateInfo *pInfo, luna_GPU_Texture *tex);
 
-    for (u32 i = 0; i < mem_properties.memoryTypeCount; i++) {
-        if ((properties & mem_properties.memoryTypes[i].propertyFlags) == properties) {
-            alloc_info.memoryTypeIndex = i;
-            break;
-        }
-    }
+extern void luna_GPU_BindTextureToMemory(luna_GPU_Memory *mem, int offset, luna_GPU_Texture *tex);
+extern void luna_GPU_DestroyTexture(luna_GPU_Texture *tex);
 
-    if (vkAllocateMemory(device, &alloc_info, NULL, &dst->memory) != VK_SUCCESS || !dst->memory) {
-        printf("An allocation has failed! What are we to do???\n");
-    }
-}
-
-inline static void luna_GPU_CreateBuffer(int size, VkBufferUsageFlags usage, luna_GPU_Buffer *dst) {
-    dst->allocation.size = size;
-    VkBufferCreateInfo buffer_info = {};
-    buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    buffer_info.size = size;
-    buffer_info.usage = usage;
-    vkCreateBuffer(device, &buffer_info, NULL, &dst->vkbuffer);
-}
-
-inline static void luna_GPU_FreeMemory(luna_GPU_Memory *mem) {
-    vkFreeMemory(device, mem->memory, NULL);
-}
-
-// I think these given an error when, say offset is too big so maybe we can check their return values?
-inline static void luna_GPU_BindBufferToMemory(luna_GPU_Memory *mem, int offset, luna_GPU_Buffer *buffer) {
-    buffer->allocation.memory = mem;
-    buffer->allocation.memory_offset = offset;
-    vkBindBufferMemory(device, buffer->vkbuffer, mem->memory, offset);
-}
-inline static void luna_GPU_BindImageToMemory(luna_GPU_Memory *mem, int offset, luna_GPU_Texture *tex) {
-    tex->allocation.memory = mem;
-    tex->allocation.memory_offset = offset;
-    vkBindImageMemory(device, tex->image, mem->memory, offset);
-}
-
-inline static void luna_GPU_DestroyBuffer(luna_GPU_Buffer *buffer) {
-    if (buffer->vkbuffer) {
-        vkDestroyBuffer(device, buffer->vkbuffer, NULL);
-    } else {
-        LOG_INFO("Attempt to destroy a buffer which is NULL");
-    }
-}
-
-inline static void luna_GPU_DestroyImage(luna_GPU_Texture *tex) {
-    if (tex->image) {
-        vkDestroyImage(device, tex->image, NULL);
-        vkDestroyImageView(device, tex->view, NULL);
-    } else {
-        LOG_INFO("Attempt to destroy an image which is NULL");
-    }
-}
-
-inline static void luna_GPU_CreateSampler(const luna_GPU_SamplerCreateInfo *pInfo, luna_GPU_Sampler *sampler) {
-    sampler->filter = pInfo->filter;
-    sampler->mipmap_mode = pInfo->mipmap_mode;
-    sampler->address_mode = pInfo->address_mode;
-    sampler->max_anisotropy = pInfo->max_anisotropy;
-    sampler->mip_lod_bias = pInfo->mip_lod_bias;
-    sampler->min_lod = pInfo->min_lod;
-    sampler->max_lod = pInfo->max_lod;
-
-    VkSamplerCreateInfo samplerInfo = {};
-    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    samplerInfo.magFilter = pInfo->filter;
-    samplerInfo.minFilter = pInfo->filter;
-    samplerInfo.mipmapMode = pInfo->mipmap_mode;
-    samplerInfo.addressModeU = pInfo->address_mode;
-    samplerInfo.addressModeV = pInfo->address_mode;
-    samplerInfo.addressModeW = pInfo->address_mode;
-    samplerInfo.anisotropyEnable = pInfo->max_anisotropy > 1.0f;
-    samplerInfo.maxLod = pInfo->max_lod;
-    samplerInfo.minLod = pInfo->min_lod;
-    cassert(vkCreateSampler(device, &samplerInfo, NULL, &sampler->vksampler) == VK_SUCCESS);
-}
-
-inline static void luna_GPU_CreateTexture(const luna_GPU_TextureCreateInfo *pInfo, luna_GPU_Texture *tex) {
-    VkImageCreateInfo imageCreateInfo = {};
-    imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    imageCreateInfo.imageType = pInfo->type;
-    imageCreateInfo.extent = pInfo->extent;
-    imageCreateInfo.mipLevels = pInfo->miplevels;
-    imageCreateInfo.arrayLayers = pInfo->arraylayers;
-    imageCreateInfo.format = pInfo->format;
-    imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-    imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    imageCreateInfo.usage = pInfo->usage;
-    imageCreateInfo.samples = (VkSampleCountFlagBits)pInfo->samples;
-    imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    if (vkCreateImage(device, &imageCreateInfo, NULL, &tex->image) != VK_SUCCESS) {
-        LOG_ERROR("Failed to create image");
-    }
-}
-
-// vkimage is fetched from image!
-inline static void luna_GPU_CreateTextureView(const luna_GPU_TextureViewCreateInfo *pInfo, luna_GPU_Texture *tex) {
-    const VkFormat dst_format = (pInfo->format != VK_FORMAT_UNDEFINED) ? pInfo->format : tex->format;
-    VkImageViewCreateInfo view_info = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = tex->image,
-        .viewType = pInfo->view_type,
-        .format = dst_format,
-        .subresourceRange = pInfo->subresourceRange,
-        .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
-    };
-    cassert(vkCreateImageView(device, &view_info, NULL, &tex->view) == VK_SUCCESS);
-}
+extern void luna_GPU_CreateSampler(const luna_GPU_SamplerCreateInfo *pInfo, luna_GPU_Sampler *sampler);
 
 #endif//__LUNA_GPU_MEMORY_H

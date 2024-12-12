@@ -110,6 +110,8 @@ typedef struct cfont_t
     int chars_drawn;
     cg_vector_t /* ctext_text_drawcall_t */  drawcalls;
     cg_hashmap_t * /* unicode, ctext_glyph ctext_hasher<unicode>> */ glyph_map;
+
+    struct luna_Renderer_t *rd;
 } cfont_t;
 
 #ifdef __cplusplus

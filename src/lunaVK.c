@@ -2,7 +2,12 @@
 #include "../include/lunaPipeline.h"
 #include "../include/lunaGFXDef.h"
 #include "../include/lunaImage.h"
+
+#include "../include/camera.h"
+
+#include "../include/cshadermanager.h"
 #include "../include/cshadermanagerdev.h"
+
 #include "../include/lunaUI.h"
 
 #include "../include/cgvector.h"
@@ -42,7 +47,7 @@ void __BakeUnlitPipeline( luna_Renderer_t *rd ) {
     cassert(vertex != NULL && fragment != NULL);
 
     const csm_shader_t *shaders[] = { vertex, fragment };
-    const VkDescriptorSetLayout layouts[] = { camera.set->layout, g_Pipelines.Unlit.descriptor_layout };
+    const VkDescriptorSetLayout layouts[] = { camera.sets->layout, g_Pipelines.Unlit.descriptor_layout };
 
     const lunaExtent2D RenderExtent = luna_Renderer_GetRenderExtent(rd);
 
@@ -54,7 +59,7 @@ void __BakeUnlitPipeline( luna_Renderer_t *rd ) {
 
     const VkVertexInputBindingDescription bindingDescriptions[] = {
         // binding; stride; inputRate
-        { 0, sizeof(cvertex), VK_VERTEX_INPUT_RATE_VERTEX }
+        { 0, sizeof(vec3) + sizeof(vec2), VK_VERTEX_INPUT_RATE_VERTEX }
     };
 
     const VkPushConstantRange pushConstants[] = { 
@@ -118,7 +123,7 @@ void __BakeCtextPipeline( luna_Renderer_t *rd ) {
     cassert(csm_load_shader("ctext/frag", &fragment) != -1);
 
     csm_shader_t * shaders[] = { vertex, fragment };
-    VkDescriptorSetLayout layouts[] = { camera.set->layout, rd->ctext->desc_set->layout };
+    VkDescriptorSetLayout layouts[] = { camera.sets->layout, rd->ctext->desc_set->layout };
 
     const luna_GPU_PipelineBlendState blend = luna_GPU_InitPipelineBlendState(CVK_BLEND_PRESET_ALPHA);
 
@@ -153,9 +158,64 @@ void __BakeCtextPipeline( luna_Renderer_t *rd ) {
     luna_GPU_CreateGraphicsPipeline(&pc, &g_Pipelines.Ctext.pipeline, CVK_PIPELINE_FLAGS_ENABLE_BLEND);
 }
 
+void __BakeDebugLinePipeline( luna_Renderer_t *rd ) {
+	struct line_push_constants {
+		mat4 model;
+		vec4 color;
+		vec2 line_begin;
+        vec2 line_end;
+	};
+
+    const VkPushConstantRange pushConstants[] = {
+        // stageFlags, offset, size
+        { VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(struct line_push_constants) },
+    };
+
+    csm_shader_t *vertex, *fragment;
+    cassert(csm_load_shader("Debug/Line/vert", &vertex) != -1);
+    cassert(csm_load_shader("Debug/Line/frag", &fragment) != -1);
+
+    csm_shader_t * shaders[] = { vertex, fragment };
+    VkDescriptorSetLayout layouts[] = { camera.sets->layout };
+
+    const luna_GPU_PipelineBlendState blend = luna_GPU_InitPipelineBlendState(CVK_BLEND_PRESET_ALPHA);
+
+    luna_GPU_PipelineCreateInfo pc = luna_GPU_InitPipelineCreateInfo();
+    pc.format = SwapChainImageFormat;
+
+    pc.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+    pc.render_pass = luna_Renderer_GetRenderPass(rd);
+
+    pc.nAttributeDescriptions = 0;
+    pc.pAttributeDescriptions = NULL;
+
+    pc.nPushConstants = array_len(pushConstants);
+    pc.pPushConstants = pushConstants;
+
+    pc.nBindingDescriptions = 0;
+    pc.pBindingDescriptions = NULL;
+
+    pc.nShaders = array_len(shaders);
+    pc.pShaders = (const struct csm_shader_t *const *)shaders;
+
+    pc.nDescriptorLayouts = array_len(layouts);
+    pc.pDescriptorLayouts = layouts;
+
+    const lunaExtent2D RenderExtent = luna_Renderer_GetRenderExtent(rd);
+    pc.extent.width = RenderExtent.width;
+    pc.extent.height = RenderExtent.height;
+    pc.blend_state = &blend;
+    pc.samples = Samples;
+
+    luna_GPU_CreatePipelineLayout(&pc, &g_Pipelines.Line.pipeline_layout);
+    pc.pipeline_layout = g_Pipelines.Line.pipeline_layout;
+    luna_GPU_CreateGraphicsPipeline(&pc, &g_Pipelines.Line.pipeline, CVK_PIPELINE_FLAGS_ENABLE_BLEND);
+}
+
 void luna_VK_BakeGlobalPipelines( luna_Renderer_t *rd )
 {
 	__BakeUnlitPipeline(rd);
+    __BakeDebugLinePipeline(rd);
 	//__BakeLitPipeline(rd); // Not yet implemented
 	__BakeCtextPipeline(rd);
 }
@@ -970,4 +1030,144 @@ u32 luna_VK_GetSurfaceImageCount(VkPhysicalDevice physDevice, VkSurfaceKHR surfa
 		requestedImageCount = surfaceCapabilities.maxImageCount;
 
 	return requestedImageCount;
+}
+
+// these parameters should be replaced
+// properties should be replaced by usage. Like LUNA_GPU_MEMORY_USAGE_GPU, CPU_TO_GPU, GPU_TO_CPU, etc.
+void luna_GPU_AllocateMemory(VkDeviceSize size, luna_GPU_MemoryUsage usage, luna_GPU_Memory *dst) {
+    dst->size = size;
+    dst->usage = usage;
+    const VkMemoryPropertyFlags properties = (VkMemoryPropertyFlags)usage;
+
+    VkMemoryAllocateInfo alloc_info = {};
+    alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    alloc_info.allocationSize = size;
+
+    VkPhysicalDeviceMemoryProperties mem_properties;
+    vkGetPhysicalDeviceMemoryProperties(physDevice, &mem_properties);
+
+    for (u32 i = 0; i < mem_properties.memoryTypeCount; i++) {
+        if ((properties & mem_properties.memoryTypes[i].propertyFlags) == properties) {
+            alloc_info.memoryTypeIndex = i;
+            break;
+        }
+    }
+
+    if (vkAllocateMemory(device, &alloc_info, NULL, &dst->memory) != VK_SUCCESS || !dst->memory) {
+        printf("An allocation has failed! What are we to do???\n");
+    }
+}
+
+void luna_GPU_CreateBuffer(int size, int alignment, int nchilds, VkBufferUsageFlags usage, luna_GPU_Buffer *dst) {
+    dst->allocation.size = size;
+    dst->size = size;
+    dst->alignment = alignment;
+
+    const int aligned_sz = align_up(size, alignment);
+
+    VkBufferCreateInfo buffer_info = {};
+    buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    buffer_info.size = aligned_sz;
+    buffer_info.usage = usage;
+    for (int i = 0; i < nchilds; i++) {
+        cassert(vkCreateBuffer(device, &buffer_info, NULL, &dst->buffers[i]) == VK_SUCCESS);
+    }
+    dst->nchilds = nchilds;
+}
+
+void luna_GPU_FreeMemory(luna_GPU_Memory *mem) {
+    vkFreeMemory(device, mem->memory, NULL);
+}
+
+// I think these given an error when, say offset is too big so maybe we can check their return values?
+void luna_GPU_BindBufferToMemory(luna_GPU_Memory *mem, int offset, luna_GPU_Buffer *buffer) {
+    buffer->allocation.memory = mem;
+    buffer->allocation.memory_offset = offset;
+
+    const int aligned_sz = align_up(buffer->size, buffer->alignment);
+    for (int i = 0; i < buffer->nchilds; i++) {
+        vkBindBufferMemory(device, buffer->buffers[i], mem->memory, offset + i * aligned_sz);
+    }
+}
+void luna_GPU_BindTextureToMemory(luna_GPU_Memory *mem, int offset, luna_GPU_Texture *tex) {
+    tex->allocation.memory = mem;
+    tex->allocation.memory_offset = offset;
+    vkBindImageMemory(device, tex->image, mem->memory, offset);
+}
+
+void luna_GPU_DestroyBuffer(luna_GPU_Buffer *buffer) {
+    for (int i = 0; i < buffer->nchilds; i++) {
+        if (buffer->buffers[i]) {
+            vkDestroyBuffer(device, buffer->buffers[i], NULL);
+        } else {
+            LOG_INFO("Attempt to destroy a buffer (child index %i) which is NULL", i);
+        }
+    }
+}
+
+void luna_GPU_DestroyTexture(luna_GPU_Texture *tex) {
+    if (tex->image) {
+        vkDestroyImage(device, tex->image, NULL);
+        vkDestroyImageView(device, tex->view, NULL);
+    } else {
+        LOG_INFO("Attempt to destroy an image which is NULL");
+    }
+}
+
+void luna_GPU_CreateSampler(const luna_GPU_SamplerCreateInfo *pInfo, luna_GPU_Sampler *sampler) {
+    sampler->filter = pInfo->filter;
+    sampler->mipmap_mode = pInfo->mipmap_mode;
+    sampler->address_mode = pInfo->address_mode;
+    sampler->max_anisotropy = pInfo->max_anisotropy;
+    sampler->mip_lod_bias = pInfo->mip_lod_bias;
+    sampler->min_lod = pInfo->min_lod;
+    sampler->max_lod = pInfo->max_lod;
+
+    VkSamplerCreateInfo samplerInfo = {};
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.magFilter = pInfo->filter;
+    samplerInfo.minFilter = pInfo->filter;
+    samplerInfo.mipmapMode = pInfo->mipmap_mode;
+    samplerInfo.addressModeU = pInfo->address_mode;
+    samplerInfo.addressModeV = pInfo->address_mode;
+    samplerInfo.addressModeW = pInfo->address_mode;
+    samplerInfo.anisotropyEnable = pInfo->max_anisotropy > 1.0f;
+    samplerInfo.maxLod = pInfo->max_lod;
+    samplerInfo.minLod = pInfo->min_lod;
+    cassert(vkCreateSampler(device, &samplerInfo, NULL, &sampler->vksampler) == VK_SUCCESS);
+}
+
+void luna_GPU_CreateTexture(const luna_GPU_TextureCreateInfo *pInfo, luna_GPU_Texture *tex) {
+    VkImageCreateInfo imageCreateInfo = {};
+    imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageCreateInfo.imageType = pInfo->type;
+    imageCreateInfo.extent = pInfo->extent;
+    imageCreateInfo.mipLevels = pInfo->miplevels;
+    imageCreateInfo.arrayLayers = pInfo->arraylayers;
+    imageCreateInfo.format = pInfo->format;
+    imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageCreateInfo.usage = pInfo->usage;
+    imageCreateInfo.samples = (VkSampleCountFlagBits)pInfo->samples;
+    imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    if (vkCreateImage(device, &imageCreateInfo, NULL, &tex->image) != VK_SUCCESS) {
+        LOG_ERROR("Failed to create image");
+    }
+}
+
+// vkimage is fetched from image!
+void luna_GPU_CreateTextureView(const luna_GPU_TextureViewCreateInfo *pInfo, luna_GPU_Texture *tex) {
+    const VkFormat dst_format = (pInfo->format != VK_FORMAT_UNDEFINED) ? pInfo->format : tex->format;
+    VkImageViewCreateInfo view_info = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image = tex->image,
+        .viewType = pInfo->view_type,
+        .format = dst_format,
+        .subresourceRange = pInfo->subresourceRange,
+        .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
+    };
+    cassert(vkCreateImageView(device, &view_info, NULL, &tex->view) == VK_SUCCESS);
 }

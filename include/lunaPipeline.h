@@ -82,6 +82,7 @@ typedef struct SystemPipelines {
 	luna_VK_Pipeline Unlit;
 	luna_VK_Pipeline Lit;
 	luna_VK_Pipeline Ctext;
+	luna_VK_Pipeline Line; // Draws lines. Yep.
 } SystemPipelines;
 extern SystemPipelines g_Pipelines;
 

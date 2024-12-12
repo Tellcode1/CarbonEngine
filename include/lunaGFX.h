@@ -75,8 +75,10 @@ extern int luna_Renderer_GetFrame(const struct luna_Renderer_t *rd);
 extern struct VkCommandBuffer_T *luna_Renderer_GetDrawBuffer(const luna_Renderer_t *rd);
 extern struct VkRenderPass_T *luna_Renderer_GetRenderPass(const luna_Renderer_t *rd);
 extern struct lunaExtent2D luna_Renderer_GetRenderExtent(const luna_Renderer_t *rd);
+extern int luna_Renderer_GetMaxFramesInFlight(const struct luna_Renderer_t *rd);
 
 extern void luna_Renderer_DrawQuad(luna_Renderer_t *rd, vec3 position, vec3 size, vec4 color);
+extern void luna_Renderer_DrawLine(luna_Renderer_t *rd, vec2 start, vec2 end, vec4 color);
 
 #ifdef __cplusplus
     }
