@@ -11,6 +11,7 @@ typedef struct cg_vector_t {
     int m_typesize;
     void *m_data;
 } cg_vector_t;
+typedef int (*cg_vector_compare_fn)(const void *obj1, const void *obj2);
 
 typedef unsigned char cg_vector_bool;
 
@@ -50,6 +51,8 @@ extern void cg_vector_insert(cg_vector_t *vec, int index, void *elem);
 extern void cg_vector_remove(cg_vector_t *vec, int index);
 
 extern int cg_vector_find(const cg_vector_t *vec, void *elem);
+
+extern void cg_vector_sort(cg_vector_t *vec, cg_vector_compare_fn compare);
 
 #ifdef __cplusplus
     }

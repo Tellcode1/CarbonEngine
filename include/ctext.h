@@ -94,9 +94,9 @@ typedef struct cfont_t
     float space_width;
 
     int font_index;
-    luna_GPU_Texture texture;
+    luna_GPU_Texture *texture;
     luna_GPU_Memory texture_mem;
-    luna_GPU_Sampler sampler;
+    luna_GPU_Sampler *sampler;
 
     int allocated_size;
     luna_GPU_Buffer buffer;

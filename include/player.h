@@ -1,48 +1,57 @@
 #ifndef __PLAYER_H__
 #define __PLAYER_H__
 
-#include "../external/box2d/include/box2d/box2d.h"
-#include "../include/math/vec2.h"
-#include <SDL2/SDL.h>
+#include "lunaObject.h"
+
+void plr_init();
+void plr_on_render(luna_Renderer_t *rd);
+void plr_update(float dt);
+
+static const float plr_speed = 300.0f;
 
 typedef struct player_t {
-    vec2 pos;
-    b2BodyId body;
+    luna_Object *obj;
 } player_t;
 
-player_t player_init(b2WorldId world) {
-    player_t player = {};
+player_t plr;
 
-    b2BodyDef bodyDef = b2DefaultBodyDef();
-    bodyDef.type = b2_dynamicBody;
-    bodyDef.position = (b2Vec2){0.0f, 4.0f};
-    player.body = b2CreateBody(world, &bodyDef);
-
-    b2Polygon dynamicBox = b2MakeBox(1.0f, 1.0f);
-
-    b2ShapeDef shapeDef = b2DefaultShapeDef();
-    shapeDef.density = 1.0f;
-    shapeDef.friction = 0.3f;
-    b2CreatePolygonShape(player.body, &shapeDef, &dynamicBox);
-
-    return player;
+void plr_init() {
+    plr = (player_t){};
+    plr.obj = luna_CreateObject(
+        "Player",
+        0,
+        (vec2){ 0.0f, 0.0f },
+        (vec2){ 1.0f, 1.0f }
+    );
+    luna_ObjectAssignOnUpdateFn(plr.obj, plr_update);
+    luna_ObjectAssignOnRenderFn(plr.obj, plr_on_render);
 }
 
-void player_update(player_t *pl) {
-    vec2 move = (vec2){ 0.0f, 0.0f, 0.0f };
-    if (cinput_is_key_held(SDL_SCANCODE_UP)) {
-        move.y += 20.0f;
+void plr_on_render(luna_Renderer_t *rd) {
+    (void)rd;
+}
+
+void plr_update(float dt) {
+    luna_SpriteRenderer *spr_rd = luna_ObjectGetSpriteRenderer(plr.obj);
+
+    vec2 move = (vec2){};
+    if (cinput_is_key_held(SDL_SCANCODE_LEFT)) {
+        move.x -= plr_speed;
+        spr_rd->flip_horizontal = 0;
+    }
+    else if (cinput_is_key_held(SDL_SCANCODE_RIGHT)) {
+        move.x += plr_speed;
+        spr_rd->flip_horizontal = 1;
     }
     if (cinput_is_key_held(SDL_SCANCODE_DOWN)) {
-        move.y -= 20.0f;
+        move.y -= plr_speed;
+        spr_rd->flip_vertical = 0;
     }
-    if (cinput_is_key_held(SDL_SCANCODE_LEFT)) {
-        move.x -= 20.0f;
+    else if (cinput_is_key_held(SDL_SCANCODE_UP)) {
+        move.y += plr_speed;
+        spr_rd->flip_vertical = 1;
     }
-    if (cinput_is_key_held(SDL_SCANCODE_RIGHT)) {
-        move.x += 20.0f;
-    }
-    pl->pos = v2add(pl->pos, move);
+    luna_ObjectSetVelocity(plr.obj, v2muls(move, dt));
 }
 
 #endif

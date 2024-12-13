@@ -9,6 +9,9 @@
 #include "../include/lunaPipeline.h"
 #include "../include/cengine.h"
 #include "../include/lunaVK.h"
+#include "../include/lunaUI.h"
+#include "../include/lunaObject.h"
+#include "../include/lunaInternalObjects.h"
 #include "../include/cshadermanager.h"
 #include "../include/ctext.h"
 
@@ -57,7 +60,7 @@ typedef struct line_vertex {
     vec2 position;
 } line_vertex;
 
-static const quad_vertex quad_vertices[4] = {
+static const quad_vertex quad_vertices_unflipped[4] = {
     (quad_vertex){ (vec3){+0.5f, +0.5f, 0.0f}, { 0.0f, 0.0f } },
     (quad_vertex){ (vec3){-0.5f, +0.5f, 0.0f}, { 1.0f, 0.0f } },
     (quad_vertex){ (vec3){-0.5f, -0.5f, 0.0f}, { 1.0f, 1.0f } },
@@ -95,113 +98,142 @@ int luna_Renderer_GetMaxFramesInFlight(const luna_Renderer_t *rd)
     return 1 + (int)rd->buffer_mode;
 }
 
-bool luna_Rd_quad_camera_vischeck(const vec3 *pos, const vec3 *siz) {
-    const cmrect2d object = {
-        .position = (vec2){ pos->x, pos->y },
-        .size = v2muls((vec2){ siz->x, siz->y }, 0.5f)
+void luna_Renderer_DrawQuad(luna_Renderer_t *rd, sprite_t *spr, vec2 tex_coord_multiplier, vec3 position, vec3 size, vec4 color, int layer)
+{
+    luna_DrawCall_t drawcall = {
+        .type = LUNA_DRAWCALL_QUAD,
+        .layer = layer,
+        .drawcall = {
+            .quad = {
+                .spr = spr,
+                .tex_multiplier = tex_coord_multiplier,
+                .pos = position,
+                .siz = size,
+                .col = color
+            }
+        }
     };
-
-    const cmrect2d cam = {
-        .position = (vec2){ camera.position.x, camera.position.y },
-        .size = (vec2){ CAMERA_ORTHO_W, CAMERA_ORTHO_H }
-    };
-
-    return (
-        fabsf(object.position.x - cam.position.x) <= (object.size.x + cam.size.x) &&
-        fabsf(object.position.y - cam.position.y) <= (object.size.y + cam.size.y)
-    );
+    cg_vector_push_back(&rd->drawcalls, &drawcall);
 }
 
-void luna_Renderer_DrawQuad(luna_Renderer_t *rd, vec3 position, vec3 size, vec4 color)
+void luna_Renderer_DrawLine(luna_Renderer_t *rd, vec2 start, vec2 end, vec4 color, int layer)
 {
-    // this stupid shit helps reduce lag due to me rendering 10,000 quads on my integrated graphics.
+    luna_DrawCall_t drawcall = {
+        .type = LUNA_DRAWCALL_LINE,
+        .layer = layer,
+        .drawcall = {
+            .line = {
+                .begin = start,
+                .end = end,
+                .col = color
+            }
+        }
+    };
+    cg_vector_push_back(&rd->drawcalls, &drawcall);
+}
 
-    // If the object isn't in the view of the camera, skip it
-    // This is very helpful in cases there are a lot of quads on the screen as aabb is very much more efficient
-    // than binding the pipelines and vbs
+// thjs will just sort the array from small layer to big layer :>
+int __drawcall_compar(const void *obj1, const void *obj2) {
+    return (((luna_DrawCall_t *)obj1)->layer - ((luna_DrawCall_t *)obj2)->layer);
+}
 
-    if (!luna_Rd_quad_camera_vischeck(&position, &size)) {
-        return;
+void luna_Renderer_RenderAll(luna_Renderer_t *rd) {
+    const uint32_t camera_ub_offset = luna_Renderer_GetFrame(rd) * sizeof(camera_uniform_buffer);
+    const VkCommandBuffer cmd = luna_Renderer_GetDrawBuffer(rd);
+    const VkDescriptorSet camera_set = camera.sets->set;
+
+    cg_vector_sort(&rd->drawcalls, __drawcall_compar);
+
+    for (int i = 0; i < cg_vector_size(&rd->drawcalls); i++) {
+        const luna_DrawCall_t *drawcall = &((luna_DrawCall_t *)cg_vector_data(&rd->drawcalls))[i];
+
+        if (drawcall->type == LUNA_DRAWCALL_QUAD) {
+
+            struct push_constants {
+                mat4 model;
+                vec4 color;
+                vec2 tex_multiplier; // Multiplied with the tex coords
+            } pc;
+
+            VkDeviceSize offsets = 0;
+
+            VkDescriptorSet sprite_set = sprite_get_descriptor(drawcall->drawcall.quad.spr);
+            const VkDescriptorSet sets[] = { camera_set, sprite_set };
+
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_Pipelines.Unlit.pipeline_layout, 0, 2, sets, 1, &camera_ub_offset);
+            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_Pipelines.Unlit.pipeline);
+            vkCmdBindVertexBuffers(cmd, 0, 1, &rd->quad_vb.buffers[0], &offsets);
+            vkCmdBindIndexBuffer(cmd, rd->quad_vb.buffers[0], sizeof(quad_vertices_unflipped), VK_INDEX_TYPE_UINT32);
+
+            mat4 scale = m4scale(m4init(1.0f), drawcall->drawcall.quad.siz);
+            mat4 rotate = m4init(1.0f);
+            mat4 translate = m4translate(m4init(1.0f), drawcall->drawcall.quad.pos);
+            pc.model = m4mul(translate, m4mul(rotate, scale));
+            pc.color = drawcall->drawcall.quad.col;
+            pc.tex_multiplier = drawcall->drawcall.quad.tex_multiplier;
+            vkCmdPushConstants(
+                cmd,
+                g_Pipelines.Unlit.pipeline_layout,
+                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                0,
+                sizeof(struct push_constants),
+                &pc
+            );
+
+            VkDeviceSize vertex_offset = 0;
+            vkCmdDrawIndexed(cmd, 6, 1, 0, vertex_offset, 0);
+        } else if (drawcall->type == LUNA_DRAWCALL_LINE) {
+            struct line_push_constants {
+                mat4 model;
+                vec4 color;
+                vec2 line_begin;
+                vec2 line_end;
+            } pc;
+
+            const VkDescriptorSet sets[] = { camera_set };
+
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_Pipelines.Line.pipeline_layout, 0, 1, sets, 1, &camera_ub_offset);
+            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_Pipelines.Line.pipeline);
+
+            pc.model = m4init(1.0f);
+            pc.color = drawcall->drawcall.line.col;
+            pc.line_begin = (vec2){drawcall->drawcall.line.begin.x, drawcall->drawcall.line.begin.y};
+            pc.line_end = (vec2){drawcall->drawcall.line.end.x, drawcall->drawcall.line.end.y};
+            vkCmdPushConstants(
+                cmd,
+                g_Pipelines.Line.pipeline_layout,
+                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                0,
+                sizeof(struct line_push_constants),
+                &pc
+            );
+
+            vkCmdDraw(cmd, 2, 1, 0, 0);
+        }
     }
 
-    VkCommandBuffer cmd = luna_Renderer_GetDrawBuffer(rd);
-
-    VkDeviceSize offsets = 0;
-
-    struct push_constants {
-        mat4 model;
-        vec4 color;
-    } pc;
-
-    VkDescriptorSet sprite_set = sprite_get_descriptor(sprite_empty);
-    VkDescriptorSet camera_set = camera.sets->set;
-    const VkDescriptorSet sets[] = { camera_set, sprite_set };
-
-    const uint32_t camera_ub_offset = luna_Renderer_GetFrame(rd) * sizeof(camera_uniform_buffer);
-
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_Pipelines.Unlit.pipeline_layout, 0, 2, sets, 1, &camera_ub_offset);
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_Pipelines.Unlit.pipeline);
-    vkCmdBindVertexBuffers(cmd, 0, 1, &rd->quad_vb.buffers[0], &offsets);
-    vkCmdBindIndexBuffer(cmd, rd->quad_vb.buffers[0], sizeof(quad_vertices), VK_INDEX_TYPE_UINT32);
-
-    mat4 scale = m4scale(m4init(1.0f), size);
-    mat4 rotate = m4init(1.0f);
-    mat4 translate = m4translate(m4init(1.0f), position);
-    pc.model = m4mul(translate, m4mul(rotate, scale));
-    pc.color = color;
-    vkCmdPushConstants(cmd, g_Pipelines.Unlit.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(struct push_constants), &pc);
-
-    VkDeviceSize vertex_offset = 0;
-    vkCmdDrawIndexed(cmd, 6, 1, 0, vertex_offset, 0);
-}
-
-void luna_Renderer_DrawLine(luna_Renderer_t *rd, vec2 start, vec2 end, vec4 color)
-{
-    VkCommandBuffer cmd = luna_Renderer_GetDrawBuffer(rd);
-
-    struct line_push_constants {
-		mat4 model;
-		vec4 color;
-		vec2 line_begin;
-        vec2 line_end;
-	} pc;
-
-    VkDescriptorSet camera_set = camera.sets->set;
-    const VkDescriptorSet sets[] = { camera_set };
-
-    const uint32_t camera_ub_offset = luna_Renderer_GetFrame(rd) * sizeof(camera_uniform_buffer);
-
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_Pipelines.Line.pipeline_layout, 0, 1, sets, 1, &camera_ub_offset);
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_Pipelines.Line.pipeline);
-
-    pc.model = m4init(1.0f);
-    pc.color = color;
-    pc.line_begin = (vec2){start.x, start.y};
-    pc.line_end = (vec2){end.x, end.y};
-    vkCmdPushConstants(cmd, g_Pipelines.Line.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(struct line_push_constants), &pc);
-
-    vkCmdDraw(cmd, 2, 1, 0, 0);
+    cg_vector_clear(&rd->drawcalls);
 }
 
 void luna_Renderer_PrepareQuadRenderer(luna_Renderer_t *rd)
 {
     luna_GPU_CreateBuffer(
-        sizeof(quad_vertices) + sizeof(quad_indices),
+        sizeof(quad_vertices_unflipped) + sizeof(quad_indices),
         LUNA_GPU_ALIGNMENT_UNNECESSARY,
         1,
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
         &rd->quad_vb
     );
     luna_GPU_AllocateMemory(
-        sizeof(quad_vertices) + sizeof(quad_indices),
+        sizeof(quad_vertices_unflipped) + sizeof(quad_indices),
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
         &rd->quad_memory
     );
     luna_GPU_BindBufferToMemory(&rd->quad_memory, 0, &rd->quad_vb);
     vkMapMemory(device, rd->quad_memory.memory, 0, VK_WHOLE_SIZE, 0, &rd->mapped);
 
-    memcpy(rd->mapped, quad_vertices, sizeof(quad_vertices));
-    memcpy((char *)rd->mapped + sizeof(quad_vertices), quad_indices, sizeof(quad_indices));
+    memcpy(rd->mapped, quad_vertices_unflipped, sizeof(quad_vertices_unflipped));
+    memcpy((char *)rd->mapped + sizeof(quad_vertices_unflipped), quad_indices, sizeof(quad_indices));
 }
 
 void luna_Renderer_Destroy(luna_Renderer_t *rd)
@@ -212,7 +244,7 @@ void luna_Renderer_Destroy(luna_Renderer_t *rd)
     // that was the reason we were getting errors!
     for (int i = 0; i < cg_vector_size(&rd->renderData); i++) {
         lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
-        vkDestroyImageView(device, data->sc_image.view, NULL); // as the view was silently smushed into the structure, we just kinda smush it out as well.
+        vkDestroyImageView(device, luna_GPU_TextureGetView(data->sc_image), NULL); // as the view was silently smushed into the structure, we just kinda smush it out as well.
         vkDestroyFramebuffer(device, data->color_framebuffer, NULL);
 
         vkDestroySemaphore(device, data->image_available_semaphore, NULL);
@@ -231,7 +263,7 @@ void luna_Renderer_Destroy(luna_Renderer_t *rd)
         vkDestroyDescriptorSetLayout(device, rd->ctext->desc_set->layout, NULL);
     }
     if (rd->flags & CG_RENDERER_MULTISAMPLING_ENABLE) {
-        luna_GPU_DestroyTexture(&rd->color_image);
+        luna_GPU_DestroyTexture(rd->color_image);
         luna_GPU_FreeMemory(&rd->color_image_memory);
     }
     vkDestroyRenderPass(device, rd->render_pass, NULL);
@@ -254,10 +286,10 @@ void create_optional_images(luna_Renderer_t *rd)
             Samples,
             VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
             &color_image_size,
-            &rd->color_image.image, NULL
+            &rd->color_image->image, NULL
         );
         luna_GPU_AllocateMemory(color_image_size, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, &rd->color_image_memory);
-        luna_GPU_BindTextureToMemory(&rd->color_image_memory, 0, &rd->color_image);
+        luna_GPU_BindTextureToMemory(&rd->color_image_memory, 0, rd->color_image);
 
         luna_GPU_TextureViewCreateInfo resolve_view_info = {
             .format = SwapChainImageFormat,
@@ -276,8 +308,8 @@ void create_optional_images(luna_Renderer_t *rd)
     // attachment vector will be like <color resolve, depth attachment, swapchain image>
     for (int i = 0; i < (int)SwapChainImageCount; i++) {
         lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
-        data->sc_image = (luna_GPU_Texture){};
-        data->sc_image.image = swapchainImages[i];
+        (data->sc_image) = calloc(1, sizeof(luna_GPU_Texture));
+        data->sc_image->image = swapchainImages[i];
 
         const luna_GPU_TextureCreateInfo image_info = {
             .format = VK_FORMAT_D32_SFLOAT,
@@ -292,13 +324,13 @@ void create_optional_images(luna_Renderer_t *rd)
 
         if (i == 0) {
             VkMemoryRequirements memReqs = {};
-            vkGetImageMemoryRequirements(device, data->depth_image.image, &memReqs);
+            vkGetImageMemoryRequirements(device, luna_GPU_TextureGet(data->depth_image), &memReqs);
 
             rd->shadow_image_size = memReqs.size;
             luna_GPU_AllocateMemory(rd->shadow_image_size * SwapChainImageCount, LUNA_GPU_MEMORY_USAGE_GPU_LOCAL, &rd->depth_image_memory);
         }
 
-        luna_GPU_BindTextureToMemory(&rd->depth_image_memory, i * rd->shadow_image_size, &data->depth_image);
+        luna_GPU_BindTextureToMemory(&rd->depth_image_memory, i * rd->shadow_image_size, data->depth_image);
 
         const luna_GPU_TextureViewCreateInfo view_info = {
             .format = VK_FORMAT_D32_SFLOAT,
@@ -327,7 +359,7 @@ void create_framebuffers_and_swapchain_image_views(luna_Renderer_t *rd) {
         // so we have to manually create the image view;
         VkImageViewCreateInfo imageViewCreateInfo = {};
         imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        imageViewCreateInfo.image = data->sc_image.image;
+        imageViewCreateInfo.image = luna_GPU_TextureGet(data->sc_image);
         imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
         imageViewCreateInfo.format = SwapChainImageFormat;
         imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -335,16 +367,19 @@ void create_framebuffers_and_swapchain_image_views(luna_Renderer_t *rd) {
         imageViewCreateInfo.subresourceRange.levelCount = 1;
         imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
         imageViewCreateInfo.subresourceRange.layerCount = 1;
-        if (vkCreateImageView(device, &imageViewCreateInfo, NULL, &data->sc_image.view) != VK_SUCCESS) {
+        VkImageView vioew;
+        if (vkCreateImageView(device, &imageViewCreateInfo, NULL, &vioew) != VK_SUCCESS) {
             LOG_ERROR("Failed to create view for swapchain image %d", i);
         }
 
-        const VkImageView swapchain_image_view = data->sc_image.view;
-        const VkImageView depth_image_view = data->depth_image.view;
+        luna_GPU_TextureAttachView(data->sc_image, vioew);
+
+        const VkImageView swapchain_image_view = luna_GPU_TextureGetView(data->sc_image);
+        const VkImageView depth_image_view = luna_GPU_TextureGetView(data->depth_image);
 
         cg_vector_clear(&attachments);
         if (rd->flags & CG_RENDERER_MULTISAMPLING_ENABLE) {
-            cg_vector_push_set(&attachments, (VkImageView[]){ rd->color_image.view, depth_image_view, swapchain_image_view }, 3);
+            cg_vector_push_set(&attachments, (VkImageView[]){ luna_GPU_TextureGetView(rd->color_image), depth_image_view, swapchain_image_view }, 3);
         }
         else {
             cg_vector_push_set(&attachments, (VkImageView[]){ swapchain_image_view, depth_image_view }, 2);
@@ -366,90 +401,68 @@ void create_framebuffers_and_swapchain_image_views(luna_Renderer_t *rd) {
     cg_vector_destroy(&attachments);
 }
 
-luna_Renderer_t *luna_Renderer_Init(const luna_Renderer_Config *conf)
-{
-    if (conf->multisampling_enable == 1) {
-        LOG_ERROR("config samples must not be 1 if multisampling is enabled.");
-        cassert(conf->samples != CG_SAMPLE_COUNT_1_SAMPLES);
-    }
-    struct luna_Renderer_t *rd = (luna_Renderer_t *)calloc(1, sizeof(struct luna_Renderer_t));
-
-    if (conf->multisampling_enable) {
-        rd->flags |= CG_RENDERER_MULTISAMPLING_ENABLE;
-    }
-    if (conf->window_resizable) {
-        rd->flags |= CG_RENDERER_WINDOW_RESIZABLE;
-    }
-    if (conf->vsync_enabled) {
-        rd->flags |= CG_RENDERER_VSYNC_ENABLE;
-    }
-    rd->buffer_mode = conf->buffer_mode;
-
-    /* Initialize graphics singleton */
-    {
-        if (!luna_VK_GetSupportedFormat(physDevice, surface, &SwapChainImageFormat, &SwapChainColorSpace)) {
+void luna_Renderer_InitializeGraphicsSingleton() {
+    if (!luna_VK_GetSupportedFormat(physDevice, surface, &SwapChainImageFormat, &SwapChainColorSpace)) {
             LOG_AND_ABORT("No supported format for display.");
-        }
-        SwapChainImageCount = luna_VK_GetSurfaceImageCount(physDevice, surface);
+    }
+    SwapChainImageCount = luna_VK_GetSurfaceImageCount(physDevice, surface);
 
-        u32 queueCount = 0;
-        vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, NULL);
-        cg_vector_t /* VkQueueFamilyProperties */ queueFamilies = cg_vector_init(sizeof(VkQueueFamilyProperties), queueCount);
-        vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, (VkQueueFamilyProperties *)cg_vector_data(&queueFamilies));
+    u32 queueCount = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, NULL);
+    cg_vector_t /* VkQueueFamilyProperties */ queueFamilies = cg_vector_init(sizeof(VkQueueFamilyProperties), queueCount);
+    vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, (VkQueueFamilyProperties *)cg_vector_data(&queueFamilies));
 
-        u32 graphicsFamily = 0, graphicsAndComputeFamily = 0, presentFamily = 0, computeFamily = 0, transferFamily = 0;
-        bool foundGraphicsFamily = false, foundGraphicsAndComputeFamily = false, foundPresentFamily = false, foundComputeFamily = false, foundTransferFamily = false;
+    u32 graphicsFamily = 0, graphicsAndComputeFamily = 0, presentFamily = 0, computeFamily = 0, transferFamily = 0;
+    bool foundGraphicsFamily = false, foundGraphicsAndComputeFamily = false, foundPresentFamily = false, foundComputeFamily = false, foundTransferFamily = false;
 
-        u32 i = 0;
-        for (u32 j = 0; j < queueCount; j++) {
-            const VkQueueFamilyProperties queueFamily = ((VkQueueFamilyProperties *)cg_vector_data(&queueFamilies))[j];
-            VkBool32 presentSupport;
-            vkGetPhysicalDeviceSurfaceSupportKHR(physDevice, i, surface, &presentSupport);
-            
-            if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT && queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) {
-                graphicsAndComputeFamily = i;
-                foundGraphicsAndComputeFamily = true;
-            }
-            if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-                graphicsFamily = i;
-                foundGraphicsFamily = true;
-            }
-            if (queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) {
-                computeFamily = i;
-                foundComputeFamily = true;
-            }
-            if (queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT) {
-                transferFamily = i;
-                foundTransferFamily = true;
-            }
-            if (presentSupport) {
-                presentFamily = i;
-                foundPresentFamily = true;
-            }
-            if (foundGraphicsFamily && foundGraphicsAndComputeFamily && foundPresentFamily && foundComputeFamily && foundTransferFamily)
-                break;
+    u32 i = 0;
+    for (u32 j = 0; j < queueCount; j++) {
+        const VkQueueFamilyProperties queueFamily = ((VkQueueFamilyProperties *)cg_vector_data(&queueFamilies))[j];
+        VkBool32 presentSupport;
+        vkGetPhysicalDeviceSurfaceSupportKHR(physDevice, i, surface, &presentSupport);
         
-            i++;
+        if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT && queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) {
+            graphicsAndComputeFamily = i;
+            foundGraphicsAndComputeFamily = true;
         }
-
-        GraphicsFamilyIndex = graphicsFamily;
-        ComputeFamilyIndex = computeFamily;
-        TransferQueueIndex = transferFamily;
-        PresentFamilyIndex = presentFamily;
-        GraphicsAndComputeFamilyIndex = graphicsAndComputeFamily;
-
-        vkGetDeviceQueue(device, GraphicsFamilyIndex, 0, &GraphicsQueue);
-        vkGetDeviceQueue(device, ComputeFamilyIndex, 0, &ComputeQueue);
-        vkGetDeviceQueue(device, TransferQueueIndex, 0, &TransferQueue);
-        vkGetDeviceQueue(device, PresentFamilyIndex, 0, &PresentQueue);
-        vkGetDeviceQueue(device, GraphicsAndComputeFamilyIndex, 0, &GraphicsAndComputeQueue);
-
-        cg_vector_destroy(&queueFamilies);
+        if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+            graphicsFamily = i;
+            foundGraphicsFamily = true;
+        }
+        if (queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) {
+            computeFamily = i;
+            foundComputeFamily = true;
+        }
+        if (queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT) {
+            transferFamily = i;
+            foundTransferFamily = true;
+        }
+        if (presentSupport) {
+            presentFamily = i;
+            foundPresentFamily = true;
+        }
+        if (foundGraphicsFamily && foundGraphicsAndComputeFamily && foundPresentFamily && foundComputeFamily && foundTransferFamily)
+            break;
+    
+        i++;
     }
 
-    rd->render_extent.width = conf->initial_window_size.width;
-    rd->render_extent.height = conf->initial_window_size.height;
+    GraphicsFamilyIndex = graphicsFamily;
+    ComputeFamilyIndex = computeFamily;
+    TransferQueueIndex = transferFamily;
+    PresentFamilyIndex = presentFamily;
+    GraphicsAndComputeFamilyIndex = graphicsAndComputeFamily;
 
+    vkGetDeviceQueue(device, GraphicsFamilyIndex, 0, &GraphicsQueue);
+    vkGetDeviceQueue(device, ComputeFamilyIndex, 0, &ComputeQueue);
+    vkGetDeviceQueue(device, TransferQueueIndex, 0, &TransferQueue);
+    vkGetDeviceQueue(device, PresentFamilyIndex, 0, &PresentQueue);
+    vkGetDeviceQueue(device, GraphicsAndComputeFamilyIndex, 0, &GraphicsAndComputeQueue);
+
+    cg_vector_destroy(&queueFamilies);
+}
+
+void luna_Renderer_InitializeRenderingComponents(luna_Renderer_t *rd, const luna_Renderer_Config *conf) {
     VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR;
 
     if (conf->vsync_enabled) {
@@ -503,11 +516,7 @@ luna_Renderer_t *luna_Renderer_Init(const luna_Renderer_Config *conf)
 		LOG_ERROR("Failed to create command pool");
 	}
 
-    // how many frames the renderer will render at once
     const int frames_in_flight = 1 + (int)conf->buffer_mode;
-
-    rd->drawBuffers = cg_vector_init(sizeof(VkCommandBuffer), frames_in_flight);
-    rd->renderData = cg_vector_init(sizeof(lunaFrameRenderData), frames_in_flight);
 
     lunaFrameRenderData data = {};
     for (int i = 0; i < frames_in_flight; i++) {
@@ -533,6 +542,41 @@ luna_Renderer_t *luna_Renderer_Init(const luna_Renderer_Config *conf)
 
     create_optional_images(rd);
     create_framebuffers_and_swapchain_image_views(rd);
+}
+
+luna_Renderer_t *luna_Renderer_Init(const luna_Renderer_Config *conf)
+{
+    if (conf->multisampling_enable == 1) {
+        LOG_ERROR("config samples must not be 1 if multisampling is enabled.");
+        cassert(conf->samples != CG_SAMPLE_COUNT_1_SAMPLES);
+    }
+    struct luna_Renderer_t *rd = (luna_Renderer_t *)calloc(1, sizeof(struct luna_Renderer_t));
+
+    // how many frames the renderer will render at once
+    const int frames_in_flight = 1 + (int)conf->buffer_mode;
+
+    g_Samplers = cg_vector_init(sizeof(luna_GPU_Sampler), 4);
+    rd->drawcalls = cg_vector_init(sizeof(luna_DrawCall_t), 4);
+    rd->drawBuffers = cg_vector_init(sizeof(VkCommandBuffer), frames_in_flight);
+    rd->renderData = cg_vector_init(sizeof(lunaFrameRenderData), frames_in_flight);
+
+    if (conf->multisampling_enable) {
+        rd->flags |= CG_RENDERER_MULTISAMPLING_ENABLE;
+    }
+    if (conf->window_resizable) {
+        rd->flags |= CG_RENDERER_WINDOW_RESIZABLE;
+    }
+    if (conf->vsync_enabled) {
+        rd->flags |= CG_RENDERER_VSYNC_ENABLE;
+    }
+    rd->buffer_mode = conf->buffer_mode;
+
+
+    rd->render_extent.width = conf->initial_window_size.width;
+    rd->render_extent.height = conf->initial_window_size.height;
+
+    luna_Renderer_InitializeGraphicsSingleton();
+    luna_Renderer_InitializeRenderingComponents(rd, conf);
 
     for(int i = 0; i < (int)SwapChainImageCount; i++)
 	{
@@ -561,7 +605,6 @@ luna_Renderer_t *luna_Renderer_Init(const luna_Renderer_Config *conf)
     csm_compile_updated();
     cinput_init();
     ctext_init(rd);
-
 
     luna_VK_BakeGlobalPipelines(rd);
 
@@ -595,7 +638,7 @@ void crenderer_resize(luna_Renderer_t *rd) {
     for (u32 i = 0; i < SwapChainImageCount; i++)
     {
         lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
-        vkDestroyImageView(device, data->sc_image.view, NULL); // as the view was silently smushed into the structure, we just kinda smush it out as well.
+        vkDestroyImageView(device, luna_GPU_TextureGetView(data->sc_image), NULL); // as the view was silently smushed into the structure, we just kinda smush it out as well.
         vkDestroyFramebuffer(device, data->color_framebuffer, NULL);
     }
     cg_vector_clear(&rd->renderData);
@@ -737,6 +780,10 @@ bool luna_Renderer_BeginRender(luna_Renderer_t *rd)
 void luna_Renderer_EndRender(luna_Renderer_t *rd)
 {
     const VkCommandBuffer drawBuffer = *(VkCommandBuffer *)cg_vector_get(&rd->drawBuffers, rd->renderer_frame);
+
+    luna_UI_Render(rd);
+    luna_ObjectsRender(rd);
+    luna_Renderer_RenderAll(rd);
 
     vkCmdEndRenderPass(drawBuffer);
     vkEndCommandBuffer(drawBuffer);

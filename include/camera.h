@@ -35,7 +35,10 @@ typedef struct ccamera {
     mat4 ortho;
     mat4 view;
 
+    // This reduces "choppiness" created by moving the camera if the camera has moved after transferring to the uniform buffer
+    // position is the position occupied by the camera when it was sent to the uniform buffer
     vec3 position;
+    vec3 actual_pos;
     vec3 front;
     vec3 up;
     vec3 right;
@@ -57,6 +60,7 @@ static inline ccamera ccamera_init() {
         .perspective = {},
         .ortho = m4ortho(-CAMERA_ORTHO_W, CAMERA_ORTHO_W, -CAMERA_ORTHO_H, CAMERA_ORTHO_H, 0.1f, 100.0f),
         .position = (vec3){0.0f, 0.0f, 10.0f},
+        .actual_pos = (vec3){0.0f, 0.0f, 10.0f},
         .front = (vec3){0.0f, 0.0f,  1.0f},
         .up = (vec3){0.0f, 1.0f, 0.0f},
         .right = (vec3){1.0f, 0.0f, 0.0f},
@@ -132,13 +136,13 @@ static inline void cam_rotate(ccamera *cam, f32 yaw_, f32 pitch_) {
 }
 
 static inline void cam_move(ccamera *cam, const vec3 amt) {
-    cam->position = v3add(cam->position, v3muls(cam->right, amt.x));
-    cam->position = v3add(cam->position, v3muls(cam->up   , amt.y));
-    cam->position = v3add(cam->position, v3muls(cam->front, amt.z));
+    cam->actual_pos = v3add(cam->actual_pos, v3muls(cam->right, amt.x));
+    cam->actual_pos = v3add(cam->actual_pos, v3muls(cam->up   , amt.y));
+    cam->actual_pos = v3add(cam->actual_pos, v3muls(cam->front, amt.z));
 }
 
 static inline void cam_set_position(ccamera *cam, const vec3 pos) {
-    cam->position = pos;
+    cam->actual_pos = pos;
 }
 
 static inline void cam_update(ccamera *cam, struct luna_Renderer_t *rd) {
@@ -155,7 +159,9 @@ static inline void cam_update(ccamera *cam, struct luna_Renderer_t *rd) {
     cam->right = v3normalize(v3cross(cam->front, world_up));
     cam->up = v3normalize(v3cross(cam->right, cam->front));
 
-    cam->view = m4lookat(cam->position, v3add(cam->position, cam->front), cam->up);
+    cam->view = m4lookat(cam->actual_pos, v3add(cam->actual_pos, cam->front), cam->up);
+
+    cam->position = cam->actual_pos;
 
     const lunaExtent2D RenderExtent = luna_Renderer_GetRenderExtent(rd);
     const f32 aspect = (f32)RenderExtent.width / (f32)RenderExtent.height;

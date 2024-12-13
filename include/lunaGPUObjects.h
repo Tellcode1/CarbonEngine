@@ -56,19 +56,6 @@ typedef struct luna_GPU_TextureViewCreateInfo {
     VkImageSubresourceRange subresourceRange;
 } luna_GPU_TextureViewCreateInfo;
 
-typedef struct luna_GPU_Texture {
-    luna_GPU_AllocatedObject allocation;
-    VkImageLayout layout;
-    VkImageAspectFlags aspect;
-    VkImage image;
-    VkImageView view;
-    VkExtent3D extent;
-    int miplevels, arraylayers;
-    VkFormat format;
-    lunaSampleCount samples;
-    bool is_cubemap, is_render_texture;
-} luna_GPU_Texture;
-
 typedef struct luna_GPU_SamplerCreateInfo {
     VkFilter filter;
     VkSamplerMipmapMode mipmap_mode;
@@ -77,14 +64,8 @@ typedef struct luna_GPU_SamplerCreateInfo {
     f32 mip_lod_bias, min_lod, max_lod;
 } luna_GPU_SamplerCreateInfo;
 
-typedef struct luna_GPU_Sampler {
-    VkFilter filter;
-    VkSamplerMipmapMode mipmap_mode;
-    VkSamplerAddressMode address_mode;
-    f32 max_anisotropy;
-    f32 mip_lod_bias, min_lod, max_lod;
-    VkSampler vksampler;
-} luna_GPU_Sampler;
+typedef struct luna_GPU_Texture luna_GPU_Texture;
+typedef struct luna_GPU_Sampler luna_GPU_Sampler;
 
 // I think we should make like a cgfx_err_t enum
 extern void luna_GPU_AllocateMemory(VkDeviceSize size, luna_GPU_MemoryUsage usage, luna_GPU_Memory *dst);
@@ -100,12 +81,18 @@ extern void luna_GPU_CreateBuffer(int size, int alignment, int nchilds, VkBuffer
 extern void luna_GPU_BindBufferToMemory(luna_GPU_Memory *mem, int offset, luna_GPU_Buffer *buffer);
 extern void luna_GPU_DestroyBuffer(luna_GPU_Buffer *buffer);
 
-extern void luna_GPU_CreateTexture(const luna_GPU_TextureCreateInfo *pInfo, luna_GPU_Texture *tex);
-extern void luna_GPU_CreateTextureView(const luna_GPU_TextureViewCreateInfo *pInfo, luna_GPU_Texture *tex);
+extern void luna_GPU_CreateTexture(const luna_GPU_TextureCreateInfo *pInfo, luna_GPU_Texture **tex);
+extern void luna_GPU_CreateTextureView(const luna_GPU_TextureViewCreateInfo *pInfo, luna_GPU_Texture **tex);
+
+extern void luna_GPU_TextureAttachView(luna_GPU_Texture *tex, VkImageView view);
 
 extern void luna_GPU_BindTextureToMemory(luna_GPU_Memory *mem, int offset, luna_GPU_Texture *tex);
 extern void luna_GPU_DestroyTexture(luna_GPU_Texture *tex);
 
-extern void luna_GPU_CreateSampler(const luna_GPU_SamplerCreateInfo *pInfo, luna_GPU_Sampler *sampler);
+extern void luna_GPU_CreateSampler(const luna_GPU_SamplerCreateInfo *pInfo, luna_GPU_Sampler **sampler);
+
+extern VkImage luna_GPU_TextureGet(const luna_GPU_Texture *tex);
+extern VkImageView luna_GPU_TextureGetView(const luna_GPU_Texture *tex);
+extern VkSampler luna_GPU_SamplerGet(const luna_GPU_Sampler *sampler);
 
 #endif//__LUNA_GPU_MEMORY_H

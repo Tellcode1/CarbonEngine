@@ -13,11 +13,38 @@
 #include "cgvector.h"
 #include "lunaGPUObjects.h"
 #include "lunaDescriptors.h"
+#include "sprite.h"
 
 typedef struct cg_ctext_module {
     luna_DescriptorSet *desc_set;
     unsigned flags;
 } cg_ctext_module;
+
+typedef struct luna_QuadDrawCall_t {
+    sprite_t *spr;
+    vec3 siz, pos;
+    vec2 tex_multiplier;
+    vec4 col;
+} luna_QuadDrawCall_t;
+
+typedef struct luna_LineDrawCall_t {
+    vec2 begin, end;
+    vec4 col;
+} luna_LineDrawCall_t;
+
+typedef enum luna_DrawCallType {
+    LUNA_DRAWCALL_QUAD = 0,
+    LUNA_DRAWCALL_LINE = 1,
+} luna_DrawCallType;
+
+typedef struct luna_DrawCall_t {
+    luna_DrawCallType type;
+    int layer;
+    union luna_DrawCallData {
+        luna_LineDrawCall_t line;
+        luna_QuadDrawCall_t quad;
+    } drawcall;
+} luna_DrawCall_t;
 
 typedef struct luna_Renderer_t
 {
@@ -37,13 +64,15 @@ typedef struct luna_Renderer_t
     int shadow_image_size; // the size of ONE depth texture. Multiply by SwapchainImageCount to get total size
     luna_GPU_Memory depth_image_memory;
 
-    luna_GPU_Texture color_image;
+    luna_GPU_Texture *color_image;
     luna_GPU_Memory color_image_memory;
 
     VkFormat depth_buffer_format;
 
     cg_vector_t renderData;
     cg_vector_t drawBuffers;
+
+    cg_vector_t drawcalls;
 
     cg_ctext_module *ctext;
 

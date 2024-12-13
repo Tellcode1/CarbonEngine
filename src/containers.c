@@ -207,6 +207,11 @@ int cg_vector_find(const cg_vector_t *vec, void *elem)
     return -1;
 }
 
+void cg_vector_sort(cg_vector_t *vec, cg_vector_compare_fn compare)
+{
+    qsort(vec->m_data, vec->m_size, vec->m_typesize, compare);
+}
+
 // ==============================
 // STRING
 // ==============================

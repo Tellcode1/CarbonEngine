@@ -20,6 +20,7 @@
 #include "math/vec2.h"
 #include "math/vec3.h"
 #include "math/vec4.h"
+#include "sprite.h"
 
 extern luna_DescriptorPool g_pool;
 extern struct ccamera camera;
@@ -27,8 +28,8 @@ extern struct ccamera camera;
 // Move ownership to camera VV
 typedef struct lunaFrameRenderData
 {
-    luna_GPU_Texture sc_image; // sc -> swapchain owned
-    luna_GPU_Texture depth_image;
+    luna_GPU_Texture *sc_image; // sc -> swapchain owned
+    luna_GPU_Texture *depth_image;
     VkFramebuffer    color_framebuffer;
     VkSemaphore      image_available_semaphore;
     VkSemaphore      render_finish_semaphore;
@@ -77,8 +78,16 @@ extern struct VkRenderPass_T *luna_Renderer_GetRenderPass(const luna_Renderer_t 
 extern struct lunaExtent2D luna_Renderer_GetRenderExtent(const luna_Renderer_t *rd);
 extern int luna_Renderer_GetMaxFramesInFlight(const struct luna_Renderer_t *rd);
 
-extern void luna_Renderer_DrawQuad(luna_Renderer_t *rd, vec3 position, vec3 size, vec4 color);
-extern void luna_Renderer_DrawLine(luna_Renderer_t *rd, vec2 start, vec2 end, vec4 color);
+extern void luna_Renderer_DrawQuad(
+    luna_Renderer_t *rd,
+    sprite_t *spr,
+    vec2 tex_coord_multiplier,
+    vec3 position,
+    vec3 size,
+    vec4 color,
+    int layer
+);
+extern void luna_Renderer_DrawLine(luna_Renderer_t *rd, vec2 start, vec2 end, vec4 color, int layer);
 
 #ifdef __cplusplus
     }

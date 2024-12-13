@@ -9,7 +9,7 @@ typedef struct sprite_t {
     VkImage image;
     VkImageView view;
     VkDeviceMemory mem;
-    luna_GPU_Sampler sampler;
+    luna_GPU_Sampler *sampler;
     luna_DescriptorSet *set;
 } sprite_t;
 
@@ -69,8 +69,8 @@ sprite_t *sprite_load_mem(const unsigned char *data, int w, int h, VkFormat fmt)
     cassert(vkCreateImageView(device, &view_info, NULL, &spr->view) == VK_SUCCESS);
 
     luna_GPU_SamplerCreateInfo sampler_info = {
-        .filter = VK_FILTER_LINEAR,
-        .mipmap_mode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+        .filter = VK_FILTER_NEAREST,
+        .mipmap_mode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
         .address_mode = VK_SAMPLER_ADDRESS_MODE_REPEAT,
         .max_anisotropy = 1.0f,
         .mip_lod_bias = 0.0f,
@@ -88,7 +88,7 @@ sprite_t *sprite_load_mem(const unsigned char *data, int w, int h, VkFormat fmt)
     luna_AllocateDescriptorSet(&g_pool, &binding, 1, &spr->set);
 
     VkDescriptorImageInfo desc_img = {
-        .sampler = spr->sampler.vksampler,
+        .sampler = luna_GPU_SamplerGet(spr->sampler),
         .imageView = spr->view,
         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
     };
@@ -138,5 +138,5 @@ VkDescriptorSet sprite_get_descriptor(const sprite_t *spr)
 
 VkSampler sprite_get_sampler(const sprite_t *spr)
 {
-    return spr->sampler.vksampler;
+    return luna_GPU_SamplerGet(spr->sampler);
 }

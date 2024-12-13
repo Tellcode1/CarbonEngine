@@ -1,6 +1,7 @@
 #include "../include/lunaVK.h"
 #include "../include/lunaPipeline.h"
 #include "../include/lunaGFXDef.h"
+#include "../include/lunaInternalObjects.h"
 #include "../include/lunaImage.h"
 
 #include "../include/camera.h"
@@ -27,6 +28,8 @@ SystemPipelines g_Pipelines;
 
 VkPipeline base_pipeline = NULL;
 VkPipelineCache cache = NULL;
+
+cg_vector_t g_Samplers;
 
 void __BakeUnlitPipeline( luna_Renderer_t *rd ) {
     VkDescriptorSetLayoutBinding bindings[] = {
@@ -64,7 +67,7 @@ void __BakeUnlitPipeline( luna_Renderer_t *rd ) {
 
     const VkPushConstantRange pushConstants[] = { 
         // stageFlags, offset, size
-        {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(mat4) + sizeof(vec4)}
+        {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(mat4) + sizeof(vec4) + sizeof(vec2)}
     };
 
 	luna_GPU_PipelineCreateInfo pc = luna_GPU_InitPipelineCreateInfo();
@@ -216,7 +219,6 @@ void luna_VK_BakeGlobalPipelines( luna_Renderer_t *rd )
 {
 	__BakeUnlitPipeline(rd);
     __BakeDebugLinePipeline(rd);
-	//__BakeLitPipeline(rd); // Not yet implemented
 	__BakeCtextPipeline(rd);
 }
 
@@ -1032,6 +1034,8 @@ u32 luna_VK_GetSurfaceImageCount(VkPhysicalDevice physDevice, VkSurfaceKHR surfa
 	return requestedImageCount;
 }
 
+// LUNA_GPU_OBJECTS
+
 // these parameters should be replaced
 // properties should be replaced by usage. Like LUNA_GPU_MEMORY_USAGE_GPU, CPU_TO_GPU, GPU_TO_CPU, etc.
 void luna_GPU_AllocateMemory(VkDeviceSize size, luna_GPU_MemoryUsage usage, luna_GPU_Memory *dst) {
@@ -1089,7 +1093,14 @@ void luna_GPU_BindBufferToMemory(luna_GPU_Memory *mem, int offset, luna_GPU_Buff
         vkBindBufferMemory(device, buffer->buffers[i], mem->memory, offset + i * aligned_sz);
     }
 }
+
+void luna_GPU_TextureAttachView(luna_GPU_Texture *tex, VkImageView view)
+{
+    tex->view = view;
+}
+
 void luna_GPU_BindTextureToMemory(luna_GPU_Memory *mem, int offset, luna_GPU_Texture *tex) {
+
     tex->allocation.memory = mem;
     tex->allocation.memory_offset = offset;
     vkBindImageMemory(device, tex->image, mem->memory, offset);
@@ -1114,14 +1125,34 @@ void luna_GPU_DestroyTexture(luna_GPU_Texture *tex) {
     }
 }
 
-void luna_GPU_CreateSampler(const luna_GPU_SamplerCreateInfo *pInfo, luna_GPU_Sampler *sampler) {
-    sampler->filter = pInfo->filter;
-    sampler->mipmap_mode = pInfo->mipmap_mode;
-    sampler->address_mode = pInfo->address_mode;
-    sampler->max_anisotropy = pInfo->max_anisotropy;
-    sampler->mip_lod_bias = pInfo->mip_lod_bias;
-    sampler->min_lod = pInfo->min_lod;
-    sampler->max_lod = pInfo->max_lod;
+void luna_GPU_CreateSampler(const luna_GPU_SamplerCreateInfo *pInfo, luna_GPU_Sampler **sampler) {
+    for (int i = 0; i < g_Samplers.m_size; i++) {
+        luna_GPU_Sampler *cache = &((luna_GPU_Sampler *)cg_vector_data(&g_Samplers))[i];
+        if (
+                cache != NULL &&
+                cache->filter == pInfo->filter &&
+                cache->mipmap_mode == pInfo->mipmap_mode &&
+                cache->address_mode == pInfo->address_mode &&
+                cache->max_anisotropy == pInfo->max_anisotropy &&
+                cache->mip_lod_bias == pInfo->mip_lod_bias &&
+                cache->min_lod == pInfo->min_lod &&
+                cache->max_lod == pInfo->max_lod &&
+                cache->vksampler != NULL) {
+            
+            *sampler = cache;
+            return;
+        }
+    }
+
+    luna_GPU_Sampler smap = {
+        .filter = pInfo->filter,
+        .mipmap_mode = pInfo->mipmap_mode,
+        .address_mode = pInfo->address_mode,
+        .max_anisotropy = pInfo->max_anisotropy,
+        .mip_lod_bias = pInfo->mip_lod_bias,
+        .min_lod = pInfo->min_lod,
+        .max_lod = pInfo->max_lod,
+    };
 
     VkSamplerCreateInfo samplerInfo = {};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -1134,10 +1165,30 @@ void luna_GPU_CreateSampler(const luna_GPU_SamplerCreateInfo *pInfo, luna_GPU_Sa
     samplerInfo.anisotropyEnable = pInfo->max_anisotropy > 1.0f;
     samplerInfo.maxLod = pInfo->max_lod;
     samplerInfo.minLod = pInfo->min_lod;
-    cassert(vkCreateSampler(device, &samplerInfo, NULL, &sampler->vksampler) == VK_SUCCESS);
+    cassert(vkCreateSampler(device, &samplerInfo, NULL, &smap.vksampler) == VK_SUCCESS);
+
+    cg_vector_push_back(&g_Samplers, &smap);
+    (*sampler) = &((luna_GPU_Sampler *)g_Samplers.m_data)[ g_Samplers.m_size - 1 ];
 }
 
-void luna_GPU_CreateTexture(const luna_GPU_TextureCreateInfo *pInfo, luna_GPU_Texture *tex) {
+VkImage luna_GPU_TextureGet(const luna_GPU_Texture *tex)
+{
+    return tex->image;
+}
+
+VkImageView luna_GPU_TextureGetView(const luna_GPU_Texture *tex)
+{
+    return tex->view;
+}
+
+VkSampler luna_GPU_SamplerGet(const luna_GPU_Sampler *sampler)
+{
+    return sampler->vksampler;
+}
+
+void luna_GPU_CreateTexture(const luna_GPU_TextureCreateInfo *pInfo, luna_GPU_Texture **tex)
+{
+    (*tex) = calloc(1, sizeof(luna_GPU_Texture));
     VkImageCreateInfo imageCreateInfo = {};
     imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imageCreateInfo.imageType = pInfo->type;
@@ -1150,17 +1201,17 @@ void luna_GPU_CreateTexture(const luna_GPU_TextureCreateInfo *pInfo, luna_GPU_Te
     imageCreateInfo.usage = pInfo->usage;
     imageCreateInfo.samples = (VkSampleCountFlagBits)pInfo->samples;
     imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    if (vkCreateImage(device, &imageCreateInfo, NULL, &tex->image) != VK_SUCCESS) {
+    if (vkCreateImage(device, &imageCreateInfo, NULL, &(*tex)->image) != VK_SUCCESS) {
         LOG_ERROR("Failed to create image");
     }
 }
 
 // vkimage is fetched from image!
-void luna_GPU_CreateTextureView(const luna_GPU_TextureViewCreateInfo *pInfo, luna_GPU_Texture *tex) {
-    const VkFormat dst_format = (pInfo->format != VK_FORMAT_UNDEFINED) ? pInfo->format : tex->format;
+void luna_GPU_CreateTextureView(const luna_GPU_TextureViewCreateInfo *pInfo, luna_GPU_Texture **tex) {
+    const VkFormat dst_format = (pInfo->format != VK_FORMAT_UNDEFINED) ? pInfo->format : (*tex)->format;
     VkImageViewCreateInfo view_info = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = tex->image,
+        .image = (*tex)->image,
         .viewType = pInfo->view_type,
         .format = dst_format,
         .subresourceRange = pInfo->subresourceRange,
@@ -1169,5 +1220,5 @@ void luna_GPU_CreateTextureView(const luna_GPU_TextureViewCreateInfo *pInfo, lun
         .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
         .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
     };
-    cassert(vkCreateImageView(device, &view_info, NULL, &tex->view) == VK_SUCCESS);
+    cassert(vkCreateImageView(device, &view_info, NULL, &(*tex)->view) == VK_SUCCESS);
 }

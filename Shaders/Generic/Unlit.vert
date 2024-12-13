@@ -20,6 +20,7 @@ layout(set = 0, binding = 0, std140) uniform camera_buffer {
 layout (push_constant) uniform push_constants {
     mat4 model;
     vec4 color;
+    vec2 tex_multiplier;
 } pc;
 
 void main() {

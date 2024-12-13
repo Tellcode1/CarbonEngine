@@ -8,7 +8,7 @@ typedef struct luna_UI_Context {
     luna_DescriptorSet *set;
     cg_vector_t btons;
     void *ubmapped;
-    luna_GPU_Sampler sampler;
+    luna_GPU_Sampler *sampler;
 } luna_UI_Context;
 
 luna_UI_Context luna_ui_ctx;
@@ -31,7 +31,7 @@ void luna_UI_Init() {
     luna_AllocateDescriptorSet(&g_pool, bindings, array_len(bindings), &luna_ui_ctx.set);
 
     const VkDescriptorImageInfo image_desc_info = {
-        .sampler = luna_ui_ctx.sampler.vksampler,
+        .sampler = luna_GPU_SamplerGet(luna_ui_ctx.sampler),
         .imageView = sprite_get_internal_view(sprite_empty),
         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     };
@@ -65,9 +65,12 @@ void luna_UI_Render(luna_Renderer_t *rd) {
 
         luna_Renderer_DrawQuad(
             rd,
+            bton->spr,
+            (vec2){ 1.0f, 1.0f },
             (vec3){ bton->position.x, bton->position.y, 0.0f },
             (vec3){ bton->size.x, bton->size.y, 1.0f },
-            bton->color
+            bton->color,
+            0
         );
     }
 }

@@ -168,14 +168,14 @@ void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scale, cfon
     luna_GPU_CreateTexture(&image_info, &dstref->texture);
 
     VkMemoryRequirements imageMemoryRequirements;
-    vkGetImageMemoryRequirements(device, dstref->texture.image, &imageMemoryRequirements);
+    vkGetImageMemoryRequirements(device, luna_GPU_TextureGet(dstref->texture), &imageMemoryRequirements);
 
     luna_GPU_AllocateMemory(imageMemoryRequirements.size, LUNA_GPU_MEMORY_USAGE_GPU_LOCAL, &dstref->texture_mem);
-    luna_GPU_BindTextureToMemory(&dstref->texture_mem, 0, &dstref->texture);
+    luna_GPU_BindTextureToMemory(&dstref->texture_mem, 0, dstref->texture);
 
     const int atlas_w = dstref->atlas.width, atlas_h = dstref->atlas.height;
     luna_VK_StageImageTransfer(
-        dstref->texture.image,
+        luna_GPU_TextureGet(dstref->texture),
         dstref->atlas.data,
         atlas_w,
         atlas_h,
@@ -203,8 +203,8 @@ void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scale, cfon
     luna_GPU_CreateTextureView(&view_info, &dstref->texture);
 
     const VkDescriptorImageInfo ctext_bitmap_image_info = {
-        .sampler = dstref->sampler.vksampler,
-        .imageView = dstref->texture.view,
+        .sampler = luna_GPU_SamplerGet(dstref->sampler),
+        .imageView = luna_GPU_TextureGetView(dstref->texture),
         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
     };
 

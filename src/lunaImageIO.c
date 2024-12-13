@@ -84,7 +84,7 @@ luna_Image luna_ImageLoadPNG(const char *path)
 
     u8 **row_pointers = malloc(sizeof(u8 *) * texture.h);
     for (int y = 0; y < texture.h; y++) {
-        row_pointers[y] = texture.data + (texture.h - 1 - y) * texture.w * vk_fmt_get_bpp(texture.fmt);
+        row_pointers[y] = texture.data + y * texture.w * vk_fmt_get_bpp(texture.fmt);
     }
 
     png_read_image(png, row_pointers);

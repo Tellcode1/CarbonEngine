@@ -21,6 +21,8 @@
 
 #include "../include/lunaObject.h"
 
+#include "../include/player.h"
+
 void pressed(luna_UI_Button *self) {
     (void)self;
     puts("bye bye!! xoxo");
@@ -63,19 +65,11 @@ int main(int argc, char *argv[]) {
 
     luna_UI_Init(rd);
 
-    luna_UI_Button *bton = luna_UI_CreateButton(sprite_load_disk("../Assets/barrel.png"));
+    luna_UI_Button *bton = luna_UI_CreateButton(sprite_load_disk("../Assets/x.png"));
     bton->size.x = 5.0f;
     bton->size.y = 5.0f;
     bton->pressed = pressed;
     bton->hover = hoover;
-
-    luna_UI_Button *bton2 = luna_UI_CreateButton(sprite_load_disk("../Assets/barrel.png"));
-    bton2->size.x = 10.0f;
-    bton2->size.y = 10.0f;
-    bton2->pressed = pressed;
-    bton2->hover = hoover;
-    bton2->position.x = 10.0f;
-    bton2->position.y = 10.0f;
 
     luna_Object_Initialize();
 
@@ -87,14 +81,7 @@ int main(int argc, char *argv[]) {
     );
     (void)grnd;
 
-    luna_Object *plr = luna_CreateObject(
-        "Player",
-        0,
-        (vec2){ 0.0f, 0.0f },
-        (vec2){ 1.0f, 1.0f }
-    );
-
-    bool can_jump = 0;
+    plr_init();
 
     // What in the unholy f%$ where you doing
     LOG_DEBUG("Initialized in %ld ms (%.3f s)", SDL_GetTicks64(), SDL_GetTicks64() / 1000.0f);
@@ -128,21 +115,6 @@ int main(int argc, char *argv[]) {
         cam_update(&camera, rd);
 
         luna_ObjectsUpdate();
-        luna_ObjectSetVelocity(plr, (vec2){ 0.0f, luna_ObjectGetVelocity(plr).y });
-
-        vec2 pos = luna_ObjectGetPosition(plr);
-        vec2 start = (vec2){
-            pos.x, pos.y
-        };
-        vec2 end = (vec2){
-            pos.x, pos.y - 0.65f
-        };
-        bool on_ground = luna_ObjectRayCast(plr, luna_ObjectGetPosition(plr), (vec2){0.0f, -0.65f});
-        if (on_ground) {
-            can_jump = 1;
-        } else {
-            can_jump = 0;
-        }
 
         vec3 move = (vec3){ 0.0f, 0.0f, 0.0f };
         if (cinput_is_key_held(SDL_SCANCODE_W)) {
@@ -163,47 +135,11 @@ int main(int argc, char *argv[]) {
         if (!bton->was_hovered) { // If the mouse is NOT on the button, change it back to it's default color
             bton->color = (vec4){ 1.0f, 1.0f, 1.0f, 1.0f };
         }
-        if (!bton2->was_hovered) {
-            bton2->color = (vec4){ 1.0f, 1.0f, 1.0f, 1.0f };
-        }
-
-        move = (vec3){};
-        const float JUMPFORCE = 5.0f;
-        const float XSPEED = 6.0f;
-        if (cinput_is_key_held(SDL_SCANCODE_LEFT)) {
-            move.x -= XSPEED;
-        }
-        if (cinput_is_key_held(SDL_SCANCODE_RIGHT)) {
-            move.x += XSPEED;
-        }
-        if (cinput_is_key_pressed(SDL_SCANCODE_SPACE) && can_jump) {
-            move.y += JUMPFORCE;
-            can_jump = 0;
-        }
-        luna_ObjectMove(plr, *(vec2 *)&move);
+        bton->position = v2add(*(vec2 *)&camera.position, (vec2){ -9.0f, 9.0f });
+        bton->size = (vec2){ 1.0f, 1.0f };
 
         if (luna_Renderer_BeginRender(rd)) {
             ctext_begin_render(amongus);
-
-            luna_Renderer_DrawLine(rd, 
-                start,
-                end,
-                (vec4){ 1.0f, 0.0f, 0.0f, 1.0f }
-            );
-
-            luna_UI_Render(rd);
-
-            luna_ObjectsRender(rd);
-
-            ctext_text_render_info info = {};
-            info.horizontal = CTEXT_HORI_ALIGN_CENTER;
-            info.vertical = CTEXT_VERT_ALIGN_CENTER;
-            info.position = (vec3){0.0f, 0.0f, 0.1f};
-            info.color = (vec4){1.0f,0.0f,0.0f,1.0f};
-            info.scale = 1.0f;
-            info.scale_for_fit = 1;
-            info.bbox = bton2->size;
-            ctext_render(amongus, &info, "POOTIS\nSPENCER\nHERE");
 
             ctext_end_render(rd, amongus, m4init(1.0f));
 
