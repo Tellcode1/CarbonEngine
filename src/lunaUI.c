@@ -5,48 +5,14 @@
 #include "../include/cinput.h"
 
 typedef struct luna_UI_Context {
-    luna_DescriptorSet *set;
     cg_vector_t btons;
     void *ubmapped;
-    luna_GPU_Sampler *sampler;
 } luna_UI_Context;
 
 luna_UI_Context luna_ui_ctx;
 
 void luna_UI_Init() {
     luna_ui_ctx.btons = cg_vector_init(sizeof(luna_UI_Button), 4);
-
-    luna_GPU_SamplerCreateInfo sampler_info = {
-       .filter = VK_FILTER_LINEAR,
-       .mipmap_mode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-       .address_mode = VK_SAMPLER_ADDRESS_MODE_REPEAT 
-    };
-    luna_GPU_CreateSampler(&sampler_info, &luna_ui_ctx.sampler);
-
-    const VkDescriptorSetLayoutBinding bindings[] = {
-        // binding; descriptorType; descriptorCount; stageFlags; pImmutableSamplers;
-        { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL },
-    };
-
-    luna_AllocateDescriptorSet(&g_pool, bindings, array_len(bindings), &luna_ui_ctx.set);
-
-    const VkDescriptorImageInfo image_desc_info = {
-        .sampler = luna_GPU_SamplerGet(luna_ui_ctx.sampler),
-        .imageView = sprite_get_internal_view(sprite_empty),
-        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-    };
-
-    VkWriteDescriptorSet write = {
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet = luna_ui_ctx.set->set,
-        .dstBinding = 0,
-        .descriptorCount = 1,
-        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        .pImageInfo = &image_desc_info
-    };
-    luna_DescriptorSetSubmitWrite(luna_ui_ctx.set, &write);
-
-    cassert(luna_ui_ctx.set->set != VK_NULL_HANDLE && luna_ui_ctx.set->layout != VK_NULL_HANDLE);
 }
 
 luna_UI_Button *luna_UI_CreateButton(sprite_t *spr) {

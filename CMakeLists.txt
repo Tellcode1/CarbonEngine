@@ -23,10 +23,8 @@ set(SOURCES
     src/cengine.c
     src/cengineinit.c
     
-    src/ctext.c
     src/cshadermanager.c
     
-    src/lunaGFX.c
     src/lunaVK.c
     src/lunaUI.c
 
@@ -59,7 +57,7 @@ set(LIBS
     box2d
 )
 
-target_link_options(${OUTPUT} PRIVATE -g -Wall -Wextra)
-target_compile_options(${OUTPUT} PRIVATE -g -Wall -Wextra)
+target_link_options(${OUTPUT} PRIVATE -g -Wall -Wextra -O3)
+target_compile_options(${OUTPUT} PRIVATE -g -Wall -Wextra -O3)
 target_compile_definitions(${OUTPUT} PRIVATE CSM_EXECUTABLE=0) # avoid making multiple main's 
 target_link_libraries(${OUTPUT} ${LIBS})

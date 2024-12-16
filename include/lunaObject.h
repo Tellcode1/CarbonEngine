@@ -16,15 +16,20 @@ typedef struct luna_Object luna_Object;
 
 void luna_Object_Initialize();
 
+typedef enum luna_ObjectFlags {
+    LUNA_OBJECT_NO_COLLISION = 1,
+} luna_ObjectFlags;
+
 luna_Object *luna_CreateObject(
     const char *name,
     bool is_static, // is body static? or is it dynamic?
     vec2 position,
-    vec2 size
+    vec2 size,
+    unsigned flags
 );
 
 typedef struct luna_ObjectRayHit {
-    luna_Object *host;
+    const luna_Object *host;
     luna_Object *other;
     vec2 point_of_contact;
     bool hit;
@@ -47,6 +52,9 @@ void luna_ObjectAssignOnRenderFn(luna_Object *obj, LunaObjectRenderFn fn);
 
 void luna_ObjectMove(luna_Object *obj, vec2 add);
 vec2 luna_ObjectGetPosition(const luna_Object *obj);
+void luna_ObjectSetPosition(luna_Object *obj, vec2 to);
+vec2 luna_ObjectGetSize(const luna_Object *obj);
+void luna_ObjectSetSize(luna_Object *obj, vec2 to);
 vec2 luna_ObjectGetVelocity(const luna_Object *obj);
 void luna_ObjectSetVelocity(luna_Object *obj, vec2 vel);
 

@@ -22,6 +22,8 @@
 #include "../include/lunaObject.h"
 
 #include "../include/player.h"
+#include "../include/bee.h"
+#include "../include/enemy.h"
 
 void pressed(luna_UI_Button *self) {
     (void)self;
@@ -77,11 +79,14 @@ int main(int argc, char *argv[]) {
         "Ground",
         1,
         (vec2){ 0.0f, -5.0f },
-        (vec2){ 100.0f, 1.0f }
+        (vec2){ 100.0f, 1.0f },
+        0
     );
     (void)grnd;
 
     plr_init();
+    bees_init();
+    enemies_init();
 
     // What in the unholy f%$ where you doing
     LOG_DEBUG("Initialized in %ld ms (%.3f s)", SDL_GetTicks64(), SDL_GetTicks64() / 1000.0f);
@@ -115,6 +120,8 @@ int main(int argc, char *argv[]) {
         cam_update(&camera, rd);
 
         luna_ObjectsUpdate();
+        bees_update();
+        enemies_update();
 
         vec3 move = (vec3){ 0.0f, 0.0f, 0.0f };
         if (cinput_is_key_held(SDL_SCANCODE_W)) {
@@ -135,7 +142,7 @@ int main(int argc, char *argv[]) {
         if (!bton->was_hovered) { // If the mouse is NOT on the button, change it back to it's default color
             bton->color = (vec4){ 1.0f, 1.0f, 1.0f, 1.0f };
         }
-        bton->position = v2add(*(vec2 *)&camera.position, (vec2){ -9.0f, 9.0f });
+        bton->position = v2add((vec2){camera.position.x, camera.position.y}, (vec2){ -9.0f, 9.0f });
         bton->size = (vec2){ 1.0f, 1.0f };
 
         if (luna_Renderer_BeginRender(rd)) {

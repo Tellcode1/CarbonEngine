@@ -81,6 +81,11 @@ void *cg_vector_data(const cg_vector_t *vec)
     return vec->m_data;
 }
 
+void *cg_vector_back(cg_vector_t *vec)
+{
+    return cg_vector_get(vec, cmmax(0, cg_vector_size(vec) - 1));
+}
+
 void *cg_vector_get(const cg_vector_t *vec, int i)
 {
     return (uchar *)vec->m_data + (vec->m_typesize * i);
@@ -91,7 +96,7 @@ void cg_vector_set(cg_vector_t *vec, int i, void *elem)
     memcpy(cg_vector_get(vec, i), elem, vec->m_typesize);
 }
 
-void cg_vector_copy_from(const cg_vector_t *src, cg_vector_t *dst)
+void cg_vector_copy_from(const cg_vector_t *__restrict src, cg_vector_t *__restrict dst)
 {
     cassert(src->m_typesize == dst->m_typesize);
     if (src->m_size >= dst->m_capacity) {
@@ -101,7 +106,7 @@ void cg_vector_copy_from(const cg_vector_t *src, cg_vector_t *dst)
     memcpy(dst->m_data, src->m_data, src->m_size * src->m_typesize);
 }
 
-void cg_vector_move_from(cg_vector_t *src, cg_vector_t *dst)
+void cg_vector_move_from(cg_vector_t *__restrict src, cg_vector_t *__restrict dst)
 {
     dst->m_size = src->m_size;
     dst->m_capacity = src->m_capacity;
@@ -138,7 +143,7 @@ void cg_vector_resize(cg_vector_t *vec, int new_size)
     vec->m_capacity = new_size;
 }
 
-void cg_vector_push_back(cg_vector_t *vec, const void *elem)
+void cg_vector_push_back(cg_vector_t *__restrict vec, const void *__restrict elem)
 {
     if ((vec->m_size + 1) >= vec->m_capacity) {
         cg_vector_resize(vec, cmmax(1, vec->m_capacity * 2));
@@ -147,7 +152,7 @@ void cg_vector_push_back(cg_vector_t *vec, const void *elem)
     vec->m_size++;
 }
 
-void cg_vector_push_set(cg_vector_t *vec, void *arr, int count)
+void cg_vector_push_set(cg_vector_t *__restrict vec, const void *__restrict arr, int count)
 {
     int required_capacity = vec->m_size + count;
     if (required_capacity >= vec->m_capacity)
@@ -171,7 +176,7 @@ void cg_vector_pop_front(cg_vector_t *vec)
     }
 }
 
-void cg_vector_insert(cg_vector_t *vec, int index, void *elem)
+void cg_vector_insert(cg_vector_t *__restrict vec, int index, const void *__restrict elem)
 {
     if (index >= vec->m_capacity) {
         cg_vector_resize(vec, cmmax(1, index * 2)); // linear allocator. i could probably implement more but i don't have time rn
@@ -197,7 +202,7 @@ void cg_vector_remove(cg_vector_t *vec, int index)
     vec->m_size--;
 }
 
-int cg_vector_find(const cg_vector_t *vec, void *elem)
+int cg_vector_find(const cg_vector_t *__restrict vec, const void *__restrict elem)
 {
     for (int i = 0; i < vec->m_size; i++) {
         if (memcmp(vec->m_data + (i * vec->m_typesize), elem, vec->m_typesize)) {

@@ -21,7 +21,8 @@ void plr_init() {
         "Player",
         0,
         (vec2){ 0.0f, 0.0f },
-        (vec2){ 1.0f, 1.0f }
+        (vec2){ 1.0f, 1.0f },
+        0
     );
     luna_ObjectAssignOnUpdateFn(plr.obj, plr_update);
     luna_ObjectAssignOnRenderFn(plr.obj, plr_on_render);
