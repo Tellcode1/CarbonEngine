@@ -15,9 +15,11 @@ typedef struct sprite_t {
 
 sprite_t *sprite_empty = NULL;
 
-sprite_t *sprite_load_mem(const unsigned char *data, int w, int h, VkFormat fmt)
+sprite_t *sprite_load_mem(const unsigned char *data, int w, int h, lunaFormat fmt)
 {
     sprite_t *spr = calloc(1, sizeof(struct sprite_t));
+
+    fmt = luna_VK_GetSupportedFormatForDraw(fmt);
 
     VkImageCreateInfo imageCreateInfo = {};
     imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -25,7 +27,7 @@ sprite_t *sprite_load_mem(const unsigned char *data, int w, int h, VkFormat fmt)
     imageCreateInfo.extent = (VkExtent3D){ w, h, 1 };
     imageCreateInfo.mipLevels = 1;
     imageCreateInfo.arrayLayers = 1;
-    imageCreateInfo.format = fmt;
+    imageCreateInfo.format = luna_lunaFormatToVKFormat(fmt);
     imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
@@ -47,13 +49,13 @@ sprite_t *sprite_load_mem(const unsigned char *data, int w, int h, VkFormat fmt)
     cassert(vkAllocateMemory(device, &allocInfo, NULL, &spr->mem) == VK_SUCCESS);
     vkBindImageMemory(device, spr->image, spr->mem, 0);
 
-    luna_VK_StageImageTransfer(spr->image, data, w, h, w * h * vk_fmt_get_bpp(fmt));
+    luna_VK_StageImageTransfer(spr->image, data, w, h, w * h * vk_fmt_get_bpp(luna_lunaFormatToVKFormat(fmt)));
 
     const VkImageViewCreateInfo view_info = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image = spr->image,
         .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = fmt,
+        .format = luna_lunaFormatToVKFormat(fmt),
         .subresourceRange = (VkImageSubresourceRange){
             .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
             .baseMipLevel = 0,

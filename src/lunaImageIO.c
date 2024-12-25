@@ -1,4 +1,6 @@
 #include "../include/lunaImage.h"
+#include "../include/vkstdafx.h"
+#include "../include/lunaFormat.h"
 #include "../include/defines.h"
 
 #include <stdlib.h>
@@ -67,10 +69,10 @@ luna_Image luna_ImageLoadPNG(const char *path)
     int channels = png_get_channels(png, info);
 
     switch (channels) {
-        case 1: texture.fmt = VK_FORMAT_R8_UNORM; break;
-        case 2: texture.fmt = VK_FORMAT_R8G8_UNORM; break;
-        case 3: texture.fmt = VK_FORMAT_R8G8B8_UNORM; break;
-        case 4: texture.fmt = VK_FORMAT_R8G8B8A8_UNORM; break;
+        case 1: texture.fmt = LUNA_FORMAT_R8; break;
+        case 2: texture.fmt = LUNA_FORMAT_RG8; break;
+        case 3: texture.fmt = LUNA_FORMAT_RGB8; break;
+        case 4: texture.fmt = LUNA_FORMAT_RGBA8; break;
         default:
             printf("unsupported file(png) format: channels = %d\n", channels);
             cassert(0);
@@ -84,7 +86,7 @@ luna_Image luna_ImageLoadPNG(const char *path)
 
     u8 **row_pointers = malloc(sizeof(u8 *) * texture.h);
     for (int y = 0; y < texture.h; y++) {
-        row_pointers[y] = texture.data + y * texture.w * vk_fmt_get_bpp(texture.fmt);
+        row_pointers[y] = texture.data + y * texture.w * vk_fmt_get_bpp(luna_lunaFormatToVKFormat(texture.fmt));
     }
 
     png_read_image(png, row_pointers);
@@ -119,14 +121,15 @@ luna_Image luna_ImageLoadJPEG(const char *path)
     img.w = cinfo.output_width;
     img.h = cinfo.output_height;
     
-    const int channels = cinfo.output_components;
+    int channels = cinfo.output_components;
 
     switch (channels) {
         case 1:
-            img.fmt = VK_FORMAT_R8_UNORM;
+            img.fmt = LUNA_FORMAT_R8;
             break;
         case 3:
-            img.fmt = VK_FORMAT_R8G8B8_UNORM;
+            img.fmt = LUNA_FORMAT_RGBA8;
+            channels = 4;
             break;
         default:
             printf("invalid num channels: %d\n", channels);
@@ -168,7 +171,7 @@ void luna_ImageWritePNG(const luna_Image *tex, const char *path)
     png_init_io(png, f);
 
     int coltype = -1;
-    switch (tex->fmt) {
+    switch (luna_lunaFormatToVKFormat(tex->fmt)) {
         case VK_FORMAT_R8_UNORM:
         case VK_FORMAT_R8_SNORM:
         case VK_FORMAT_R8_UINT:
@@ -251,7 +254,7 @@ void luna_ImageWritePNG(const luna_Image *tex, const char *path)
     }
     cassert(coltype != -1);
 
-    const int bytesperpixel = vk_fmt_get_bpp(tex->fmt);
+    const int bytesperpixel = vk_fmt_get_bpp(luna_lunaFormatToVKFormat(tex->fmt));
     png_set_IHDR(png, info, tex->w, tex->h, bytesperpixel * 8, coltype, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
 
     png_write_info(png, info);

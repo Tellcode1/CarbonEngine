@@ -15,8 +15,8 @@ struct csm_shader_t;
 
 typedef void (*luna_GPU_ResultCheckFn) (const VkResult result, const char *__restrict__ FILE, const char *__restrict__ FUNC, unsigned long LINE);
 
-#define CVK_REQUIRED_PTR(ptr) if((ptr) == NULL) LOG_AND_ABORT(#ptr" :  Required parameter \""#ptr"\" specified as NULL.\n", __basename(__FILE__), __LINE__, __PRETTY_FUNCTION__)
-#define CVK_NOT_EQUAL_TO(val, to) if((val) == (to)) LOG_AND_ABORT(#val" == "#to". Value \""#val"\" must not be equal to "#to".\n", __basename(__FILE__), __LINE__, __PRETTY_FUNCTION__)
+#define CVK_REQUIRED_PTR(ptr) if((ptr) == NULL) LOG_AND_ABORT(#ptr" :  Required parameter \""#ptr"\" specified as NULL.", __basename(__FILE__), __LINE__, __PRETTY_FUNCTION__)
+#define CVK_NOT_EQUAL_TO(val, to) if((val) == (to)) LOG_AND_ABORT(#val" == "#to". Value \""#val"\" must not be equal to "#to".", __basename(__FILE__), __LINE__, __PRETTY_FUNCTION__)
 
 #define __cvk_to_bit(n) (1 << n)
 
@@ -114,7 +114,7 @@ typedef struct luna_GPU_PipelineCreateInfo
 	VkRenderPass 	 	render_pass;
 	VkPipelineLayout 	pipeline_layout;
 	VkExtent2D 		 	extent;
-	VkFormat 		 	format;
+	lunaFormat 		 	format;
 	u64 			 	subpass;
 	VkPipeline 		 	old_pipeline;
 	VkPipelineCache  	cache;
@@ -148,7 +148,7 @@ typedef struct luna_GPU_SwapchainCreateInfo
 	VkExtent2D extent;
 	VkPresentModeKHR present_mode;
 	u64 image_count;
-	VkFormat format;
+	lunaFormat format;
 	VkColorSpaceKHR color_space;
 	VkSwapchainKHR old_swapchain;
 } luna_GPU_SwapchainCreateInfo;
@@ -157,8 +157,8 @@ extern luna_GPU_SwapchainCreateInfo luna_GPU_InitSwapchainCreateInfo();
 typedef struct luna_GPU_RenderPassCreateInfo
 {
 	u64 subpass;
-	VkFormat format;
-	VkFormat depthBufferFormat;
+	lunaFormat format;
+	lunaFormat depthBufferFormat;
 
 	// Ignored if flags does not contain PIPELINE_CREATE_FLAGS_ENABLE_MULTISAMPLING
 	VkSampleCountFlagBits samples;

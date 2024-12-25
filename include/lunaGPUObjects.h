@@ -7,6 +7,7 @@
 // This header should be fragmented into multiple, each for their own object.
 
 #include "lunaGFXstdafx.h"
+#include "lunaFormat.h"
 
 #define LUNA_GPU_MAX_CHILDREN_PER_OBJECT 8
 #define LUNA_GPU_ALIGNMENT_UNNECESSARY (1)
@@ -41,7 +42,7 @@ typedef struct luna_GPU_Buffer {
 } luna_GPU_Buffer;
 
 typedef struct luna_GPU_TextureCreateInfo {
-    VkFormat format;
+    lunaFormat format;
     lunaSampleCount samples;
     VkImageType type;
     VkImageUsageFlags usage;
@@ -51,7 +52,7 @@ typedef struct luna_GPU_TextureCreateInfo {
 } luna_GPU_TextureCreateInfo;
 
 typedef struct luna_GPU_TextureViewCreateInfo {
-    VkFormat format; // May be VK_FORMAT_UNDEFINED for automatic fetching of format from image
+    lunaFormat format; // May be VK_FORMAT_UNDEFINED for automatic fetching of format from image
     VkImageViewType view_type;
     VkImageSubresourceRange subresourceRange;
 } luna_GPU_TextureViewCreateInfo;

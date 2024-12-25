@@ -2,6 +2,7 @@
 #define __LUNA_INTERNAL_OBJECTS_DEF_H__
 
 #include "lunaGFX.h"
+#include "lunaFormat.h"
 #include "cgvector.h"
 
 extern cg_vector_t g_Samplers;
@@ -23,7 +24,7 @@ typedef struct luna_GPU_Texture {
     VkImageView view;
     VkExtent3D extent;
     int miplevels, arraylayers;
-    VkFormat format;
+    lunaFormat format;
     lunaSampleCount samples;
     bool is_cubemap, is_render_texture;
 } luna_GPU_Texture;

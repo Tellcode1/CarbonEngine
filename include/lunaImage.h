@@ -6,11 +6,12 @@
 #endif
 
 #include "lunaGFXstdafx.h"
+#include "lunaFormat.h"
 
 // CPU Image
 typedef struct luna_Image {
     int w, h;
-    VkFormat fmt;
+    lunaFormat fmt;
     unsigned char *data;
 } luna_Image;
 

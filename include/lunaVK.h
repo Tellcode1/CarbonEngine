@@ -6,6 +6,7 @@
 #endif
 
 #include "vkstdafx.h"
+#include "lunaFormat.h"
 
 extern u32 luna_VK_GetMemType(const u32 memoryTypeBits, const VkMemoryPropertyFlags memoryProperties);
 
@@ -26,11 +27,11 @@ extern VkResult luna_VK_EndCommandBuffer(VkCommandBuffer cmd, VkQueue queue, boo
 
 extern void luna_VK_StageImageTransfer(VkImage dst, const void* data, int width, int height, int image_size);
 
-extern void luna_VK_CreateTextureFromMemory(u8 *buffer, u32 width, u32 height, VkFormat format, VkImage *dst, VkDeviceMemory *dstMem);
+extern void luna_VK_CreateTextureFromMemory(u8 *buffer, u32 width, u32 height, lunaFormat format, VkImage *dst, VkDeviceMemory *dstMem);
 
-extern u8* luna_VK_CreateTextureFromDisk(const char *path, u32 *width, u32 *height, VkFormat *channels, VkImage *dst, VkDeviceMemory *dstMem);
+extern u8* luna_VK_CreateTextureFromDisk(const char *path, u32 *width, u32 *height, lunaFormat *channels, VkImage *dst, VkDeviceMemory *dstMem);
 
-extern void luna_VK_CreateTextureEmpty(u32 width, u32 height, VkFormat format, VkSampleCountFlagBits samples, VkImageUsageFlags usage, int *image_size, VkImage *dst, VkDeviceMemory *dstMem);
+extern void luna_VK_CreateTextureEmpty(u32 width, u32 height, lunaFormat format, VkSampleCountFlagBits samples, VkImageUsageFlags usage, int *image_size, VkImage *dst, VkDeviceMemory *dstMem);
 
 extern void luna_VK_TransitionTextureLayout(
     VkCommandBuffer cmd, VkImage image, u32 mipLevels, VkImageAspectFlagBits aspect,
@@ -38,6 +39,8 @@ extern void luna_VK_TransitionTextureLayout(
     VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
     VkPipelineStageFlags sourceStage, VkPipelineStageFlags destinationStage
 );
+
+extern lunaFormat luna_VK_GetSupportedFormatForDraw(lunaFormat fmt);
 
 extern bool luna_VK_GetSupportedFormat(VkPhysicalDevice physDevice, VkSurfaceKHR surface, VkFormat* dstFormat, VkColorSpaceKHR* dstColorSpace);
 

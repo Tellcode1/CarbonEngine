@@ -126,6 +126,64 @@ static inline int vk_fmt_get_bpp(VkFormat format) {
     }
 }
 
+static inline void vk_fmt_serialize(VkFormat format, const char **to) {
+    switch (format) {
+        case VK_FORMAT_R8_UNORM: *to = "VK_FORMAT_R8_UNORM"; return;
+        case VK_FORMAT_R8_SNORM: *to = "VK_FORMAT_R8_SNORM"; return;
+        case VK_FORMAT_R8_UINT: *to = "VK_FORMAT_R8_UINT"; return;
+        case VK_FORMAT_R8_SINT: *to = "VK_FORMAT_R8_SINT"; return;
+        case VK_FORMAT_R8_SRGB: *to = "VK_FORMAT_R8_SRGB"; return;
+        case VK_FORMAT_R16_UNORM: *to = "VK_FORMAT_R16_UNORM"; return;
+        case VK_FORMAT_R16_SNORM: *to = "VK_FORMAT_R16_SNORM"; return;
+        case VK_FORMAT_R16_UINT: *to = "VK_FORMAT_R16_UINT"; return;
+        case VK_FORMAT_R16_SINT: *to = "VK_FORMAT_R16_SINT"; return;
+        case VK_FORMAT_R16_SFLOAT: *to = "VK_FORMAT_R16_SFLOAT"; return;
+        case VK_FORMAT_R8G8_UNORM: *to = "VK_FORMAT_R8G8_UNORM"; return;
+        case VK_FORMAT_R8G8_SNORM: *to = "VK_FORMAT_R8G8_SNORM"; return;
+        case VK_FORMAT_R8G8_UINT: *to = "VK_FORMAT_R8G8_UINT"; return;
+        case VK_FORMAT_R8G8_SINT: *to = "VK_FORMAT_R8G8_SINT"; return;
+        case VK_FORMAT_R8G8_SRGB: *to = "VK_FORMAT_R8G8_SRGB"; return;
+        case VK_FORMAT_R8G8B8_UNORM: *to = "VK_FORMAT_R8G8B8_UNORM"; return;
+        case VK_FORMAT_R8G8B8_SNORM: *to = "VK_FORMAT_R8G8B8_SNORM"; return;
+        case VK_FORMAT_R8G8B8_UINT: *to = "VK_FORMAT_R8G8B8_UINT"; return;
+        case VK_FORMAT_R8G8B8_SINT: *to = "VK_FORMAT_R8G8B8_SINT"; return;
+        case VK_FORMAT_R8G8B8_SRGB: *to = "VK_FORMAT_R8G8B8_SRGB"; return;
+        case VK_FORMAT_R8G8B8A8_UNORM: *to = "VK_FORMAT_R8G8B8A8_UNORM"; return;
+        case VK_FORMAT_R8G8B8A8_SNORM: *to = "VK_FORMAT_R8G8B8A8_SNORM"; return;
+        case VK_FORMAT_R8G8B8A8_UINT: *to = "VK_FORMAT_R8G8B8A8_UINT"; return;
+        case VK_FORMAT_R8G8B8A8_SINT: *to = "VK_FORMAT_R8G8B8A8_SINT"; return;
+        case VK_FORMAT_R8G8B8A8_SRGB: *to = "VK_FORMAT_R8G8B8A8_SRGB"; return;
+        case VK_FORMAT_B8G8R8A8_UNORM: *to = "VK_FORMAT_B8G8R8A8_UNORM"; return;
+        case VK_FORMAT_B8G8R8A8_SRGB: *to = "VK_FORMAT_B8G8R8A8_SRGB"; return;
+        case VK_FORMAT_R32_UINT: *to = "VK_FORMAT_R32_UINT"; return;
+        case VK_FORMAT_R32_SINT: *to = "VK_FORMAT_R32_SINT"; return;
+        case VK_FORMAT_R32_SFLOAT: *to = "VK_FORMAT_R32_SFLOAT"; return;
+        case VK_FORMAT_R16G16_UNORM: *to = "VK_FORMAT_R16G16_UNORM"; return;
+        case VK_FORMAT_R16G16_SNORM: *to = "VK_FORMAT_R16G16_SNORM"; return;
+        case VK_FORMAT_R16G16_UINT: *to = "VK_FORMAT_R16G16_UINT"; return;
+        case VK_FORMAT_R16G16_SINT: *to = "VK_FORMAT_R16G16_SINT"; return;
+        case VK_FORMAT_R16G16_SFLOAT: *to = "VK_FORMAT_R16G16_SFLOAT"; return;
+        case VK_FORMAT_R16G16B16A16_UNORM: *to = "VK_FORMAT_R16G16B16A16_UNORM"; return;
+        case VK_FORMAT_R16G16B16A16_SNORM: *to = "VK_FORMAT_R16G16B16A16_SNORM"; return;
+        case VK_FORMAT_R16G16B16A16_UINT: *to = "VK_FORMAT_R16G16B16A16_UINT"; return;
+        case VK_FORMAT_R16G16B16A16_SINT: *to = "VK_FORMAT_R16G16B16A16_SINT"; return;
+        case VK_FORMAT_R16G16B16A16_SFLOAT: *to = "VK_FORMAT_R16G16B16A16_SFLOAT"; return;
+        case VK_FORMAT_R32G32_UINT: *to = "VK_FORMAT_R32G32_UINT"; return;
+        case VK_FORMAT_R32G32_SINT: *to = "VK_FORMAT_R32G32_SINT"; return;
+        case VK_FORMAT_R32G32_SFLOAT: *to = "VK_FORMAT_R32G32_SFLOAT"; return;
+        case VK_FORMAT_R32G32B32_UINT: *to = "VK_FORMAT_R32G32B32_UINT"; return;
+        case VK_FORMAT_R32G32B32_SINT: *to = "VK_FORMAT_R32G32B32_SINT"; return;
+        case VK_FORMAT_R32G32B32_SFLOAT: *to = "VK_FORMAT_R32G32B32_SFLOAT"; return;
+        case VK_FORMAT_R32G32B32A32_UINT: *to = "VK_FORMAT_R32G32B32A32_UINT"; return;
+        case VK_FORMAT_R32G32B32A32_SINT: *to = "VK_FORMAT_R32G32B32A32_SINT"; return;
+        case VK_FORMAT_R32G32B32A32_SFLOAT: *to = "VK_FORMAT_R32G32B32A32_SFLOAT"; return;
+
+        default:
+            *to = "VK_FORMAT_UNDEFINED";
+            return;
+    }
+}
+
 
 #ifdef __cplusplus
     }

@@ -374,7 +374,7 @@ csm_shader_entry * load_all_entries(const char *shader_list_file_path, int *coun
             continue;
         }
 
-        fgets(line, 256, shader_file);
+        assert(fgets(line, 256, shader_file) != NULL);
 
         if (strncmp(line, "//", 2) == 0) {
             sscanf(line, "// output: %s stage: %s name: %s", entry->output_path, entry->stage, entry->name);

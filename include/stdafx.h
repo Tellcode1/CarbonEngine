@@ -2,6 +2,7 @@
 #define __PCH__
 
 #include "defines.h"
+#include <SDL2/SDL.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,6 +20,8 @@
 
 static inline void __CG_LOG(va_list args, const char *succeeder, const char *preceder, const char *str, unsigned char err) {
     FILE *out = (err) ? stderr : stdout;
+    Uint8 time = SDL_GetTicks64();
+    fprintf(out, "[%.2f] ", time / 1000.0f);
     vfprintf(out, preceder, args);
     vfprintf(out, str, args);
     vfprintf(out, succeeder, args);
