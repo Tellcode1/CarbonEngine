@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.11)
 project(main)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
@@ -21,9 +23,8 @@ set(OUTPUT
 set(SOURCES
     src/main.c
     src/cengine.c
-    src/cengineinit.c
-    
-    src/cshadermanager.c
+
+    src/preprocessors.c
     
     src/lunaVK.c
     src/lunaUI.c
@@ -36,15 +37,14 @@ set(SOURCES
     src/sprite.c
 )
 
-add_library(spirv-reflect STATIC ${CMAKE_SOURCE_DIR}/external/SPIRV-Reflect/spirv_reflect.c)
 add_subdirectory(${CMAKE_SOURCE_DIR}/external/box2d)
 add_subdirectory(${CMAKE_SOURCE_DIR}/external/volk)
 
 add_executable(${OUTPUT} ${SOURCES})
 
-add_executable(shadermanager src/cshadermanager.c)
+add_executable(shadermanager src/preprocessors.c)
 target_compile_definitions(shadermanager PRIVATE CSM_EXECUTABLE=1)
-target_compile_options(shadermanager PRIVATE -O3 -g)
+target_compile_options(shadermanager PRIVATE -O3)
 
 set(LIBS
     m
@@ -53,11 +53,10 @@ set(LIBS
     freetype
     jpeg
     png
-    spirv-reflect
     box2d
 )
 
-target_link_options(${OUTPUT} PRIVATE -g -Wall -Wextra -O3)
-target_compile_options(${OUTPUT} PRIVATE -g -Wall -Wextra -O3)
+target_link_options(${OUTPUT} PRIVATE -g -Wall -Wextra)
+target_compile_options(${OUTPUT} PRIVATE -g -Wall -Wextra)
 target_compile_definitions(${OUTPUT} PRIVATE CSM_EXECUTABLE=0) # avoid making multiple main's 
 target_link_libraries(${OUTPUT} ${LIBS})

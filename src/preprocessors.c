@@ -6,8 +6,6 @@
 #include <time.h>
 #include <errno.h>
 #include <libgen.h>
-#include "../external/SPIRV-Reflect/spirv_reflect.h"
-#include "../include/cgfxpipeline.h"
 
 #ifndef WIN32
     #include <unistd.h>
@@ -38,11 +36,13 @@ const char *list = "../compilelist.txt";
 #else
     #include <sys/stat.h>
     #include <sys/types.h>
-    #define MKDIR(path) mkdir(path, 0777)
+    #define MKDIR(path) (mkdir(path, 0777))
     #define PATH_SEP '/'
 #endif
 
-#define HAS_FLAG(f) strcmp(argv[i], f) == 0
+#define CSM_HAS_FLAG(flag) (strcmp(argv[i], flag) == 0)
+
+#define CSM_PRINT_SUFFIX "csm: "
 
 #if CSM_EXECUTABLE
 
@@ -53,7 +53,7 @@ compile-force: forcefully compile all shaders in list file,\n\
 
 int main(int argc, char *argv[]) {
     for (int i = 0; i < argc; i++) {
-        if (HAS_FLAG("help") || HAS_FLAG("--h") || HAS_FLAG("-h") || HAS_FLAG("--help") || HAS_FLAG("-help")) {
+        if (CSM_HAS_FLAG("help") || CSM_HAS_FLAG("--h") || CSM_HAS_FLAG("-h") || CSM_HAS_FLAG("--help") || CSM_HAS_FLAG("-help")) {
             printf("usage: %s <compile list path = \"../compilelist.txt\"> <cmd = compile>\n", argv[0]);
             printf("%s", CMD_HELP_MSG);
             return 0;
@@ -167,9 +167,11 @@ int read_shader_spirv(const char *output, unsigned **spirv, int *spirvsize) {
     return 0;
 
     err:
-    printf("csm :: Could not read in spirv for output path \"%s\"\n", output);
+    printf(CSM_PRINT_SUFFIX"Could not read in spirv for output path \"%s\"\n", output);
     if (f) {
         fclose(f);
+        *spirv = NULL;
+        *spirvsize = 0;
     }
     return -1;
 }
@@ -191,7 +193,7 @@ void __csm_create_shader(VkDevice vkdevice, const unsigned *bytes, int nbytes, s
     vkCreateShaderModule(vkdevice, &info, NULL, (VkShaderModule *)&out->shader_module);
 }
 
-void register_all_shaders(VkDevice vkdevice, struct csm_shader_entry *entries, int nentries) {
+void csm_register_all_shaders(VkDevice vkdevice, struct csm_shader_entry *entries, int nentries) {
     struct csm_shader_t *new_shader_map = malloc((nshaders + nentries) * sizeof(struct csm_shader_t));
     if (shader_map) {
         memcpy(new_shader_map, shader_map, nshaders * sizeof(struct csm_shader_t));
@@ -202,17 +204,19 @@ void register_all_shaders(VkDevice vkdevice, struct csm_shader_entry *entries, i
     int index = 0;
     for (int i = 0; i < nentries; i++) {
         if (strncmp(entries[i].stage, "vert", 4) == 0) {
-            shader_map[nshaders + index].stage = 1;
+            shader_map[nshaders + index].stage = VK_SHADER_STAGE_VERTEX_BIT;
         } else if (strncmp(entries[i].stage, "frag", 4) == 0) {
-            shader_map[nshaders + index].stage = 16;
+            shader_map[nshaders + index].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
         } else if (strncmp(entries[i].stage, "tese", 4) == 0) {
-            shader_map[nshaders + index].stage = 4;
+            shader_map[nshaders + index].stage = VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
+        }  else if (strncmp(entries[i].stage, "tesc", 4) == 0) {
+            shader_map[nshaders + index].stage = VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
         } else if (strncmp(entries[i].stage, "geom", 4) == 0) {
-            shader_map[nshaders + index].stage = 8;
+            shader_map[nshaders + index].stage = VK_SHADER_STAGE_GEOMETRY_BIT;
         } else if (strncmp(entries[i].stage, "comp", 4) == 0) {
-            shader_map[nshaders + index].stage = 32;
+            shader_map[nshaders + index].stage = VK_SHADER_STAGE_COMPUTE_BIT;
         } else {
-            printf("csm :: Invalid stage for shader \"%s\". It will not be added.\n", entries[i].name);
+            printf(CSM_PRINT_SUFFIX"Invalid stage for shader \"%s\". It will not be added.\n", entries[i].name);
             continue;
         }
         strncpy(shader_map[nshaders + index].name, entries[i].name, 127);
@@ -220,7 +224,9 @@ void register_all_shaders(VkDevice vkdevice, struct csm_shader_entry *entries, i
 
         unsigned *spirv;
         int spirvsize = 0;
-        cassert(read_shader_spirv((const char *)entries[i].output_path, &spirv, &spirvsize) != -1);
+        if (read_shader_spirv((const char *)entries[i].output_path, &spirv, &spirvsize) != 0) {
+            continue;
+        }
         __csm_create_shader(vkdevice, spirv, spirvsize, &shader_map[nshaders + index]);
 
         nshaders++;
@@ -261,7 +267,8 @@ csm_shader_cache_entry * load_cache(int *count) {
 
     char line[256];
     while (fgets(line, 256, f)) {
-        sscanf(line, "name: %s path: %s mtime: %ld", entries[*count].name, entries[*count].path, &entries[*count].last_modified);
+        int c = *count;
+        sscanf(line, "name: %s path: %s mtime: %ld", entries[c].name, entries[c].path, &entries[c].last_modified);
         (*count)++;
     }
 
@@ -271,7 +278,10 @@ csm_shader_cache_entry * load_cache(int *count) {
 
 void update_cache(const csm_shader_cache_entry * restrict entries, int count) {
     FILE *f = fopen("shaders.cache", "w");
-    assert(f != NULL);
+    if (!f) {
+        puts(CSM_PRINT_SUFFIX"Could not open cache file for update. return.");
+        return;
+    }
 
     for (int i = 0; i < count; i++) {
         fprintf(f, "name: %s path: %s mtime: %ld\n", entries[i].name, entries[i].path, entries[i].last_modified);
@@ -322,17 +332,21 @@ time_t get_mtime(const char *fpath) {
     if (stat(fpath, &file_stats) == 0) {
         return file_stats.st_mtime;
     } else {
-        printf("stat %i\n", errno);
+        printf(CSM_PRINT_SUFFIX"stat error %i\n", errno);
     }
     return -1;
 }
 
 csm_shader_entry * load_all_entries(const char *shader_list_file_path, int *count) {
     FILE *f = fopen(shader_list_file_path, "r");
-    assert(f != NULL);
+    if (f == NULL) {
+        printf(CSM_PRINT_SUFFIX"Could not open list file for reading. Is the path correct?\n");
+        return NULL;
+    }
 
     int currallocsize = 16;
     csm_shader_entry *entries = malloc(currallocsize * sizeof(csm_shader_entry));
+    assert(entries != NULL);
 
     char line[ 256 ];
     for (int i = 0;  ; i++) {
@@ -356,7 +370,7 @@ csm_shader_entry * load_all_entries(const char *shader_list_file_path, int *coun
         // to get stage + verify that it exists
         FILE *shader_file = fopen(entry->path, "r");
         if (shader_file == NULL) {
-            printf("csm :: Could not open shader file \"%s\". Are you sure that it exists?\n", entry->path);
+            printf(CSM_PRINT_SUFFIX"Could not open shader file \"%s\". Are you sure that it exists?\n", entry->path);
             continue;
         }
 
@@ -367,7 +381,7 @@ csm_shader_entry * load_all_entries(const char *shader_list_file_path, int *coun
         } else {
             strcpy(entry->stage, "unknown");
             strcpy(entry->output_path, "");
-            printf("csm :: [warning] for shader on path \"%s\": no output, stage and group header? fmt-> // output: {output} stage: {stage} name: {name}\n", entry->path);
+            printf(CSM_PRINT_SUFFIX"Shader \"%s\": has invalid or no header.\nHeader Format -> // output: {output} stage: {stage} name: {name}\n", entry->path);
         }
 
         fclose(shader_file);
@@ -404,47 +418,67 @@ int compile_shader(char *buffer, const struct csm_shader_entry *entry) {
     strcat(buffer, entry->stage);
 
     if (system(buffer) != 0) {
-        printf("Error while compiling shader \"%s\".\n", entry->path);
         return -1;
     }
 
     return 0;
 }
 
+void csm_compile_from_cache(csm_shader_entry *entries, int nentries, csm_shader_cache_entry *cacheentries, int cachecount) {
+    char buffer[512];
+    for (int i = 0; i < nentries; i++) {
+        for (int j = 0; j < cachecount; j++) {
+            if (strcmp(cacheentries[j].path, entries[i].path) == 0) {
+                if (cacheentries[j].last_modified != entries[i].last_modified) {
+                    memset(buffer, 0, 512);
+                    
+                    if (compile_shader(buffer, &entries[i]) != 0) {
+                        printf(CSM_PRINT_SUFFIX"Error while compiling shader \"%s\".\n", entries[i].path);
+                    }
+                    cacheentries[j].last_modified = entries[i].last_modified;
+                }
+                break;
+            }
+        }
+    }
+}
+
+void csm_compile_without_cache(csm_shader_entry *entries, int nentries) {
+    char buffer[512];
+    for (int i = 0; i < nentries; i++) {
+        memset(buffer, 0, 512);
+        
+        if (compile_shader(buffer, &entries[i]) != 0) {
+            printf(CSM_PRINT_SUFFIX"Error while compiling shader \"%s\".\n", entries[i].path);
+        }
+    }
+}
+
 void csm_compile_updated()
 {
-    char buffer[512];
 
-    int count = 0;
-    csm_shader_entry *entries = load_all_entries(list, &count);
+    int nentries = 0;
+    csm_shader_entry *entries = load_all_entries(list, &nentries);
 
     int cachecount = 0;
     csm_shader_cache_entry *cacheentries = load_cache(&cachecount);
 
-    if (cacheentries != NULL) {
-        for (int i = 0; i < count; i++) {
-            for (int j = 0; j < cachecount; j++) {
-                if (strcmp(cacheentries[j].path, entries[i].path) == 0) {
-                    if (cacheentries[j].last_modified != entries[i].last_modified) {
-                        memset(buffer, 0, 512);
-                        compile_shader(buffer, &entries[i]);
-                        cacheentries[j].last_modified = entries[i].last_modified;
-                    }
-                    break;
-                }
-            }
-        }
+    if (cacheentries == NULL) {
+        printf(CSM_PRINT_SUFFIX"Could not open cache for reading. return.\n");
+        csm_compile_without_cache(entries, nentries);
+    } else {
+        csm_compile_from_cache(entries, nentries, cacheentries, cachecount);
     }
 
-    if (!cacheentries) {
-        printf("csm :: No cache or modified cache. Writing new cache file...\n");
-        write_new_cache(entries, count);
+    if (cacheentries == NULL) {
+        printf(CSM_PRINT_SUFFIX"No cache or modified cache. Writing new cache file...\n");
+        write_new_cache(entries, nentries);
     } else {
-        update_cache(cacheentries, count);
+        update_cache(cacheentries, nentries);
     }
 
     #if CSM_EXECUTABLE != 1
-        register_all_shaders(device, entries, count);
+        csm_register_all_shaders(device, entries, nentries);
     #endif//CSM_EXECUTABLE != 1
 
     free(entries);
@@ -459,7 +493,7 @@ void csm_compile_all()
     csm_shader_entry *entries = load_all_entries(list, &count);
 
     #if CSM_EXECUTABLE != 1
-       register_all_shaders(device, entries, count);
+       csm_register_all_shaders(device, entries, count);
     #endif//#if CSM_EXECUTABLE != 1
 
     for (int i = 0; i < count; i++) {

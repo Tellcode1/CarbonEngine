@@ -76,4 +76,15 @@ void *cg_freelist_alloc(cg_freelist_t *list, int size) {
     return NULL;
 }
 
+cg_node_t *cg_freelist_expand(cg_freelist_t *list, int expand_by) {
+    cg_node_t *node = list->root;
+    while (node->next) {
+        node = node->next;
+    }
+
+    cg_node_t *new_node = cg_freelist_mknode(list, expand_by, NULL, node);
+    node->next = new_node;
+    return new_node;
+}
+
 #endif//__CG_FREELIST_H

@@ -147,7 +147,8 @@ int main(int argc, char *argv[]) {
 
         if (luna_Renderer_BeginRender(rd)) {
             ctext_begin_render(amongus);
-
+            ctext_text_render_info crd = ctext_init_text_render_info();
+            ctext_render(amongus, &crd, "piss\nis\nstored\nin\nthe\nballs");
             ctext_end_render(rd, amongus, m4init(1.0f));
 
             luna_Renderer_EndRender(rd);

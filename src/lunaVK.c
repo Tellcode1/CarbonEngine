@@ -74,6 +74,14 @@ u32 luna_GPU_vk_flag_register = 0;
 // lunaGFX.h
 
 // lunaGFX vv
+
+lunaExtent2D luna_GetWindowSize()
+{
+    int ww, wh;
+    SDL_GetWindowSize(window, &ww, &wh);
+    return (lunaExtent2D){ ww,wh };
+}
+
 typedef struct quad_vertex {
     vec3 position;
     vec2 tex_coords;
@@ -1434,7 +1442,7 @@ int gen_vertices(
             // only this call.
             MAX(fnt->chars_drawn - old_chars_drawn, 0),
             xpos,
-            pInfo->position.y + (i * fnt->line_height),
+            ypos + (i * fnt->line_height),
             scale
         );
     }
@@ -1485,6 +1493,9 @@ void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo, const char 
     if (pInfo->scale_for_fit) {
         scale *= ctext_get_scale_for_fit(fnt, str, pInfo->bbox);
     }
+
+    // we divide the normal scale by 10 because it's too large.
+    scale /= 10.0f;
     
     // can we not have a bounds check before making the vertices?
     // probably not..

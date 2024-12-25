@@ -58,6 +58,18 @@ typedef struct ctext_text_render_info {
     bool scale_for_fit; // calculates the scale needed to fit the text into a box
 } ctext_text_render_info;
 
+static inline ctext_text_render_info ctext_init_text_render_info() {
+    return (ctext_text_render_info) {
+        .horizontal =  CTEXT_HORI_ALIGN_CENTER,
+        .vertical = CTEXT_VERT_ALIGN_CENTER,
+        .color = (vec4){ 1.0f, 1.0f, 1.0f, 1.0f },
+        .position = (vec3){ 0.0f, 0.0f, 0.0f },
+        .scale = 1.0f,
+        .bbox = (vec2){},
+        .scale_for_fit = 0
+    };
+}
+
 // Initializes the text renderer for ONLY that renderer
 extern void ctext_init(struct luna_Renderer_t *rd);
 

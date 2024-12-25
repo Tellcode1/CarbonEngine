@@ -3,6 +3,8 @@
 
 #include <stdbool.h>
 
+typedef struct VkShaderModule_T VkShaderModule_T;
+
 extern const char *shader_compiler;
 extern const char *shader_compiler_args;
 extern const char *list;
@@ -17,7 +19,7 @@ typedef struct csm_shader_entry {
 
 typedef struct csm_shader_t {
     char name[128];
-    void *shader_module; // the vk shader handle
+    VkShaderModule_T *shader_module; // the vk shader handle
     unsigned stage;
 } csm_shader_t;
 
@@ -31,7 +33,9 @@ typedef struct csm_shader_cache_entry {
     long last_modified;
 } csm_shader_cache_entry;
 
-extern void __csm_create_shader(struct VkDevice_T *vkdevice, const unsigned *bytes, int nbytes, struct csm_shader_t *out);
+typedef struct VkDevice_T VkDevice_T;
+
+extern void __csm_create_shader(VkDevice_T *__restrict vkdevice, const unsigned *__restrict bytes, int nbytes, struct csm_shader_t *__restrict out);
 void __csm_vk_register_shaders(csm_shader_entry *entries, int nentries);
 
 #endif//__CSM_DEV_H

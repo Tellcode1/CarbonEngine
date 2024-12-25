@@ -83,6 +83,8 @@ typedef struct luna_Renderer_t
     void *mapped;
 } luna_Renderer_t;
 
+extern lunaExtent2D luna_GetWindowSize();
+
 #ifdef __cplusplus
     }
 #endif
