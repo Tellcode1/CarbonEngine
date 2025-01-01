@@ -7,7 +7,7 @@
 
 #include <SDL2/SDL.h>
 #include "../include/lunaGFX.h"
-#include "../include/cgbitset.h"
+#include "../include/containers/cgbitset.h"
 #include "../include/math/vec2.h"
 
 typedef enum key_state_bits
@@ -39,12 +39,12 @@ static inline void cinput_update(const luna_Renderer_t *rd) {
     cinput_last_frame_mouse_state = cinput_mouse_state;
     cinput_mouse_state = SDL_GetMouseState(&mx, &my);
 
-    const f32 width = (f32)luna_Renderer_GetRenderExtent(rd).width;
-    const f32 height = (f32)luna_Renderer_GetRenderExtent(rd).height;
+    const float width = (float)luna_Renderer_GetRenderExtent(rd).width;
+    const float height = (float)luna_Renderer_GetRenderExtent(rd).height;
 
     cinput_last_frame_mouse_position = cinput_mouse_position;
-    cinput_mouse_position.x = ((f32)mx / width)  * 2.0f - 1.0f;
-    cinput_mouse_position.y = ((f32)my / height) * 2.0f - 1.0f;
+    cinput_mouse_position.x = ((float)mx / width)  * 2.0f - 1.0f;
+    cinput_mouse_position.y = ((float)my / height) * 2.0f - 1.0f;
     cinput_mouse_position.y *= -1.0f;
 
     const u8 *const sdl_kb_state = SDL_GetKeyboardState(NULL);

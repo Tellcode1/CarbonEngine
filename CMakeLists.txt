@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 3.11)
 project(main)
 
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
@@ -22,19 +20,10 @@ set(OUTPUT
 
 set(SOURCES
     src/main.c
-    src/cengine.c
-
+    src/engine.c
     src/preprocessors.c
-    
     src/lunaVK.c
-    src/lunaUI.c
-
-    src/lunaObject.c
-
     src/containers.c
-
-    src/lunaImageIO.c
-    src/sprite.c
 )
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/external/box2d)
@@ -56,7 +45,7 @@ set(LIBS
     box2d
 )
 
-target_link_options(${OUTPUT} PRIVATE -g -Wall -Wextra)
-target_compile_options(${OUTPUT} PRIVATE -g -Wall -Wextra)
+target_link_options(${OUTPUT} PRIVATE -g -Wall -Wextra -Wno-typedef-redefinition)
+target_compile_options(${OUTPUT} PRIVATE -g -Wall -Wextra -Wno-typedef-redefinition)
 target_compile_definitions(${OUTPUT} PRIVATE CSM_EXECUTABLE=0) # avoid making multiple main's 
 target_link_libraries(${OUTPUT} ${LIBS})

@@ -1,12 +1,12 @@
-#include "../include/cgvector.h"
-#include "../include/cgstring.h"
-#include "../include/cghashmap.h"
-#include "../include/cgbitset.h"
+#include "../include/containers/cgvector.h"
+#include "../include/containers/cgstring.h"
+#include "../include/containers/cghashmap.h"
+#include "../include/containers/cgbitset.h"
 #include "../include/catlas.h"
 
 #include <stdlib.h>
 
-#include "../../include/cgvector.h"
+#include "../../include/containers/cgvector.h"
 #include "../../include/math/math.h"
 #include "../../include/defines.h"
 

@@ -23,14 +23,13 @@ typedef void (*luna_GPU_ResultCheckFn) (const VkResult result, const char *__res
 typedef enum cvk_pipeline_flags_bits
 {
 	CVK_PIPELINE_FLAGS_FORCE_DEPTH_CHECK 		= __cvk_to_bit(0),
-	CVK_PIPELINE_FLAGS_UNFORCE_DEPTH_CHECK 		= __cvk_to_bit(1),
-	CVK_PIPELINE_FLAGS_ENABLE_BLEND             = __cvk_to_bit(2),
-	CVK_PIPELINE_FLAGS_FORCE_CULLING            = __cvk_to_bit(3),
-	CVK_PIPELINE_FLAGS_UNFORCE_CULLING          = __cvk_to_bit(4), // Disables culling for resulting pipeline
-	CVK_PIPELINE_FLAGS_FORCE_DYNAMIC_VIEWPORT   = __cvk_to_bit(6),
-	CVK_PIPELINE_FLAGS_UNFORCE_DYNAMIC_VIEWPORT = __cvk_to_bit(7),
-	CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING      = __cvk_to_bit(8),
-	CVK_PIPELINE_FLAGS_UNFORCE_MULTISAMPLING    = __cvk_to_bit(9)
+	CVK_PIPELINE_FLAGS_UNFORCE_DEPTH_CHECK 		= ~CVK_PIPELINE_FLAGS_FORCE_DEPTH_CHECK,
+	CVK_PIPELINE_FLAGS_FORCE_CULLING            = __cvk_to_bit(1),
+	CVK_PIPELINE_FLAGS_UNFORCE_CULLING          = ~CVK_PIPELINE_FLAGS_FORCE_CULLING, // Disables culling for resulting pipeline
+	CVK_PIPELINE_FLAGS_FORCE_DYNAMIC_VIEWPORT   = __cvk_to_bit(2),
+	CVK_PIPELINE_FLAGS_UNFORCE_DYNAMIC_VIEWPORT = ~CVK_PIPELINE_FLAGS_FORCE_DYNAMIC_VIEWPORT,
+	CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING      = __cvk_to_bit(3),
+	CVK_PIPELINE_FLAGS_UNFORCE_MULTISAMPLING    = ~CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING
 } cvk_pipeline_flags_bits;
 typedef u32 cvk_pipeline_flags;
 
@@ -78,13 +77,13 @@ typedef struct luna_VK_Pipeline {
     VkDescriptorSetLayout descriptor_layout;
 } luna_VK_Pipeline;
 
-typedef struct SystemPipelines {
+typedef struct luna_BakedPipelines {
 	luna_VK_Pipeline Unlit;
 	luna_VK_Pipeline Lit;
 	luna_VK_Pipeline Ctext;
 	luna_VK_Pipeline Line; // Draws lines. Yep.
-} SystemPipelines;
-extern SystemPipelines g_Pipelines;
+} luna_BakedPipelines;
+extern luna_BakedPipelines g_Pipelines;
 
 typedef enum luna_GPU_PipelineBlendPreset
 {

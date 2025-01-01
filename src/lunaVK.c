@@ -4,18 +4,19 @@
 #include "../include/lunaInternalObjects.h"
 #include "../include/lunaImage.h"
 
-#include "../include/camera.h"
+#include "../include/lunaCamera.h"
 #include "../include/cinput.h"
 #include "../include/ctext.h"
 #include "../include/cengine.h"
 #include "../include/lunaObject.h"
+#include "../include/lunaSpriteRenderer.h"
 
 #include "../include/cshadermanager.h"
 #include "../include/cshadermanagerdev.h"
 
 #include "../include/lunaUI.h"
 
-#include "../include/cgvector.h"
+#include "../include/containers/cgvector.h"
 
 #include <freetype2/ft2build.h>
 #include FT_FREETYPE_H
@@ -28,6 +29,7 @@
 #include <stdlib.h>
 
 #define HAS_FLAG(flag) ((luna_GPU_vk_flag_register & flag) || (flags & flag))
+#define STR(s) #s
 
 // lunaVK.h
     VkCommandPool pool = VK_NULL_HANDLE;
@@ -38,7 +40,7 @@ u32 luna_GPU_vk_flag_register = 0;
 // lunaVK.h
 
 // lunaPipelines.h
-    SystemPipelines g_Pipelines;
+    luna_BakedPipelines g_Pipelines;
 
     VkPipeline base_pipeline = NULL;
     VkPipelineCache cache = NULL;
@@ -54,7 +56,7 @@ u32 luna_GPU_vk_flag_register = 0;
     SDL_Window *window = NULL;
     VkDebugUtilsMessengerEXT debugMessenger = NULL;
 
-    VkFormat SwapChainImageFormat;
+    lunaFormat SwapChainImageFormat;
     VkColorSpaceKHR SwapChainColorSpace;
     u32 SwapChainImageCount = 0;
     u32 GraphicsFamilyIndex = 0;
@@ -70,7 +72,7 @@ u32 luna_GPU_vk_flag_register = 0;
     VkSampleCountFlagBits Samples = VK_SAMPLE_COUNT_1_BIT;
 
     luna_DescriptorPool g_pool;
-    ccamera camera;
+    lunaCamera camera;
 // lunaGFX.h
 
 // lunaGFX vv
@@ -129,8 +131,8 @@ int luna_Renderer_GetMaxFramesInFlight(const luna_Renderer_t *rd)
 bool luna_Quad_Visible(const vec3 *pos, const vec3 *siz) {
     const float half_width = siz->x * 0.5f;
     const float half_height = siz->y * 0.5f;
-    const float dx = fabsf(pos->x - camera.position.x);
-    const float dy = fabsf(pos->y - camera.position.y);
+    const float dx = fabsf(pos->x - camera.position.x); // delta x & y
+    const float dy = fabsf(pos->y - camera.position.y); // 
 
     return (
         dx <= (half_width + CAMERA_ORTHO_W) &&
@@ -138,22 +140,32 @@ bool luna_Quad_Visible(const vec3 *pos, const vec3 *siz) {
     );
 }
 
-void luna_Renderer_DrawQuad(luna_Renderer_t *rd, sprite_t *spr, vec2 tex_coord_multiplier, vec3 position, vec3 size, vec4 color, int layer)
+void luna_Renderer_DrawTexturedQuad(luna_Renderer_t *rd, luna_SpriteRenderer *sprite_renderer, vec3 position, vec3 size, int layer)
 {
-    luna_DrawCall_t drawcall = {
+        luna_DrawCall_t drawcall = {
         .type = LUNA_DRAWCALL_QUAD,
         .layer = layer,
         .drawcall = {
             .quad = {
-                .spr = spr,
-                .tex_multiplier = tex_coord_multiplier,
+                .spr = sprite_renderer->spr,
+                .tex_multiplier = sprite_renderer->tex_coord_multiplier,
                 .pos = position,
                 .siz = size,
-                .col = color
+                .col = sprite_renderer->color
             }
         }
     };
     cg_vector_push_back(&rd->drawcalls, &drawcall);
+}
+
+void luna_Renderer_DrawQuad(luna_Renderer_t *rd, sprite_t *spr, vec2 tex_coord_multiplier, vec3 position, vec3 size, vec4 color, int layer)
+{
+    // create a temporary sprite renderer and render an untextured quad with it
+    luna_SpriteRenderer sprite_renderer = luna_SpriteRendererInit();
+    sprite_renderer.spr = spr;
+    sprite_renderer.tex_coord_multiplier = tex_coord_multiplier;
+    sprite_renderer.color = color;
+    luna_Renderer_DrawTexturedQuad(rd, &sprite_renderer, position, size, layer);
 }
 
 void luna_Renderer_DrawLine(luna_Renderer_t *rd, vec2 start, vec2 end, vec4 color, int layer)
@@ -174,7 +186,9 @@ void luna_Renderer_DrawLine(luna_Renderer_t *rd, vec2 start, vec2 end, vec4 colo
 
 // thjs will just sort the array from small layer to big layer :>
 int __drawcall_compar(const void *obj1, const void *obj2) {
-    return (((luna_DrawCall_t *)obj1)->layer - ((luna_DrawCall_t *)obj2)->layer);
+    const luna_DrawCall_t *call1 = obj1;
+    const luna_DrawCall_t *call2 = obj2;
+    return (call1->layer - call2->layer) + (call1->type - call2->type);
 }
 
 void luna_Renderer_RenderAll(luna_Renderer_t *rd) {
@@ -184,13 +198,24 @@ void luna_Renderer_RenderAll(luna_Renderer_t *rd) {
 
     cg_vector_sort(&rd->drawcalls, __drawcall_compar);
 
+    luna_DrawCallType state = (unsigned)-1;
+
     for (int i = 0; i < cg_vector_size(&rd->drawcalls); i++) {
         const luna_DrawCall_t *drawcall = &((luna_DrawCall_t *)cg_vector_data(&rd->drawcalls))[i];
 
         if (drawcall->type == LUNA_DRAWCALL_QUAD) {
+            // if (!luna_Quad_Visible(&drawcall->drawcall.quad.pos, &drawcall->drawcall.quad.siz)) {
+            //     continue;
+            // }
 
-            if (!luna_Quad_Visible(&drawcall->drawcall.quad.pos, &drawcall->drawcall.quad.siz)) {
-                continue;
+            if (state != LUNA_DRAWCALL_QUAD) {
+                VkDeviceSize offsets = 0;
+
+                vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_Pipelines.Unlit.pipeline);
+                vkCmdBindVertexBuffers(cmd, 0, 1, rd->quad_vb.buffers, &offsets);
+                vkCmdBindIndexBuffer(cmd, rd->quad_vb.buffers[0], sizeof(quad_vertices), VK_INDEX_TYPE_UINT32);
+
+                state = LUNA_DRAWCALL_QUAD;
             }
 
             struct push_constants {
@@ -198,16 +223,6 @@ void luna_Renderer_RenderAll(luna_Renderer_t *rd) {
                 vec4 color;
                 vec2 tex_multiplier; // Multiplied with the tex coords
             } pc;
-
-            VkDeviceSize offsets = 0;
-
-            VkDescriptorSet sprite_set = sprite_get_descriptor(drawcall->drawcall.quad.spr);
-            const VkDescriptorSet sets[] = { camera_set, sprite_set };
-
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_Pipelines.Unlit.pipeline_layout, 0, 2, sets, 1, &camera_ub_offset);
-            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_Pipelines.Unlit.pipeline);
-            vkCmdBindVertexBuffers(cmd, 0, 1, &rd->quad_vb.buffers[0], &offsets);
-            vkCmdBindIndexBuffer(cmd, rd->quad_vb.buffers[0], sizeof(quad_vertices), VK_INDEX_TYPE_UINT32);
 
             mat4 scale = m4scale(m4init(1.0f), drawcall->drawcall.quad.siz);
             mat4 rotate = m4init(1.0f);
@@ -224,20 +239,27 @@ void luna_Renderer_RenderAll(luna_Renderer_t *rd) {
                 &pc
             );
 
+            VkDescriptorSet sprite_set = sprite_get_descriptor(drawcall->drawcall.quad.spr);
+            const VkDescriptorSet sets[] = { camera_set, sprite_set };
+
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_Pipelines.Unlit.pipeline_layout, 0, 2, sets, 1, &camera_ub_offset);
             vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
         } else if (drawcall->type == LUNA_DRAWCALL_LINE) {
+            if (state != LUNA_DRAWCALL_LINE) {
+                vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_Pipelines.Line.pipeline);
+
+                state = LUNA_DRAWCALL_LINE;
+            }
+
+            const VkDescriptorSet sets[] = { camera_set };
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_Pipelines.Line.pipeline_layout, 0, 1, sets, 1, &camera_ub_offset);
+
             struct line_push_constants {
                 mat4 model;
                 vec4 color;
                 vec2 line_begin;
                 vec2 line_end;
             } pc;
-
-            const VkDescriptorSet sets[] = { camera_set };
-
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_Pipelines.Line.pipeline_layout, 0, 1, sets, 1, &camera_ub_offset);
-            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_Pipelines.Line.pipeline);
-
             pc.model = m4init(1.0f);
             pc.color = drawcall->drawcall.line.col;
             pc.line_begin = (vec2){drawcall->drawcall.line.begin.x, drawcall->drawcall.line.begin.y};
@@ -280,10 +302,13 @@ void luna_Renderer_PrepareQuadRenderer(luna_Renderer_t *rd)
         &rd->quad_memory
     );
     luna_GPU_BindBufferToMemory(&rd->quad_memory, 0, &rd->quad_vb);
-    vkMapMemory(device, rd->quad_memory.memory, 0, VK_WHOLE_SIZE, 0, &rd->mapped);
 
-    memcpy(rd->mapped, quad_vertices, sizeof(quad_vertices));
-    memcpy((char *)rd->mapped + sizeof(quad_vertices), quad_indices, sizeof(quad_indices));
+    void *data = malloc(sizeof(quad_vertices) + sizeof(quad_indices));
+    memcpy(data, quad_vertices, sizeof(quad_vertices));
+    memcpy((char *)data + sizeof(quad_vertices), quad_indices, sizeof(quad_indices));
+    luna_GPU_WriteToBuffer(&rd->quad_vb, sizeof(quad_vertices) + sizeof(quad_indices), data, 0);
+
+    free(data);
 }
 
 void luna_Renderer_Destroy(luna_Renderer_t *rd)
@@ -332,7 +357,7 @@ void create_optional_images(luna_Renderer_t *rd)
         int color_image_size = 0;
         luna_VK_CreateTextureEmpty(
             rd->render_extent.width, rd->render_extent.height,
-            luna_VKFormatTolunaFormat(SwapChainImageFormat),
+            SwapChainImageFormat,
             Samples,
             VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
             &color_image_size,
@@ -342,7 +367,7 @@ void create_optional_images(luna_Renderer_t *rd)
         luna_GPU_BindTextureToMemory(&rd->color_image_memory, 0, rd->color_image);
 
         luna_GPU_TextureViewCreateInfo resolve_view_info = {
-            .format = luna_VKFormatTolunaFormat(SwapChainImageFormat),
+            .format = SwapChainImageFormat,
             .view_type = VK_IMAGE_VIEW_TYPE_2D,
             .subresourceRange = (VkImageSubresourceRange) {
                 .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -411,7 +436,7 @@ void create_framebuffers_and_swapchain_image_views(luna_Renderer_t *rd) {
         imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         imageViewCreateInfo.image = luna_GPU_TextureGet(data->sc_image);
         imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        imageViewCreateInfo.format = SwapChainImageFormat;
+        imageViewCreateInfo.format = luna_lunaFormatToVKFormat(SwapChainImageFormat);
         imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
         imageViewCreateInfo.subresourceRange.levelCount = 1;
@@ -528,7 +553,6 @@ void luna_Renderer_InitializeRenderingComponents(luna_Renderer_t *rd, const luna
             break;
         };
     } else {
-        present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
         present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
     }
 
@@ -536,7 +560,7 @@ void luna_Renderer_InitializeRenderingComponents(luna_Renderer_t *rd, const luna
     scio.extent.width = rd->render_extent.width;
     scio.extent.height = rd->render_extent.height;
     scio.present_mode = present_mode;
-    scio.format = luna_VKFormatTolunaFormat(SwapChainImageFormat);
+    scio.format = SwapChainImageFormat;
     scio.color_space = SwapChainColorSpace;
     scio.image_count = SwapChainImageCount;
     luna_GPU_CreateSwapchain(&scio, &rd->swapchain);
@@ -584,7 +608,7 @@ void luna_Renderer_InitializeRenderingComponents(luna_Renderer_t *rd, const luna
     rd->depth_buffer_format = luna_lunaFormatToVKFormat(LUNA_FORMAT_D32); // replace (probably)
 
     luna_GPU_RenderPassCreateInfo rpi = {};
-    rpi.format = luna_VKFormatTolunaFormat(SwapChainImageFormat);
+    rpi.format = SwapChainImageFormat;
     rpi.depthBufferFormat = luna_VKFormatTolunaFormat(rd->depth_buffer_format);
     rpi.subpass = 0;
     rpi.samples = samples;
@@ -644,12 +668,11 @@ luna_Renderer_t *luna_Renderer_Init(const luna_Renderer_Config *conf)
         cassert(vkCreateFence(device, &fenceCreateInfo, NULL, &data->in_flight_fence) == VK_SUCCESS);
 	}
 
-
     luna_DescriptorPool_Init(&g_pool);
 
     sprite_empty = sprite_load_disk("../Assets/empty.png");
 
-    camera = ccamera_init();
+    camera = lunaCamera_init();
 
     // Initialize subsystems.
     csm_compile_updated();
@@ -734,14 +757,12 @@ void crenderer_resize(luna_Renderer_t *rd) {
     scio.extent.width = rd->render_extent.width;
     scio.extent.height = rd->render_extent.height;
     scio.present_mode = present_mode;
-    scio.format = luna_VKFormatTolunaFormat(SwapChainImageFormat);
+    scio.format = SwapChainImageFormat;
     scio.color_space = SwapChainColorSpace;
     scio.image_count = SwapChainImageCount;
     scio.old_swapchain = old_swapchain;
     luna_GPU_CreateSwapchain(&scio, &rd->swapchain);
     vkDestroySwapchainKHR(device, old_swapchain, NULL);
-
-    // luna_GPU_DestroyImage(&rd->color_image);
 
     create_optional_images(rd);
     create_framebuffers_and_swapchain_image_views(rd);
@@ -832,7 +853,6 @@ void luna_Renderer_EndRender(luna_Renderer_t *rd)
     const VkCommandBuffer drawBuffer = *(VkCommandBuffer *)cg_vector_get(&rd->drawBuffers, rd->renderer_frame);
 
     luna_UI_Render(rd);
-    luna_ObjectsRender(rd);
     luna_Renderer_RenderAll(rd);
 
     vkCmdEndRenderPass(drawBuffer);
@@ -876,6 +896,487 @@ void luna_Renderer_EndRender(luna_Renderer_t *rd)
     rd->renderer_frame = (rd->renderer_frame + 1) % (1 + (int)rd->buffer_mode);
 }
 // lunaGFX ^^
+
+// cengine
+VkSampleCountFlagBits                MAX_SAMPLES;
+unsigned char 				         SUPPORTS_MULTISAMPLING;
+float 				                 MAX_ANISOTROPY;
+
+static SDL_UNUSED const char* ValidationLayers[] = {  
+	"VK_LAYER_KHRONOS_validation",
+};
+
+static SDL_UNUSED const char* RequiredInstanceExtensions[] = {
+	VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+	VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
+};
+
+static SDL_UNUSED const char* WantedInstanceExtensions[] = {
+	// VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
+};
+
+static SDL_UNUSED const char* WantedDeviceExtensions[] = {
+	// VK_EXT_ROBUSTNESS_2_EXTENSION_NAME,
+};
+
+static SDL_UNUSED const char* RequiredDeviceExtensions[] = {
+	VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+};
+
+// we'll just request them as needed
+
+static const VkPhysicalDeviceFeatures WantedFeatures = {
+	.samplerAnisotropy = VK_TRUE,
+};
+
+void __VK_DEBUG_LOG(const char *fmt, ...) {
+    const char * preceder = "vkdebug: ";
+    const char * succeeder = "\n";
+    va_list args;
+    va_start(args, fmt);
+    __CG_LOG(args, succeeder, preceder, fmt, 1);
+    va_end(args);
+}
+
+static SDL_UNUSED VKAPI_ATTR VkBool32 VKAPI_CALL VKDebugMessengerCallback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+    VkDebugUtilsMessageTypeFlagsEXT messageType,
+    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+    void* pUserData) {
+
+	(void)messageSeverity;
+	(void)messageType;
+	(void)pUserData;
+
+	if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) {
+		return VK_FALSE;
+	}
+
+    __VK_DEBUG_LOG("%s", pCallbackData->pMessage);
+
+    return VK_FALSE;
+}
+
+cg_vector_t setify(u32 i1, u32 i2, u32 i3, u32 i4) {
+	cg_vector_t ret = cg_vector_init(sizeof(u32), 4);
+    u32 nums[4] = {i1, i2, i3, i4};
+	for (int j = 0; j < array_len(nums); j++) {
+		const u32 e = nums[j];
+		bool already_in = false;
+		for (int i = 0; i < cg_vector_size(&ret); i++) {
+			if (e == *(u32 *)cg_vector_get(&ret, i))
+				already_in = true;
+
+		}
+		if (!already_in) {
+			cg_vector_push_back(&ret, &e);
+		}
+	}
+	return ret;
+}
+
+VkInstance CreateInstance(const char* title) {
+	if (volkInitialize() != VK_SUCCESS) {
+		LOG_AND_ABORT("Volk could not initialize. You probably don't have the vulkan loader installed. I can't do anything about that.");
+	}
+
+    VkApplicationInfo appInfo = {};
+	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+	appInfo.applicationVersion = VK_API_VERSION_1_0;
+	appInfo.apiVersion = VK_API_VERSION_1_0;
+	appInfo.pApplicationName = title;
+	appInfo.pEngineName = "Carbon";
+	appInfo.engineVersion = 0;
+
+	uint32_t SDLExtensionCount = 0;
+	SDL_Vulkan_GetInstanceExtensions(window, &SDLExtensionCount, NULL);
+	cg_vector_t /* const char* */ SDLExtensions = cg_vector_init(sizeof(const char *), SDLExtensionCount);
+	SDL_Vulkan_GetInstanceExtensions(window, &SDLExtensionCount, (const char **)cg_vector_data(&SDLExtensions));
+
+	cg_vector_t enabledExtensions = cg_vector_init(sizeof(const char *), array_len(RequiredInstanceExtensions));
+
+	for (int i = 0; i < array_len(RequiredInstanceExtensions); i++) {
+		const char *ext = RequiredInstanceExtensions[i];
+		cg_vector_push_back(&enabledExtensions, &ext);
+	}
+
+	for (int i = 0; i < (int)SDLExtensionCount; i++) {
+		cg_vector_push_back(&enabledExtensions, cg_vector_get(&SDLExtensions, i));
+	}
+
+	u32 extensionCount = 0;
+	vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, NULL);
+	cg_vector_t /* VkExtensionProperties */ extensions = cg_vector_init(sizeof(VkExtensionProperties), extensionCount);
+	vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, (VkExtensionProperties *)cg_vector_data(&extensions));
+
+	for (u32 i = 0; i < extensionCount; i++) {
+		const char* name = ((VkExtensionProperties *)cg_vector_data(&extensions))[i].extensionName;
+		for(int j = 0; j < array_len(WantedInstanceExtensions); j++) {
+			const char * want = WantedInstanceExtensions[j];
+			if(strcmp(name, want) == 0) {
+				cg_vector_push_back(&enabledExtensions, &name);
+				break;
+			}
+		}
+	}
+
+	VkInstanceCreateInfo instanceCreateinfo = {};
+	instanceCreateinfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+	instanceCreateinfo.pApplicationInfo = &appInfo;
+	instanceCreateinfo.enabledExtensionCount = cg_vector_size(&enabledExtensions);
+	instanceCreateinfo.ppEnabledExtensionNames = (const char **)cg_vector_data(&enabledExtensions);
+
+	#ifdef DEBUG
+
+	bool validationLayersAvailable = false;
+	uint32_t layerCount = 0;
+
+	vkEnumerateInstanceLayerProperties(&layerCount, NULL);
+	cg_vector_t /* VkLayerProperties */ layerProperties = cg_vector_init(sizeof(VkLayerProperties), layerCount);
+	vkEnumerateInstanceLayerProperties(&layerCount, (VkLayerProperties *)cg_vector_data(&layerProperties));
+
+	if(array_len(ValidationLayers) != 0) {
+		for(int j = 0; j < array_len(ValidationLayers); j++) {
+			for (uint32_t i = 0; i < layerCount; i++) {
+				if (strcmp(ValidationLayers[j], ((VkLayerProperties *)cg_vector_data(&layerProperties))[i].layerName) == 0) {
+					validationLayersAvailable = true;
+				}
+			}
+		}
+
+		if (!validationLayersAvailable)
+		{
+			LOG_ERROR("VALIDATION LAYERS COULD NOT BE LOADED\nRequested layers:\n");
+			for(int i = 0; i < array_len(ValidationLayers); i++) {
+				printf("\t%s\n", ValidationLayers[i]);
+			}
+
+			printf("Instance provided these layers (i.e. These layers are available):\n");
+			for(uint32_t i = 0; i < layerCount; i++)
+				printf("\t%s\n", ((VkLayerProperties *)cg_vector_data(&layerProperties))[i].layerName);
+
+			printf("But instance asked for (i.e. are not available):\n");
+
+			cg_vector_t /* const char* */ missingLayers = cg_vector_init(sizeof(const char *), 16);
+		
+			for(int i = 0; i < array_len(ValidationLayers); i++)
+			{
+				const char *layer = ValidationLayers[i];
+				bool layerAvailable = false;
+				for (uint32_t i = 0; i < layerCount; i++) {
+					if (strcmp(layer, ((VkLayerProperties *)cg_vector_data(&layerProperties))[i].layerName) == 0)
+					{
+						layerAvailable = true;
+						break;
+					}
+				}
+				if(!layerAvailable) cg_vector_push_back(&missingLayers, &layer);
+			}
+			for(int i = 0; i < cg_vector_size(&missingLayers); i++)
+				printf("\t%s\n", (const char *)cg_vector_get(&missingLayers, i));
+			
+			cg_vector_destroy(&missingLayers);
+			
+			abort();
+		}
+
+		instanceCreateinfo.enabledLayerCount = array_len(ValidationLayers);
+		instanceCreateinfo.ppEnabledLayerNames = ValidationLayers;
+	}
+
+	#else
+
+	instanceCreateinfo.enabledLayerCount = 0;
+	instanceCreateinfo.ppEnabledLayerNames = NULL;
+
+	#endif
+
+    VkInstance instance;
+	vkCreateInstance(&instanceCreateinfo, NULL, &instance);
+
+	#ifdef DEBUG
+	if (validationLayersAvailable)
+	{
+		VkDebugUtilsMessengerCreateInfoEXT createInfo = {};
+		createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+		createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+									VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+									VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+		createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+								VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+								VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+		createInfo.pfnUserCallback = VKDebugMessengerCallback;
+
+		PFN_vkCreateDebugUtilsMessengerEXT _CreateDebugUtilsMessenger = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
+
+		if (_CreateDebugUtilsMessenger) {
+            VkResult r;
+			if ((r = _CreateDebugUtilsMessenger(instance, &createInfo, NULL, &debugMessenger)) != VK_SUCCESS)
+				LOG_ERROR("Vulkan debug messenger could not start. err %i", r);
+			else
+				LOG_DEBUG("Vulkan debug messenger has been set to %s()", STR(VKDebugMessengerCallback));
+		}
+		else
+			LOG_ERROR("vkCreateDebugUtilsMessengerEXT proc address not found");
+	}
+
+	cg_vector_destroy(&layerProperties);
+	#endif
+
+	cg_vector_destroy(&SDLExtensions);
+	cg_vector_destroy(&extensions);
+	cg_vector_destroy(&enabledExtensions);
+
+	volkLoadInstance(instance);
+    return instance;
+}
+
+void PrintDeviceInfo(VkPhysicalDevice device)
+{
+	VkPhysicalDeviceProperties properties;	
+	vkGetPhysicalDeviceProperties(device, &properties);
+
+	const char* deviceTypeStr;
+	switch(properties.deviceType) {
+		case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
+			deviceTypeStr = "Discrete";
+			break;
+		case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
+			deviceTypeStr = "Integrated";
+			break;
+		case VK_PHYSICAL_DEVICE_TYPE_CPU:
+			deviceTypeStr = "Software/CPU";
+			break;
+		default:
+			deviceTypeStr = "Unknown";
+			break;
+	}
+
+	// I think it looks cleaner this way
+	LOG_INFO(
+		"(%s) %s VK API Version %d.%d",
+		deviceTypeStr, properties.deviceName,
+		properties.apiVersion >> 22, (properties.apiVersion >> 12) & 0x3FF
+	);
+}
+
+VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR surface) {
+
+	uint32_t physDeviceCount = 0;
+	vkEnumeratePhysicalDevices(instance, &physDeviceCount, NULL);
+	
+	if(physDeviceCount == 0) {
+		LOG_AND_ABORT("Huuuhhh??? No physical devices found? Are you running this on a banana???\n");
+	}
+
+	cg_vector_t /* VkPhysicalDevice */ physicalDevices = cg_vector_init(sizeof(VkPhysicalDevice), physDeviceCount);
+	vkEnumeratePhysicalDevices(instance, &physDeviceCount, (VkPhysicalDevice *)cg_vector_data(&physicalDevices));
+
+	for(u32 i = 0; i < physDeviceCount; i++) {
+		const VkPhysicalDevice device = ((VkPhysicalDevice *)cg_vector_data(&physicalDevices))[i];
+
+		uint32_t formatCount = 0;
+		vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, NULL);
+
+		uint32_t presentModeCount = 0;
+		vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, NULL);
+		
+		bool extensionsAvailable = true;
+
+		uint32_t extensionCount = 0;
+		vkEnumerateDeviceExtensionProperties(device, NULL, &extensionCount, NULL);
+		cg_vector_t /* VkExtensionProperties */ availableExtensions = cg_vector_init(sizeof(VkExtensionProperties), extensionCount);
+		vkEnumerateDeviceExtensionProperties(device, NULL, &extensionCount, (VkExtensionProperties *)cg_vector_data(&availableExtensions));
+
+		for (int i = 0; i < array_len(RequiredDeviceExtensions); i++) {
+			const char *extension = RequiredDeviceExtensions[i];
+			bool validated = false;
+			for(u32 j = 0; j < extensionCount; j++) {
+				if (strcmp(extension, ((VkExtensionProperties *)cg_vector_data(&availableExtensions))[j].extensionName) == 0)
+					validated = true;
+			}
+			if (!validated) {
+				LOG_ERROR("Failed to validate extension with name: %s\n", extension);
+				extensionsAvailable = false;
+			}
+		}
+
+		cg_vector_destroy(&availableExtensions);
+
+		if (extensionsAvailable && formatCount > 0 && presentModeCount > 0) {
+			PrintDeviceInfo(device);
+			return device;
+		}
+	}
+
+	VkPhysicalDevice fallback = ((VkPhysicalDevice *)cg_vector_data(&physicalDevices))[0];
+
+	VkPhysicalDeviceProperties properties;
+	vkGetPhysicalDeviceProperties(fallback, &properties);
+
+	LOG_ERROR("No device found. Falling back to device \"%s\".\n", properties.deviceName);
+
+	PrintDeviceInfo(fallback);
+
+	cg_vector_destroy(&physicalDevices);
+
+	return fallback;
+}
+
+VkDevice CreateDevice() {
+	u32 queueCount = 0;
+	vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, NULL);
+	cg_vector_t /* VkQueueFamilyProperties */ queueFamilies = cg_vector_init(sizeof(VkQueueFamilyProperties), queueCount);
+	vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, (VkQueueFamilyProperties *)cg_vector_data(&queueFamilies));
+
+	// Clang loves complaining about these.
+	u32 graphicsFamily = 0, presentFamily = 0, computeFamily = 0, transferFamily = 0;
+	(void)graphicsFamily, (void)presentFamily, (void)computeFamily, (void)transferFamily;
+
+	bool foundGraphicsFamily = false, foundPresentFamily = false, foundComputeFamily = false, foundTransferFamily = false;
+		
+	u32 i = 0;
+	for (int j = 0; j < cg_vector_size(&queueFamilies); j++) {
+		const VkQueueFamilyProperties queueFamily = ((VkQueueFamilyProperties *)cg_vector_data(&queueFamilies))[j];
+		VkBool32 presentSupport = false;
+		vkGetPhysicalDeviceSurfaceSupportKHR(physDevice, i, surface, &presentSupport);
+	
+		if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+			graphicsFamily = i;
+			foundGraphicsFamily = true;
+		}
+		if (queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) {
+			computeFamily = i;
+			foundComputeFamily = true;
+		}
+		if (queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT) {
+			transferFamily = i;
+			foundTransferFamily = true;
+		}
+		if (presentSupport) {
+			presentFamily = i;
+			foundPresentFamily = true;
+		}
+		if (foundGraphicsFamily && foundComputeFamily && foundPresentFamily && foundTransferFamily)
+			break;
+	
+		i++;
+	}
+	
+	cg_vector_t /* u32 */ uniqueQueueFamilies = setify(graphicsFamily, presentFamily, computeFamily, transferFamily);
+	cg_vector_t /* VkDeviceQueueCreateInfo */ queueCreateInfos = cg_vector_init(sizeof(VkDeviceQueueCreateInfo), cg_vector_size(&uniqueQueueFamilies));
+
+	const float queuePriority = 1.0f;
+
+	for (int i = 0; i < cg_vector_size(&uniqueQueueFamilies); i++)
+	{
+		VkDeviceQueueCreateInfo queueInfo = {};
+		queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		queueInfo.queueFamilyIndex = ((u32 *)cg_vector_data(&uniqueQueueFamilies))[i];
+		queueInfo.queueCount = 1;
+		queueInfo.pQueuePriorities = &queuePriority;
+		cg_vector_push_back(&queueCreateInfos, &queueInfo);
+	}
+
+	cg_vector_t /* const char* */ enabledExtensions = cg_vector_init(sizeof(const char *), array_len(WantedDeviceExtensions) + array_len(RequiredDeviceExtensions));
+
+	u32 extensionCount;
+	vkEnumerateDeviceExtensionProperties(physDevice, NULL, &extensionCount, NULL);
+	cg_vector_t /* VkExtensionProperties */ extensions = cg_vector_init(sizeof(VkExtensionProperties), extensionCount);
+	vkEnumerateDeviceExtensionProperties(physDevice, NULL, &extensionCount, (VkExtensionProperties *)cg_vector_data(&extensions));
+
+	for (int i = 0; i < array_len(WantedDeviceExtensions); i++) {
+		const char *wanted = WantedDeviceExtensions[i];
+		for(u32 i = 0; i < extensionCount; i++) {
+			VkExtensionProperties ext = ((VkExtensionProperties *)cg_vector_data(&extensions))[i];
+			if(strcmp(wanted, ext.extensionName) == 0) {
+				cg_vector_push_back(&enabledExtensions, &ext.extensionName);
+			}
+		}
+	}
+
+	for (int i = 0; i < array_len(RequiredDeviceExtensions); i++) {
+		const char *required = RequiredDeviceExtensions[i];
+		bool validated = false;
+		for(u32 i = 0; i < extensionCount; i++) {
+			const char* extName = ((VkExtensionProperties *)cg_vector_data(&extensions))[i].extensionName;
+			if(strcmp(required, extName) == 0) {
+				cg_vector_push_back(&enabledExtensions, &extName);
+				validated = true;
+			}
+		}
+
+		if(!validated)
+			LOG_ERROR("Failed to validate required extension with name %s", required);
+	}
+
+	VkPhysicalDeviceFeatures availableFeatures = {};
+	vkGetPhysicalDeviceFeatures(physDevice, &availableFeatures);
+
+	VkDeviceCreateInfo deviceCreateInfo = {};
+	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	deviceCreateInfo.queueCreateInfoCount = cg_vector_size(&queueCreateInfos);
+	deviceCreateInfo.pQueueCreateInfos = (const VkDeviceQueueCreateInfo *)cg_vector_data(&queueCreateInfos);
+	deviceCreateInfo.enabledExtensionCount = cg_vector_size(&enabledExtensions);
+	deviceCreateInfo.ppEnabledExtensionNames = (const char * const*)cg_vector_data(&enabledExtensions);
+	deviceCreateInfo.pEnabledFeatures = &WantedFeatures;
+
+	if (vkCreateDevice(physDevice, &deviceCreateInfo, NULL, &device) != VK_SUCCESS) {
+		LOG_AND_ABORT("Failed to create device");
+	}
+
+	cg_vector_destroy(&extensions);
+	cg_vector_destroy(&enabledExtensions);
+	cg_vector_destroy(&queueFamilies);
+	cg_vector_destroy(&uniqueQueueFamilies);
+	cg_vector_destroy(&queueCreateInfos);
+
+	return device;
+}
+
+void ctx_initialize(const char* title, u32 windowWidth, u32 windowHeight) {
+	window = SDL_CreateWindow(title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, windowWidth, windowHeight, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
+	cassert(window != NULL);
+
+	instance = CreateInstance(title);
+	cassert(instance != NULL);
+
+	if(SDL_Vulkan_CreateSurface(window, instance, &surface) != SDL_TRUE) {
+		LOG_AND_ABORT("Surface creation failed.\nSDL reports: %s", SDL_GetError());
+	}
+
+	physDevice = ChoosePhysicalDevice(instance, surface);
+
+	device = CreateDevice();
+	cassert(device != NULL);
+
+	volkLoadDevice(device);
+
+	VkPhysicalDeviceProperties props;
+	vkGetPhysicalDeviceProperties(physDevice, &props);
+
+	MAX_ANISOTROPY = props.limits.maxSamplerAnisotropy;
+	SUPPORTS_MULTISAMPLING = true;
+
+	const VkSampleCountFlags samples = props.limits.framebufferColorSampleCounts;
+    if (samples & VK_SAMPLE_COUNT_64_BIT)
+		MAX_SAMPLES = VK_SAMPLE_COUNT_64_BIT;
+    else if (samples & VK_SAMPLE_COUNT_32_BIT)
+		MAX_SAMPLES = VK_SAMPLE_COUNT_32_BIT;
+    else if (samples & VK_SAMPLE_COUNT_16_BIT)
+		MAX_SAMPLES = VK_SAMPLE_COUNT_16_BIT;
+    else if (samples & VK_SAMPLE_COUNT_8_BIT)
+		MAX_SAMPLES = VK_SAMPLE_COUNT_8_BIT;
+    else if (samples & VK_SAMPLE_COUNT_4_BIT)
+		MAX_SAMPLES = VK_SAMPLE_COUNT_4_BIT;
+    else if (samples & VK_SAMPLE_COUNT_2_BIT)
+		MAX_SAMPLES = VK_SAMPLE_COUNT_2_BIT;
+	else {
+		MAX_SAMPLES = VK_SAMPLE_COUNT_1_BIT;
+		SUPPORTS_MULTISAMPLING = false;
+	}
+}
+// cengine
 
 // ctext vv
 
@@ -924,9 +1425,9 @@ void ctext_load_font_from_ft(const char *font_path, bool sdf, cfont_t *dstref) {
     strncpy(dstref->style_name, face->style_name, 127);
 
     if (face->size->metrics.height) {
-        dstref->line_height = -face->size->metrics.height / (f32)face->units_per_EM;
+        dstref->line_height = -face->size->metrics.height / (float)face->units_per_EM;
     } else {
-        dstref->line_height = -(f32)(face->ascender - face->descender) / face->size->metrics.y_scale;
+        dstref->line_height = -(float)(face->ascender - face->descender) / face->size->metrics.y_scale;
     }
     dstref->atlas = catlas_init(4096, 4096);
 
@@ -940,7 +1441,7 @@ void ctext_load_font_from_ft(const char *font_path, bool sdf, cfont_t *dstref) {
         }
 
         if (i == ' ') {
-            dstref->space_width = (f32)face->glyph->metrics.horiAdvance / (f32)face->units_per_EM;
+            dstref->space_width = (float)face->glyph->metrics.horiAdvance / (float)face->units_per_EM;
             continue;
         }
 
@@ -967,17 +1468,17 @@ void ctext_load_font_from_ft(const char *font_path, bool sdf, cfont_t *dstref) {
         FT_Done_Glyph(gl);
 
         const ctext_glyph retglyph = {
-            .x0 = box.xMin / (f32)face->units_per_EM,
-            .x1 = box.xMax / (f32)face->units_per_EM,
-            .y0 = box.yMin / (f32)face->units_per_EM,
-            .y1 = box.yMax / (f32)face->units_per_EM,
+            .x0 = box.xMin / (float)face->units_per_EM,
+            .x1 = box.xMax / (float)face->units_per_EM,
+            .y0 = box.yMin / (float)face->units_per_EM,
+            .y1 = box.yMax / (float)face->units_per_EM,
 
             .l = (float)(x) / dstref->atlas.width,
             .r = (float)(x + w) / dstref->atlas.width,
             .b = (float)(y + h) / dstref->atlas.height,
             .t = (float)(y) / dstref->atlas.height,
 
-            .advance = (f32)face->glyph->metrics.horiAdvance / (f32)face->units_per_EM
+            .advance = (float)face->glyph->metrics.horiAdvance / (float)face->units_per_EM
         };
 
         const char glyphi = i;
@@ -1038,7 +1539,7 @@ void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scale, cfon
         dstref->atlas.data,
         atlas_w,
         atlas_h,
-        atlas_w * atlas_h * vk_fmt_get_bpp(VK_FORMAT_R8_UNORM)
+        atlas_w * atlas_h * luna_FormatGetBytesPerChannel(LUNA_FORMAT_R8)
     );
 
     const luna_GPU_SamplerCreateInfo sampler_info = {
@@ -1082,7 +1583,7 @@ void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scale, cfon
     }
 }
 
-void ctext__font_resize_buffer(cfont_t *fnt, int new_buffer_size)
+bool ctext__font_resize_buffer(cfont_t *fnt, int new_buffer_size)
 {
     int new_allocation_size;
 
@@ -1093,7 +1594,7 @@ void ctext__font_resize_buffer(cfont_t *fnt, int new_buffer_size)
         new_allocation_size = cmmax(fnt->allocated_size / 3, new_buffer_size);
     }
     else
-        return;
+        return false;
 
     vkDeviceWaitIdle(device);
     
@@ -1114,9 +1615,13 @@ void ctext__font_resize_buffer(cfont_t *fnt, int new_buffer_size)
     luna_GPU_BindBufferToMemory(&fnt->buffer_mem, 0, &fnt->buffer);
 
     fnt->allocated_size = new_allocation_size;
+    fnt->to_render = 0;
+
+    return true;
 }
 
 void ctext__render_drawcalls(luna_Renderer_t *rd, cfont_t *fnt, const mat4 *model) {
+
     const VkCommandBuffer cmd = luna_Renderer_GetDrawBuffer(rd);
     const VkDeviceSize offsets[] = { 0 };
 
@@ -1156,10 +1661,6 @@ void ctext__render_drawcalls(luna_Renderer_t *rd, cfont_t *fnt, const mat4 *mode
 
 void ctext_end_render(luna_Renderer_t *rd, cfont_t *fnt, mat4 model)
 {
-    if (fnt->to_render) {
-        ctext__render_drawcalls(rd, fnt, &model);
-    }
-
     u32 total_vertex_byte_size = 0;
     u32 total_index_count = 0;
 
@@ -1176,10 +1677,14 @@ void ctext_end_render(luna_Renderer_t *rd, cfont_t *fnt, mat4 model)
     const u32 total_index_byte_size = total_index_count * sizeof(u32);
     const u32 total_buffer_size = total_index_byte_size + total_vertex_byte_size;
 
-    ctext__font_resize_buffer(fnt, total_buffer_size);
+    const bool fnt_buffer_resized = ctext__font_resize_buffer(fnt, total_buffer_size);
+
+    if (fnt->to_render && !fnt_buffer_resized) {
+        ctext__render_drawcalls(rd, fnt, &model);
+    }
 
     uint8_t *mapped;
-    vkMapMemory(device, fnt->buffer_mem.memory, 0, fnt->allocated_size, 0, (void **)&mapped);
+    vkMapMemory(device, fnt->buffer_mem.memory, 0, total_buffer_size, 0, (void **)&mapped);
 
     // this may be dumb but I am too
 
@@ -1261,13 +1766,14 @@ static void ctext_get_text_size(const cfont_t *fnt, const cg_string_t *str, floa
             case '\n':
                 height += fnt->line_height;
                 continue;
-            default:
+            default: {
                 const ctext_glyph *glyph = (ctext_glyph *)cg_hashmap_find(fnt->glyph_map, &c);
                 if (!glyph) {
                     continue;
                 }
                 width += glyph->advance;
                 continue;
+            }
         }
     }
     if (w) { *w = width;  }
@@ -1285,8 +1791,8 @@ static int render_line(
     const ctext_text_drawcall_t* drawcall,
     const ctext_text_render_info *pInfo,
     const int glyph_iter,
-    f32 x,
-    const f32 y,
+    float x,
+    const float y,
     float scale
 ) {
     const int len = cg_string_length(str);
@@ -1301,16 +1807,16 @@ static int render_line(
             case '\t':
                 x += fnt->space_width * 4.0f;
                 continue;
-            default:
+            default: {
                 const ctext_glyph *glyph = (const ctext_glyph *)cg_hashmap_find(fnt->glyph_map, &c);
                 if (!glyph) {
                     LOG_INFO("no glyph when rendering char %c", c);
                     continue;
                 }
-                const f32 glyph_x0 = glyph->x0 + x;
-                const f32 glyph_x1 = glyph->x1 + x;
-                const f32 glyph_y0 = glyph->y0 + y;
-                const f32 glyph_y1 = glyph->y1 + y;
+                const float glyph_x0 = glyph->x0 + x;
+                const float glyph_x1 = glyph->x1 + x;
+                const float glyph_y0 = glyph->y0 + y;
+                const float glyph_y1 = glyph->y1 + y;
 
                 const int index_offset = (fnt->chars_drawn + iter) * 4;
                 cglyph_vertex_t *v_out = drawcall->vertices + (glyph_iter + iter) * 4;
@@ -1330,6 +1836,7 @@ static int render_line(
                 x += glyph->advance;
                 iter++;
                 continue;
+            }
         }
     }
 
@@ -1368,29 +1875,6 @@ int gen_vertices(
 
     float text_w, text_h;
     ctext_get_text_size(fnt, str, &text_w, &text_h);
-
-    const vec2 size = (vec2){text_w * scale, text_h * scale};
-    const cmrect2d rect = {
-        .position = (vec2){pInfo->position.x, pInfo->position.y},
-        .size = v2muls(size, 0.5f)
-    };
-    const cmrect2d cam = {
-        .position = (vec2){ camera.position.x, camera.position.y },
-        .size = (vec2){ CAMERA_ORTHO_W, CAMERA_ORTHO_H }
-    };
-
-    const bool object_is_in_view =
-        fabsf(rect.position.x - cam.position.x) <= (rect.size.x + cam.size.x) &&
-        fabsf(rect.position.y - cam.position.y) <= (rect.size.y + cam.size.y);
-
-    if (!object_is_in_view) {
-        for (int i = 0; i < line_count; i++) {
-            cg_string_t *str = ((cg_string_t **)cg_vector_data(&splitted_strings))[i];
-            cg_string_destroy(str);
-        }
-        cg_vector_destroy(&splitted_strings);
-        return 1;
-    }
 
     float ypos = pInfo->position.y;
 
@@ -1587,13 +2071,13 @@ void ctext_ff_write(const char *path, const cfont_t *fnt)
     }
     fwrite(fnt->atlas.data, fnt->atlas.width * fnt->atlas.height, 1, f);
 
-    const luna_Image img = (luna_Image){
+    const lunaImage img = (lunaImage){
         .w = fnt->atlas.width,
         .h = fnt->atlas.height,
         .data = fnt->atlas.data,
         .fmt = LUNA_FORMAT_R8
     };
-    luna_ImageWritePNG(&img, "PISS.png");
+    lunaImage_WritePNG(&img, "PISS.png");
     fclose(f);
 }
 
@@ -1744,8 +2228,6 @@ void __luna_DescriptorPool_Allocate(luna_DescriptorPool *pool) {
     for (int i = 0; i < pool->nsets; i++) {
         luna_DescriptorSet *old_set = pool->sets[i];
 
-        cassert(old_set->canary == SET_CANARY);
-
         for (int writei = 0; writei < old_set->nwrites; writei++) {
             VkWriteDescriptorSet *write = &old_set->writes[writei];
              copies[ncopies] = (VkCopyDescriptorSet){
@@ -1792,13 +2274,10 @@ void luna_DescriptorPool_Init(luna_DescriptorPool *dst) {
     dst->sets = malloc(sizeof(luna_DescriptorSet *));
     dst->max_child_sets = 1;
     dst->nsets = 0;
-    dst->canary = POOL_CANARY;
     __luna_DescriptorPool_Allocate(dst);
-    cassert(dst->canary == POOL_CANARY);
 }
 
 void luna_AllocateDescriptorSet(luna_DescriptorPool *pool, const VkDescriptorSetLayoutBinding *bindings, int nbindings, luna_DescriptorSet **dst) {
-    cassert(pool->canary == POOL_CANARY);
 
     bool need_realloc = 0;
     for (int i = 0; i < 11; i++) {
@@ -1827,7 +2306,6 @@ void luna_AllocateDescriptorSet(luna_DescriptorPool *pool, const VkDescriptorSet
 
     (*dst) = set;
 
-    set->canary = SET_CANARY;
     set->pool = pool;
     set->writes = malloc(sizeof(VkWriteDescriptorSet));
     cassert(set->writes != NULL);
@@ -1844,9 +2322,6 @@ void luna_AllocateDescriptorSet(luna_DescriptorPool *pool, const VkDescriptorSet
     setAllocInfo.descriptorSetCount = 1;
     setAllocInfo.pSetLayouts = &set->layout;
     cassert(vkAllocateDescriptorSets(device, &setAllocInfo, &set->set) == VK_SUCCESS);
-
-    cassert(pool->canary == POOL_CANARY);
-    cassert(set->canary == SET_CANARY);
 }
 // lunaDescriptors ^^
 
@@ -1890,7 +2365,7 @@ void __BakeUnlitPipeline(luna_Renderer_t *rd ) {
     };
 
 	luna_GPU_PipelineCreateInfo pc = luna_GPU_InitPipelineCreateInfo();
-    pc.format = luna_VKFormatTolunaFormat(SwapChainImageFormat);
+    pc.format = SwapChainImageFormat;
     pc.subpass = 0;
     pc.render_pass = luna_Renderer_GetRenderPass(rd);
 
@@ -1950,7 +2425,7 @@ void __BakeCtextPipeline(luna_Renderer_t *rd ) {
     const luna_GPU_PipelineBlendState blend = luna_GPU_InitPipelineBlendState(CVK_BLEND_PRESET_ALPHA);
 
     luna_GPU_PipelineCreateInfo pc = luna_GPU_InitPipelineCreateInfo();
-    pc.format = luna_VKFormatTolunaFormat(SwapChainImageFormat);
+    pc.format = SwapChainImageFormat;
     pc.subpass = 0;
     pc.render_pass = luna_Renderer_GetRenderPass(rd);
 
@@ -1977,7 +2452,7 @@ void __BakeCtextPipeline(luna_Renderer_t *rd ) {
 
     luna_GPU_CreatePipelineLayout(&pc, &g_Pipelines.Ctext.pipeline_layout);
     pc.pipeline_layout = g_Pipelines.Ctext.pipeline_layout;
-    luna_GPU_CreateGraphicsPipeline(&pc, &g_Pipelines.Ctext.pipeline, CVK_PIPELINE_FLAGS_ENABLE_BLEND);
+    luna_GPU_CreateGraphicsPipeline(&pc, &g_Pipelines.Ctext.pipeline, 0);
 }
 
 void __BakeDebugLinePipeline(luna_Renderer_t *rd ) {
@@ -2003,7 +2478,7 @@ void __BakeDebugLinePipeline(luna_Renderer_t *rd ) {
     const luna_GPU_PipelineBlendState blend = luna_GPU_InitPipelineBlendState(CVK_BLEND_PRESET_ALPHA);
 
     luna_GPU_PipelineCreateInfo pc = luna_GPU_InitPipelineCreateInfo();
-    pc.format = luna_VKFormatTolunaFormat(SwapChainImageFormat);
+    pc.format = SwapChainImageFormat;
 
     pc.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
     pc.render_pass = luna_Renderer_GetRenderPass(rd);
@@ -2031,7 +2506,7 @@ void __BakeDebugLinePipeline(luna_Renderer_t *rd ) {
 
     luna_GPU_CreatePipelineLayout(&pc, &g_Pipelines.Line.pipeline_layout);
     pc.pipeline_layout = g_Pipelines.Line.pipeline_layout;
-    luna_GPU_CreateGraphicsPipeline(&pc, &g_Pipelines.Line.pipeline, CVK_PIPELINE_FLAGS_ENABLE_BLEND);
+    luna_GPU_CreateGraphicsPipeline(&pc, &g_Pipelines.Line.pipeline, 0);
 }
 
 void luna_VK_BakeGlobalPipelines(luna_Renderer_t *rd )
@@ -2074,8 +2549,8 @@ void luna_GPU_CreateGraphicsPipeline(const luna_GPU_PipelineCreateInfo *pCreateI
 	VkViewport viewportState = {};
 	viewportState.x = 0;
 	viewportState.y = 0;
-	viewportState.width = (f32)(pCreateInfo->extent.width);
-	viewportState.height = (f32)(pCreateInfo->extent.height);
+	viewportState.width = (float)(pCreateInfo->extent.width);
+	viewportState.height = (float)(pCreateInfo->extent.height);
 	viewportState.minDepth = 0.0f;
 	viewportState.maxDepth = 1.0f;
 
@@ -2096,7 +2571,7 @@ void luna_GPU_CreateGraphicsPipeline(const luna_GPU_PipelineCreateInfo *pCreateI
 	rasterizerPipelineStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
 	rasterizerPipelineStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
 	
-	if(HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_CULLING) && !(flags & CVK_PIPELINE_FLAGS_UNFORCE_CULLING))
+	if(HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_CULLING))
 		rasterizerPipelineStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT; // No one uses other culling modes. If you do, I hate you.
 	else
 		rasterizerPipelineStateCreateInfo.cullMode = VK_CULL_MODE_NONE;
@@ -2116,14 +2591,14 @@ void luna_GPU_CreateGraphicsPipeline(const luna_GPU_PipelineCreateInfo *pCreateI
 	multisamplerPipelineStageCreateInfo.minSampleShading = 1.0f;
 	multisamplerPipelineStageCreateInfo.pSampleMask = VK_NULL_HANDLE;
 	
-	if(HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING) && !(flags & CVK_PIPELINE_FLAGS_UNFORCE_MULTISAMPLING))
+	if(HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING))
 		multisamplerPipelineStageCreateInfo.rasterizationSamples = pCreateInfo->samples;
 	else
 		multisamplerPipelineStageCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
 	VkPipelineColorBlendAttachmentState colorblendAttachmentState = {};
 
-	if(HAS_FLAG(CVK_PIPELINE_FLAGS_ENABLE_BLEND))
+	if(pCreateInfo->blend_state != NULL)
 	{
 		const luna_GPU_PipelineBlendState  *blendState = pCreateInfo->blend_state;
 
@@ -2179,7 +2654,7 @@ void luna_GPU_CreateGraphicsPipeline(const luna_GPU_PipelineCreateInfo *pCreateI
 
 	VkPipelineDynamicStateCreateInfo dynamicStateInfo = {};
 	const VkDynamicState dynamicStates[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-	if (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_DYNAMIC_VIEWPORT) && !(flags & CVK_PIPELINE_FLAGS_UNFORCE_DYNAMIC_VIEWPORT)) {}
+	if (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_DYNAMIC_VIEWPORT)) {}
 	else  {
 		dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 		dynamicStateInfo.dynamicStateCount = 2;
@@ -2188,7 +2663,7 @@ void luna_GPU_CreateGraphicsPipeline(const luna_GPU_PipelineCreateInfo *pCreateI
 	}
 	
 	VkPipelineDepthStencilStateCreateInfo depthStencilState = {};
-	if(HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_DEPTH_CHECK) && !(flags & CVK_PIPELINE_FLAGS_UNFORCE_DEPTH_CHECK))
+	if(HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_DEPTH_CHECK))
 	{
 		depthStencilState.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
 		depthStencilState.depthTestEnable = VK_TRUE;
@@ -2219,21 +2694,21 @@ void luna_GPU_CreateRenderPass(luna_GPU_RenderPassCreateInfo const *pCreateInfo,
     CVK_REQUIRED_PTR(dstRenderPass);
     CVK_NOT_EQUAL_TO(pCreateInfo->format, LUNA_FORMAT_UNDEFINED);
 
-    if (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_DEPTH_CHECK) && !(flags & CVK_PIPELINE_FLAGS_UNFORCE_DEPTH_CHECK))
+    if (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_DEPTH_CHECK))
     {
         CVK_NOT_EQUAL_TO(pCreateInfo->depthBufferFormat, LUNA_FORMAT_UNDEFINED);
     }
 
     VkAttachmentDescription colorAttachmentDescription = {};
     colorAttachmentDescription.format = luna_lunaFormatToVKFormat(pCreateInfo->format);
-    colorAttachmentDescription.samples = (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING) && !(flags & CVK_PIPELINE_FLAGS_UNFORCE_MULTISAMPLING)) ? pCreateInfo->samples : VK_SAMPLE_COUNT_1_BIT;
+    colorAttachmentDescription.samples = HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING) ? pCreateInfo->samples : VK_SAMPLE_COUNT_1_BIT;
     colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    colorAttachmentDescription.storeOp = (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING) && !(flags & CVK_PIPELINE_FLAGS_UNFORCE_MULTISAMPLING)) ? VK_ATTACHMENT_STORE_OP_DONT_CARE : VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachmentDescription.storeOp = HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING) ? VK_ATTACHMENT_STORE_OP_DONT_CARE : VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     colorAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     colorAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	colorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-    // colorAttachmentDescription.finalLayout = (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING) && !(flags & CVK_PIPELINE_FLAGS_UNFORCE_MULTISAMPLING)) ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    // colorAttachmentDescription.finalLayout = (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING)) ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
     VkAttachmentReference colorAttachmentReference = {};
     colorAttachmentReference.attachment = 0;
@@ -2249,7 +2724,7 @@ void luna_GPU_CreateRenderPass(luna_GPU_RenderPassCreateInfo const *pCreateInfo,
 
 	VkAttachmentDescription depthAttachment = {};
 	VkAttachmentReference depthAttachmentRef = {};
-    if (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_DEPTH_CHECK) && !(flags & CVK_PIPELINE_FLAGS_UNFORCE_DEPTH_CHECK))
+    if (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_DEPTH_CHECK))
     {
 		depthAttachment.format = luna_lunaFormatToVKFormat(pCreateInfo->depthBufferFormat); // Why wasn't this being used?
     	depthAttachment.samples = pCreateInfo->samples;
@@ -2259,7 +2734,7 @@ void luna_GPU_CreateRenderPass(luna_GPU_RenderPassCreateInfo const *pCreateInfo,
 		depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 		depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-		// if (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING) && !(flags & CVK_PIPELINE_FLAGS_UNFORCE_MULTISAMPLING))
+		// if (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING))
 		// 	depthAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		// else
 			depthAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
@@ -2274,7 +2749,7 @@ void luna_GPU_CreateRenderPass(luna_GPU_RenderPassCreateInfo const *pCreateInfo,
 
 	VkAttachmentReference colorAttachmentResolveRef = {};
 	VkAttachmentDescription colorAttachmentResolve = {};
-    if ((flags & CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING) && !(flags & CVK_PIPELINE_FLAGS_UNFORCE_MULTISAMPLING))
+    if (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING))
     {
         colorAttachmentResolve.format = luna_lunaFormatToVKFormat(pCreateInfo->format);
         colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -2656,7 +3131,7 @@ void luna_VK_StageImageTransfer(VkImage dst, const void *data, int width, int he
     memcpy(stagingBufferMapped, data, image_size);
     vkUnmapMemory(device, stagingBufferMemory);
 
-    const VkCommandBuffer cmd = luna_VK_BeginCommandBuffer(device);
+    const VkCommandBuffer cmd = luna_VK_BeginCommandBuffer();
 
     luna_VK_TransitionTextureLayout(
         cmd, dst, 1, VK_IMAGE_ASPECT_COLOR_BIT,
@@ -2691,7 +3166,7 @@ void luna_VK_StageImageTransfer(VkImage dst, const void *data, int width, int he
 void luna_VK_CreateTextureFromMemory(u8 *buffer, u32 width, u32 height, lunaFormat format, VkImage *dst, VkDeviceMemory *dstMem)
 {
     luna_VK_CreateTextureEmpty(width, height, format, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, NULL, dst, dstMem);
-    luna_VK_StageImageTransfer(*dst, buffer, width, height, width * height * vk_fmt_get_bpp(luna_lunaFormatToVKFormat(format)));
+    luna_VK_StageImageTransfer(*dst, buffer, width, height, width * height * luna_FormatGetBytesPerChannel(format));
 }
 
 // If the format given is oki then it'll just return it
@@ -2704,8 +3179,8 @@ lunaFormat luna_VK_GetSupportedFormatForDraw(lunaFormat fmt) {
         // format not supported
         const char *fmt_str;
         luna_FormatToString(fmt, &fmt_str);
-        LOG_WARNING("Format %i (%s) unsupported. Using LUNA_FORMAT_R8", fmt, fmt_str);
-        return LUNA_FORMAT_R8;
+        LOG_WARNING("Format %i (%s) unsupported. Using LUNA_FORMAT_RGBA8", fmt, fmt_str);
+        return LUNA_FORMAT_RGBA8;
     }
 
     return fmt;
@@ -2758,7 +3233,7 @@ void luna_VK_CreateTextureEmpty(u32 width, u32 height, lunaFormat format, VkSamp
 
 u8* luna_VK_CreateTextureFromDisk(const char *path, u32 *width, u32 *height, lunaFormat *channels, VkImage *dst, VkDeviceMemory *dstMem)
 {
-    luna_Image tex = luna_ImageLoad(path);
+    lunaImage tex = lunaImage_Load(path);
 
     cassert(tex.data != NULL);
 
@@ -2797,7 +3272,7 @@ void luna_VK_TransitionTextureLayout(VkCommandBuffer cmd, VkImage image,
     vkCmdPipelineBarrier(cmd, sourceStage, destinationStage, 0, 0, NULL, 0, NULL, 1, &barrier);
 }
 
-bool luna_VK_GetSupportedFormat(VkPhysicalDevice physDevice, VkSurfaceKHR surface, VkFormat *dstFormat, VkColorSpaceKHR *dstColorSpace)
+bool luna_VK_GetSupportedFormat(VkPhysicalDevice physDevice, VkSurfaceKHR surface, lunaFormat *dstFormat, VkColorSpaceKHR *dstColorSpace)
 {
 	CVK_REQUIRED_PTR(device);
 	CVK_REQUIRED_PTR(physDevice);
@@ -2835,7 +3310,7 @@ bool luna_VK_GetSupportedFormat(VkPhysicalDevice physDevice, VkSurfaceKHR surfac
 	if (selectedFormat.format == VK_FORMAT_MAX_ENUM || selectedFormat.colorSpace == VK_COLOR_SPACE_MAX_ENUM_KHR) {
 		return VK_FALSE;
 	} else {
-		*dstFormat = selectedFormat.format;
+		*dstFormat = luna_VKFormatTolunaFormat(selectedFormat.format);
 		*dstColorSpace = selectedFormat.colorSpace;
 		
 		return VK_TRUE;
@@ -2888,9 +3363,9 @@ void luna_GPU_AllocateMemory(VkDeviceSize size, luna_GPU_MemoryUsage usage, luna
 }
 
 void luna_GPU_CreateBuffer(int size, int alignment, int nchilds, VkBufferUsageFlags usage, luna_GPU_Buffer *dst) {
-    dst->allocation.size = size;
     dst->size = size;
     dst->alignment = alignment;
+    dst->type = usage;
 
     const int aligned_sz = align_up(size, alignment);
 
@@ -2904,14 +3379,96 @@ void luna_GPU_CreateBuffer(int size, int alignment, int nchilds, VkBufferUsageFl
     dst->nchilds = nchilds;
 }
 
-void luna_GPU_FreeMemory(luna_GPU_Memory *mem) {
+void luna_GPU_WriteToLocalBuffer(luna_GPU_Buffer *buffer, int size, void *data, int offset) {
+    luna_GPU_Buffer staging_buffer;
+    luna_GPU_CreateBuffer(size, LUNA_GPU_ALIGNMENT_UNNECESSARY, 1, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, &staging_buffer);
+
+    luna_GPU_Memory staging_memory;
+    luna_GPU_AllocateMemory(size, LUNA_GPU_MEMORY_USAGE_CPU_VISIBLE | LUNA_GPU_MEMORY_USAGE_CPU_WRITEABLE, &staging_memory);
+
+    luna_GPU_BindBufferToMemory(&staging_memory, 0, &staging_buffer);
+
+    void *mapped;
+    luna_GPU_MapMemory(&staging_memory, size, 0, &mapped);
+    memcpy(mapped, data, size);
+    luna_GPU_UnmapMemory(&staging_memory);
+
+    VkCommandBuffer cmd = luna_VK_BeginCommandBuffer();
+
+    VkBufferCopy copy = {
+        .srcOffset = 0,
+        .dstOffset = offset,
+        .size = size,
+    };
+    vkCmdCopyBuffer(cmd, staging_buffer.buffers[0], buffer->buffers[0], 1, &copy);
+
+    if (luna_VK_EndCommandBuffer(cmd, GraphicsQueue, 1) != VK_SUCCESS) {
+        LOG_ERROR("Failed to write data to GPU buffer");
+    }
+}
+
+void luna_GPU_WriteToUniformBuffer(luna_GPU_Buffer *buffer, int size, void *data, int offset) {
+    void *mapped;
+    luna_GPU_MapMemory(buffer->memory, size, offset, &mapped);
+    memcpy(mapped, data, size);
+    luna_GPU_UnmapMemory(buffer->memory);
+}
+
+void luna_GPU_WriteToBuffer(luna_GPU_Buffer *buffer, int size, void *data, int offset)
+{
+    luna_GPU_MemoryUsage mem_usg = buffer->memory->usage;
+    if (!(mem_usg & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)) {
+        luna_GPU_WriteToLocalBuffer(buffer, size, data, offset);
+        return;
+    } else if (buffer->type & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT) {
+        luna_GPU_WriteToUniformBuffer(buffer, size, data, offset);
+        return;
+    }
+
+    void *mapped;
+    luna_GPU_MapMemory(buffer->memory, size, offset, &mapped);
+    memcpy(mapped, data, size);
+    luna_GPU_UnmapMemory(buffer->memory);
+}
+
+void luna_GPU_MapMemory(luna_GPU_Memory *memory, int size, int offset, void **out) {
+    if (!(memory->usage & LUNA_GPU_MEMORY_USAGE_CPU_VISIBLE)) {
+        LOG_ERROR("Can not map memory which is not visible to the CPU. You may need to use a staging buffer");
+        return;
+    }
+    if (vkMapMemory(device, memory->memory, offset, size, 0, &memory->mapped) != VK_SUCCESS) {
+        LOG_ERROR("Memory could not be mapped for write");
+        return;
+    }
+    memory->map_size = size;
+    memory->map_offset = offset;
+    *out = memory->mapped;
+}
+
+void luna_GPU_UnmapMemory(luna_GPU_Memory *memory) {
+    if (!(memory->usage & LUNA_GPU_MEMORY_USAGE_CPU_WRITEABLE)) {
+        VkMappedMemoryRange range = {
+            .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+            .memory = memory->memory,
+            .offset = memory->map_offset,
+            .size = memory->map_size,
+        };
+        vkFlushMappedMemoryRanges(device, 1, &range);
+    }
+    memory->map_offset = 0;
+    memory->map_size = 0;
+    vkUnmapMemory(device, memory->memory);
+}
+
+void luna_GPU_FreeMemory(luna_GPU_Memory *mem)
+{
     vkFreeMemory(device, mem->memory, NULL);
 }
 
 // I think these given an error when, say offset is too big so maybe we can check their return values?
 void luna_GPU_BindBufferToMemory(luna_GPU_Memory *mem, int offset, luna_GPU_Buffer *buffer) {
-    buffer->allocation.memory = mem;
-    buffer->allocation.memory_offset = offset;
+    buffer->memory = mem;
+    buffer->offset = offset;
 
     const int aligned_sz = align_up(buffer->size, buffer->alignment);
     for (int i = 0; i < buffer->nchilds; i++) {
@@ -2926,8 +3483,8 @@ void luna_GPU_TextureAttachView(luna_GPU_Texture *tex, VkImageView view)
 
 void luna_GPU_BindTextureToMemory(luna_GPU_Memory *mem, int offset, luna_GPU_Texture *tex) {
 
-    tex->allocation.memory = mem;
-    tex->allocation.memory_offset = offset;
+    tex->memory = mem;
+    tex->offset = offset;
     vkBindImageMemory(device, tex->image, mem->memory, offset);
 }
 
@@ -2948,6 +3505,15 @@ void luna_GPU_DestroyTexture(luna_GPU_Texture *tex) {
     } else {
         LOG_INFO("Attempt to destroy an image which is NULL");
     }
+}
+
+int luna_GPU_GetBufferSize(const luna_GPU_Buffer *buffer) {
+    return buffer->size;
+}
+
+void luna_GPU_GetTextureSize(const luna_GPU_Texture *tex, int *w, int *h) {
+    if (w) { *w = tex->extent.width; }
+    if (h) { *h = tex->extent.height; }
 }
 
 void luna_GPU_CreateSampler(const luna_GPU_SamplerCreateInfo *pInfo, luna_GPU_Sampler **sampler) {
@@ -3053,3 +3619,443 @@ void luna_GPU_CreateTextureView(const luna_GPU_TextureViewCreateInfo *pInfo, lun
     };
     cassert(vkCreateImageView(device, &view_info, NULL, &(*tex)->view) == VK_SUCCESS);
 }
+
+VkFormat luna_lunaFormatToVKFormat(lunaFormat format) {
+    switch (format) {
+        case LUNA_FORMAT_R8:        return VK_FORMAT_R8_UNORM;
+        case LUNA_FORMAT_RG8:       return VK_FORMAT_R8G8_UNORM;
+        case LUNA_FORMAT_RGB8:      return VK_FORMAT_R8G8B8_UNORM;
+        case LUNA_FORMAT_RGBA8:     return VK_FORMAT_R8G8B8A8_UNORM;
+
+        case LUNA_FORMAT_BGR8:      return VK_FORMAT_B8G8R8_UNORM;
+        case LUNA_FORMAT_BGRA8:     return VK_FORMAT_B8G8R8A8_UNORM;
+
+        case LUNA_FORMAT_RGB16:     return VK_FORMAT_R16G16B16_UNORM;
+        case LUNA_FORMAT_RGBA16:    return VK_FORMAT_R16G16B16A16_UNORM;
+        case LUNA_FORMAT_RG32:      return VK_FORMAT_R32G32_SFLOAT;
+        case LUNA_FORMAT_RGB32:     return VK_FORMAT_R32G32B32_SFLOAT;
+        case LUNA_FORMAT_RGBA32:    return VK_FORMAT_R32G32B32A32_SFLOAT;
+        
+        case LUNA_FORMAT_R8_SINT:   return VK_FORMAT_R8_SINT;
+        case LUNA_FORMAT_RG8_SINT:  return VK_FORMAT_R8G8_SINT;
+        case LUNA_FORMAT_RGB8_SINT: return VK_FORMAT_R8G8B8_SINT;
+        case LUNA_FORMAT_RGBA8_SINT:return VK_FORMAT_R8G8B8A8_SINT;
+
+        case LUNA_FORMAT_R8_UINT:   return VK_FORMAT_R8_UINT;
+        case LUNA_FORMAT_RG8_UINT:  return VK_FORMAT_R8G8_UINT;
+        case LUNA_FORMAT_RGB8_UINT: return VK_FORMAT_R8G8B8_UINT;
+        case LUNA_FORMAT_RGBA8_UINT:return VK_FORMAT_R8G8B8A8_UINT;
+
+        case LUNA_FORMAT_R8_SRGB:   return VK_FORMAT_R8_SRGB;
+        case LUNA_FORMAT_RG8_SRGB:  return VK_FORMAT_R8G8_SRGB;
+        case LUNA_FORMAT_RGB8_SRGB: return VK_FORMAT_R8G8B8_SRGB;
+        case LUNA_FORMAT_RGBA8_SRGB:return VK_FORMAT_R8G8B8A8_SRGB;
+
+        case LUNA_FORMAT_BGR8_SRGB: return VK_FORMAT_B8G8R8_SRGB;
+        case LUNA_FORMAT_BGRA8_SRGB:return VK_FORMAT_B8G8R8A8_SRGB;
+
+        case LUNA_FORMAT_D16:       return VK_FORMAT_D16_UNORM;
+        case LUNA_FORMAT_D24:       return VK_FORMAT_D24_UNORM_S8_UINT;
+        case LUNA_FORMAT_D32:       return VK_FORMAT_D32_SFLOAT;
+        case LUNA_FORMAT_D24_S8:    return VK_FORMAT_D24_UNORM_S8_UINT;
+        case LUNA_FORMAT_D32_S8:    return VK_FORMAT_D32_SFLOAT_S8_UINT;
+
+        case LUNA_FORMAT_BC1:       return VK_FORMAT_BC1_RGB_UNORM_BLOCK;
+        case LUNA_FORMAT_BC3:       return VK_FORMAT_BC3_UNORM_BLOCK;
+        case LUNA_FORMAT_BC7:       return VK_FORMAT_BC7_UNORM_BLOCK;
+
+        default:                    return VK_FORMAT_UNDEFINED;
+    }
+}
+
+lunaFormat luna_VKFormatTolunaFormat(VkFormat format) {
+    switch (format) {
+        case VK_FORMAT_R8_UNORM:            return LUNA_FORMAT_R8;
+        case VK_FORMAT_R8G8_UNORM:          return LUNA_FORMAT_RG8;
+        case VK_FORMAT_R8G8B8_UNORM:        return LUNA_FORMAT_RGB8;
+        case VK_FORMAT_R8G8B8A8_UNORM:      return LUNA_FORMAT_RGBA8;
+
+        case VK_FORMAT_B8G8R8_UNORM:        return LUNA_FORMAT_BGR8;
+        case VK_FORMAT_B8G8R8A8_UNORM:      return LUNA_FORMAT_BGRA8;
+
+        case VK_FORMAT_R16G16B16_UNORM:     return LUNA_FORMAT_RGB16;
+        case VK_FORMAT_R16G16B16A16_UNORM:  return LUNA_FORMAT_RGBA16;
+        case VK_FORMAT_R32G32_SFLOAT:       return LUNA_FORMAT_RG32;
+        case VK_FORMAT_R32G32B32_SFLOAT:    return LUNA_FORMAT_RGB32;
+        case VK_FORMAT_R32G32B32A32_SFLOAT: return LUNA_FORMAT_RGBA32;
+        
+        case VK_FORMAT_R8_SINT:             return LUNA_FORMAT_R8_SINT;
+        case VK_FORMAT_R8G8_SINT:           return LUNA_FORMAT_RG8_SINT;
+        case VK_FORMAT_R8G8B8_SINT:         return LUNA_FORMAT_RGB8_SINT;
+        case VK_FORMAT_R8G8B8A8_SINT:       return LUNA_FORMAT_RGBA8_SINT;
+
+        case VK_FORMAT_R8_SRGB:             return LUNA_FORMAT_R8_SRGB;
+        case VK_FORMAT_R8G8_SRGB:           return LUNA_FORMAT_RG8_SRGB;
+        case VK_FORMAT_R8G8B8_SRGB:         return LUNA_FORMAT_RGB8_SRGB;
+        case VK_FORMAT_R8G8B8A8_SRGB:       return LUNA_FORMAT_RGBA8_SRGB;
+
+        case VK_FORMAT_B8G8R8_SRGB:         return LUNA_FORMAT_BGR8_SRGB;
+        case VK_FORMAT_B8G8R8A8_SRGB:       return LUNA_FORMAT_BGRA8_SRGB;
+
+        case VK_FORMAT_R8_UINT:             return LUNA_FORMAT_R8_UINT;
+        case VK_FORMAT_R8G8_UINT:           return LUNA_FORMAT_RG8_UINT;
+        case VK_FORMAT_R8G8B8_UINT:         return LUNA_FORMAT_RGB8_UINT;
+        case VK_FORMAT_R8G8B8A8_UINT:       return LUNA_FORMAT_RGBA8_UINT;
+
+        case VK_FORMAT_D16_UNORM:           return LUNA_FORMAT_D16;
+        case VK_FORMAT_D32_SFLOAT:          return LUNA_FORMAT_D32;
+        case VK_FORMAT_D24_UNORM_S8_UINT:   return LUNA_FORMAT_D24_S8;
+        case VK_FORMAT_D32_SFLOAT_S8_UINT:  return LUNA_FORMAT_D32_S8;
+
+        case VK_FORMAT_BC1_RGB_UNORM_BLOCK: return LUNA_FORMAT_BC1;
+        case VK_FORMAT_BC3_UNORM_BLOCK:     return LUNA_FORMAT_BC3;
+        case VK_FORMAT_BC7_UNORM_BLOCK:     return LUNA_FORMAT_BC7;
+
+        default:                            return LUNA_FORMAT_UNDEFINED;
+    }
+}
+
+void luna_FormatToString(lunaFormat format, const char **dst) {
+    switch(format) {
+        case LUNA_FORMAT_UNDEFINED: *dst = "LUNA_FORMAT_UNDEFINED"; return;
+        case LUNA_FORMAT_R8: *dst = "LUNA_FORMAT_R8"; return;
+        case LUNA_FORMAT_RG8: *dst = "LUNA_FORMAT_RG8"; return;
+        case LUNA_FORMAT_RGB8: *dst = "LUNA_FORMAT_RGB8"; return;
+        case LUNA_FORMAT_RGBA8: *dst = "LUNA_FORMAT_RGBA8"; return;
+        case LUNA_FORMAT_BGR8: *dst = "LUNA_FORMAT_BGR8"; return;
+        case LUNA_FORMAT_BGRA8: *dst = "LUNA_FORMAT_BGRA8"; return;
+        case LUNA_FORMAT_RGB16: *dst = "LUNA_FORMAT_RGB16"; return;
+        case LUNA_FORMAT_RGBA16: *dst = "LUNA_FORMAT_RGBA16"; return;
+        case LUNA_FORMAT_RG32: *dst = "LUNA_FORMAT_RG32"; return;
+        case LUNA_FORMAT_RGB32: *dst = "LUNA_FORMAT_RGB32"; return;
+        case LUNA_FORMAT_RGBA32: *dst = "LUNA_FORMAT_RGBA32"; return;
+        case LUNA_FORMAT_R8_SINT: *dst = "LUNA_FORMAT_R8_SINT"; return;
+        case LUNA_FORMAT_RG8_SINT: *dst = "LUNA_FORMAT_RG8_SINT"; return;
+        case LUNA_FORMAT_RGB8_SINT: *dst = "LUNA_FORMAT_RGB8_SINT"; return;
+        case LUNA_FORMAT_RGBA8_SINT: *dst = "LUNA_FORMAT_RGBA8_SINT"; return;
+        case LUNA_FORMAT_R8_UINT: *dst = "LUNA_FORMAT_R8_UINT"; return;
+        case LUNA_FORMAT_RG8_UINT: *dst = "LUNA_FORMAT_RG8_UINT"; return;
+        case LUNA_FORMAT_RGB8_UINT: *dst = "LUNA_FORMAT_RGB8_UINT"; return;
+        case LUNA_FORMAT_RGBA8_UINT: *dst = "LUNA_FORMAT_RGBA8_UINT"; return;
+        case LUNA_FORMAT_R8_SRGB: *dst = "LUNA_FORMAT_R8_SRGB"; return;
+        case LUNA_FORMAT_RG8_SRGB: *dst = "LUNA_FORMAT_RG8_SRGB"; return;
+        case LUNA_FORMAT_RGB8_SRGB: *dst = "LUNA_FORMAT_RGB8_SRGB"; return;
+        case LUNA_FORMAT_RGBA8_SRGB: *dst = "LUNA_FORMAT_RGBA8_SRGB"; return;
+        case LUNA_FORMAT_BGR8_SRGB: *dst = "LUNA_FORMAT_BGR8_SRGB"; return;
+        case LUNA_FORMAT_BGRA8_SRGB: *dst = "LUNA_FORMAT_BGRA8_SRGB"; return;
+        case LUNA_FORMAT_D16: *dst = "LUNA_FORMAT_D16"; return;
+        case LUNA_FORMAT_D24: *dst = "LUNA_FORMAT_D24"; return;
+        case LUNA_FORMAT_D32: *dst = "LUNA_FORMAT_D32"; return;
+        case LUNA_FORMAT_D24_S8: *dst = "LUNA_FORMAT_D24_S8"; return;
+        case LUNA_FORMAT_D32_S8: *dst = "LUNA_FORMAT_D32_S8"; return;
+        case LUNA_FORMAT_BC1: *dst = "LUNA_FORMAT_BC1"; return;
+        case LUNA_FORMAT_BC3: *dst = "LUNA_FORMAT_BC3"; return;
+        case LUNA_FORMAT_BC7: *dst = "LUNA_FORMAT_BC7"; return;
+    }
+}
+
+bool luna_FormatHasColorChannel(lunaFormat fmt)
+{
+    switch (fmt) {
+        case LUNA_FORMAT_D16:
+        case LUNA_FORMAT_D24:
+        case LUNA_FORMAT_D24_S8:
+        case LUNA_FORMAT_D32:
+        case LUNA_FORMAT_D32_S8:
+        case LUNA_FORMAT_BC1:
+        case LUNA_FORMAT_BC3:
+        case LUNA_FORMAT_BC7:
+        case LUNA_FORMAT_UNDEFINED:
+            return 0;
+        default:
+            return 1;
+    }
+}
+
+// Returns false even for stencil/depth and undefined format
+bool luna_FormatHasAlphaChannel(lunaFormat fmt) {
+    switch(fmt) {
+            case LUNA_FORMAT_RGBA8:
+            case LUNA_FORMAT_BGRA8:
+            case LUNA_FORMAT_RGBA16:
+            case LUNA_FORMAT_RGBA32:
+            case LUNA_FORMAT_RGBA8_SINT:
+            case LUNA_FORMAT_RGBA8_UINT:
+            case LUNA_FORMAT_RGBA8_SRGB:
+            case LUNA_FORMAT_BGRA8_SRGB:
+                return 1;
+            default:
+                return 0;
+    }
+}
+
+bool luna_FormatHasDepthChannel(lunaFormat fmt)
+{
+    switch (fmt) {
+        case LUNA_FORMAT_D16:
+        case LUNA_FORMAT_D24:
+        case LUNA_FORMAT_D24_S8:
+        case LUNA_FORMAT_D32:
+        case LUNA_FORMAT_D32_S8:
+            return 1;
+
+        default:
+            return 0;
+    }
+}
+
+bool luna_FormatHasStencilChannel(lunaFormat fmt)
+{
+    switch (fmt) {
+        case LUNA_FORMAT_D24_S8:
+        case LUNA_FORMAT_D32_S8:
+            return 1;
+
+        default:
+            return 0;
+    }
+}
+
+int luna_FormatGetBytesPerChannel(lunaFormat fmt)
+{
+    switch (fmt) {
+        case LUNA_FORMAT_R8:
+        case LUNA_FORMAT_RG8:
+        case LUNA_FORMAT_RGB8:
+        case LUNA_FORMAT_RGBA8:
+        case LUNA_FORMAT_BGR8:
+        case LUNA_FORMAT_BGRA8:
+        case LUNA_FORMAT_R8_SINT:
+        case LUNA_FORMAT_RG8_SINT:
+        case LUNA_FORMAT_RGB8_SINT:
+        case LUNA_FORMAT_RGBA8_SINT:
+        case LUNA_FORMAT_R8_UINT:
+        case LUNA_FORMAT_RG8_UINT:
+        case LUNA_FORMAT_RGB8_UINT:
+        case LUNA_FORMAT_RGBA8_UINT:
+        case LUNA_FORMAT_R8_SRGB:
+        case LUNA_FORMAT_RG8_SRGB:
+        case LUNA_FORMAT_RGB8_SRGB:
+        case LUNA_FORMAT_RGBA8_SRGB:
+        case LUNA_FORMAT_BGR8_SRGB:
+        case LUNA_FORMAT_BGRA8_SRGB:
+            return 1;
+
+        case LUNA_FORMAT_RGB16:
+        case LUNA_FORMAT_RGBA16:
+        case LUNA_FORMAT_D16:
+            return 2;
+
+        case LUNA_FORMAT_D24:
+        case LUNA_FORMAT_D24_S8:
+            return 3;
+
+        case LUNA_FORMAT_RG32:
+        case LUNA_FORMAT_RGB32:
+        case LUNA_FORMAT_RGBA32:
+        case LUNA_FORMAT_D32:
+        case LUNA_FORMAT_D32_S8:
+            return 4;
+
+        default:
+        case LUNA_FORMAT_BC1:
+        case LUNA_FORMAT_BC3:
+        case LUNA_FORMAT_BC7:
+        case LUNA_FORMAT_UNDEFINED:
+            return -1;
+    }
+}
+
+int luna_FormatGetNumChannels(lunaFormat fmt)
+{
+    switch (fmt) {
+        case LUNA_FORMAT_R8:
+        case LUNA_FORMAT_R8_SINT:
+        case LUNA_FORMAT_R8_UINT:
+        case LUNA_FORMAT_R8_SRGB:
+        case LUNA_FORMAT_D16:
+        case LUNA_FORMAT_D24:
+        case LUNA_FORMAT_D32:
+            return 1;
+
+        case LUNA_FORMAT_RG8:
+        case LUNA_FORMAT_RG32:
+        case LUNA_FORMAT_RG8_SINT:
+        case LUNA_FORMAT_RG8_UINT:
+        case LUNA_FORMAT_RG8_SRGB:
+        case LUNA_FORMAT_D24_S8:
+        case LUNA_FORMAT_D32_S8:
+            return 2;
+ 
+        case LUNA_FORMAT_RGB8:
+        case LUNA_FORMAT_BGR8:
+        case LUNA_FORMAT_RGB16:
+        case LUNA_FORMAT_RGB32:
+        case LUNA_FORMAT_RGB8_SINT:
+        case LUNA_FORMAT_RGB8_UINT:
+        case LUNA_FORMAT_RGB8_SRGB:
+        case LUNA_FORMAT_BGR8_SRGB:
+            return 3;
+
+        case LUNA_FORMAT_RGBA8:
+        case LUNA_FORMAT_BGRA8:
+        case LUNA_FORMAT_RGBA16:
+        case LUNA_FORMAT_RGBA32:
+        case LUNA_FORMAT_RGBA8_SINT:
+        case LUNA_FORMAT_RGBA8_UINT:
+        case LUNA_FORMAT_RGBA8_SRGB:
+        case LUNA_FORMAT_BGRA8_SRGB:
+            return 4;
+
+        case LUNA_FORMAT_BC1:
+        case LUNA_FORMAT_BC3:
+        case LUNA_FORMAT_BC7:
+            // FIXME: Implement
+            return 0;
+
+        case LUNA_FORMAT_UNDEFINED:
+        default:
+            return 0;
+    }
+}
+
+// SPRITE
+typedef struct sprite_t {
+    int w,h;
+    VkImage image;
+    VkImageView view;
+    VkDeviceMemory mem;
+    luna_GPU_Sampler *sampler;
+    luna_DescriptorSet *set;
+} sprite_t;
+
+sprite_t *sprite_empty = NULL;
+
+sprite_t *sprite_load_mem(const unsigned char *data, int w, int h, lunaFormat fmt)
+{
+    sprite_t *spr = calloc(1, sizeof(struct sprite_t));
+
+    fmt = luna_VK_GetSupportedFormatForDraw(fmt);
+
+    VkImageCreateInfo imageCreateInfo = {};
+    imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageCreateInfo.extent = (VkExtent3D){ w, h, 1 };
+    imageCreateInfo.mipLevels = 1;
+    imageCreateInfo.arrayLayers = 1;
+    imageCreateInfo.format = luna_lunaFormatToVKFormat(fmt);
+    imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    cassert(vkCreateImage(device, &imageCreateInfo, NULL, &spr->image) == VK_SUCCESS);
+
+    VkMemoryRequirements imageMemoryRequirements;
+    vkGetImageMemoryRequirements(device, spr->image, &imageMemoryRequirements);
+
+    const u32 localDeviceMemoryIndex = luna_VK_GetMemType(imageMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    const VkMemoryAllocateInfo allocInfo = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .allocationSize = imageMemoryRequirements.size,
+        .memoryTypeIndex = localDeviceMemoryIndex,
+    };
+
+    cassert(vkAllocateMemory(device, &allocInfo, NULL, &spr->mem) == VK_SUCCESS);
+    vkBindImageMemory(device, spr->image, spr->mem, 0);
+
+    luna_VK_StageImageTransfer(spr->image, data, w, h, w * h * luna_FormatGetBytesPerChannel(fmt));
+
+    const VkImageViewCreateInfo view_info = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image = spr->image,
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .format = luna_lunaFormatToVKFormat(fmt),
+        .subresourceRange = (VkImageSubresourceRange){
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1
+        },
+        .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
+    };
+    cassert(vkCreateImageView(device, &view_info, NULL, &spr->view) == VK_SUCCESS);
+
+    luna_GPU_SamplerCreateInfo sampler_info = {
+        .filter = VK_FILTER_NEAREST,
+        .mipmap_mode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+        .address_mode = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .max_anisotropy = 1.0f,
+        .mip_lod_bias = 0.0f,
+        .min_lod = 0.0f,
+        .max_lod = VK_LOD_CLAMP_NONE,
+    };
+    luna_GPU_CreateSampler(&sampler_info, &spr->sampler);
+
+    VkDescriptorSetLayoutBinding binding = (VkDescriptorSetLayoutBinding) {
+        .binding = 0,
+        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .descriptorCount = 1,
+        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+    };
+    luna_AllocateDescriptorSet(&g_pool, &binding, 1, &spr->set);
+
+    VkDescriptorImageInfo desc_img = {
+        .sampler = luna_GPU_SamplerGet(spr->sampler),
+        .imageView = spr->view,
+        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    };
+
+    VkWriteDescriptorSet write = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = spr->set->set,
+        .dstBinding = 0,
+        .dstArrayElement = 0,
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .pImageInfo = &desc_img,
+    };
+    luna_DescriptorSetSubmitWrite(spr->set, &write);
+    
+    return spr;
+}
+
+sprite_t *sprite_load_disk(const char *path)
+{
+    lunaImage tex = lunaImage_Load(path);
+    sprite_t *spr = sprite_load_mem(tex.data, tex.w, tex.h, tex.fmt);
+    free(tex.data);
+    return spr;
+}
+
+void sprite_get_dimensions(const sprite_t *spr, int *w, int *h)
+{
+    if (w) { *w = spr->w; }
+    if (h) { *h = spr->h; }
+}
+
+VkImage sprite_get_internal(const sprite_t *spr)
+{
+    return spr->image;
+}
+
+VkImageView sprite_get_internal_view(const sprite_t *spr)
+{
+    return spr->view;
+}
+
+VkDescriptorSet sprite_get_descriptor(const sprite_t *spr)
+{
+    return spr->set->set;
+}
+
+VkSampler sprite_get_sampler(const sprite_t *spr)
+{
+    return luna_GPU_SamplerGet(spr->sampler);
+}
+// SPRITE

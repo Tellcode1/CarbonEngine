@@ -27,12 +27,13 @@
         }
     }
     #define cassert_and_ret(expr) if (!((bool)(expr))) { LOG_ERROR("[%s:%u:%s] Assertion failed -> %s", __basename(__FILE__), __LINE__, __PRETTY_FUNCTION__, #expr); return; }
-    #define cassert(expr) if (!((bool)(expr))) { LOG_AND_ABORT("[%s:%u:%s] Assertion failed -> %s", __basename(__FILE__), __LINE__, __PRETTY_FUNCTION__, #expr); }
+    #define cassert(expr) if (!((bool)(expr))) { LOG_ERROR("[%s:%u:%s] Assertion failed -> %s", __basename(__FILE__), __LINE__, __PRETTY_FUNCTION__, #expr); }
 #else
     static inline const char *__basename(const char *path) { return NULL; }
     // These are typecasted to void because they give warnings because result (its like expr != NULL) is not used
     #define cassert_and_ret(expr) (void)(expr)
     #define cassert(expr) (void)(expr)
+    #pragma message "Assertions disabled"
 #endif
 
 typedef uint64_t u64;

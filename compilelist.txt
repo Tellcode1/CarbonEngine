@@ -1,6 +1,3 @@
-../Shaders/Generic/Lit.vert
-../Shaders/Generic/Lit.frag
-
 ../Shaders/Generic/Unlit.vert
 ../Shaders/Generic/Unlit.frag
 

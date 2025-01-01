@@ -5,6 +5,7 @@
 #include <SDL2/SDL.h>
 
 #include <stdio.h>
+#include <time.h>
 #include <stdlib.h>
 #include <stdarg.h>
 
@@ -18,10 +19,26 @@
 
 #define DEBUG
 
+static inline struct tm *__CG_GET_TIME() {
+    time_t now;
+    struct tm *tm;
+
+    now = time(0);
+    if ((tm = localtime (&now)) == NULL) {
+        printf ("Error extracting time stuff\n");
+        return NULL;
+    }
+
+    return tm;
+}
+
 static inline void __CG_LOG(va_list args, const char *succeeder, const char *preceder, const char *str, unsigned char err) {
     FILE *out = (err) ? stderr : stdout;
-    Uint8 time = SDL_GetTicks64();
-    fprintf(out, "[%.2f] ", time / 1000.0f);
+    
+    struct tm *time = __CG_GET_TIME();
+
+    fprintf(out, "[%02d:%02d:%02d] ", time->tm_hour % 12, time->tm_min, time->tm_sec);
+
     vfprintf(out, preceder, args);
     vfprintf(out, str, args);
     vfprintf(out, succeeder, args);
@@ -72,6 +89,14 @@ static inline void LOG_INFO(const char * fmt, ...) {
 // puts but with formatting and with the preceder "debug"
 static inline void LOG_DEBUG(const char * fmt, ...) {
     const char * preceder =  "debug: ";
+    const char * succeeder = "\n";
+    va_list args;
+    va_start(args, fmt); 
+    __CG_LOG(args, succeeder, preceder, fmt, 0);
+    va_end(args);
+}
+
+static inline void LOG_CUSTOM(const char *preceder, const char *fmt, ...) {
     const char * succeeder = "\n";
     va_list args;
     va_start(args, fmt); 

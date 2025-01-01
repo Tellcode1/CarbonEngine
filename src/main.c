@@ -6,29 +6,20 @@
 #include "../include/cengine.h"
 #include "../include/ctext.h"
 #include "../include/cinput.h"
-#include "../include/cgstring.h"
-
-#include "../include/camera.h"
-// #include "../include/mesh.H"
-
-#include "../include/lunaImage.h"
-
-#include "../include/cgfreelist.h"
-
 #include "../include/cshadermanager.h"
-
+#include "../include/containers/cgstring.h"
+#include "../include/lunaCamera.h"
+#include "../include/lunaImage.h"
 #include "../include/lunaUI.h"
-
+#include "../include/lunaScene.h"
 #include "../include/lunaObject.h"
+#include "../include/timer.h"
 
-#include "../include/player.h"
-#include "../include/bee.h"
-#include "../include/enemy.h"
+static u32 cookie_count = 0;
 
 void pressed(luna_UI_Button *self) {
     (void)self;
-    puts("bye bye!! xoxo");
-    cg_application_running = 0;
+    ++cookie_count;
 }
 
 void hoover(luna_UI_Button *self) {
@@ -53,8 +44,8 @@ int main(int argc, char *argv[]) {
     rdconf.samples = CG_SAMPLE_COUNT_1_SAMPLES;
     luna_Renderer_t *rd = luna_Renderer_Init(&rdconf);
 
-    const f32 updateTime = 5.0f; // seconds. 1.5f = 1.5 seconds
-    f32 totalTime = 0.0f;
+    const float updateTime = 5.0f; // seconds. 1.5f = 1.5 seconds
+    float totalTime = 0.0f;
     u32 numFrames = 0;
 
     cfont_t *amongus;
@@ -73,20 +64,14 @@ int main(int argc, char *argv[]) {
     bton->pressed = pressed;
     bton->hover = hoover;
 
-    luna_Object_Initialize();
+    lunaScene *scn = lunaScene_Init();
 
-    luna_Object *grnd = luna_CreateObject(
-        "Ground",
-        1,
-        (vec2){ 0.0f, -5.0f },
-        (vec2){ 100.0f, 1.0f },
-        0
-    );
-    (void)grnd;
-
-    plr_init();
-    bees_init();
-    enemies_init();
+    luna_UI_Button *cookie = luna_UI_CreateButton(sprite_empty);
+    cookie->pressed = pressed;
+    cookie->hover = hoover;
+    cookie->size = (vec2){5.0f,5.0f};
+    cookie->position = (vec2){-6.0f, 0.0f};
+    (void)cookie;
 
     // What in the unholy f%$ where you doing
     LOG_DEBUG("Initialized in %ld ms (%.3f s)", SDL_GetTicks64(), SDL_GetTicks64() / 1000.0f);
@@ -111,32 +96,15 @@ int main(int argc, char *argv[]) {
         numFrames++;
         if (totalTime >= updateTime) {
             curr_showing_fps = ceilf(numFrames / totalTime);
-            LOG_INFO("%dfps : %d frames / %.2fs = ~%fms/frame", curr_showing_fps, numFrames, updateTime, (totalTime / (f32)(numFrames)));
+            LOG_INFO("%dfps : %d frames / %.2fs = ~%fms/frame", curr_showing_fps, numFrames, updateTime, (totalTime / (float)(numFrames)));
             numFrames = 0;
             totalTime = 0.0;
         }
 
         cinput_update(rd);
-        cam_update(&camera, rd);
+        lunaCamera_Update(&camera, rd);
 
-        luna_ObjectsUpdate();
-        bees_update();
-        enemies_update();
-
-        vec3 move = (vec3){ 0.0f, 0.0f, 0.0f };
-        if (cinput_is_key_held(SDL_SCANCODE_W)) {
-            move.y += 20.0f;
-        }
-        if (cinput_is_key_held(SDL_SCANCODE_S)) {
-            move.y -= 20.0f;
-        }
-        if (cinput_is_key_held(SDL_SCANCODE_A)) {
-            move.x -= 20.0f;
-        }
-        if (cinput_is_key_held(SDL_SCANCODE_D)) {
-            move.x += 20.0f;
-        }
-        cam_move(&camera, v3muls(move, dt));
+        lunaScene_Update(scn);
 
         luna_UI_Update(&camera);
         if (!bton->was_hovered) { // If the mouse is NOT on the button, change it back to it's default color
@@ -145,12 +113,29 @@ int main(int argc, char *argv[]) {
         bton->position = v2add((vec2){camera.position.x, camera.position.y}, (vec2){ -9.0f, 9.0f });
         bton->size = (vec2){ 1.0f, 1.0f };
 
+        if (cookie->was_hovered) {
+            cookie->color = (vec4){0.7f,0.7f,0.7f, 1.0f};
+        } else {
+            cookie->color = (vec4){1.0f,1.0f,1.0f, 1.0f};
+        }
+
         if (luna_Renderer_BeginRender(rd)) {
             ctext_begin_render(amongus);
             ctext_text_render_info crd = ctext_init_text_render_info();
-            ctext_render(amongus, &crd, "piss\nis\nstored\nin\nthe\nballs");
-            ctext_end_render(rd, amongus, m4init(1.0f));
+            crd.position.y = 90.0f;
+            ctext_render(amongus, &crd, "%u cookies", cookie_count);
 
+            lunaScene_Render(scn, rd);
+
+            luna_Renderer_DrawLine(
+                rd,
+                (vec2){camera.position.x, camera.position.y},
+                lunaCamera_GetMouseGlobalPosition(&camera),
+                (vec4){ 1.0f, 0.0f, 0.0f, 1.0f },
+                0
+            );
+
+            ctext_end_render(rd, amongus, m4init(1.0f));
             luna_Renderer_EndRender(rd);
         }
     }

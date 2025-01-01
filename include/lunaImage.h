@@ -9,19 +9,22 @@
 #include "lunaFormat.h"
 
 // CPU Image
-typedef struct luna_Image {
+typedef struct lunaImage {
     int w, h;
     lunaFormat fmt;
     unsigned char *data;
-} luna_Image;
+} lunaImage;
 
-extern luna_Image luna_ImageLoad(const char *path);
-extern luna_Image luna_ImageLoadPNG(const char *path);
-extern luna_Image luna_ImageLoadJPEG(const char *path);
+extern lunaImage lunaImage_Load(const char *path);
+extern lunaImage lunaImage_LoadPNG(const char *path);
+extern lunaImage lunaImage_LoadJPEG(const char *path);
 
-extern void luna_ImageWrite(const luna_Image *tex, const char *path);
-extern void luna_ImageWritePNG(const luna_Image *tex, const char *path);
-extern void luna_ImageWriteJPEG(const luna_Image *tex, const char *path);
+extern void lunaImage_Write(const lunaImage *tex, const char *path);
+extern void lunaImage_WritePNG(const lunaImage *tex, const char *path);
+extern void lunaImage_WriteJPEG(const lunaImage *tex, const char *path);
+
+// dst_channels must be greater than src channels!
+uint8_t *lunaImage_PadChannels(const lunaImage *src, int dst_channels);
 
 #ifdef __cplusplus
     }

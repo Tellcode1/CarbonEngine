@@ -42,7 +42,7 @@ extern void luna_VK_TransitionTextureLayout(
 
 extern lunaFormat luna_VK_GetSupportedFormatForDraw(lunaFormat fmt);
 
-extern bool luna_VK_GetSupportedFormat(VkPhysicalDevice physDevice, VkSurfaceKHR surface, VkFormat* dstFormat, VkColorSpaceKHR* dstColorSpace);
+extern bool luna_VK_GetSupportedFormat(VkPhysicalDevice physDevice, VkSurfaceKHR surface, lunaFormat* dstFormat, VkColorSpaceKHR* dstColorSpace);
 
 extern u32 luna_VK_GetSurfaceImageCount(VkPhysicalDevice physDevice, VkSurfaceKHR surface);
 

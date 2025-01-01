@@ -3,12 +3,8 @@
 
 #include "vkstdafx.h"
 #include "math/math.h"
-#include "cgvector.h"
 
 // WARNING: Currently only supports the first 11 descriptor types.
-
-#define POOL_CANARY 293012
-#define SET_CANARY 120983
 
 typedef struct luna_DescriptorPoolSize {
     VkDescriptorType type;
@@ -19,7 +15,6 @@ typedef struct luna_DescriptorPoolSize {
 typedef struct luna_DescriptorSet luna_DescriptorSet;
 
 typedef struct luna_DescriptorPool {
-    int canary;
     VkDescriptorPool pool;
     int max_child_sets;
     luna_DescriptorPoolSize descriptors[ 11 ];

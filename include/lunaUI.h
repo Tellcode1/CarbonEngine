@@ -31,9 +31,20 @@ typedef struct luna_UI_Button {
     bool was_pressed; // was the button pressed?
 } luna_UI_Button;
 
+typedef struct luna_UI_Slider {
+    vec2 position, size;
+    vec4 bg_color, slider_color;
+    sprite_t *bg_sprite, *slider_sprite;
+    float min,max,value;
+    bool moved; // was the slider's handle moved
+    bool interactable; // whether this slider can be controlled by the mouse. default off
+} luna_UI_Slider;
+
 extern void luna_UI_Init();
 
 extern luna_UI_Button *luna_UI_CreateButton(struct sprite_t *spr);
+
+extern luna_UI_Slider *luna_UI_CreateSlider();
 
 extern void luna_UI_Render(luna_Renderer_t *rd);
 

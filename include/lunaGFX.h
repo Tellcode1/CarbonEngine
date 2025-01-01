@@ -17,13 +17,16 @@
 #include "lunaGFXstdafx.h"
 #include "lunaGPUObjects.h"
 #include "lunaDescriptors.h"
+
 #include "math/vec2.h"
 #include "math/vec3.h"
 #include "math/vec4.h"
-#include "sprite.h"
+
+typedef luna_GPU_Texture luna_GPU_Texture;
 
 extern luna_DescriptorPool g_pool;
-extern struct ccamera camera;
+extern struct lunaCamera camera;
+typedef struct sprite_t sprite_t;
 
 // Move ownership to camera VV
 typedef struct lunaFrameRenderData
@@ -64,6 +67,7 @@ static inline luna_Renderer_Config crender_config_init() {
     };
 }
 
+typedef struct luna_SpriteRenderer luna_SpriteRenderer;
 typedef struct luna_Renderer_t luna_Renderer_t;
 
 extern luna_Renderer_t *luna_Renderer_Init(const luna_Renderer_Config *conf);
@@ -78,6 +82,7 @@ extern struct VkRenderPass_T *luna_Renderer_GetRenderPass(const luna_Renderer_t 
 extern struct lunaExtent2D luna_Renderer_GetRenderExtent(const luna_Renderer_t *rd);
 extern int luna_Renderer_GetMaxFramesInFlight(const struct luna_Renderer_t *rd);
 
+extern void luna_Renderer_DrawTexturedQuad(luna_Renderer_t *rd, luna_SpriteRenderer *sprite_renderer, vec3 position, vec3 size, int layer);
 extern void luna_Renderer_DrawQuad(
     luna_Renderer_t *rd,
     sprite_t *spr,

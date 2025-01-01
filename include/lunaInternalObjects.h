@@ -3,7 +3,7 @@
 
 #include "lunaGFX.h"
 #include "lunaFormat.h"
-#include "cgvector.h"
+#include "containers/cgvector.h"
 
 extern cg_vector_t g_Samplers;
 
@@ -11,13 +11,15 @@ typedef struct luna_GPU_Sampler {
     VkFilter filter;
     VkSamplerMipmapMode mipmap_mode;
     VkSamplerAddressMode address_mode;
-    f32 max_anisotropy;
-    f32 mip_lod_bias, min_lod, max_lod;
+    float max_anisotropy;
+    float mip_lod_bias, min_lod, max_lod;
     VkSampler vksampler;
 } luna_GPU_Sampler;
 
 typedef struct luna_GPU_Texture {
-    luna_GPU_AllocatedObject allocation;
+    luna_GPU_Memory *memory;
+    int size,offset;
+
     VkImageLayout layout;
     VkImageAspectFlags aspect;
     VkImage image;

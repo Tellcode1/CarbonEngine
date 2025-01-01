@@ -5,7 +5,7 @@
     extern "C" {
 #endif
 
-#include "camera.h"
+#include "lunaCamera.h"
 
 #include "../include/math/vec3.h"
 #include "../include/math/vec2.h"
@@ -14,9 +14,9 @@
 #include "stdafx.h"
 #include "vkstdafx.h"
 
-#include "cgvector.h"
-#include "cgstring.h"
-#include "cghashmap.h"
+#include "containers/cgvector.h"
+#include "containers/cgstring.h"
+#include "containers/cghashmap.h"
 #include "catlas.h"
 #include "lunaGPUObjects.h"
 
@@ -89,7 +89,7 @@ typedef struct ctext_glyph
 {
     float x0,x1,y0,y1;
     float l,r,b,t;
-    f32 advance;
+    float advance;
 } ctext_glyph;
 
 typedef struct ctext_text_drawcall_t ctext_text_drawcall_t;
@@ -118,6 +118,7 @@ typedef struct cfont_t
     int index_buffer_offset;
     int index_count;
     bool to_render;
+    bool buffer_resized;
 
     int chars_drawn;
     cg_vector_t /* ctext_text_drawcall_t */  drawcalls;

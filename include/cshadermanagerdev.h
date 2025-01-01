@@ -17,6 +17,13 @@ typedef struct csm_shader_entry {
     long last_modified;
 } csm_shader_entry;
 
+// how the csm shader is stored on the disk
+typedef struct csm_shader_disk {
+    char name[128];
+    char path[128];
+    long last_modified;
+} csm_shader_disk;
+
 typedef struct csm_shader_t {
     char name[128];
     VkShaderModule_T *shader_module; // the vk shader handle
