@@ -14,7 +14,7 @@ typedef struct mat4 {
 
 #define m4ptr(expr) ({ &(mat4){expr}; })
 
-inline mat4 m4init(float diag) {
+static inline mat4 m4init(float diag) {
     return (mat4){
         (vec4){diag, 0, 0, 0},
         (vec4){0, diag, 0, 0},
@@ -23,7 +23,7 @@ inline mat4 m4init(float diag) {
     };
 }
 
-inline mat4 m4add(const mat4 m1, const mat4 m2) {
+static inline mat4 m4add(const mat4 m1, const mat4 m2) {
     mat4 result;
     for (int i = 0; i < 4; i++) {
         result.data[i] = v4add(m1.data[i], m2.data[i]);
@@ -31,7 +31,7 @@ inline mat4 m4add(const mat4 m1, const mat4 m2) {
     return result;
 }
 
-inline mat4 m4sub(const mat4 m1, const mat4 m2) {
+static inline mat4 m4sub(const mat4 m1, const mat4 m2) {
     mat4 result;
     for (int i = 0; i < 4; i++) {
         result.data[i] = v4sub(m1.data[i], m2.data[i]);
@@ -39,7 +39,7 @@ inline mat4 m4sub(const mat4 m1, const mat4 m2) {
     return result;
 }
 
-inline mat4 m4mul(const mat4 m1, const mat4 m2) {
+static inline mat4 m4mul(const mat4 m1, const mat4 m2) {
     return (mat4){{
         v4add(v4add(v4muls(m1.data[0], m2.data[0].x), v4muls(m1.data[1], m2.data[0].y)), v4add(v4muls(m1.data[2], m2.data[0].z), v4muls(m1.data[3], m2.data[0].w))),
         v4add(v4add(v4muls(m1.data[0], m2.data[1].x), v4muls(m1.data[1], m2.data[1].y)), v4add(v4muls(m1.data[2], m2.data[1].z), v4muls(m1.data[3], m2.data[1].w))),
@@ -48,7 +48,7 @@ inline mat4 m4mul(const mat4 m1, const mat4 m2) {
     }};
 }
 
-inline vec4 m4mulv4(const mat4 m, const vec4 v) {
+static inline vec4 m4mulv4(const mat4 m, const vec4 v) {
     vec4 result;
     for (int i = 0; i < 4; i++) {
         ((float *)(&result))[i] = v4dot(m.data[i], v);
@@ -56,16 +56,19 @@ inline vec4 m4mulv4(const mat4 m, const vec4 v) {
     return result;
 }
 
-inline mat4 m4scale(const mat4 m, const vec3 v) {
+static inline mat4 m4scale(const mat4 m, const vec3 v) {
     mat4 matrix = m4init(1.0f);
-    for (int i = 0; i < 3; i++) {
-        matrix.data[i] = v4muls(m.data[i], ((float *)&v)[i]);
-    }
+    // for (int i = 0; i < 3; i++) {
+    //     matrix.data[i] = v4muls(m.data[i], ((float *)&v)[i]);
+    // }
+    matrix.data[0] = v4muls(m.data[0], v.x);
+    matrix.data[1] = v4muls(m.data[1], v.y);
+    matrix.data[2] = v4muls(m.data[2], v.z);
     matrix.data[3] = m.data[3];
     return matrix;
 }
 
-inline mat4 m4translate(const mat4 m, const vec3 v) {
+static inline mat4 m4translate(const mat4 m, const vec3 v) {
     mat4 matrix = m4init(1.0f);
     matrix.data[3].x = v.x;
     matrix.data[3].y = v.y;
@@ -73,7 +76,8 @@ inline mat4 m4translate(const mat4 m, const vec3 v) {
     return m4mul(m, matrix);
 }
 
-inline mat4 m4rotate(const mat4 m, const float angle_rads, const vec3 v) {
+static inline mat4 m4rotate(const mat4 m, const float angle_rads, const vec3 v) {
+    // I've seen box2d store the angles like this, maybe it's faster
     const float c = cosf(angle_rads);
     const float s = sinf(angle_rads);
 
@@ -113,14 +117,16 @@ inline mat4 m4rotate(const mat4 m, const float angle_rads, const vec3 v) {
     return result;
 }
 
-inline mat4 m4rotatev(const mat4 m, const vec3 v) {
+// Rotates a matrix along the three axes. The vector v must contain the magnitude for rotation in each axis, in radians`
+static inline mat4 m4rotatev(const mat4 m, const vec3 v) {
     mat4 m1 = m4rotate( m, v.x, ((vec3){1.0f, 0.0f, 0.0f}) );
     mat4 m2 = m4rotate( m, v.y, ((vec3){0.0f, 1.0f, 0.0f}) );
     mat4 m3 = m4rotate( m, v.z, ((vec3){0.0f, 0.0f, 1.0f}) );
     return m4mul(m3, m4mul(m2, m1));
 }
 
-inline mat4 m4lookat(const vec3 eye, const vec3 center, const vec3 up) {
+// Generates a view matrix
+static inline mat4 m4lookat(const vec3 eye, const vec3 center, const vec3 up) {
     const vec3 f = v3normalize(v3sub(center, eye));
     const vec3 s = v3normalize(v3cross(f, up));
     const vec3 u = v3cross(s, f);
@@ -141,16 +147,26 @@ inline mat4 m4lookat(const vec3 eye, const vec3 center, const vec3 up) {
     return ret;
 }
 
-inline mat4 m4perspective(float fovradians, float aspect_ratio, float z_near, float z_far) {
+static inline mat4 m4perspective(float fovradians, float aspect_ratio, float near, float far) {
     const float halftan = tanf(fovradians * 0.5f);
 
     mat4 result = {};
     result.data[0].x = 1.0f / (aspect_ratio * halftan);
     result.data[1].y = -(1.0f / (halftan)); // y flip
-    result.data[2].z = -(z_far + z_near) / (z_far - z_near);
+    result.data[2].z = -(far + near) / (far - near);
     result.data[2].w = -1.0f;
-    result.data[3].z = -(2.0f * z_far * z_near) / (z_far - z_near);
+    result.data[3].z = -(2.0f * far * near) / (far - near);
     return result;
+}
+
+static inline mat4 m4ortho(float left, float right, float bottom, float top, float near, float far) {
+    return (mat4){
+      (vec4){ 2.0f / (right - left), 0.0f, 0.0f, 0.0f },
+      (vec4){ 0.0f, 2.0f / (bottom - top), 0.0f, 0.0f },
+      (vec4){ 0.0f, 0.0f, 1.0f / (near - far), 0.0f   },
+      // I wonder if anyone uses such a small font for vscode haha
+      (vec4){ -(right + left) / (right - left), -(bottom + top) / (bottom - top), near / (near - far), 1.0f }
+    };
 }
 
 #ifdef __cplusplus

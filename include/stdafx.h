@@ -1,11 +1,24 @@
-#ifndef __PCH__
-#define __PCH__
-
-#include "defines.h"
+#ifndef __LUNA_STDAFX_H__
+#define __LUNA_STDAFX_H__
 
 #include <stdio.h>
+#include <time.h>
 #include <stdlib.h>
 #include <stdarg.h>
+
+// puts but with formatting and with the preceder "error". does not stop execution of program
+// if you want that, use LOG_AND_ABORT instead.
+void LOG_ERROR(const char * fmt, ...);
+// formats the string, puts() it with the preceder "fatal error" and then aborts the program
+void LOG_AND_ABORT(const char * fmt, ...);
+// puts but with formatting and with the preceder "warning"
+void LOG_WARNING(const char * fmt, ...);
+// puts but with formatting and with the preceder "info"
+void LOG_INFO(const char * fmt, ...);
+// puts but with formatting and with the preceder "debug"
+void LOG_DEBUG(const char * fmt, ...);
+
+void LOG_CUSTOM(const char *preceder, const char *fmt, ...);
 
 #define __WRAPPER1(x, y) CB_CONCAT(x, y)
 
@@ -17,44 +30,19 @@
 
 #define DEBUG
 
-#define __LOG()     va_list args; \
-                    va_start(args, fmt); \
-                    vfprintf(stderr, preceder, args); \
-                    vfprintf(stderr, fmt, args); \
-                    vfprintf(stderr, succeeder, args); \
-                    va_end(args)
+static inline struct tm *__CG_GET_TIME() {
+    time_t now;
+    struct tm *tm;
 
-static inline void LOG_ERROR(const char * fmt, ...) {
-    const char * preceder = "error: ";
-    const char * succeeder = "\n";
-    __LOG();
+    now = time(0);
+    if ((tm = localtime (&now)) == NULL) {
+        LOG_ERROR ("Error extracting time stuff");
+        return NULL;
+    }
+
+    return tm;
 }
 
-static inline void LOG_AND_ABORT(const char * fmt, ...) {
-    const char * preceder = "fatal error: ";
-    const char * succeeder = "\nabort.\n";
-    __LOG();
-    abort();
-}
-
-static inline void LOG_WARNING(const char * fmt, ...) {
-    const char * preceder =  "warning: ";
-    const char * succeeder = "\n";
-    __LOG();
-}
-
-static inline void LOG_INFO(const char * fmt, ...) {
-    const char * preceder =  "info: ";
-    const char * succeeder = "\n";
-    __LOG();
-}
-
-static inline void LOG_DEBUG(const char * fmt, ...) {
-    const char * preceder =  "debug: ";
-    const char * succeeder = "\n";
-    __LOG();
-}
-
-#undef __LOG
+extern void __CG_LOG(va_list args, const char *succeeder, const char *preceder, const char *str, unsigned char err);
 
 #endif

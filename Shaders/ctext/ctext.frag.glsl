@@ -8,16 +8,22 @@ vec4 outColor;
 layout(location=0) in
 vec2 texCoords;
 
-layout (location=1) in flat
-float scale;
+layout(location=1) in
+vec4 f_col;
 
-layout(set=0,binding=0) uniform
+layout(set=1,binding=0) uniform
 sampler2D bitmap;
+
+layout (push_constant) uniform push_constants {
+    mat4 model;
+    vec4 color;
+    vec4 outline_color;
+} pc;
 
 void main() {
     float distance = texture(bitmap, texCoords).r;
     if (distance < 0.01) {
         discard;
     }
-    outColor = vec4(vec3(1.0), distance);
+    outColor = vec4(f_col.rgb, f_col.a * distance);
 }
