@@ -25,7 +25,7 @@
 
 #include "../include/cshadermanager.h"
 #include "../include/cshadermanagerdev.h"
-#include "../include/defines.h"
+#include "../include/stdafx.h"
 
 const char *shader_compiler = "glslangValidator";
 const char *shader_compiler_args = " -V ";

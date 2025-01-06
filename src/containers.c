@@ -8,7 +8,7 @@
 
 #include "../../include/containers/cgvector.h"
 #include "../../include/math/math.h"
-#include "../../include/defines.h"
+#include "../../include/stdafx.h"
 
 #ifndef cg_cont_alloc
     #define cg_cont_alloc malloc
@@ -372,6 +372,7 @@ void cg_string_remove(cg_string_t *str, int index, int length) {
 }
 
 void cg_string_copy_from(const cg_string_t *src, cg_string_t *dst) {
+
     cassert(src != NULL);
     cassert(dst != NULL);
     cg_string_set(dst, src->data);

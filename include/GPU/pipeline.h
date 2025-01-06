@@ -7,7 +7,7 @@
 
 #include "../../external/volk/volk.h"
 
-#include "../defines.h"
+#include "../stdafx.h"
 #include "../lunaGFX.h"
 #include "vkstdafx.h"
 

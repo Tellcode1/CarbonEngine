@@ -1,7 +1,6 @@
 #include <stdlib.h>
 #include <math.h>
 
-#include "../include/defines.h"
 #include "../include/stdafx.h"
 #include "../include/cengine.h"
 #include "../include/ctext.h"
@@ -72,12 +71,26 @@ int main(int argc, char *argv[]) {
 
     lunaScene *scn = lunaScene_Init();
 
+    lunaScene_ChangeToScene(scn);
+
     luna_UI_Button *cookie = luna_UI_CreateButton(sprite_load_disk("../Assets/cookie.png"));
     cookie->pressed = pressed;
     cookie->hover = hoover;
     cookie->size = (vec2){5.0f,5.0f};
     cookie->position = (vec2){-6.0f, 0.0f};
     (void)cookie;
+
+    ctext_label *cookie_num = ctext_create_label(scene_main, amongus);
+    ctext_label *cookie_per_sec = ctext_create_label(scene_main, amongus);
+
+    ctext_label_set_horizontal_align(cookie_num, CTEXT_HORI_ALIGN_CENTER);
+    ctext_label_set_horizontal_align(cookie_per_sec, CTEXT_HORI_ALIGN_CENTER);
+
+    lunaObject *label_obj = ctext_label_get_object(cookie_num);
+    lunaObject_Move(label_obj, (vec2){ 0.0f, 90.0f });
+
+    label_obj = ctext_label_get_object(cookie_per_sec);
+    lunaObject_Move(label_obj, (vec2){ 0.0f, 80.0f });
 
     timer cookie_timer = timer_begin(1.0f);
 
@@ -133,15 +146,7 @@ int main(int argc, char *argv[]) {
         }
 
         if (luna_Renderer_BeginRender(rd)) {
-            ctext_begin_render(amongus);
-            ctext_text_render_info crd = ctext_init_text_render_info();
-            crd.position.y = 90.0f;
-            ctext_render(amongus, &crd, "%i cookies", (int)cookie_count);
-
-            crd.position.y -= 10.0f;
-            ctext_render(amongus, &crd, "%f cookies per second", cookies_per_second);
-
-            lunaScene_Render(scn, rd);
+            lunaScene_Render(rd);
 
             luna_Renderer_DrawLine(
                 rd,
@@ -151,7 +156,12 @@ int main(int argc, char *argv[]) {
                 0
             );
 
-            ctext_end_render(rd, amongus, m4init(1.0f));
+            char buf[ 1024 ];
+            luna_snprintf(buf, 1024, "%i cookies", (int)cookie_count);
+            ctext_label_set_text(cookie_num, buf);
+            luna_snprintf(buf, 1024, "%f cookies per second", cookies_per_second);
+            ctext_label_set_text(cookie_per_sec, buf);
+
             luna_Renderer_EndRender(rd);
         }
     }

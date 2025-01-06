@@ -101,6 +101,45 @@ static const uint32_t quad_indices[] = {
     0,2,3
 };
 
+// ctext
+typedef struct cglyph_vertex_t {
+    vec3 pos;
+    vec2 uv;
+} cglyph_vertex_t;
+
+typedef struct ctext_text_drawcall_t {
+    mat4 model;
+    size_t vertex_count;
+    size_t index_count;
+    size_t index_offset;
+    cglyph_vertex_t *vertices;
+    u32 *indices;
+    vec4 color;
+} ctext_text_drawcall_t;
+
+typedef struct ctext_label {
+    HoriAlignment h_align;
+    VertAlignment v_align;
+    int index;
+    cg_string_t *text;
+    cfont_t *fnt;
+    lunaObject *obj;
+} ctext_label;
+
+struct push_constants {
+    mat4 model;
+    vec4 color;
+    vec4 outline_color;
+};
+
+typedef enum ctext_err_t {
+    CTEXT_ERR_SUCCESS,
+    CTEXT_ERR_INVALID_GLYPH, // May also mean that there just isn't a glyph
+    CTEXT_ERR_WRONG_CACHE, // This cache is not the one you're looking for
+    CTEXT_ERR_FILE_ERROR,
+} ctext_err_t;
+// ctext
+
 int luna_Renderer_GetFrame(const luna_Renderer_t *rd)
 {
     return rd->renderer_frame;
@@ -864,10 +903,27 @@ bool luna_Renderer_BeginRender(luna_Renderer_t *rd)
     return true;
 }
 
+#define V2_TO_V3(v) ((vec3){ (v).x, (v).y, 0.0f })
+
 void luna_Renderer_EndRender(luna_Renderer_t *rd)
 {
     const VkCommandBuffer drawBuffer = *(VkCommandBuffer *)cg_vector_get(&rd->drawBuffers, rd->renderer_frame);
 
+    for (int i = 0; i < rd->ctext->labels.m_size; i++) {
+        ctext_label *label = cg_vector_get(&rd->ctext->labels, i);
+
+        luna_SpriteRenderer *spr_rd = lunaObject_GetSpriteRenderer(label->obj);
+
+        ctext_text_render_info r_info = ctext_init_text_render_info();
+        r_info.position = V2_TO_V3(lunaObject_GetPosition(label->obj));
+        r_info.color = spr_rd->color;
+        r_info.horizontal = label->h_align;
+        r_info.vertical = label->v_align;
+        ctext_render(
+            label->fnt, &r_info, cg_string_data(label->text)
+        );
+    }
+    ctext_flush_renders(rd);
     luna_UI_Render(rd);
     luna_Renderer_RenderAll(rd);
 
@@ -1397,33 +1453,6 @@ void ctx_initialize(const char* title, u32 windowWidth, u32 windowHeight) {
 
 // ctext vv
 
-typedef struct cglyph_vertex_t {
-    vec3 pos;
-    vec2 uv;
-} cglyph_vertex_t;
-
-typedef struct ctext_text_drawcall_t {
-    size_t vertex_count;
-    size_t index_count;
-    size_t index_offset;
-    cglyph_vertex_t *vertices;
-    u32 *indices;
-    vec4 color;
-} ctext_text_drawcall_t;
-
-struct push_constants {
-    mat4 model;
-    vec4 color;
-    vec4 outline_color;
-};
-
-typedef enum ctext_err_t {
-    CTEXT_ERR_SUCCESS,
-    CTEXT_ERR_INVALID_GLYPH, // May also mean that there just isn't a glyph
-    CTEXT_ERR_WRONG_CACHE, // This cache is not the one you're looking for
-    CTEXT_ERR_FILE_ERROR,
-} ctext_err_t;
-
 void ctext_load_font_from_ft(const char *font_path, bool sdf, cfont_t *dstref) {
     FT_Library lib; FT_Face face;
     if (FT_Init_FreeType(&lib))
@@ -1518,7 +1547,12 @@ void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scale, cfon
         LOG_ERROR("attempting to load a font with 0 fontscale.");
     }
 
-    *dst = calloc(1, sizeof(cfont_t));
+    {
+        cfont_t stack;
+        cg_vector_push_back(&rd->ctext->fonts, &stack);
+    }
+    *dst = &((cfont_t *)(rd->ctext->fonts.m_data))[ rd->ctext->fonts.m_size - 1 ];
+    memset(*dst, 0, sizeof(cfont_t));
 
     cfont_t *dstref = *dst;
 
@@ -1638,14 +1672,12 @@ bool ctext__font_resize_buffer(cfont_t *fnt, int new_buffer_size)
     return true;
 }
 
-void ctext__render_drawcalls(luna_Renderer_t *rd, cfont_t *fnt, const mat4 *model) {
+void ctext__render_drawcalls(luna_Renderer_t *rd, cfont_t *fnt) {
 
     const VkCommandBuffer cmd = luna_Renderer_GetDrawBuffer(rd);
     const VkDeviceSize offsets[] = { 0 };
 
     struct push_constants pc = {};
-
-    pc.model = *model;
 
     const VkPipeline pipeline = g_Pipelines.Ctext.pipeline;
     const VkPipelineLayout pipeline_layout = g_Pipelines.Ctext.pipeline_layout;
@@ -1663,6 +1695,8 @@ void ctext__render_drawcalls(luna_Renderer_t *rd, cfont_t *fnt, const mat4 *mode
     for (int i = 0; i < cg_vector_size(&fnt->drawcalls); i++) {
         ctext_text_drawcall_t *drawcall = (ctext_text_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
 
+        pc.model = drawcall->model;
+
         pc.color = drawcall->color;
         vkCmdPushConstants(
             cmd,
@@ -1675,67 +1709,6 @@ void ctext__render_drawcalls(luna_Renderer_t *rd, cfont_t *fnt, const mat4 *mode
         vkCmdDrawIndexed(cmd, drawcall->index_count, 1, 0, offset, 0);
         offset += drawcall->vertex_count;
     }
-}
-
-void ctext_end_render(luna_Renderer_t *rd, cfont_t *fnt, mat4 model)
-{
-    u32 total_vertex_byte_size = 0;
-    u32 total_index_count = 0;
-
-    for (int i = 0; i < cg_vector_size(&fnt->drawcalls); i++) {
-        const ctext_text_drawcall_t *drawcall = (ctext_text_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
-        total_vertex_byte_size += drawcall->vertex_count * sizeof(cglyph_vertex_t);
-        total_index_count += drawcall->index_count;
-    }
-
-    if (total_vertex_byte_size == 0 || total_index_count == 0) {
-        return;
-    }
-
-    const u32 total_index_byte_size = total_index_count * sizeof(u32);
-    const u32 total_buffer_size = total_index_byte_size + total_vertex_byte_size;
-
-    const bool fnt_buffer_resized = ctext__font_resize_buffer(fnt, total_buffer_size);
-
-    if (fnt->to_render && !fnt_buffer_resized) {
-        ctext__render_drawcalls(rd, fnt, &model);
-    }
-
-    uint8_t *mapped;
-    vkMapMemory(device, fnt->buffer_mem.memory, 0, total_buffer_size, 0, (void **)&mapped);
-
-    // this may be dumb but I am too
-
-    u32 vertex_copy_iterator = 0;
-    u32 index_copy_iterator = 0;
-    for (int i = 0; i < cg_vector_size(&fnt->drawcalls); i++) {
-        const ctext_text_drawcall_t *drawcall = (ctext_text_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
-        memcpy(
-            mapped + vertex_copy_iterator,
-            drawcall->vertices,
-            drawcall->vertex_count * sizeof(cglyph_vertex_t)
-        );
-        memcpy(
-            mapped + total_vertex_byte_size + index_copy_iterator,
-            drawcall->indices,
-            drawcall->index_count * sizeof(u32)
-        );
-        vertex_copy_iterator += drawcall->vertex_count * sizeof(cglyph_vertex_t);
-        index_copy_iterator += drawcall->index_count * sizeof(u32);
-    }
-    vkUnmapMemory(device, fnt->buffer_mem.memory);
-
-    fnt->index_buffer_offset = total_vertex_byte_size;
-    fnt->index_count = total_index_count;
-    fnt->to_render = true;
-
-    fnt->chars_drawn = 0;
-    
-    for (int i = 0; i < cg_vector_size(&fnt->drawcalls); i++) {
-        ctext_text_drawcall_t *drawcall = (ctext_text_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
-        free(drawcall->vertices);
-    }
-    cg_vector_clear(&fnt->drawcalls);
 }
 
 static cg_vector_t split_string(const cg_string_t *str) {
@@ -1796,11 +1769,6 @@ static void ctext_get_text_size(const cfont_t *fnt, const cg_string_t *str, floa
     }
     if (w) { *w = width;  }
     if (h) { *h = -height; }
-}
-
-void ctext_begin_render(cfont_t *fnt)
-{
-    (void)fnt;
 }
 
 static int render_line(
@@ -1996,6 +1964,8 @@ void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo, const char 
 
     drawcall.color = pInfo->color;
 
+    drawcall.model = pInfo->model;
+
     float scale = pInfo->scale ;
     if (pInfo->scale_for_fit) {
         scale *= ctext_get_scale_for_fit(fnt, str, pInfo->bbox);
@@ -2018,12 +1988,125 @@ void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo, const char 
     cg_vector_push_back(&fnt->drawcalls, &drawcall);
 
     cg_string_destroy(str);
+
+    fnt->rendered_this_frame = 1;
+}
+
+void __ctext_flush_font(luna_Renderer_t *rd, cfont_t *fnt)
+{
+    if (!fnt->rendered_this_frame) {
+        return;
+    } else {
+        fnt->rendered_this_frame = 0;
+    }
+    u32 total_vertex_byte_size = 0;
+    u32 total_index_count = 0;
+
+    for (int i = 0; i < cg_vector_size(&fnt->drawcalls); i++) {
+        const ctext_text_drawcall_t *drawcall = (ctext_text_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
+        total_vertex_byte_size += drawcall->vertex_count * sizeof(cglyph_vertex_t);
+        total_index_count += drawcall->index_count;
+    }
+
+    if (total_vertex_byte_size == 0 || total_index_count == 0) {
+        return;
+    }
+
+    const u32 total_index_byte_size = total_index_count * sizeof(u32);
+    const u32 total_buffer_size = total_index_byte_size + total_vertex_byte_size;
+
+    const bool fnt_buffer_resized = ctext__font_resize_buffer(fnt, total_buffer_size);
+
+    if (fnt->to_render && !fnt_buffer_resized) {
+        ctext__render_drawcalls(rd, fnt);
+    }
+
+    uint8_t *mapped;
+    vkMapMemory(device, fnt->buffer_mem.memory, 0, total_buffer_size, 0, (void **)&mapped);
+
+    // this may be dumb but I am too
+
+    u32 vertex_copy_iterator = 0;
+    u32 index_copy_iterator = 0;
+    for (int i = 0; i < cg_vector_size(&fnt->drawcalls); i++) {
+        const ctext_text_drawcall_t *drawcall = (ctext_text_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
+        memcpy(
+            mapped + vertex_copy_iterator,
+            drawcall->vertices,
+            drawcall->vertex_count * sizeof(cglyph_vertex_t)
+        );
+        memcpy(
+            mapped + total_vertex_byte_size + index_copy_iterator,
+            drawcall->indices,
+            drawcall->index_count * sizeof(u32)
+        );
+        vertex_copy_iterator += drawcall->vertex_count * sizeof(cglyph_vertex_t);
+        index_copy_iterator += drawcall->index_count * sizeof(u32);
+    }
+    vkUnmapMemory(device, fnt->buffer_mem.memory);
+
+    fnt->index_buffer_offset = total_vertex_byte_size;
+    fnt->index_count = total_index_count;
+    fnt->to_render = true;
+
+    fnt->chars_drawn = 0;
+    
+    for (int i = 0; i < cg_vector_size(&fnt->drawcalls); i++) {
+        ctext_text_drawcall_t *drawcall = (ctext_text_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
+        free(drawcall->vertices);
+    }
+    cg_vector_clear(&fnt->drawcalls);
+}
+
+void ctext_flush_renders(luna_Renderer_t *rd)
+{
+    for (int i = 0; i < rd->ctext->fonts.m_size; i++) {
+        cfont_t *fnt = cg_vector_get(&rd->ctext->fonts, i);
+        __ctext_flush_font(rd, fnt);
+    }
+}
+
+ctext_label *ctext_create_label(lunaScene *scene, cfont_t *fnt)
+{
+  ctext_label label = {
+    .h_align = CTEXT_HORI_ALIGN_LEFT,
+    .v_align = CTEXT_VERT_ALIGN_TOP,
+    .index = fnt->rd->ctext->labels.m_size,
+    .text = cg_string_init(16),
+    .fnt = fnt,
+    .obj = lunaObject_Create(scene, "Text Label", 0, (vec2){}, (vec2){1.0f,1.0f}, LUNA_OBJECT_NO_COLLISION),
+  };
+  cg_vector_push_back(&fnt->rd->ctext->labels, &label);
+  return &(((ctext_label *)fnt->rd->ctext->labels.m_data)[ fnt->rd->ctext->labels.m_size - 1 ]);
+}
+
+void ctext_destroy_label(ctext_label *label)
+{
+    cg_string_destroy(label->text);
+    lunaObject_Destroy(label->obj);
+    cg_vector_remove(&label->fnt->rd->ctext->labels, label->index);
+}
+
+lunaObject *ctext_label_get_object(const ctext_label *label) {
+    return label->obj;
+}
+void ctext_label_set_text(ctext_label *label, const char *text) {
+    cg_string_set(label->text, text);
+}
+void ctext_label_set_horizontal_align(ctext_label *label, HoriAlignment h_align) {
+    label->h_align = h_align;
+}
+void ctext_label_set_vertical_align(ctext_label *label, VertAlignment v_align) {
+    label->v_align = v_align;
 }
 
 void ctext_init(struct luna_Renderer_t *rd)
 {
     rd->ctext = calloc(1, sizeof(cg_ctext_module));
     cg_ctext_module *ctext = rd->ctext;
+
+    ctext->fonts = cg_vector_init(sizeof(cfont_t), 4);
+    ctext->labels = cg_vector_init(sizeof(ctext_label), 4);
 
     const VkDescriptorSetLayoutBinding bindings[] = {
         // binding; descriptorType; descriptorCount; stageFlags; pImmutableSamplers;

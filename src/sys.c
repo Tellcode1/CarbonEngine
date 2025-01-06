@@ -1,5 +1,5 @@
 #include "../include/sys/io/printf.h"
-#include "../include/defines.h"
+#include "../include/stdafx.h"
 #include "../include/math/math.h"
 
 #include <stdbool.h>
@@ -406,7 +406,8 @@ size_t luna_vsnprintf(char *dest, size_t max_chars, const char *fmt, va_list arg
 // printf
 
 void LOG_ERROR(const char * fmt, ...) {
-  const char * preceder = "error: ";
+  // this is my project I can do whatever the F@#!@# I want
+  const char * preceder = "oh baby an error! ";
   const char * succeeder = "\n";
   va_list args;
   va_start(args, fmt);

@@ -1,17 +1,25 @@
-#ifndef __SCENE_H__
-#define __SCENE_H__
+#ifndef __LUNA_SCENE_H__
+#define __LUNA_SCENE_H__
 
 #include "lunaObject.h"
 
 typedef struct lunaScene lunaScene;
 typedef struct luna_Renderer_t luna_Renderer_t;
 
-extern lunaScene *g_scenes;
-extern int g_nscenes;
+typedef void (*lunaSceneLoadFn)(lunaScene *scn);
+
+// Called when the scene scn changes
+// ie. it's called when scn is being unloaded
+typedef void (*lunaSceneUnloadFn)(lunaScene *scn);
+
+extern lunaScene *scene_main;
 
 extern lunaScene *lunaScene_Init();
-extern void lunaScene_Update(lunaScene *scene);
-extern void lunaScene_Render(lunaScene *scene, luna_Renderer_t *rd);
+extern void lunaScene_Update();
+extern void lunaScene_Render(luna_Renderer_t *rd);
 extern void lunaScene_Destroy(lunaScene *scene);
+extern void lunaScene_AssignLoadFn(lunaScene *scene, lunaSceneLoadFn fn);
+extern void lunaScene_AssignUnloadFn(lunaScene *scene, lunaSceneUnloadFn fn);
+extern void lunaScene_ChangeToScene(lunaScene *scene);
 
-#endif//__SCENE_H__
+#endif//__LUNA_SCENE_H__

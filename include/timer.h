@@ -1,7 +1,7 @@
 #ifndef __TIMER_H__
 #define __TIMER_H__
 
-#include "defines.h"
+#include "stdafx.h"
 #include <time.h>
 #include <stdbool.h>
 

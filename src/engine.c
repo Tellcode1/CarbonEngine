@@ -307,6 +307,7 @@ typedef struct lunaCollider {
 } lunaCollider;
 
 typedef struct lunaObject {
+    lunaScene *scene;
     const char *name;
     lunaCollider *col;
     int index;
@@ -316,13 +317,15 @@ typedef struct lunaObject {
 } lunaObject;
 
 typedef struct lunaScene {
-    lunaObject objects[ LUNA_MAX_OBJECT_COUNT ]; // the child objects
-    int nobjects;
+    cg_vector_t objects; // the child objects
 
     const char *scene_name;
     bool active; // whether the scene is active or not
 
     b2WorldId world;
+
+    lunaSceneLoadFn load;
+    lunaSceneUnloadFn unload;
 } lunaScene;
 
 #define VEC2_TO_B2VEC2(vec) ((b2Vec2){ vec.x, vec.y })
@@ -330,24 +333,36 @@ typedef struct lunaScene {
 
 lunaObject *lunaObject_Create(lunaScene *scene, const char *name, bool is_static, vec2 position, vec2 size, unsigned flags)
 {
-    scene->nobjects++;
-    lunaObject *obj = &scene->objects[scene->nobjects];
-    *obj = (lunaObject){};
+    {
+        lunaObject stack = {};
+        cg_vector_push_back(&scene->objects, &stack);
+    }
+    lunaObject *obj = cg_vector_get(&scene->objects, scene->objects.m_size - 1);
     obj->name = name;
-    obj->index = scene->nobjects;
+    obj->scene = scene;
 
     obj->spr_renderer = (luna_SpriteRenderer){};
     obj->spr_renderer.spr = sprite_empty;
     obj->spr_renderer.tex_coord_multiplier = (vec2){ 1.0f, 1.0f };
     obj->spr_renderer.color = (vec4){ 1.0f, 1.0f, 1.0f, 1.0f };
 
-    bool start_enabled = 0;
-    if (!(flags & LUNA_OBJECT_NO_COLLISION)) {
-        start_enabled = 1;
+    obj->index = scene->objects.m_size;
+
+    bool start_enabled = 1;
+    if (flags & LUNA_OBJECT_NO_COLLISION) {
+        start_enabled = 0;
     }
     obj->col = lunaCollider_Init(scene, position, size, (is_static) ? LUNA_COLLIDER_TYPE_STATIC : LUNA_COLLIDER_TYPE_DYNAMIC, LUNA_COLLIDER_SHAPE_RECT, start_enabled);
 
     return obj;
+}
+
+
+void lunaObject_Destroy(lunaObject *obj)
+{
+    b2DestroyBody(obj->col->body);
+    b2DestroyShape(obj->col->shape, 0);
+    cg_vector_remove(&obj->scene->objects, obj->index);
 }
 
 void lunaObject_AssignOnUpdateFn(lunaObject *obj, lunaObjectUpdateFn fn)
@@ -453,7 +468,11 @@ void lunaCollider_Destroy(lunaCollider *col) {
 
 vec2 lunaCollider_GetPosition(const lunaCollider *col)
 {
-    return col->position;
+    if (col)
+        return col->position;
+    else {
+        return (vec2){};
+    }
 }
 
 void lunaCollider_SetPosition(lunaCollider *col, vec2 to)
@@ -514,6 +533,8 @@ lunaCollider_RayHit lunaCollider_RayCast(const lunaCollider *col, vec2 orig, vec
     return hit;
 }
 
+lunaScene *scene_main = NULL;
+
 lunaScene *lunaScene_Init()
 {
     lunaScene *scn = calloc(1, sizeof(lunaScene));
@@ -521,19 +542,21 @@ lunaScene *lunaScene_Init()
     b2WorldDef world_def = b2DefaultWorldDef();
     world_def.gravity = (b2Vec2){0};
     scn->world = b2CreateWorld(&world_def);
-    scn->nobjects = -1;
+    scn->objects = cg_vector_init(sizeof(lunaObject), 4);
     return scn;
 }
 
-void lunaScene_Update(lunaScene *scene)
+void lunaScene_Update()
 {
     const float timeStep = 1.0f / 60.0f;
     const int substeps = 4;
 
-    b2World_Step(scene->world, timeStep, substeps);
+    b2World_Step(scene_main->world, timeStep, substeps);
 
-    for (int i = 0; i < scene->nobjects; i++) {
-        lunaCollider *col = scene->objects[i].col;
+    const lunaObject *objects = scene_main->objects.m_data;
+
+    for (int i = 0; i < scene_main->objects.m_size; i++) {
+        lunaCollider *col = objects[i].col;
         if (!col->enabled) {
             continue;
         }
@@ -544,18 +567,18 @@ void lunaScene_Update(lunaScene *scene)
     }
 
     const float dt = cg_get_delta_time();
-    for (int i = 0; i < scene->nobjects; i++) {
-        if (scene->objects[i].update_fn) {
-            scene->objects[i].update_fn(dt);
+    for (int i = 0; i < scene_main->objects.m_size; i++) {
+        if (objects[i].update_fn) {
+            objects[i].update_fn(dt);
         }
     }
 }
 
-void lunaScene_Render(lunaScene *scene, luna_Renderer_t *rd)
+void lunaScene_Render(luna_Renderer_t *rd)
 {
-    const lunaObject *objects = scene->objects;
+    const lunaObject *objects = scene_main->objects.m_data;
 
-    for (int i = 0; i < scene->nobjects; i++) {
+    for (int i = 0; i < scene_main->objects.m_size; i++) {
         vec2 pos = lunaCollider_GetPosition(objects[i].col);
         vec2 siz = lunaCollider_GetSize(objects[i].col);
         const luna_SpriteRenderer *spr_renderer = &objects[i].spr_renderer;
@@ -576,7 +599,7 @@ void lunaScene_Render(lunaScene *scene, luna_Renderer_t *rd)
             0
         );
     }
-    for (int i = 0; i < scene->nobjects; i++) {
+    for (int i = 0; i < scene_main->objects.m_size; i++) {
         if (objects[i].render_fn) {
             objects[i].render_fn(rd);
         }
@@ -589,6 +612,28 @@ void lunaScene_Destroy(lunaScene *scene)
     b2DestroyWorld(scene->world);
     free(scene);
     
+}
+
+void lunaScene_AssignLoadFn(lunaScene *scene, lunaSceneLoadFn fn)
+{
+    scene->load = fn;
+}
+
+void lunaScene_AssignUnloadFn(lunaScene *scene, lunaSceneUnloadFn fn)
+{
+    scene->unload = fn;
+}
+
+void lunaScene_ChangeToScene(lunaScene *scene)
+{
+    if (scene_main && scene_main->unload) {
+        scene_main->unload(scene);
+        lunaScene_Destroy(scene_main);
+    }
+    if (scene->load) {
+        scene->load(scene);
+    }
+    scene_main = scene;
 }
 
 // lunaUI
@@ -743,3 +788,10 @@ void luna_UI_Update() {
     }
 }
 // lunaUI
+
+#include "../include/editor.h"
+
+void LunaEditor_Render(luna_Renderer_t *rd)
+{
+    
+}

@@ -5,7 +5,7 @@
     extern "C" {
 #endif
 
-#include "defines.h"
+#include "stdafx.h"
 #include "lunaCamera.h"
 #include "../external/volk/volk.h"
 

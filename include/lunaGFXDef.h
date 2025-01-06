@@ -17,6 +17,8 @@
 #include "sprite.h"
 
 typedef struct cg_ctext_module {
+    cg_vector_t fonts;
+    cg_vector_t labels;
     luna_DescriptorSet *desc_set;
     unsigned flags;
 } cg_ctext_module;

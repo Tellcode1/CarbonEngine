@@ -11,7 +11,6 @@
 
 // I strive for a world where I do not have to call vulkan functions myself again
 
-#include "defines.h"
 #include "stdafx.h"
 #include "GPU/vkstdafx.h"
 #include "lunaGFXstdafx.h"

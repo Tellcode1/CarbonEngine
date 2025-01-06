@@ -6,6 +6,8 @@
 #endif
 
 #include "lunaCamera.h"
+#include "lunaObject.h"
+#include "lunaScene.h"
 
 #include "../include/math/vec3.h"
 #include "../include/math/vec2.h"
@@ -51,6 +53,7 @@ static const int CTEXT_MAX_FONT_COUNT = 8;
 typedef struct cfont_t cfont_t;
 
 typedef struct ctext_text_render_info {
+    mat4 model;
     HoriAlignment horizontal;
     VertAlignment vertical;
     vec4 color;
@@ -60,8 +63,19 @@ typedef struct ctext_text_render_info {
     bool scale_for_fit; // calculates the scale needed to fit the text into a box
 } ctext_text_render_info;
 
+typedef struct ctext_label ctext_label;
+
+extern ctext_label *ctext_create_label(lunaScene *scene, cfont_t *fnt);
+extern void ctext_destroy_label(ctext_label *label);
+
+extern lunaObject *ctext_label_get_object(const ctext_label *label);
+extern void ctext_label_set_text(ctext_label *label, const char *text);
+extern void ctext_label_set_horizontal_align(ctext_label *label, HoriAlignment h_align);
+extern void ctext_label_set_vertical_align(ctext_label *label, VertAlignment v_align);
+
 static inline ctext_text_render_info ctext_init_text_render_info() {
     return (ctext_text_render_info) {
+        .model = m4init(1.0f),
         .horizontal =  CTEXT_HORI_ALIGN_CENTER,
         .vertical = CTEXT_VERT_ALIGN_CENTER,
         .color = (vec4){ 1.0f, 1.0f, 1.0f, 1.0f },
@@ -80,11 +94,10 @@ extern void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scal
 
 extern void ctext_destroy_font(cfont_t *fnt);
 
-extern void ctext_begin_render(cfont_t *fnt);
-
 extern void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo, const char *fmt, ...);
 
-extern void ctext_end_render(luna_Renderer_t *rd, cfont_t *fnt, mat4 model);
+extern void ctext_flush_renders(luna_Renderer_t *rd);
+extern void __ctext_flush_font(luna_Renderer_t *rd, cfont_t *fnt);
 
 // Get the scale needed to fit the string in a box
 // The scale is calculated as if both the string and the box were at (0,0)
@@ -124,6 +137,7 @@ typedef struct cfont_t
     int index_count;
     bool to_render;
     bool buffer_resized;
+    bool rendered_this_frame;
 
     int chars_drawn;
     cg_vector_t /* ctext_text_drawcall_t */  drawcalls;
