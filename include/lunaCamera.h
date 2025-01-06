@@ -7,8 +7,8 @@
 #include "math/vec4.h"
 
 #include "lunaGFX.h"
-#include "lunaGPUObjects.h"
-#include "lunaDescriptors.h"
+#include "GPU/buffer.h"
+#include "GPU/descriptors.h"
 #include "cinput.h"
 
 typedef struct lunaCamera lunaCamera;
@@ -56,9 +56,19 @@ typedef struct lunaCamera {
     luna_GPU_Memory mem;
     luna_DescriptorSet *sets;
     camera_uniform_buffer *mem_mapped;
+
+    // luna_GPU_Texture *render_texture;
+    // VkFramebuffer framebuffer;
+    // VkRenderPass render_pass;
 } lunaCamera;
 
-static inline lunaCamera lunaCamera_init() {
+static inline void lunaCamera_Destroy(lunaCamera *cam) {
+    // luna_DescriptorSetDestroy(cam->sets);
+    luna_GPU_DestroyBuffer(&cam->ub);
+    luna_GPU_FreeMemory(&cam->mem);
+}
+
+static inline lunaCamera lunaCamera_Init() {
     lunaCamera camera = {
         .perspective = {},
         .ortho = m4ortho(-CAMERA_ORTHO_W, CAMERA_ORTHO_W, -CAMERA_ORTHO_H, CAMERA_ORTHO_H, 0.1f, 100.0f),

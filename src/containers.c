@@ -2,7 +2,7 @@
 #include "../include/containers/cgstring.h"
 #include "../include/containers/cghashmap.h"
 #include "../include/containers/cgbitset.h"
-#include "../include/catlas.h"
+#include "../include/containers/catlas.h"
 
 #include <stdlib.h>
 

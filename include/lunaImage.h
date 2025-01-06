@@ -6,7 +6,7 @@
 #endif
 
 #include "lunaGFXstdafx.h"
-#include "lunaFormat.h"
+#include "GPU/format.h"
 
 // CPU Image
 typedef struct lunaImage {

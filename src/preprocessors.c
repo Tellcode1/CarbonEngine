@@ -6,6 +6,8 @@
 #include <errno.h>
 #include <libgen.h>
 
+#include "../include/sys/io/printf.h"
+
 #ifndef WIN32
     #include <unistd.h>
 #endif
@@ -15,7 +17,7 @@
 #endif
 
 #if !(CSM_EXECUTABLE)
-    #include "../include/vkstdafx.h"
+    #include "../include/GPU/vkstdafx.h"
 
     struct csm_shader_t *shader_map = NULL;
     int nshaders = 0;
@@ -23,7 +25,7 @@
 
 #include "../include/cshadermanager.h"
 #include "../include/cshadermanagerdev.h"
-#include "../include/stdafx.h"
+#include "../include/defines.h"
 
 const char *shader_compiler = "glslangValidator";
 const char *shader_compiler_args = " -V ";
@@ -67,8 +69,8 @@ compile-force: forcefully compile all shaders in list file,\n\
 int main(int argc, char *argv[]) {
     for (int i = 0; i < argc; i++) {
         if (CSM_HAS_FLAG("help") || CSM_HAS_FLAG("--h") || CSM_HAS_FLAG("-h") || CSM_HAS_FLAG("--help") || CSM_HAS_FLAG("-help")) {
-            printf("usage: %s <compile list path = \"../compilelist.txt\"> <cmd = compile>\n", argv[0]);
-            printf("%s", CMD_HELP_MSG);
+            luna_printf("usage: %s <compile list path = \"../compilelist.txt\"> <cmd = compile>\n", argv[0]);
+            luna_printf("%s", CMD_HELP_MSG);
             return 0;
         }
     }
@@ -80,8 +82,8 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(cmd, "compile") == 0) {
         csm_compile_updated(NULL);
     } else {
-        printf("usage: %s <compile list path = \"../compilelist.txt\"> <cmd = compile>\n", argv[0]);
-        printf("%s", CMD_HELP_MSG);
+        luna_printf("usage: %s <compile list path = \"../compilelist.txt\"> <cmd = compile>\n", argv[0]);
+        luna_printf("%s", CMD_HELP_MSG);
         return -1;
     }
 
@@ -157,6 +159,7 @@ int csm_load_shader(const char *name, struct csm_shader_t **out)
 
 int csm_load_shader_from_disk(const char *path, csm_shader_t **out)
 {
+    (void)path; (void)out;
     // csm_shader_entry entry = {0};
 
     // char line[256];
@@ -451,43 +454,61 @@ csm_shader_entry * load_all_entries(const char *shader_list_file_path, int *coun
     return entries;
 }
 
-int compile_shader(char *buffer, const struct csm_shader_entry *entry) {
+#if defined(__linux)
+    // int __csm_linux_run() {
+        
+    // }
+    // #define system __csm_linux_run
+#endif
+
+static char *g_Buffer = NULL;
+int compile_shader(const struct csm_shader_entry *entry) {
+    if (!g_Buffer) {
+        g_Buffer = calloc(1, 1024);
+    }
     char copy[256];
     copy[255] = '\0';
     strncpy(copy, entry->output_path, 256);
     create_parent_dirs(copy);
 
-    strcat(buffer, shader_compiler);
-    strcat(buffer, " ");
-    strcat(buffer, shader_compiler_args);
+    // strcat(buffer, shader_compiler);
+    // strcat(buffer, " ");
+    // strcat(buffer, shader_compiler_args);
 
-    strcat(buffer, entry->path);
+    // strcat(buffer, entry->path);
 
-    if (strcmp(entry->output_path, "") != 0) {
-        strcat(buffer, " -o ");
-        strcat(buffer, entry->output_path);
-    }
+    // if (strcmp(entry->output_path, "") != 0) {
+    //     strcat(buffer, " -o ");
+    //     strcat(buffer, entry->output_path);
+    // }
 
-    strcat(buffer, " -S ");
-    strcat(buffer, entry->stage);
+    // strcat(buffer, " -S ");
+    // strcat(buffer, entry->stage);
 
-    if (system(buffer) != 0) {
+    luna_snprintf(
+        g_Buffer, 1024,
+        "%s %s %s -o %s -S %s",
+        shader_compiler,
+        shader_compiler_args,
+        entry->path,
+        strcmp(entry->output_path, "") != 0 ? entry->output_path : "",
+        entry->stage
+    );
+
+    if (system(g_Buffer) != 0) {
         return -1;
     }
+    g_Buffer[1023] = 0;
 
     return 0;
 }
 
 void csm_compile_from_cache(csm_shader_entry *entries, int nentries, csm_shader_cache_entry *cacheentries, int cachecount) {
-    char buffer[512];
     for (int i = 0; i < nentries; i++) {
         for (int j = 0; j < cachecount; j++) {
             if (strcmp(cacheentries[j].path, entries[i].path) == 0) {
                 if (cacheentries[j].last_modified != entries[i].last_modified) {
-                    // memset(buffer, 0, 512);
-                    buffer[0] = 0;
-                    
-                    if (compile_shader(buffer, &entries[i]) != 0) {
+                    if (compile_shader(&entries[i]) != 0) {
                         CSM_LOG_ERROR("Error while compiling shader \"%s\".", entries[i].path);
                     }
                     cacheentries[j].last_modified = entries[i].last_modified;
@@ -499,11 +520,9 @@ void csm_compile_from_cache(csm_shader_entry *entries, int nentries, csm_shader_
 }
 
 void csm_compile_without_cache(csm_shader_entry *entries, int nentries) {
-    char buffer[512];
     for (int i = 0; i < nentries; i++) {
-        memset(buffer, 0, 512);
         
-        if (compile_shader(buffer, &entries[i]) != 0) {
+        if (compile_shader(&entries[i]) != 0) {
             CSM_LOG_ERROR("Error while compiling shader \"%s\".", entries[i].path);
         }
     }
@@ -541,8 +560,6 @@ void csm_compile_updated()
 
 void csm_compile_all()
 {
-    char *buffer = malloc(512);
-
     int count = 0;
     csm_shader_entry *entries = load_all_entries(list, &count);
 
@@ -551,12 +568,20 @@ void csm_compile_all()
     #endif//#if CSM_EXECUTABLE != 1
 
     for (int i = 0; i < count; i++) {
-        buffer[0] = 0;
-        compile_shader(buffer, &entries[i]);
+        compile_shader(&entries[i]);
     }
 
     write_new_cache(entries, count);
 
     free(entries);
-    free(buffer);
+}
+
+void csm_shutdown()
+{
+    #if !(CSM_EXECUTABLE)
+    for (int i = 0; i < nshaders; i++) {
+        csm_shader_t *shader = &shader_map[i];
+        vkDestroyShaderModule(device, shader->shader_module, NULL);
+    }
+    #endif
 }

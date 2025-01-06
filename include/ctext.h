@@ -12,13 +12,15 @@
 #include "../include/math/mat.h"
 
 #include "stdafx.h"
-#include "vkstdafx.h"
 
 #include "containers/cgvector.h"
 #include "containers/cgstring.h"
 #include "containers/cghashmap.h"
-#include "catlas.h"
-#include "lunaGPUObjects.h"
+#include "containers/catlas.h"
+
+#include "GPU/vkstdafx.h"
+#include "GPU/texture.h"
+#include "GPU/buffer.h"
 
 typedef struct luna_Renderer_t luna_Renderer_t;
 
@@ -72,8 +74,11 @@ static inline ctext_text_render_info ctext_init_text_render_info() {
 
 // Initializes the text renderer for ONLY that renderer
 extern void ctext_init(struct luna_Renderer_t *rd);
+extern void ctext_shutdown(struct luna_Renderer_t *rd);
 
 extern void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scale, cfont_t **dst);
+
+extern void ctext_destroy_font(cfont_t *fnt);
 
 extern void ctext_begin_render(cfont_t *fnt);
 

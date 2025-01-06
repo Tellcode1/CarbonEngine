@@ -73,6 +73,8 @@ extern bool luna_FormatHasStencilChannel(lunaFormat fmt);
 // returns the size of depth component (in bytes) even in combined depth stencil formats
 extern int luna_FormatGetBytesPerChannel(lunaFormat fmt);
 
+extern int luna_FormatGetBytesPerPixel(lunaFormat fmt);
+
 // 0 on error or undefined format.
 // oh and I haven't implemented compressed formats yet..
 // also, stencil channels are also counted

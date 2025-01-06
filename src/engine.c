@@ -1,11 +1,11 @@
 #include "../include/cengine.h"
-#include "../include/cengineinit.h"
 #include "../include/cinput.h"
 #include "../include/lunaImage.h"
 #include "../include/lunaScene.h"
 #include "../include/lunaCollider.h"
 #include "../include/lunaUI.h"
 #include "../include/containers/cgvector.h"
+#include "../include/printf.h"
 
 #include "../external/box2d/include/box2d/box2d.h"
 
@@ -127,7 +127,6 @@ lunaImage lunaImage_LoadPNG(const char *path)
     png_read_info(png, info);
 
     if (setjmp(png_jmpbuf(png))) {
-        // gaming
         cassert(0);
     }
 
@@ -159,26 +158,25 @@ lunaImage lunaImage_LoadPNG(const char *path)
         case 3: texture.fmt = LUNA_FORMAT_RGB8; break;
         case 4: texture.fmt = LUNA_FORMAT_RGBA8; break;
         default:
-            printf("unsupported file(png) format: channels = %d\n", channels);
+            LOG_ERROR("unsupported file(png) format: channels = %d", channels);
             cassert(0);
             break;
         break;
     }
 
-    u8 **row_pointers = malloc(sizeof(u8 *) * texture.h);
-
     int rowbytes = png_get_rowbytes(png, info);
     texture.data = (unsigned char*)malloc(rowbytes * texture.h * channels);
     cassert(texture.data != NULL);
 
+    u8 **row_pointers = malloc(sizeof(u8 *) * texture.h);
     for (int y = 0; y < texture.h; y++) {
-        row_pointers[y] = texture.data + y * texture.w * luna_FormatGetBytesPerChannel(texture.fmt);
+        row_pointers[y] = texture.data + y * texture.w * luna_FormatGetBytesPerPixel(texture.fmt);
     }
+
     png_read_image(png, row_pointers);
 
     png_destroy_read_struct(&png, &info, NULL);
     fclose(f);
-
     free(row_pointers);
 
     return texture;
@@ -192,7 +190,7 @@ lunaImage lunaImage_LoadJPEG(const char *path)
     lunaImage img = {};
 
     if ((f = fopen(path, "rb")) == NULL) {
-        fprintf(stderr, "cimageload :: couldn't open file \"%s\" Are you sure that it exists?\n", path);
+        LOG_ERROR("cimageload :: couldn't open file \"%s\" Are you sure that it exists?\n", path);
         return img;
     }
 
@@ -207,7 +205,7 @@ lunaImage lunaImage_LoadJPEG(const char *path)
     img.w = cinfo.output_width;
     img.h = cinfo.output_height;
     
-    const int channels = cinfo.output_components;
+    int channels = cinfo.output_components;
 
     switch (channels) {
         case 1:
@@ -215,26 +213,22 @@ lunaImage lunaImage_LoadJPEG(const char *path)
             break;
         case 3:
             img.fmt = LUNA_FORMAT_RGB8;
+            channels = 4;
             break;
         default:
-            printf("invalid num channels: %d\n", channels);
+            LOG_ERROR("invalid num channels: %d", channels);
             cassert(0);
             break;
         break;
     }
 
-    img.data = (unsigned char*)malloc(img.w * img.h * channels);
+    img.data = (unsigned char*)malloc(img.w * img.h * luna_FormatGetBytesPerPixel(img.fmt));
 
     unsigned char *bufarr[1];
     for (int i = 0; i < (int)cinfo.output_height; i++) {
-        bufarr[0] = img.data + i * img.w * channels;
+        bufarr[0] = img.data + i * img.w * luna_FormatGetBytesPerPixel(img.fmt);
         jpeg_read_scanlines(&cinfo, bufarr, 1);
     }
-
-    uint8_t *padded = lunaImage_PadChannels(&img, luna_FormatGetNumChannels(LUNA_FORMAT_RGBA8));
-    img.fmt = LUNA_FORMAT_RGBA8;
-    free(img.data);
-    img.data = padded;
 
     jpeg_finish_decompress(&cinfo);
     jpeg_destroy_decompress(&cinfo);
@@ -262,28 +256,20 @@ void lunaImage_WritePNG(const lunaImage *tex, const char *path)
 
     int coltype = -1;
     const int numc = luna_FormatGetNumChannels(tex->fmt);
-    if (!luna_FormatHasColorChannel(tex->fmt)) {
-        const char *fmt_str;
-        luna_FormatToString(tex->fmt, &fmt_str);
-        LOG_ERROR("Attempt to write png with format %s which is either a depth or an undefined format.", fmt_str);
-        return;
-    } else if (numc == 1) {
-        coltype = PNG_COLOR_TYPE_GRAY;
-    } else if (numc == 2) {
-        if (luna_FormatHasAlphaChannel(tex->fmt)) {
-            coltype = PNG_COLOR_TYPE_GRAY_ALPHA;
-        } else {
-            // coltype = PNG_COLOR_TYPE_RG
-            cassert(0);
-        }
-    } else if (numc == 3) {
-        coltype = PNG_COLOR_TYPE_RGB;
-    } else if (numc == 4) {
-        coltype = PNG_COLOR_TYPE_RGB_ALPHA;
+    switch (numc) {
+        case 1:
+            coltype = PNG_COLOR_TYPE_GRAY;
+            break;
+        case 2:
+            coltype = PNG_COLOR_TYPE_RGB;
+            break;
+        case 4:
+            coltype = PNG_COLOR_TYPE_RGBA;
+            break;
     }
     cassert(coltype != -1);
 
-    const int bytesperpixel = luna_FormatGetBytesPerChannel(tex->fmt);
+    const int bytesperpixel = luna_FormatGetBytesPerPixel(tex->fmt);
     png_set_IHDR(png, info, tex->w, tex->h, bytesperpixel * 8, coltype, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
 
     png_write_info(png, info);
@@ -598,6 +584,13 @@ void lunaScene_Render(lunaScene *scene, luna_Renderer_t *rd)
 }
 // luna
 
+void lunaScene_Destroy(lunaScene *scene)
+{
+    b2DestroyWorld(scene->world);
+    free(scene);
+    
+}
+
 // lunaUI
 typedef struct luna_UI_Context {
     cg_vector_t btons;
@@ -610,6 +603,11 @@ luna_UI_Context luna_ui_ctx;
 void luna_UI_Init() {
     luna_ui_ctx.btons = cg_vector_init(sizeof(luna_UI_Button), 4);
     luna_ui_ctx.sliders = cg_vector_init(sizeof(luna_UI_Slider), 4);
+}
+
+void luna_UI_Shutdown() {
+    cg_vector_destroy(&luna_ui_ctx.btons);
+    cg_vector_destroy(&luna_ui_ctx.sliders);
 }
 
 luna_UI_Button *luna_UI_CreateButton(sprite_t *spr) {
@@ -638,61 +636,69 @@ luna_UI_Slider *luna_UI_CreateSlider() {
     return (luna_UI_Slider *)cg_vector_get(&luna_ui_ctx.sliders, cg_vector_size(&luna_ui_ctx.sliders) - 1);
 }
 
-void luna_UI_Render(luna_Renderer_t *rd) {
-    for (int i = 0; i < cg_vector_size(&luna_ui_ctx.btons); i++) {
-        const luna_UI_Button *bton = (luna_UI_Button *)cg_vector_get(&luna_ui_ctx.btons, i);
+void luna_UI_DestroyButton(luna_UI_Button *obj)
+{
+    sprite_release(obj->spr);
+}
 
-        luna_Renderer_DrawQuad(
-            rd,
-            bton->spr,
-            (vec2){ 1.0f, 1.0f },
-            (vec3){ bton->position.x, bton->position.y, 0.0f },
-            (vec3){ bton->size.x, bton->size.y, 1.0f },
-            bton->color,
-            0
-        );
+void luna_UI_DestroySlider(luna_UI_Slider *obj)
+{
+    sprite_release(obj->slider_sprite);
+    sprite_release(obj->bg_sprite);
+}
+
+void luna_UI_Render(luna_Renderer_t *rd)
+{
+  for (int i = 0; i < cg_vector_size(&luna_ui_ctx.btons); i++)
+  {
+    const luna_UI_Button *bton = (luna_UI_Button *)cg_vector_get(&luna_ui_ctx.btons, i);
+
+    luna_Renderer_DrawQuad(
+        rd,
+        bton->spr,
+        (vec2){1.0f, 1.0f},
+        (vec3){bton->position.x, bton->position.y, 0.0f},
+        (vec3){bton->size.x, bton->size.y, 1.0f},
+        bton->color,
+        0);
+  }
+
+  for (int i = 0; i < cg_vector_size(&luna_ui_ctx.sliders); i++)
+  {
+    const luna_UI_Slider *slider = (luna_UI_Slider *)cg_vector_get(&luna_ui_ctx.sliders, i);
+
+    if (slider->max == slider->min)
+    {
+      LOG_ERROR("Slider %i has equal min and max", i);
+      continue;
     }
 
-    for (int i = 0; i < cg_vector_size(&luna_ui_ctx.sliders); i++) {
-        const luna_UI_Slider *slider = (luna_UI_Slider *)cg_vector_get(&luna_ui_ctx.sliders, i);
+    luna_Renderer_DrawQuad(
+        rd,
+        slider->bg_sprite,
+        (vec2){1.0f, 1.0f},
+        (vec3){slider->position.x, slider->position.y, 0.0f},
+        (vec3){slider->size.x, slider->size.y, 1.0f},
+        slider->bg_color,
+        0);
 
-        if (slider->max == slider->min) {
-            LOG_ERROR("Slider %i has equal min and max", i);            
-            continue;
-        }
+    float pcent = ((slider->value - slider->min) / (slider->max - slider->min));
+    pcent = cmclamp(pcent, 0.0f, 1.0f);
 
-        luna_Renderer_DrawQuad(
-            rd,
-            slider->bg_sprite,
-            (vec2){ 1.0f, 1.0f },
-            (vec3){ slider->position.x, slider->position.y, 0.0f },
-            (vec3){ slider->size.x, slider->size.y, 1.0f },
-            slider->bg_color,
-            0
-        );
-
-        float pcent = ((slider->value - slider->min) / (slider->max - slider->min));
-        pcent = cmclamp(pcent, 0.0f, 1.0f);
-
-        luna_Renderer_DrawQuad(
-            rd,
-            slider->slider_sprite,
-            (vec2){ 1.0f, 1.0f },
-            (vec3){ slider->position.x + 0.5f * slider->size.x * (pcent - 1.0f), slider->position.y, 0.0f },
-            (vec3){ slider->size.x * pcent, slider->size.y, 1.0f },
-            slider->slider_color,
-            1
-        );
-    }
+    luna_Renderer_DrawQuad(
+        rd,
+        slider->slider_sprite,
+        (vec2){1.0f, 1.0f},
+        (vec3){slider->position.x + 0.5f * slider->size.x * (pcent - 1.0f), slider->position.y, 0.0f},
+        (vec3){slider->size.x * pcent, slider->size.y, 1.0f},
+        slider->slider_color,
+        1);
+  }
 }
 
 void luna_UI_Update() {
     const bool mouse_pressed = cinput_is_mouse_pressed(SDL_BUTTON_LEFT);
-    const vec2 mouse_position =
-        v2add(
-            v2mulv(cinput_get_mouse_position(), (vec2){ CAMERA_ORTHO_W, CAMERA_ORTHO_H }),
-            (vec2){ camera.position.x, camera.position.y }
-        );
+    const vec2 mouse_position = lunaCamera_GetMouseGlobalPosition(&camera);
 
     for (int i = 0; i < cg_vector_size(&luna_ui_ctx.btons); i++) {
         luna_UI_Button *bton = (luna_UI_Button *)cg_vector_get(&luna_ui_ctx.btons, i);
@@ -724,7 +730,7 @@ void luna_UI_Update() {
             .size = slider->size
         };
         if (slider->interactable && cmPointInsideRect(&mouse_position, &slider_rect)) {
-            if (cinput_is_mouse_held(1)) {
+            if (cinput_is_mouse_held(LUNA_MOUSE_BUTTON_LEFT)) {
                 float rel_mx = mouse_position.x - (slider->position.x - slider->size.x * 0.5f);
                 float clamped_mx = cmclamp(rel_mx, 0.0f, slider->size.x);
                 float percentage = clamped_mx / slider->size.x;

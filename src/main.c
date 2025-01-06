@@ -14,12 +14,18 @@
 #include "../include/lunaScene.h"
 #include "../include/lunaObject.h"
 #include "../include/timer.h"
+#include "../include/sys/io/printf.h"
 
-static u32 cookie_count = 0;
+static size_t cookie_count = 0;
+static float cookies_per_second = 9.0f;
 
 void pressed(luna_UI_Button *self) {
     (void)self;
     ++cookie_count;
+}
+
+void leave_game(luna_UI_Button *self) {
+    (void)self; cg_application_running = 0;
 }
 
 void hoover(luna_UI_Button *self) {
@@ -36,8 +42,8 @@ int main(int argc, char *argv[]) {
     cg_initialize_context("kilometers per second (edgy)(im cool now ok?)", window_size.width, window_size.height);
 
     luna_Renderer_Config rdconf = crender_config_init();
-    rdconf.vsync_enabled = 1;
-    rdconf.buffer_mode = CG_BUFFER_MODE_DOUBLE_BUFFERED;
+    rdconf.vsync_enabled = 0;
+    rdconf.buffer_mode = CG_BUFFER_MODE_TRIPLE_BUFFERED;
     rdconf.window_resizable = 0;
     rdconf.initial_window_size = window_size;
     rdconf.multisampling_enable = 0;
@@ -61,17 +67,19 @@ int main(int argc, char *argv[]) {
     luna_UI_Button *bton = luna_UI_CreateButton(sprite_load_disk("../Assets/x.png"));
     bton->size.x = 5.0f;
     bton->size.y = 5.0f;
-    bton->pressed = pressed;
+    bton->pressed = leave_game;
     bton->hover = hoover;
 
     lunaScene *scn = lunaScene_Init();
 
-    luna_UI_Button *cookie = luna_UI_CreateButton(sprite_empty);
+    luna_UI_Button *cookie = luna_UI_CreateButton(sprite_load_disk("../Assets/cookie.png"));
     cookie->pressed = pressed;
     cookie->hover = hoover;
     cookie->size = (vec2){5.0f,5.0f};
     cookie->position = (vec2){-6.0f, 0.0f};
     (void)cookie;
+
+    timer cookie_timer = timer_begin(1.0f);
 
     // What in the unholy f%$ where you doing
     LOG_DEBUG("Initialized in %ld ms (%.3f s)", SDL_GetTicks64(), SDL_GetTicks64() / 1000.0f);
@@ -106,6 +114,11 @@ int main(int argc, char *argv[]) {
 
         lunaScene_Update(scn);
 
+        if (timer_is_done(&cookie_timer)) {
+            cookie_count += floorf(cookies_per_second);
+            cookie_timer = timer_begin(1.0f);
+        }
+
         luna_UI_Update(&camera);
         if (!bton->was_hovered) { // If the mouse is NOT on the button, change it back to it's default color
             bton->color = (vec4){ 1.0f, 1.0f, 1.0f, 1.0f };
@@ -123,7 +136,10 @@ int main(int argc, char *argv[]) {
             ctext_begin_render(amongus);
             ctext_text_render_info crd = ctext_init_text_render_info();
             crd.position.y = 90.0f;
-            ctext_render(amongus, &crd, "%u cookies", cookie_count);
+            ctext_render(amongus, &crd, "%i cookies", (int)cookie_count);
+
+            crd.position.y -= 10.0f;
+            ctext_render(amongus, &crd, "%f cookies per second", cookies_per_second);
 
             lunaScene_Render(scn, rd);
 
@@ -140,6 +156,13 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    lunaScene_Destroy(scn);
+
+    luna_UI_DestroyButton(bton);
+    luna_UI_DestroyButton(cookie);
+
+    vkDeviceWaitIdle(device);
+    ctext_destroy_font(amongus);
     luna_Renderer_Destroy(rd);
     LOG_INFO("done.");
     return 0;

@@ -6,7 +6,6 @@
 #endif
 
 #include "defines.h"
-#include "vkstdafx.h"
 #include "lunaCamera.h"
 #include "../external/volk/volk.h"
 

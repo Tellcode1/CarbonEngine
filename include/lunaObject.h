@@ -1,5 +1,5 @@
-#ifndef __lunaObject__H__
-#define __lunaObject__H__
+#ifndef __LUNA_OBJECT_H__
+#define __LUNA_OBJECT_H__
 
 #ifdef __cplusplus
     extern "C" {
@@ -22,6 +22,7 @@ typedef enum lunaObject_Flags {
 } lunaObject_Flags;
 
 extern lunaObject *lunaObject_Create(lunaScene *scene, const char *name, bool is_static, /*is body static? or is it dynamic?*/ vec2 position, vec2 size, unsigned flags);
+extern void lunaObject_Destroy(lunaObject *obj);
 
 extern void lunaObject_AssignOnUpdateFn(lunaObject *obj, lunaObjectUpdateFn fn);
 extern void lunaObject_AssignOnRenderFn(lunaObject *obj, lunaObjectRenderFn fn);
@@ -38,4 +39,4 @@ luna_SpriteRenderer *lunaObject_GetSpriteRenderer(lunaObject *obj);
     }
 #endif
 
-#endif//__lunaObject__H__
+#endif//__LUNA_OBJECT_H__

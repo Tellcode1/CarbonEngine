@@ -19,6 +19,12 @@ typedef enum key_state_bits
 } key_state_bits;
 typedef u8 key_state;
 
+typedef enum lunaMouseButton {
+    LUNA_MOUSE_BUTTON_LEFT = 0,
+    LUNA_MOUSE_BUTTON_MIDDLE = 1,
+    LUNA_MOUSE_BUTTON_RIGHT = 2,
+} lunaMouseButton;
+
 // Turns out, static is bad..
 extern vec2 cinput_mouse_position;
 extern vec2 cinput_last_frame_mouse_position;
@@ -105,8 +111,8 @@ static inline bool cinput_is_mouse_pressed(int button) {
     return cinput_mouse_state & SDL_BUTTON(button) && !(cinput_last_frame_mouse_state & SDL_BUTTON(button));
 }
 
-static inline bool cinput_is_mouse_held(int button) {
-    return cinput_mouse_state & SDL_BUTTON(button);
+static inline bool cinput_is_mouse_held(lunaMouseButton button) {
+    return cinput_mouse_state & SDL_BUTTON((int)button);
 }
 
 #ifdef __cplusplus

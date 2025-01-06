@@ -2,7 +2,7 @@
 #define __UNDESCRIPTOR_SET_H
 
 #include "vkstdafx.h"
-#include "math/math.h"
+#include "../math/math.h"
 
 // WARNING: Currently only supports the first 11 descriptor types.
 

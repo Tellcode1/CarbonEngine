@@ -13,10 +13,10 @@
 
 #include "defines.h"
 #include "stdafx.h"
-#include "vkstdafx.h"
+#include "GPU/vkstdafx.h"
 #include "lunaGFXstdafx.h"
-#include "lunaGPUObjects.h"
-#include "lunaDescriptors.h"
+#include "GPU/texture.h"
+#include "GPU/descriptors.h"
 
 #include "math/vec2.h"
 #include "math/vec3.h"

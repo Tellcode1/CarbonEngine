@@ -9,10 +9,11 @@
 #endif
 
 #include "lunaGFX.h"
-#include "lunaPipeline.h"
+#include "GPU/pipeline.h"
 #include "containers/cgvector.h"
-#include "lunaGPUObjects.h"
-#include "lunaDescriptors.h"
+#include "GPU/buffer.h"
+#include "GPU/texture.h"
+#include "GPU/descriptors.h"
 #include "sprite.h"
 
 typedef struct cg_ctext_module {

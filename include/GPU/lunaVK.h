@@ -6,7 +6,7 @@
 #endif
 
 #include "vkstdafx.h"
-#include "lunaFormat.h"
+#include "format.h"
 
 extern u32 luna_VK_GetMemType(const u32 memoryTypeBits, const VkMemoryPropertyFlags memoryProperties);
 

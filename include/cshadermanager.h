@@ -14,6 +14,8 @@ typedef struct csm_pipeline csm_pipeline;
 extern void csm_compile_updated();
 extern void csm_compile_all();
 
+extern void csm_shutdown();
+
 extern void csm_set_list_file(const char *path);
 extern void csm_set_shader_compiler(const char *exec);
 extern void csm_set_shader_compiler_args(const char *args);

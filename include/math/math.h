@@ -19,7 +19,7 @@ static const double cmRAD2DEG_CONSTANT = 57.29577951308232; // 1.0 / DEG2RAD_CON
 #define cmclamp01(x) cmclamp((x), 0, 1)
 
 // Round x to the nearest multiple of y
-#define cmround(x, y) (roundf(x / y) * y)
+#define cmround(x, y) (round((x) / (y)) * (y))
 
 // The constants aren't used because for static const variables, they can cause minor issues like not compiling at all.
 #define cmdeg2rad(x) ((x) * 0.017453292519943295)

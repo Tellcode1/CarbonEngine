@@ -1,5 +1,5 @@
-#include "../include/lunaVK.h"
-#include "../include/lunaPipeline.h"
+#include "../include/GPU/lunaVK.h"
+#include "../include/GPU/pipeline.h"
 #include "../include/lunaGFXDef.h"
 #include "../include/lunaInternalObjects.h"
 #include "../include/lunaImage.h"
@@ -17,6 +17,7 @@
 #include "../include/lunaUI.h"
 
 #include "../include/containers/cgvector.h"
+#include "../include/sys/io/printf.h"
 
 #include <freetype2/ft2build.h>
 #include FT_FREETYPE_H
@@ -283,10 +284,10 @@ void luna_Renderer_RenderAll(luna_Renderer_t *rd) {
 void luna_Renderer_PrepareQuadRenderer(luna_Renderer_t *rd)
 {
     memcpy(quad_vertices, (const quad_vertex[4]){
-        (const quad_vertex){ .position = (vec3){+0.5f, +0.5f, 0.0f}, .tex_coords = (vec2){ 0.0f, 0.0f } },
-        (const quad_vertex){ .position = (vec3){-0.5f, +0.5f, 0.0f}, .tex_coords = (vec2){ 1.0f, 0.0f } },
-        (const quad_vertex){ .position = (vec3){-0.5f, -0.5f, 0.0f}, .tex_coords = (vec2){ 1.0f, 1.0f } },
-        (const quad_vertex){ .position = (vec3){+0.5f, -0.5f, 0.0f}, .tex_coords = (vec2){ 0.0f, 1.0f } }
+        (const quad_vertex){ .position = (vec3){+0.5f, +0.5f, 0.0f}, .tex_coords = (vec2){ 1.0f, 0.0f } },
+        (const quad_vertex){ .position = (vec3){-0.5f, +0.5f, 0.0f}, .tex_coords = (vec2){ 0.0f, 0.0f } },
+        (const quad_vertex){ .position = (vec3){-0.5f, -0.5f, 0.0f}, .tex_coords = (vec2){ 0.0f, 1.0f } },
+        (const quad_vertex){ .position = (vec3){+0.5f, -0.5f, 0.0f}, .tex_coords = (vec2){ 1.0f, 1.0f } }
     }, sizeof(quad_vertices));
 
     luna_GPU_CreateBuffer(
@@ -317,8 +318,9 @@ void luna_Renderer_Destroy(luna_Renderer_t *rd)
 
     // we were only making frames_in_flight fences and it was working for some reason!!
     // that was the reason we were getting errors!
-    for (int i = 0; i < cg_vector_size(&rd->renderData); i++) {
+    for (int i = 0; i < (int)SwapChainImageCount; i++) {
         lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
+        luna_GPU_DestroyTexture(data->depth_image);
         vkDestroyImageView(device, luna_GPU_TextureGetView(data->sc_image), NULL); // as the view was silently smushed into the structure, we just kinda smush it out as well.
         vkDestroyFramebuffer(device, data->color_framebuffer, NULL);
 
@@ -326,23 +328,49 @@ void luna_Renderer_Destroy(luna_Renderer_t *rd)
         vkDestroySemaphore(device, data->render_finish_semaphore, NULL);
         vkDestroyFence(device, data->in_flight_fence, NULL);
     }
+    for (int i = 0; i < cg_vector_size(&g_Samplers); i++) {
+        luna_GPU_Sampler *samp = cg_vector_get(&g_Samplers, i);
+        vkDestroySampler(device, samp->vksampler, NULL);
+    }
+
+    sprite_destroy(sprite_empty);
+
+    lunaCamera_Destroy(&camera);
+
+    luna_VK_DestroyGlobalPipelines();
+    luna_DescriptorPoolDestroy(&g_pool);
 
     cg_vector_destroy(&rd->renderData);
+    cg_vector_destroy(&rd->drawcalls);
+
     luna_GPU_FreeMemory(&rd->depth_image_memory);
+
+    luna_GPU_DestroyBuffer(&rd->quad_vb);
+    luna_GPU_FreeMemory(&rd->quad_memory);
+
+    vkFreeCommandBuffers(device, pool, 1, &buffer);
+    vkDestroyCommandPool(device, pool, NULL);
+
     vkFreeCommandBuffers(device, rd->commandPool, cg_vector_size(&rd->drawBuffers), (VkCommandBuffer *)cg_vector_data(&rd->drawBuffers));
     vkDestroyCommandPool(device, rd->commandPool, NULL);
+    cg_vector_destroy(&rd->drawBuffers);
+
+    csm_shutdown();
 
     vkDestroySwapchainKHR(device, rd->swapchain, NULL);
 
-    if (rd->ctext) {
-        vkDestroyDescriptorSetLayout(device, rd->ctext->desc_set->layout, NULL);
-    }
     if (rd->flags & CG_RENDERER_MULTISAMPLING_ENABLE) {
         luna_GPU_DestroyTexture(rd->color_image);
         luna_GPU_FreeMemory(&rd->color_image_memory);
     }
     vkDestroyRenderPass(device, rd->render_pass, NULL);
     free(rd);
+
+    vkDestroyDebugUtilsMessengerEXT(instance, debugMessenger, NULL);
+    vkDestroySurfaceKHR(instance, surface, NULL);
+    SDL_DestroyWindow(window);
+    vkDestroyDevice(device, NULL);
+    vkDestroyInstance(instance, NULL);
 }
 
 void create_optional_images(luna_Renderer_t *rd)
@@ -365,19 +393,6 @@ void create_optional_images(luna_Renderer_t *rd)
         );
         luna_GPU_AllocateMemory(color_image_size, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, &rd->color_image_memory);
         luna_GPU_BindTextureToMemory(&rd->color_image_memory, 0, rd->color_image);
-
-        luna_GPU_TextureViewCreateInfo resolve_view_info = {
-            .format = SwapChainImageFormat,
-            .view_type = VK_IMAGE_VIEW_TYPE_2D,
-            .subresourceRange = (VkImageSubresourceRange) {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .baseMipLevel = 0,
-                .levelCount = 1,
-                .baseArrayLayer = 0,
-                .layerCount = 1,
-            }
-        };
-        luna_GPU_CreateTextureView(&resolve_view_info, &rd->color_image);
     }
 
     // attachment vector will be like <color resolve, depth attachment, swapchain image>
@@ -390,7 +405,7 @@ void create_optional_images(luna_Renderer_t *rd)
             .format = LUNA_FORMAT_D32,
             .samples = Samples,
             .type = VK_IMAGE_TYPE_2D,
-            .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            .usage = LUNA_GPU_TEXTURE_USAGE_DEPTH_TEXTURE,
             .extent = (VkExtent3D){ .width = rd->render_extent.width, .height = rd->render_extent.height, .depth = 1 },
             .arraylayers = 1,
             .miplevels = 1,
@@ -406,19 +421,7 @@ void create_optional_images(luna_Renderer_t *rd)
         }
 
         luna_GPU_BindTextureToMemory(&rd->depth_image_memory, i * rd->shadow_image_size, data->depth_image);
-
-        const luna_GPU_TextureViewCreateInfo view_info = {
-            .format = LUNA_FORMAT_D32,
-            .view_type = VK_IMAGE_VIEW_TYPE_2D,
-            .subresourceRange = (VkImageSubresourceRange){
-                .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
-                .baseMipLevel = 0,
-                .levelCount = 1,
-                .baseArrayLayer = 0,
-                .layerCount = 1,
-            },
-        };
-        luna_GPU_CreateTextureView(&view_info, &data->depth_image);
+        SetObjectName(device, (uint64_t)luna_GPU_TextureGetView(data->depth_image), VK_OBJECT_TYPE_IMAGE_VIEW, "I'm going to kys");
     }
 
     free(swapchainImages);
@@ -672,7 +675,7 @@ luna_Renderer_t *luna_Renderer_Init(const luna_Renderer_Config *conf)
 
     sprite_empty = sprite_load_disk("../Assets/empty.png");
 
-    camera = lunaCamera_init();
+    camera = lunaCamera_Init();
 
     // Initialize subsystems.
     csm_compile_updated();
@@ -704,13 +707,25 @@ void crenderer_resize(luna_Renderer_t *rd) {
         vkDestroySemaphore(device, data->render_finish_semaphore, NULL);
         vkDestroyFence(device, data->in_flight_fence, NULL);
 
+        luna_GPU_DestroyTexture(data->depth_image);
+
         data->image_available_semaphore = NULL;
         data->render_finish_semaphore = NULL;
         data->in_flight_fence = NULL;
     }
+
+    if (rd->color_image) {
+        luna_GPU_DestroyTexture(rd->color_image);
+        luna_GPU_FreeMemory(&rd->color_image_memory);
+    }
+    if (rd->depth_image_memory.memory) {
+        luna_GPU_FreeMemory(&rd->depth_image_memory);
+    }
+
     for (u32 i = 0; i < SwapChainImageCount; i++)
     {
         lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
+        free(data->sc_image);
         vkDestroyImageView(device, luna_GPU_TextureGetView(data->sc_image), NULL); // as the view was silently smushed into the structure, we just kinda smush it out as well.
         vkDestroyFramebuffer(device, data->color_framebuffer, NULL);
     }
@@ -764,6 +779,7 @@ void crenderer_resize(luna_Renderer_t *rd) {
     luna_GPU_CreateSwapchain(&scio, &rd->swapchain);
     vkDestroySwapchainKHR(device, old_swapchain, NULL);
 
+    cg_vector_resize(&rd->renderData, SwapChainImageCount);
     create_optional_images(rd);
     create_framebuffers_and_swapchain_image_views(rd);
 
@@ -948,6 +964,7 @@ static SDL_UNUSED VKAPI_ATTR VkBool32 VKAPI_CALL VKDebugMessengerCallback(
 	(void)messageType;
 	(void)pUserData;
 
+    return VK_FALSE;
 	if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) {
 		return VK_FALSE;
 	}
@@ -1048,14 +1065,14 @@ VkInstance CreateInstance(const char* title) {
 		{
 			LOG_ERROR("VALIDATION LAYERS COULD NOT BE LOADED\nRequested layers:\n");
 			for(int i = 0; i < array_len(ValidationLayers); i++) {
-				printf("\t%s\n", ValidationLayers[i]);
+				LOG_ERROR("\t%s", ValidationLayers[i]);
 			}
 
-			printf("Instance provided these layers (i.e. These layers are available):\n");
+			LOG_ERROR("Instance provided these layers (i.e. These layers are available):");
 			for(uint32_t i = 0; i < layerCount; i++)
-				printf("\t%s\n", ((VkLayerProperties *)cg_vector_data(&layerProperties))[i].layerName);
+				LOG_ERROR("\t%s", ((VkLayerProperties *)cg_vector_data(&layerProperties))[i].layerName);
 
-			printf("But instance asked for (i.e. are not available):\n");
+			LOG_ERROR("But instance asked for (i.e. are not available):");
 
 			cg_vector_t /* const char* */ missingLayers = cg_vector_init(sizeof(const char *), 16);
 		
@@ -1073,7 +1090,7 @@ VkInstance CreateInstance(const char* title) {
 				if(!layerAvailable) cg_vector_push_back(&missingLayers, &layer);
 			}
 			for(int i = 0; i < cg_vector_size(&missingLayers); i++)
-				printf("\t%s\n", (const char *)cg_vector_get(&missingLayers, i));
+				LOG_ERROR("\t%s", (const char *)cg_vector_get(&missingLayers, i));
 			
 			cg_vector_destroy(&missingLayers);
 			
@@ -1386,9 +1403,9 @@ typedef struct cglyph_vertex_t {
 } cglyph_vertex_t;
 
 typedef struct ctext_text_drawcall_t {
-    u32 vertex_count;
-    u32 index_count;
-    u32 index_offset;
+    size_t vertex_count;
+    size_t index_count;
+    size_t index_offset;
     cglyph_vertex_t *vertices;
     u32 *indices;
     vec4 color;
@@ -1520,7 +1537,7 @@ void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scale, cfon
         .format = LUNA_FORMAT_R8,
         .samples = CG_SAMPLE_COUNT_1_SAMPLES,
         .type = VK_IMAGE_TYPE_2D,
-        .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        .usage = LUNA_GPU_TEXTURE_USAGE_SAMPLED_TEXTURE,
         .extent = (VkExtent3D){ .width = dstref->atlas.width, .height = dstref->atlas.height, .depth = 1 },
         .arraylayers = 1,
         .miplevels = 1
@@ -1534,12 +1551,15 @@ void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scale, cfon
     luna_GPU_BindTextureToMemory(&dstref->texture_mem, 0, dstref->texture);
 
     const int atlas_w = dstref->atlas.width, atlas_h = dstref->atlas.height;
-    luna_VK_StageImageTransfer(
-        luna_GPU_TextureGet(dstref->texture),
-        dstref->atlas.data,
-        atlas_w,
-        atlas_h,
-        atlas_w * atlas_h * luna_FormatGetBytesPerChannel(LUNA_FORMAT_R8)
+
+    lunaImage atlas = (lunaImage) {
+        .w = atlas_w, .h = atlas_h,
+        .fmt = LUNA_FORMAT_R8,
+        .data = dstref->atlas.data
+    };
+    luna_GPU_WriteToTexture(
+        dstref->texture,
+        &atlas
     );
 
     const luna_GPU_SamplerCreateInfo sampler_info = {
@@ -1548,19 +1568,6 @@ void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scale, cfon
         .address_mode = VK_SAMPLER_ADDRESS_MODE_REPEAT
     };
     luna_GPU_CreateSampler(&sampler_info, &dstref->sampler);
-
-    luna_GPU_TextureViewCreateInfo view_info = {
-        .format = LUNA_FORMAT_R8,
-        .view_type = VK_IMAGE_VIEW_TYPE_2D,
-        .subresourceRange = (VkImageSubresourceRange){
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .baseMipLevel = 0,
-            .levelCount = 1,
-            .baseArrayLayer = 0,
-            .layerCount = 1,
-        }
-    };
-    luna_GPU_CreateTextureView(&view_info, &dstref->texture);
 
     const VkDescriptorImageInfo ctext_bitmap_image_info = {
         .sampler = luna_GPU_SamplerGet(dstref->sampler),
@@ -1581,6 +1588,17 @@ void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scale, cfon
         writeSet.dstArrayElement = i;
         luna_DescriptorSetSubmitWrite(rd->ctext->desc_set, &writeSet);
     }
+}
+
+void ctext_destroy_font(cfont_t *fnt)
+{
+    luna_GPU_DestroyTexture(fnt->texture);
+    luna_GPU_FreeMemory(&fnt->texture_mem);
+
+    luna_GPU_DestroyBuffer(&fnt->buffer);
+    luna_GPU_FreeMemory(&fnt->buffer_mem);
+    cg_vector_destroy(&fnt->drawcalls);
+    cg_hashmap_destroy(fnt->glyph_map);
 }
 
 bool ctext__font_resize_buffer(cfont_t *fnt, int new_buffer_size)
@@ -1943,26 +1961,31 @@ int gen_vertices(
 void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo, const char *fmt, ...)
 {
     cg_string_t *str;
-    int num, effective_length;
-    {
-        char buffer[ 100000 ];
-        va_list arg;
+    size_t num, effective_length;
+    char *buffer;
 
-        va_start(arg, fmt);
-        num = vsnprintf(buffer, 100000, fmt, arg);
-        va_end(arg);
+    va_list arg;
+    va_start(arg, fmt);
 
-        effective_length = get_effective_length(buffer, num);
-        if (effective_length == 0) {
-            return;
-        }
+    num = luna_vsnprintf(NULL, SIZE_MAX, fmt, arg);
+    buffer = malloc(num);
+    va_start(arg, fmt);
 
-        str = cg_string_init_str(buffer);
+    luna_vsnprintf(buffer, num + 1, fmt, arg);
+
+    va_end(arg);
+
+    effective_length = get_effective_length(buffer, num);
+    if (effective_length == 0) {
+        return;
     }
 
-    const u32 vertex_count = effective_length * 4;
-    const u32 index_count = effective_length * 6;
-    const int allocation_size = (vertex_count * sizeof(cglyph_vertex_t)) + (index_count * sizeof(u32));
+    str = cg_string_init_str(buffer);
+    free(buffer);
+
+    const size_t vertex_count = effective_length * 4;
+    const size_t index_count = effective_length * 6;
+    const size_t allocation_size = (vertex_count * sizeof(cglyph_vertex_t)) + (index_count * sizeof(u32));
 
     void *allocation = malloc(allocation_size);
 
@@ -2027,6 +2050,12 @@ void ctext_init(struct luna_Renderer_t *rd)
         write_set.dstArrayElement = i;
         luna_DescriptorSetSubmitWrite(ctext->desc_set, &write_set);
     }
+}
+
+void ctext_shutdown(struct luna_Renderer_t *rd) {
+    struct cg_ctext_module *ctext = rd->ctext;
+
+    luna_DescriptorSetDestroy(ctext->desc_set);
 }
 
 void ctext_ff_write(const char *path, const cfont_t *fnt)
@@ -2350,8 +2379,8 @@ void __BakeUnlitPipeline(luna_Renderer_t *rd ) {
 
 	const VkVertexInputAttributeDescription attributeDescriptions[] = {
         // location; binding; format; offset;
-        { 0, 0, luna_lunaFormatToVKFormat(LUNA_FORMAT_RGB32), 0 }, // pos
-        { 1, 0, luna_lunaFormatToVKFormat(LUNA_FORMAT_RG32), sizeof(vec3) }, // texcoord
+        { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0 }, // pos
+        { 1, 0, VK_FORMAT_R32G32_SFLOAT, sizeof(vec3) }, // texcoord
     };
 
     const VkVertexInputBindingDescription bindingDescriptions[] = {
@@ -2514,6 +2543,24 @@ void luna_VK_BakeGlobalPipelines(luna_Renderer_t *rd )
 	__BakeUnlitPipeline(rd);
     __BakeDebugLinePipeline(rd);
 	__BakeCtextPipeline(rd);
+}
+
+void luna_VK_DestroyPipeline(luna_VK_Pipeline *pipeline) {
+    vkDestroyPipeline(device, pipeline->pipeline, NULL);
+    vkDestroyPipelineLayout(device, pipeline->pipeline_layout, NULL);
+    vkDestroyDescriptorSetLayout(device, pipeline->descriptor_layout, NULL);
+}
+
+void luna_VK_DestroyGlobalPipelines()
+{
+    luna_VK_Pipeline pipelines[] = {
+        g_Pipelines.Unlit,
+        g_Pipelines.Ctext,
+        g_Pipelines.Line,
+    };
+    for (int i = 0; i < array_len(pipelines); i++) {
+        luna_VK_DestroyPipeline(&pipelines[i]);
+    }
 }
 
 void luna_GPU_CreateGraphicsPipeline(const luna_GPU_PipelineCreateInfo *pCreateInfo, VkPipeline *dstPipeline, u32 flags)
@@ -2990,7 +3037,6 @@ void luna_VK_StageBufferTransfer(VkBuffer dst, void *data, u64 size)
 
     vkDestroyBuffer(device, stagingBuffer, NULL);
     vkFreeMemory(device, stagingBufferMemory, NULL);
-
 }
 
 u32 luna_VK_GetMemType(const u32 memoryTypeBits, const VkMemoryPropertyFlags memoryProperties)
@@ -3166,7 +3212,7 @@ void luna_VK_StageImageTransfer(VkImage dst, const void *data, int width, int he
 void luna_VK_CreateTextureFromMemory(u8 *buffer, u32 width, u32 height, lunaFormat format, VkImage *dst, VkDeviceMemory *dstMem)
 {
     luna_VK_CreateTextureEmpty(width, height, format, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, NULL, dst, dstMem);
-    luna_VK_StageImageTransfer(*dst, buffer, width, height, width * height * luna_FormatGetBytesPerChannel(format));
+    luna_VK_StageImageTransfer(*dst, buffer, width, height, width * height * luna_FormatGetBytesPerPixel(format));
 }
 
 // If the format given is oki then it'll just return it
@@ -3186,6 +3232,7 @@ lunaFormat luna_VK_GetSupportedFormatForDraw(lunaFormat fmt) {
     return fmt;
 }
 
+static int img_ctr = 0;
 void luna_VK_CreateTextureEmpty(u32 width, u32 height, lunaFormat format, VkSampleCountFlagBits samples, VkImageUsageFlags usage, int *image_size, VkImage *dst, VkDeviceMemory *dstMem)
 {
     if (usage & VK_IMAGE_USAGE_SAMPLED_BIT) {
@@ -3208,6 +3255,9 @@ void luna_VK_CreateTextureEmpty(u32 width, u32 height, lunaFormat format, VkSamp
     imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     if (vkCreateImage(device, &imageCreateInfo, NULL, dst) != VK_SUCCESS)
         LOG_ERROR("Failed to create image");
+    char wbuf[128] = "IMAGE ";
+    SetObjectName(device, (uint64_t)(*dst), VK_OBJECT_TYPE_IMAGE, strcat(wbuf, luna_itoa(img_ctr, wbuf, 10)));
+    img_ctr++;
 
     VkMemoryRequirements imageMemoryRequirements;
     vkGetImageMemoryRequirements(device, *dst, &imageMemoryRequirements);
@@ -3358,16 +3408,18 @@ void luna_GPU_AllocateMemory(VkDeviceSize size, luna_GPU_MemoryUsage usage, luna
     }
 
     if (vkAllocateMemory(device, &alloc_info, NULL, &dst->memory) != VK_SUCCESS || !dst->memory) {
-        printf("An allocation has failed! What are we to do???\n");
+        LOG_ERROR("An allocation has failed! What are we to do???\n");
     }
 }
 
+static int buffer_ctr = 0;
 void luna_GPU_CreateBuffer(int size, int alignment, int nchilds, VkBufferUsageFlags usage, luna_GPU_Buffer *dst) {
     dst->size = size;
     dst->alignment = alignment;
     dst->type = usage;
 
     const int aligned_sz = align_up(size, alignment);
+
 
     VkBufferCreateInfo buffer_info = {};
     buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -3376,6 +3428,9 @@ void luna_GPU_CreateBuffer(int size, int alignment, int nchilds, VkBufferUsageFl
     for (int i = 0; i < nchilds; i++) {
         cassert(vkCreateBuffer(device, &buffer_info, NULL, &dst->buffers[i]) == VK_SUCCESS);
     }
+    char wbuf[128] = "BUFFER ";
+    SetObjectName(device, (uint64_t)dst->buffers[0], VK_OBJECT_TYPE_BUFFER, strcat(wbuf, luna_itoa(buffer_ctr, wbuf, 10)));
+    buffer_ctr++;
     dst->nchilds = nchilds;
 }
 
@@ -3416,14 +3471,14 @@ void luna_GPU_WriteToUniformBuffer(luna_GPU_Buffer *buffer, int size, void *data
 
 void luna_GPU_WriteToBuffer(luna_GPU_Buffer *buffer, int size, void *data, int offset)
 {
-    luna_GPU_MemoryUsage mem_usg = buffer->memory->usage;
-    if (!(mem_usg & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)) {
-        luna_GPU_WriteToLocalBuffer(buffer, size, data, offset);
-        return;
-    } else if (buffer->type & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT) {
-        luna_GPU_WriteToUniformBuffer(buffer, size, data, offset);
-        return;
-    }
+    // luna_GPU_MemoryUsage mem_usg = buffer->memory->usage;
+    // if (!(mem_usg & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)) {
+    //     luna_GPU_WriteToLocalBuffer(buffer, size, data, offset);
+    //     return;
+    // } else if (buffer->type & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT) {
+    //     luna_GPU_WriteToUniformBuffer(buffer, size, data, offset);
+    //     return;
+    // }
 
     void *mapped;
     luna_GPU_MapMemory(buffer->memory, size, offset, &mapped);
@@ -3446,15 +3501,15 @@ void luna_GPU_MapMemory(luna_GPU_Memory *memory, int size, int offset, void **ou
 }
 
 void luna_GPU_UnmapMemory(luna_GPU_Memory *memory) {
-    if (!(memory->usage & LUNA_GPU_MEMORY_USAGE_CPU_WRITEABLE)) {
-        VkMappedMemoryRange range = {
-            .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
-            .memory = memory->memory,
-            .offset = memory->map_offset,
-            .size = memory->map_size,
-        };
-        vkFlushMappedMemoryRanges(device, 1, &range);
-    }
+    // if (!(memory->usage & LUNA_GPU_MEMORY_USAGE_CPU_WRITEABLE)) {
+    //     VkMappedMemoryRange range = {
+    //         .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+    //         .memory = memory->memory,
+    //         .offset = memory->map_offset,
+    //         .size = memory->map_size,
+    //     };
+    //     vkFlushMappedMemoryRanges(device, 1, &range);
+    // }
     memory->map_offset = 0;
     memory->map_size = 0;
     vkUnmapMemory(device, memory->memory);
@@ -3486,9 +3541,45 @@ void luna_GPU_BindTextureToMemory(luna_GPU_Memory *mem, int offset, luna_GPU_Tex
     tex->memory = mem;
     tex->offset = offset;
     vkBindImageMemory(device, tex->image, mem->memory, offset);
+
+    VkImageAspectFlags aspect = 0;
+    if (luna_FormatHasDepthChannel(tex->format)) {
+        aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
+    } else if (luna_FormatHasColorChannel(tex->format)) {
+        aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+    }
+
+    if (luna_FormatHasStencilChannel(tex->format)) {
+        aspect |= VK_IMAGE_ASPECT_STENCIL_BIT;
+    }
+
+    VkImageSubresourceRange subresourceRange = {
+        .aspectMask = aspect,
+        .baseMipLevel = 0,
+        .levelCount = VK_REMAINING_MIP_LEVELS,
+        .baseArrayLayer = 0,
+        .layerCount = VK_REMAINING_ARRAY_LAYERS
+    };
+
+    lunaFormat dst_format = tex->format;
+    dst_format = luna_VK_GetSupportedFormatForDraw(dst_format);
+
+    VkImageViewCreateInfo view_info = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image = tex->image,
+        .viewType = (VkImageViewType)tex->type,
+        .format = luna_lunaFormatToVKFormat(dst_format),
+        .subresourceRange = subresourceRange,
+        .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
+    };
+    cassert(vkCreateImageView(device, &view_info, NULL, &tex->view) == VK_SUCCESS);
 }
 
 void luna_GPU_DestroyBuffer(luna_GPU_Buffer *buffer) {
+    vkDeviceWaitIdle(device);
     for (int i = 0; i < buffer->nchilds; i++) {
         if (buffer->buffers[i]) {
             vkDestroyBuffer(device, buffer->buffers[i], NULL);
@@ -3496,14 +3587,18 @@ void luna_GPU_DestroyBuffer(luna_GPU_Buffer *buffer) {
             LOG_INFO("Attempt to destroy a buffer (child index %i) which is NULL", i);
         }
     }
+    memset(buffer, 0, sizeof(luna_GPU_Buffer));
 }
 
 void luna_GPU_DestroyTexture(luna_GPU_Texture *tex) {
+    vkDeviceWaitIdle(device);
     if (tex->image) {
-        vkDestroyImage(device, tex->image, NULL);
         vkDestroyImageView(device, tex->view, NULL);
     } else {
         LOG_INFO("Attempt to destroy an image which is NULL");
+    }
+    if (tex->view) {
+        vkDestroyImage(device, tex->image, NULL);
     }
 }
 
@@ -3562,6 +3657,24 @@ void luna_GPU_CreateSampler(const luna_GPU_SamplerCreateInfo *pInfo, luna_GPU_Sa
     (*sampler) = &((luna_GPU_Sampler *)g_Samplers.m_data)[ g_Samplers.m_size - 1 ];
 }
 
+void luna_GPU_WriteToTexture(luna_GPU_Texture *tex, const lunaImage *src)
+{
+    if (!(tex->usage & VK_IMAGE_USAGE_TRANSFER_DST_BIT)) {
+        LOG_ERROR("Cannot write to an image which does not have usage VK_IMAGE_USAGE_TRANSFER_DST_BIT");
+    }
+
+    const int tex_size = tex->extent.width * tex->extent.height * luna_FormatGetBytesPerPixel(tex->format);
+    // if (tex->memory->usage & LUNA_GPU_MEMORY_USAGE_CPU_VISIBLE) {
+    //     void *mapped;
+    //     luna_GPU_MapMemory(tex->memory, tex_size, tex->offset, &mapped);
+    //     memcpy(mapped, src->data, tex_size);
+    //     luna_GPU_UnmapMemory(tex->memory);
+    //     return;
+    // }
+
+    luna_VK_StageImageTransfer(tex->image, src->data, src->w, src->h, tex_size);
+}
+
 VkImage luna_GPU_TextureGet(const luna_GPU_Texture *tex)
 {
     return tex->image;
@@ -3585,6 +3698,51 @@ void luna_GPU_CreateTexture(const luna_GPU_TextureCreateInfo *pInfo, luna_GPU_Te
     if (pInfo->usage & VK_IMAGE_USAGE_SAMPLED_BIT) {
         fmt = luna_VK_GetSupportedFormatForDraw(fmt);
     }
+
+    (*tex)->type = pInfo->type;
+    (*tex)->format = pInfo->format;
+    (*tex)->extent = pInfo->extent;
+
+    VkImageUsageFlags usage = 0;
+
+    switch (pInfo->usage) {
+        case LUNA_GPU_TEXTURE_USAGE_SAMPLED_TEXTURE:
+            usage |= VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+            break;
+        case LUNA_GPU_TEXTURE_USAGE_COLOR_TEXTURE:
+            usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+            break;
+        case LUNA_GPU_TEXTURE_USAGE_DEPTH_TEXTURE:
+            usage |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+            break;
+        case LUNA_GPU_TEXTURE_USAGE_STENCIL_TEXTURE:
+            usage |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+            break;
+        case LUNA_GPU_TEXTURE_USAGE_STORAGE_TEXTURE:
+            usage |= VK_IMAGE_USAGE_STORAGE_BIT;
+            break;
+        case LUNA_GPU_TEXTURE_USAGE_INPUT_ATTACHMENT:
+            usage |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+            break;
+        case LUNA_GPU_TEXTURE_USAGE_RESOLVE_TEXTURE:
+            usage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+            break;
+        case LUNA_GPU_TEXTURE_USAGE_TRANSIENT_ATTACHMENT:
+            usage |= VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+            break;
+        case LUNA_GPU_TEXTURE_USAGE_PRESENTATION:
+            usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+            break;
+        default:
+            LOG_ERROR("Unknown texture usage: %u\n", pInfo->usage);
+            break;
+    }
+    (*tex)->usage = usage;
+
+    if (pInfo->usage & LUNA_GPU_TEXTURE_USAGE_PRESENTATION) {
+        return;
+    }
+
     VkImageCreateInfo imageCreateInfo = {};
     imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imageCreateInfo.imageType = pInfo->type;
@@ -3594,30 +3752,12 @@ void luna_GPU_CreateTexture(const luna_GPU_TextureCreateInfo *pInfo, luna_GPU_Te
     imageCreateInfo.format = luna_lunaFormatToVKFormat(fmt);
     imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    imageCreateInfo.usage = pInfo->usage;
+    imageCreateInfo.usage = usage;
     imageCreateInfo.samples = (VkSampleCountFlagBits)pInfo->samples;
     imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     if (vkCreateImage(device, &imageCreateInfo, NULL, &(*tex)->image) != VK_SUCCESS) {
         LOG_ERROR("Failed to create image");
     }
-}
-
-// vkimage is fetched from image!
-void luna_GPU_CreateTextureView(const luna_GPU_TextureViewCreateInfo *pInfo, luna_GPU_Texture **tex) {
-    lunaFormat dst_format = (pInfo->format != LUNA_FORMAT_UNDEFINED) ? pInfo->format : (*tex)->format;
-    dst_format = luna_VK_GetSupportedFormatForDraw(dst_format);
-    VkImageViewCreateInfo view_info = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = (*tex)->image,
-        .viewType = pInfo->view_type,
-        .format = luna_lunaFormatToVKFormat(dst_format),
-        .subresourceRange = pInfo->subresourceRange,
-        .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
-    };
-    cassert(vkCreateImageView(device, &view_info, NULL, &(*tex)->view) == VK_SUCCESS);
 }
 
 VkFormat luna_lunaFormatToVKFormat(lunaFormat format) {
@@ -3866,6 +4006,11 @@ int luna_FormatGetBytesPerChannel(lunaFormat fmt)
     }
 }
 
+int luna_FormatGetBytesPerPixel(lunaFormat fmt)
+{
+    return luna_FormatGetBytesPerChannel(fmt) * luna_FormatGetNumChannels(fmt);
+}
+
 int luna_FormatGetNumChannels(lunaFormat fmt)
 {
     switch (fmt) {
@@ -3922,9 +4067,10 @@ int luna_FormatGetNumChannels(lunaFormat fmt)
 // SPRITE
 typedef struct sprite_t {
     int w,h;
-    VkImage image;
-    VkImageView view;
-    VkDeviceMemory mem;
+    int rcount;
+    lunaFormat fmt;
+    luna_GPU_Texture *tex;
+    luna_GPU_Memory mem;
     luna_GPU_Sampler *sampler;
     luna_DescriptorSet *set;
 } sprite_t;
@@ -3935,56 +4081,35 @@ sprite_t *sprite_load_mem(const unsigned char *data, int w, int h, lunaFormat fm
 {
     sprite_t *spr = calloc(1, sizeof(struct sprite_t));
 
+    spr->rcount = 1;
+
     fmt = luna_VK_GetSupportedFormatForDraw(fmt);
+    spr->fmt = fmt;
 
-    VkImageCreateInfo imageCreateInfo = {};
-    imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-    imageCreateInfo.extent = (VkExtent3D){ w, h, 1 };
-    imageCreateInfo.mipLevels = 1;
-    imageCreateInfo.arrayLayers = 1;
-    imageCreateInfo.format = luna_lunaFormatToVKFormat(fmt);
-    imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-    imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    imageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-    imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-    imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    cassert(vkCreateImage(device, &imageCreateInfo, NULL, &spr->image) == VK_SUCCESS);
-
-    VkMemoryRequirements imageMemoryRequirements;
-    vkGetImageMemoryRequirements(device, spr->image, &imageMemoryRequirements);
-
-    const u32 localDeviceMemoryIndex = luna_VK_GetMemType(imageMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-    const VkMemoryAllocateInfo allocInfo = {
-        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize = imageMemoryRequirements.size,
-        .memoryTypeIndex = localDeviceMemoryIndex,
-    };
-
-    cassert(vkAllocateMemory(device, &allocInfo, NULL, &spr->mem) == VK_SUCCESS);
-    vkBindImageMemory(device, spr->image, spr->mem, 0);
-
-    luna_VK_StageImageTransfer(spr->image, data, w, h, w * h * luna_FormatGetBytesPerChannel(fmt));
-
-    const VkImageViewCreateInfo view_info = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = spr->image,
-        .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = luna_lunaFormatToVKFormat(fmt),
-        .subresourceRange = (VkImageSubresourceRange){
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .baseMipLevel = 0,
-            .levelCount = 1,
-            .baseArrayLayer = 0,
-            .layerCount = 1
+    luna_GPU_TextureCreateInfo tex_info = {
+        .format = fmt,
+        .samples = CG_SAMPLE_COUNT_1_SAMPLES,
+        .type = VK_IMAGE_TYPE_2D,
+        .usage = LUNA_GPU_TEXTURE_USAGE_SAMPLED_TEXTURE,
+        .extent = (VkExtent3D) {
+            .width = w, .height = h, .depth = 1
         },
-        .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .arraylayers = 1,
+        .miplevels = 1,
     };
-    cassert(vkCreateImageView(device, &view_info, NULL, &spr->view) == VK_SUCCESS);
+    luna_GPU_CreateTexture(&tex_info, &spr->tex);
+
+    VkMemoryRequirements mem_req;
+    vkGetImageMemoryRequirements(device, luna_GPU_TextureGet(spr->tex), &mem_req);
+    luna_GPU_AllocateMemory(mem_req.size, LUNA_GPU_MEMORY_USAGE_CPU_VISIBLE, &spr->mem);
+    luna_GPU_BindTextureToMemory(&spr->mem, 0, spr->tex);
+
+    lunaImage img = {
+        .w = w, .h = h,
+        .fmt = fmt,
+        .data = data
+    };
+    luna_GPU_WriteToTexture(spr->tex, &img);
 
     luna_GPU_SamplerCreateInfo sampler_info = {
         .filter = VK_FILTER_NEAREST,
@@ -4007,7 +4132,7 @@ sprite_t *sprite_load_mem(const unsigned char *data, int w, int h, lunaFormat fm
 
     VkDescriptorImageInfo desc_img = {
         .sampler = luna_GPU_SamplerGet(spr->sampler),
-        .imageView = spr->view,
+        .imageView = sprite_get_internal_view(spr),
         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
     };
 
@@ -4029,8 +4154,28 @@ sprite_t *sprite_load_disk(const char *path)
 {
     lunaImage tex = lunaImage_Load(path);
     sprite_t *spr = sprite_load_mem(tex.data, tex.w, tex.h, tex.fmt);
+    spr->rcount = 1;
     free(tex.data);
     return spr;
+}
+
+void sprite_destroy(sprite_t *spr)
+{
+    luna_GPU_DestroyTexture(spr->tex);
+    luna_GPU_FreeMemory(&spr->mem);
+}
+
+void sprite_lock(sprite_t *spr)
+{
+    spr->rcount++;
+}
+
+void sprite_release(sprite_t *spr)
+{
+    spr->rcount--;
+    if (spr->rcount <= 0) {
+        sprite_destroy(spr);
+    }
 }
 
 void sprite_get_dimensions(const sprite_t *spr, int *w, int *h)
@@ -4041,12 +4186,12 @@ void sprite_get_dimensions(const sprite_t *spr, int *w, int *h)
 
 VkImage sprite_get_internal(const sprite_t *spr)
 {
-    return spr->image;
+    return luna_GPU_TextureGet(spr->tex);
 }
 
 VkImageView sprite_get_internal_view(const sprite_t *spr)
 {
-    return spr->view;
+    return luna_GPU_TextureGetView(spr->tex);
 }
 
 VkDescriptorSet sprite_get_descriptor(const sprite_t *spr)
@@ -4057,5 +4202,10 @@ VkDescriptorSet sprite_get_descriptor(const sprite_t *spr)
 VkSampler sprite_get_sampler(const sprite_t *spr)
 {
     return luna_GPU_SamplerGet(spr->sampler);
+}
+
+lunaFormat sprite_get_format(const sprite_t *spr)
+{
+    return spr->fmt;
 }
 // SPRITE
