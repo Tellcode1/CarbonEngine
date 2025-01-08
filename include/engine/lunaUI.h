@@ -5,15 +5,15 @@
     extern "C" {
 #endif
 
-#include "math/vec2.h"
-#include "math/vec4.h"
+#include "../math/vec2.h"
+#include "../math/vec4.h"
 
 #include "sprite.h"
-#include "GPU/descriptors.h"
-#include "GPU/buffer.h"
-#include "GPU/texture.h"
+#include "../GPU/descriptors.h"
+#include "../GPU/buffer.h"
+#include "../GPU/texture.h"
 
-typedef struct luna_Renderer_t luna_Renderer_t;
+typedef struct lunaRenderer_t lunaRenderer_t;
 typedef struct luna_UI_Button luna_UI_Button;
 
 typedef void (*luna_UI_button_pressed_fn)(luna_UI_Button *bton);
@@ -51,7 +51,7 @@ extern luna_UI_Slider *luna_UI_CreateSlider();
 extern void luna_UI_DestroyButton(luna_UI_Button *obj);
 extern void luna_UI_DestroySlider(luna_UI_Slider *obj);
 
-extern void luna_UI_Render(luna_Renderer_t *rd);
+extern void luna_UI_Render(lunaRenderer_t *rd);
 
 extern void luna_UI_Update();
 

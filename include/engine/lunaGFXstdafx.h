@@ -5,7 +5,7 @@
     extern "C" {
 #endif
 
-#include "../external/volk/volk.h"
+#include "../../external/volk/volk.h"
 
 #ifndef bool
     typedef unsigned char bool;

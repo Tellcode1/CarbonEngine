@@ -34,7 +34,6 @@ extern void cg_string_set(cg_string_t *str, const char *new_str);
 extern int cg_string_find(const cg_string_t *str, const char *substr);
 extern void cg_string_remove(cg_string_t *str, int index, int length);
 
-extern void cg_string_copy_from_c(const char *src, cg_string_t *dst);
 extern void cg_string_copy_from(const cg_string_t *src, cg_string_t *dst);
 // src is destroyed and unusable after this call!
 extern void cg_string_move_from(cg_string_t *src, cg_string_t *dst);

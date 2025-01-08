@@ -1,9 +1,9 @@
-#ifndef __LUNA_INTERNAL_OBJECTS_DEF_H__
-#define __LUNA_INTERNAL_OBJECTS_DEF_H__
+#ifndef __LUNA_OBJECT_DEF_H__
+#define __LUNA_OBJECT_DEF_H__
 
 #include "lunaGFX.h"
-#include "GPU/format.h"
-#include "containers/cgvector.h"
+#include "../GPU/format.h"
+#include "../containers/cgvector.h"
 
 extern cg_vector_t g_Samplers;
 
@@ -33,4 +33,4 @@ typedef struct luna_GPU_Texture {
     lunaSampleCount samples;
 } luna_GPU_Texture;
 
-#endif//__LUNA_INTERNAL_OBJECTS_DEF_H__
+#endif//__LUNA_OBJECT_DEF_H__

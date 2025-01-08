@@ -7,8 +7,8 @@
 
 #include "../../external/volk/volk.h"
 
-#include "../stdafx.h"
-#include "../lunaGFX.h"
+#include "../common/stdafx.h"
+#include "../engine/lunaGFX.h"
 #include "vkstdafx.h"
 
 struct csm_shader_t;
@@ -164,7 +164,7 @@ typedef struct luna_GPU_RenderPassCreateInfo
 } luna_GPU_RenderPassCreateInfo;
 #define luna_GPU_InitRenderPassCreateInfo() (luna_GPU_RenderPassCreateInfo){ .samples = VK_SAMPLE_COUNT_1_BIT}
 
-extern void luna_VK_BakeGlobalPipelines( luna_Renderer_t *rd );
+extern void luna_VK_BakeGlobalPipelines( lunaRenderer_t *rd );
 extern void luna_VK_DestroyGlobalPipelines();
 
 extern void luna_GPU_CreateGraphicsPipeline(luna_GPU_PipelineCreateInfo const* pCreateInfo, VkPipeline* dstPipeline, u32 flags);

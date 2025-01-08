@@ -1,7 +1,7 @@
 #ifndef __STDAFX_H__
 #define __STDAFX_H__
 
-#include "../stdafx.h"
+#include "../common/stdafx.h"
 
 #if defined(_WIN32)
     #define VK_USE_PLATFORM_WIN32_KHR
@@ -13,22 +13,6 @@
 
 #include "../../external/volk/volk.h"
 #include "format.h"
-
-static inline void SetObjectName(VkDevice device, uint64_t objectHandle, VkObjectType objectType, const char* name) {
-    VkDebugUtilsObjectNameInfoEXT nameInfo = {};
-    nameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
-    nameInfo.objectType = objectType;
-    nameInfo.objectHandle = objectHandle;
-    nameInfo.pObjectName = name;
-
-    PFN_vkSetDebugUtilsObjectNameEXT func = (PFN_vkSetDebugUtilsObjectNameEXT)vkGetDeviceProcAddr(device, "vkSetDebugUtilsObjectNameEXT");
-    if (func) {
-        func(device, &nameInfo);
-    } else {
-        LOG_ERROR("no vkSetDebugUtilsObjectNameEXT");
-    }
-}
-
 
 extern VkInstance instance;
 extern VkDevice device;

@@ -1,19 +1,20 @@
 #include <stdlib.h>
 #include <math.h>
 
-#include "../include/stdafx.h"
-#include "../include/cengine.h"
-#include "../include/ctext.h"
-#include "../include/cinput.h"
-#include "../include/cshadermanager.h"
+#include "../include/common/stdafx.h"
+#include "../include/engine/cengine.h"
+#include "../include/engine/ctext.h"
+#include "../include/engine/lunaInput.h"
+#include "../include/common/cshadermanager.h"
 #include "../include/containers/cgstring.h"
-#include "../include/lunaCamera.h"
-#include "../include/lunaImage.h"
-#include "../include/lunaUI.h"
-#include "../include/lunaScene.h"
-#include "../include/lunaObject.h"
-#include "../include/timer.h"
-#include "../include/sys/io/printf.h"
+#include "../include/engine/lunaCamera.h"
+#include "../include/common/lunaImage.h"
+#include "../include/engine/lunaUI.h"
+#include "../include/engine/lunaScene.h"
+#include "../include/engine/lunaObject.h"
+#include "../include/common/timer.h"
+#include "../include/common/printf.h"
+#include "../include/engine/lunaInput.h"
 
 static size_t cookie_count = 0;
 static float cookies_per_second = 9.0f;
@@ -38,23 +39,26 @@ int main(int argc, char *argv[]) {
 
     const lunaExtent2D window_size = (lunaExtent2D){ 800, 600 };
 
-    cg_initialize_context("kilometers per second (edgy)(im cool now ok?)", window_size.width, window_size.height);
+    cg_initialize_context("luna", window_size.width, window_size.height);
 
-    luna_Renderer_Config rdconf = crender_config_init();
+    lunaRenderer_Config rdconf = crender_config_init();
     rdconf.vsync_enabled = 0;
     rdconf.buffer_mode = CG_BUFFER_MODE_TRIPLE_BUFFERED;
     rdconf.window_resizable = 0;
     rdconf.initial_window_size = window_size;
     rdconf.multisampling_enable = 0;
     rdconf.samples = CG_SAMPLE_COUNT_1_SAMPLES;
-    luna_Renderer_t *rd = luna_Renderer_Init(&rdconf);
+    lunaRenderer_t *rd = lunaRenderer_Init(&rdconf);
+
+    lunaInput_Init();
+    lunaInput_BindKeyToAction(SDL_SCANCODE_SPACE, "+press");
 
     const float updateTime = 5.0f; // seconds. 1.5f = 1.5 seconds
     float totalTime = 0.0f;
     u32 numFrames = 0;
 
     cfont_t *amongus;
-    ctext_load_font(rd, "../Assets/roboto.ttf", 256.0f, &amongus);
+    ctext_load_font(rd, "./bakedfont", 256.0f, &amongus);
 
     int curr_showing_fps = 0;
 
@@ -111,6 +115,11 @@ int main(int argc, char *argv[]) {
         while(SDL_PollEvent(&event)) {
             cg_consume_event(&event);
         }
+        lunaInput_Update();
+
+        if (lunaInput_IsActionSignalled("+press")) {
+            luna_printf("+press\n");
+        }
 
         // Profiling code
         totalTime += dt;
@@ -122,10 +131,9 @@ int main(int argc, char *argv[]) {
             totalTime = 0.0;
         }
 
-        cinput_update(rd);
         lunaCamera_Update(&camera, rd);
 
-        lunaScene_Update(scn);
+        lunaScene_Update(&event);
 
         if (timer_is_done(&cookie_timer)) {
             cookie_count += floorf(cookies_per_second);
@@ -145,10 +153,10 @@ int main(int argc, char *argv[]) {
             cookie->color = (vec4){1.0f,1.0f,1.0f, 1.0f};
         }
 
-        if (luna_Renderer_BeginRender(rd)) {
+        if (lunaRenderer_BeginRender(rd)) {
             lunaScene_Render(rd);
 
-            luna_Renderer_DrawLine(
+            lunaRenderer_DrawLine(
                 rd,
                 (vec2){camera.position.x, camera.position.y},
                 lunaCamera_GetMouseGlobalPosition(&camera),
@@ -157,12 +165,17 @@ int main(int argc, char *argv[]) {
             );
 
             char buf[ 1024 ];
-            luna_snprintf(buf, 1024, "%i cookies", (int)cookie_count);
+            luna_snprintf(buf, 1024, "%l cookies", cookie_count);
             ctext_label_set_text(cookie_num, buf);
-            luna_snprintf(buf, 1024, "%f cookies per second", cookies_per_second);
+
+            memset(buf, 0, sizeof(buf));
+            char poot[  1024 ];
+            luna_ftoa(cookies_per_second, poot, 0);
+            strcat(buf, poot);
+            strcat(buf, " cookies per second");
             ctext_label_set_text(cookie_per_sec, buf);
 
-            luna_Renderer_EndRender(rd);
+            lunaRenderer_EndRender(rd);
         }
     }
 
@@ -173,7 +186,7 @@ int main(int argc, char *argv[]) {
 
     vkDeviceWaitIdle(device);
     ctext_destroy_font(amongus);
-    luna_Renderer_Destroy(rd);
+    lunaRenderer_Destroy(rd);
     LOG_INFO("done.");
     return 0;
 }

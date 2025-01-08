@@ -6,7 +6,7 @@
 #include <errno.h>
 #include <libgen.h>
 
-#include "../include/sys/io/printf.h"
+#include "../include/common/printf.h"
 
 #ifndef WIN32
     #include <unistd.h>
@@ -23,9 +23,9 @@
     int nshaders = 0;
 #endif
 
-#include "../include/cshadermanager.h"
-#include "../include/cshadermanagerdev.h"
-#include "../include/stdafx.h"
+#include "../include/common/cshadermanager.h"
+#include "../include/common/cshadermanagerdev.h"
+#include "../include/common/stdafx.h"
 
 const char *shader_compiler = "glslangValidator";
 const char *shader_compiler_args = " -V ";
@@ -44,20 +44,18 @@ const char *list = "../compilelist.txt";
 
 #define CSM_HAS_FLAG(flag) (strcmp(argv[i], flag) == 0)
 
-static inline void CSM_LOG_ERROR(const char * fmt, ...) {
-    const char * preceder = "csm error: ";
-    const char * succeeder = "\n";
-    va_list args;
-    va_start(args, fmt);
-    __CG_LOG(args, succeeder, preceder, fmt, 1);
-    va_end(args);
+static inline void __CSM_LOG_ERROR(const char *fn, const char * fmt, ...) {
+  const char * preceder = "csm error: ";
+  const char * succeeder = "\n";
+  va_list args;
+  va_start(args, fmt);
+  __CG_LOG(args, fn, succeeder, preceder, fmt, 1);
+  va_end(args);
 }
 
-static inline void __csm_log(const char *fmt, ...) {
-    LOG_CUSTOM("csm error: ", fmt);
-}
+#define CSM_LOG_ERROR(err, ...) __CSM_LOG_ERROR(__PRETTY_FUNCTION__, err, ##__VA_ARGS__)
 
-#define CSM_LOG_ERROR __csm_log
+#if defined (CSM)
 
 #if CSM_EXECUTABLE
 
@@ -468,22 +466,8 @@ int compile_shader(const struct csm_shader_entry *entry) {
     }
     char copy[256];
     copy[255] = '\0';
-    strncpy(copy, entry->output_path, 256);
+    strncpy(copy, entry->output_path, 255);
     create_parent_dirs(copy);
-
-    // strcat(buffer, shader_compiler);
-    // strcat(buffer, " ");
-    // strcat(buffer, shader_compiler_args);
-
-    // strcat(buffer, entry->path);
-
-    // if (strcmp(entry->output_path, "") != 0) {
-    //     strcat(buffer, " -o ");
-    //     strcat(buffer, entry->output_path);
-    // }
-
-    // strcat(buffer, " -S ");
-    // strcat(buffer, entry->stage);
 
     luna_snprintf(
         g_Buffer, 1024,
@@ -585,3 +569,242 @@ void csm_shutdown()
     }
     #endif
 }
+
+#endif // CSM
+
+#if defined(FONTC)
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <freetype2/ft2build.h>
+#include FT_FREETYPE_H
+#include FT_GLYPH_H
+
+#include "../include/common/fontc.h"
+#include "../include/common/lunaImage.h"
+#include "../include/common/timer.h"
+
+#if (FONTC_EXECUTABLE)
+
+static const char *FONTC_HELP_MSG =
+"usage:\n./fontc < Font file path to bake > (optionally, ) -o < output file >";
+
+int main(int argc, char *argv[]) {
+  if (argc < 2) {
+    LOG_CUSTOM("help", "%s", FONTC_HELP_MSG);
+    return -1;
+  }
+
+  const char *file = argv[1];
+  const char *out;
+
+  if (argc > 2) {
+    out = argv[3];
+  } else {
+    out = "bakedfont";
+  }
+
+
+  timer tm = timer_begin(__FLT_MAX__);
+  LOG_INFO("start");
+  fontc_bake_font(file, out);
+  LOG_INFO("finished in %.2f s", timer_time_since_start(&tm));
+  return 0;
+}
+
+#endif // FONTC_EXECUTABLE
+
+fontc_atlas_t fontc_atlas_init(int init_w, int init_h)
+{
+  fontc_atlas_t atlas = {};
+
+  atlas.width = init_w;
+  atlas.height = init_h;
+  atlas.next_x = 0;
+  atlas.next_y = 0;
+  atlas.current_row_height = 0;
+  atlas.data = calloc(init_w, init_h);
+
+  return atlas;
+}
+
+bool fontc_atlas_add_image(fontc_atlas_t *__restrict__ atlas, int w, int h, const unsigned char *__restrict__ data, int *__restrict__ x, int *__restrict__ y)
+{
+  const int padding = 4;
+  const int prev_h = atlas->height, prev_w = atlas->width;
+  bool realloc_needed = 0;
+  if (w > atlas->width) {
+    // ! This doesn't work because the old image is not correctly copied by realloc
+    // ! It'll be fixed by copying over the data row by row
+    // probably doesn't need fixing right now, will delay it for another eon
+    // TODO: FIXME
+    atlas->width = w;
+    realloc_needed = 1;
+  }
+
+  if (atlas->next_x + w + padding > atlas->width) {
+    atlas->next_x = 0;
+    atlas->next_y += atlas->current_row_height + padding;
+    atlas->current_row_height = 0;
+  }
+
+  if (atlas->next_y + h + padding > atlas->height) {
+    atlas->height = cmmax(atlas->height * 2, atlas->next_y + h + padding);
+    realloc_needed = 1;
+  }
+
+  if (realloc_needed) {
+    atlas->data = realloc(atlas->data, atlas->width * atlas->height);
+    memset(atlas->data + prev_w * prev_h, 0, (atlas->width - prev_w) * (atlas->height - prev_h));
+  }
+
+  for (int y = 0; y < h; y++) {
+    memcpy(atlas->data + (atlas->next_x + (atlas->next_y + y) * atlas->width), data + (y * w), w);
+  }
+
+  *x = atlas->next_x;
+  *y = atlas->next_y;
+
+  atlas->next_x += w + padding;
+  atlas->current_row_height = cmmax(atlas->current_row_height, h + padding);
+
+  return 0;
+}
+
+void fontc_read_font(const char *path, fontc_file *file) {
+  FILE *f = fopen(path, "rb");
+  if (!f) {
+    LOG_ERROR("Failed to open font file for reading");
+    LOG_ERROR("Are you passing in the path to the baked file?");
+    return;
+  }
+  fread(&file->header, sizeof(fontc_header), 1, f);
+  if (file->header.magic != FONTC_MAGIC) {
+    LOG_ERROR("Invalid magic number for font file");
+    return;
+  }
+  file->glyphs = malloc(sizeof(fontc_glyph) * file->header.numglyphs);
+  if (!file->glyphs) {
+    LOG_ERROR("malloc\n");
+    return;
+  }
+  fread(file->glyphs, sizeof(fontc_glyph), file->header.numglyphs, f);
+  unsigned char *recv = malloc(file->header.img_compressed_sz);
+  fread(recv, file->header.img_compressed_sz, 1, f);
+  file->bitmap = malloc(file->header.bmpwidth * file->header.bmpheight);
+  cassert(lunaImage_Decompress(recv, file->header.img_compressed_sz, file->bitmap, file->header.bmpwidth * file->header.bmpheight) != -1);
+  fclose(f);
+}
+
+void fontc_bake_font(const char *font_path, const char *out) {
+  FT_Library lib; FT_Face face;
+  if (FT_Init_FreeType(&lib))
+  {
+    LOG_ERROR("Failed to initialize ft");
+  }
+
+  if (FT_New_Face(lib, font_path, 0, &face))
+  {
+    LOG_ERROR("Failed to load font file: %s", font_path);
+    FT_Done_FreeType(lib);
+    return;
+  }
+  FT_Set_Pixel_Sizes(face, 0, 256);
+
+  fontc_header header = {};
+  fontc_file file = {};
+  fontc_atlas_t atlas = fontc_atlas_init(4096, 4096);
+
+  header.magic = FONTC_MAGIC;
+
+  if (face->size->metrics.height) {
+    header.line_height = -face->size->metrics.height / (float)face->units_per_EM;
+  } else {
+    header.line_height = -(float)(face->ascender - face->descender) / face->size->metrics.y_scale;
+  }
+
+  fontc_glyph *glyphs = malloc(sizeof(fontc_glyph) * 256);
+  if (!glyphs) {
+    LOG_ERROR("Failed to allocate memory for glyphs");
+    return;
+  }
+
+  header.numglyphs = 0;
+  int glyph_count = 0;
+
+  for (int i = 0; i < 256; i++) {
+    FT_UInt glyph_index = FT_Get_Char_Index(face, i);
+    if (glyph_index == 0) continue;
+
+    if (FT_Load_Glyph(face, glyph_index, FT_LOAD_DEFAULT)) continue;
+
+    if (i == ' ') {
+      header.space_width = (float)face->glyph->metrics.horiAdvance / (float)face->units_per_EM;
+      continue;
+    }
+
+    FT_Render_Glyph(face->glyph, FT_RENDER_MODE_SDF);
+    FT_GlyphSlot g = face->glyph;
+
+    const int w = g->bitmap.width;
+    const int h = g->bitmap.rows;
+    const unsigned char *buffer = g->bitmap.buffer;
+
+    int x, y;
+    if (fontc_atlas_add_image(&atlas, w, h, buffer, &x, &y)) {
+      LOG_ERROR("Atlas error");
+      continue;
+    }
+
+    FT_Glyph gl;
+    FT_Get_Glyph(face->glyph, &gl);
+
+    FT_BBox box;
+    FT_Glyph_Get_CBox(gl, FT_GLYPH_BBOX_UNSCALED, &box);
+
+    FT_Done_Glyph(gl);
+
+    fontc_glyph glyph = {
+      .codepoint = i,
+      .x0 = box.xMin / (float)face->units_per_EM,
+      .x1 = box.xMax / (float)face->units_per_EM,
+      .y0 = box.yMin / (float)face->units_per_EM,
+      .y1 = box.yMax / (float)face->units_per_EM,
+      .l = (float)(x) / atlas.width,
+      .r = (float)(x + w) / atlas.width,
+      .b = (float)(y + h) / atlas.height,
+      .t = (float)(y) / atlas.height,
+      .advance = (float)face->glyph->metrics.horiAdvance / (float)face->units_per_EM
+    };
+
+    glyphs[glyph_count] = glyph;
+    glyph_count++;
+  }
+
+  header.numglyphs = glyph_count;
+
+
+  FT_Done_Face(face);
+  FT_Done_FreeType(lib);
+
+  header.bmpwidth = atlas.width;
+  header.bmpheight = atlas.height;
+  file.header.numglyphs = glyph_count;
+  file.glyphs = glyphs;
+  file.header = header;
+  file.bitmap = atlas.data;
+
+  size_t o_size = 4096 * 4096;
+  unsigned char *buf = malloc(o_size);
+  lunaImage_Compress(file.bitmap, file.header.bmpwidth * file.header.bmpheight, buf, &o_size);
+
+  file.header.img_compressed_sz = o_size;
+
+  FILE *f = fopen(out, "wb");
+  fwrite(&file.header, sizeof(fontc_header), 1, f);
+  fwrite(glyphs, sizeof(struct fontc_glyph), header.numglyphs, f);
+  fwrite(buf, o_size, 1, f);
+  fclose(f);
+}
+
+#endif // FONTC

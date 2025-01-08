@@ -3,8 +3,8 @@
 
 // Renderable sprite
 
-#include "GPU/vkstdafx.h"
-#include "GPU/format.h"
+#include "../GPU/vkstdafx.h"
+#include "../GPU/format.h"
 
 typedef struct sprite_t sprite_t;
 

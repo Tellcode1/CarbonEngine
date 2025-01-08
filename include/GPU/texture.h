@@ -2,8 +2,8 @@
 #define __LUNA_TEXTURE_H__
 
 #include "memory.h"
-#include "../lunaGFXstdafx.h"
-#include "../lunaImage.h"
+#include "../engine/lunaGFXstdafx.h"
+#include "../common/lunaImage.h"
 #include "format.h"
 
 typedef struct luna_GPU_Memory luna_GPU_Memory;

@@ -9,11 +9,11 @@
 #endif
 
 #include "lunaGFX.h"
-#include "GPU/pipeline.h"
-#include "containers/cgvector.h"
-#include "GPU/buffer.h"
-#include "GPU/texture.h"
-#include "GPU/descriptors.h"
+#include "../containers/cgvector.h"
+#include "../GPU/pipeline.h"
+#include "../GPU/buffer.h"
+#include "../GPU/texture.h"
+#include "../GPU/descriptors.h"
 #include "sprite.h"
 
 typedef struct cg_ctext_module {
@@ -49,7 +49,7 @@ typedef struct luna_DrawCall_t {
     } drawcall;
 } luna_DrawCall_t;
 
-typedef struct luna_Renderer_t
+typedef struct lunaRenderer_t
 {
     unsigned flags;
     lunaBufferMode buffer_mode;
@@ -84,9 +84,7 @@ typedef struct luna_Renderer_t
     luna_GPU_Memory quad_memory;
 
     void *mapped;
-} luna_Renderer_t;
-
-extern lunaExtent2D luna_GetWindowSize();
+} lunaRenderer_t;
 
 #ifdef __cplusplus
     }

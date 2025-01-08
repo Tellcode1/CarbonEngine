@@ -6,7 +6,7 @@
 
 // This header should be fragmented into multiple, each for their own object.
 
-#include "../lunaGFXstdafx.h"
+#include "../engine/lunaGFXstdafx.h"
 #include "format.h"
 
 #define LUNA_GPU_MAX_CHILDREN_PER_OBJECT 8

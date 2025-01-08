@@ -35,6 +35,7 @@ extern int cg_hashmap_size(const cg_hashmap_t *map);
 extern int cg_hashmap_capacity(const cg_hashmap_t *map);
 extern int cg_hashmap_keysize(const cg_hashmap_t *map);
 extern int cg_hashmap_valuesize(const cg_hashmap_t *map);
+extern ch_node_t *cg_hashmap_iterate(const cg_hashmap_t *map, int *__i);
 extern ch_node_t **cg_hashmap_root_node(const cg_hashmap_t *map);
 
 /*

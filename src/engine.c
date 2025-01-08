@@ -1,10 +1,12 @@
-#include "../include/cengine.h"
-#include "../include/cinput.h"
-#include "../include/lunaImage.h"
-#include "../include/lunaScene.h"
-#include "../include/lunaCollider.h"
-#include "../include/lunaUI.h"
+#include "../include/engine/cengine.h"
+#include "../include/engine/lunaInput.h"
+#include "../include/common/lunaImage.h"
+#include "../include/engine/lunaScene.h"
+#include "../include/engine/lunaCollider.h"
+#include "../include/engine/lunaUI.h"
 #include "../include/containers/cgvector.h"
+#include "../include/containers/cghashmap.h"
+#include "../include/containers/cgbitset.h"
 #include "../include/printf.h"
 
 #include "../external/box2d/include/box2d/box2d.h"
@@ -60,234 +62,6 @@ void cg_update() {
     cg_delta_time = (currtime - cg_last_frame_time) / (double)SDL_GetPerformanceFrequency();
 }
 
-// lunaImage
-#include <png.h>
-#include <jpeglib.h>
-
-const char* get_file_extension(const char *path) {
-    const char *dot = strrchr(path, '.');
-    if (!dot || dot == path) return "piss";
-    return dot + 1;
-}
-
-lunaImage lunaImage_Load(const char *path)
-{
-    const char *ext = get_file_extension(path);
-    if (strcmp(ext, "jpeg") == 0 || strcmp(ext, "jpg") == 0) {
-        return lunaImage_LoadJPEG(path);
-    } else if (strcmp(ext, "png") == 0) {
-        return lunaImage_LoadPNG(path);
-    }
-    cassert(0);
-    return (lunaImage){};
-}
-
-uint8_t *lunaImage_PadChannels(const lunaImage *src, int dst_channels) {
-    const int src_channels = luna_FormatGetNumChannels(src->fmt);
-    cassert(src_channels < dst_channels);
-
-    uint8_t *dst = calloc(src->w * src->h * dst_channels, sizeof(uint8_t));
-
-    // it looked too bad without the extra lines for the curly brackets..
-    // i apologise.
-    for (int y = 0; y < src->h; y++) {
-        for (int x = 0; x < src->w; x++) {
-            for (int c = 0; c < dst_channels; c++) {
-                if (c < src_channels) {
-                    dst[(y * src->w + x) * dst_channels + c] =
-                        src->data[(y * src->w + x) * src_channels + c];
-                } else {
-                    if (c == 3) {  // alpha channel
-                        dst[(y * src->w + x) * dst_channels + c] = 255;
-                    } else {
-                        dst[(y * src->w + x) * dst_channels + c] = 0;
-                    }
-                }
-            }
-        }
-    }
-
-    return dst;
-}
-
-lunaImage lunaImage_LoadPNG(const char *path)
-{
-    lunaImage texture = {};
-    
-    FILE *f = fopen(path, "rb");
-    cassert(f != NULL);
-
-    png_struct *png = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-    cassert(png != NULL);
-    
-    png_info *info = png_create_info_struct(png);
-    cassert(info != NULL);
-
-    png_init_io(png, f);
-    png_read_info(png, info);
-
-    if (setjmp(png_jmpbuf(png))) {
-        cassert(0);
-    }
-
-    texture.w = png_get_image_width(png, info);
-    texture.h = png_get_image_height(png, info);
-    png_byte color_type = png_get_color_type(png, info);
-    png_byte bit_depth = png_get_bit_depth(png, info);
-
-    if (color_type == PNG_COLOR_TYPE_PALETTE) {
-        png_set_palette_to_rgb(png);
-    }
-
-    // if image has less than 8 bits per pixel, increase it to 8 bpp
-    if (color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8) {
-        png_set_expand_gray_1_2_4_to_8(png);
-    }
-
-    if (png_get_valid(png, info, PNG_INFO_tRNS)) {
-        png_set_tRNS_to_alpha(png);
-    }
-
-    png_read_update_info(png, info);
-
-    int channels = png_get_channels(png, info);
-
-    switch (channels) {
-        case 1: texture.fmt = LUNA_FORMAT_R8; break;
-        case 2: texture.fmt = LUNA_FORMAT_RG8; break;
-        case 3: texture.fmt = LUNA_FORMAT_RGB8; break;
-        case 4: texture.fmt = LUNA_FORMAT_RGBA8; break;
-        default:
-            LOG_ERROR("unsupported file(png) format: channels = %d", channels);
-            cassert(0);
-            break;
-        break;
-    }
-
-    int rowbytes = png_get_rowbytes(png, info);
-    texture.data = (unsigned char*)malloc(rowbytes * texture.h * channels);
-    cassert(texture.data != NULL);
-
-    u8 **row_pointers = malloc(sizeof(u8 *) * texture.h);
-    for (int y = 0; y < texture.h; y++) {
-        row_pointers[y] = texture.data + y * texture.w * luna_FormatGetBytesPerPixel(texture.fmt);
-    }
-
-    png_read_image(png, row_pointers);
-
-    png_destroy_read_struct(&png, &info, NULL);
-    fclose(f);
-    free(row_pointers);
-
-    return texture;
-}
-
-lunaImage lunaImage_LoadJPEG(const char *path)
-{
-    struct jpeg_decompress_struct cinfo;
-    struct jpeg_error_mgr jerr;
-    FILE *f;
-    lunaImage img = {};
-
-    if ((f = fopen(path, "rb")) == NULL) {
-        LOG_ERROR("cimageload :: couldn't open file \"%s\" Are you sure that it exists?\n", path);
-        return img;
-    }
-
-    cinfo.err = jpeg_std_error(&jerr);
-    jpeg_create_decompress(&cinfo);
-
-    jpeg_stdio_src(&cinfo, f);
-    jpeg_read_header(&cinfo, 1);
-
-    jpeg_start_decompress(&cinfo);
-
-    img.w = cinfo.output_width;
-    img.h = cinfo.output_height;
-    
-    int channels = cinfo.output_components;
-
-    switch (channels) {
-        case 1:
-            img.fmt = LUNA_FORMAT_R8;
-            break;
-        case 3:
-            img.fmt = LUNA_FORMAT_RGB8;
-            channels = 4;
-            break;
-        default:
-            LOG_ERROR("invalid num channels: %d", channels);
-            cassert(0);
-            break;
-        break;
-    }
-
-    img.data = (unsigned char*)malloc(img.w * img.h * luna_FormatGetBytesPerPixel(img.fmt));
-
-    unsigned char *bufarr[1];
-    for (int i = 0; i < (int)cinfo.output_height; i++) {
-        bufarr[0] = img.data + i * img.w * luna_FormatGetBytesPerPixel(img.fmt);
-        jpeg_read_scanlines(&cinfo, bufarr, 1);
-    }
-
-    jpeg_finish_decompress(&cinfo);
-    jpeg_destroy_decompress(&cinfo);
-    fclose(f);
-
-    return img;
-}
-
-void lunaImage_WritePNG(const lunaImage *tex, const char *path)
-{
-    FILE *f = fopen(path, "wb");
-    cassert(f != NULL);
-
-    png_struct *png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-    cassert(png != NULL);
-
-    png_infop info = png_create_info_struct(png);
-    cassert(info != NULL);
-
-    if (setjmp(png_jmpbuf(png))) {
-        cassert(0);
-    }
-
-    png_init_io(png, f);
-
-    int coltype = -1;
-    const int numc = luna_FormatGetNumChannels(tex->fmt);
-    switch (numc) {
-        case 1:
-            coltype = PNG_COLOR_TYPE_GRAY;
-            break;
-        case 2:
-            coltype = PNG_COLOR_TYPE_RGB;
-            break;
-        case 4:
-            coltype = PNG_COLOR_TYPE_RGBA;
-            break;
-    }
-    cassert(coltype != -1);
-
-    const int bytesperpixel = luna_FormatGetBytesPerPixel(tex->fmt);
-    png_set_IHDR(png, info, tex->w, tex->h, bytesperpixel * 8, coltype, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
-
-    png_write_info(png, info);
-
-    png_bytep *row_pointers = malloc(sizeof(png_byte *) * tex->h);
-    for (int y = 0; y < tex->h; y++) {
-        row_pointers[y] = tex->data + y * tex->w * bytesperpixel;
-    }
-    png_write_image(png, row_pointers);
-    free(row_pointers);
-
-    png_write_end(png, NULL);
-
-    fclose(f);
-    png_destroy_write_struct(&png, &info);
-}
-// lunaImage
-
 // luna
 #define LUNA_MAX_OBJECT_COUNT 512
 
@@ -307,6 +81,7 @@ typedef struct lunaCollider {
 } lunaCollider;
 
 typedef struct lunaObject {
+    lunaTransform transform;
     lunaScene *scene;
     const char *name;
     lunaCollider *col;
@@ -340,6 +115,10 @@ lunaObject *lunaObject_Create(lunaScene *scene, const char *name, bool is_static
     lunaObject *obj = cg_vector_get(&scene->objects, scene->objects.m_size - 1);
     obj->name = name;
     obj->scene = scene;
+
+    obj->transform.position = position;
+    obj->transform.size = size;
+    obj->transform.rotation = (vec4){ 0.0f, 0.0f, 0.0f, 1.0f };
 
     obj->spr_renderer = (luna_SpriteRenderer){};
     obj->spr_renderer.spr = sprite_empty;
@@ -377,27 +156,32 @@ void lunaObject_AssignOnRenderFn(lunaObject *obj, lunaObjectRenderFn fn)
 
 void lunaObject_Move(lunaObject *obj, vec2 add)
 {
-    lunaCollider_SetPosition(obj->col, v2add(lunaCollider_GetPosition(obj->col), add));
+    lunaObject_SetPosition(obj, v2add(lunaObject_GetPosition(obj), add));
 }
 
 vec2 lunaObject_GetPosition(const lunaObject *obj)
 {
-    return lunaCollider_GetPosition(obj->col);;
+    return obj->transform.position;
 }
 
 void lunaObject_SetPosition(lunaObject *obj, vec2 to)
 {
-    lunaCollider_SetPosition(obj->col, to);
+    obj->transform.position = to;
 }
 
 vec2 lunaObject_GetSize(const lunaObject *obj)
 {
-    return lunaCollider_GetSize(obj->col);
+    return obj->transform.size;
 }
 
 void lunaObject_SetSize(lunaObject *obj, vec2 to)
 {
-    lunaCollider_SetSize(obj->col, to);
+    obj->transform.size = to;
+}
+
+lunaTransform *lunaObject_GetTransform(lunaObject *obj)
+{
+  return &obj->transform;
 }
 
 luna_SpriteRenderer *lunaObject_GetSpriteRenderer(lunaObject *obj)
@@ -553,9 +337,10 @@ void lunaScene_Update()
 
     b2World_Step(scene_main->world, timeStep, substeps);
 
-    const lunaObject *objects = scene_main->objects.m_data;
+    lunaObject *objects = scene_main->objects.m_data;
 
     for (int i = 0; i < scene_main->objects.m_size; i++) {
+        lunaTransform *transform = &objects[i].transform;
         lunaCollider *col = objects[i].col;
         if (!col->enabled) {
             continue;
@@ -563,7 +348,9 @@ void lunaScene_Update()
 
         b2BodyId body = col->body;
         b2Vec2 pos = b2Body_GetPosition(body);
+        
         col->position = (vec2){ pos.x, pos.y };
+        transform->position = (vec2){ pos.x, pos.y };
     }
 
     const float dt = cg_get_delta_time();
@@ -574,13 +361,13 @@ void lunaScene_Update()
     }
 }
 
-void lunaScene_Render(luna_Renderer_t *rd)
+void lunaScene_Render(lunaRenderer_t *rd)
 {
     const lunaObject *objects = scene_main->objects.m_data;
 
     for (int i = 0; i < scene_main->objects.m_size; i++) {
-        vec2 pos = lunaCollider_GetPosition(objects[i].col);
-        vec2 siz = lunaCollider_GetSize(objects[i].col);
+        vec2 pos = lunaObject_GetPosition(&objects[i]);
+        vec2 siz = lunaObject_GetSize(&objects[i]);
         const luna_SpriteRenderer *spr_renderer = &objects[i].spr_renderer;
         vec2 texmul = spr_renderer->tex_coord_multiplier;
         if (spr_renderer->flip_horizontal) {
@@ -589,7 +376,7 @@ void lunaScene_Render(luna_Renderer_t *rd)
         if (spr_renderer->flip_vertical) {
             texmul.y *= -1.0f;
         }
-        luna_Renderer_DrawQuad(
+        lunaRenderer_DrawQuad(
             rd,
             spr_renderer->spr,
             texmul,
@@ -692,13 +479,13 @@ void luna_UI_DestroySlider(luna_UI_Slider *obj)
     sprite_release(obj->bg_sprite);
 }
 
-void luna_UI_Render(luna_Renderer_t *rd)
+void luna_UI_Render(lunaRenderer_t *rd)
 {
   for (int i = 0; i < cg_vector_size(&luna_ui_ctx.btons); i++)
   {
     const luna_UI_Button *bton = (luna_UI_Button *)cg_vector_get(&luna_ui_ctx.btons, i);
 
-    luna_Renderer_DrawQuad(
+    lunaRenderer_DrawQuad(
         rd,
         bton->spr,
         (vec2){1.0f, 1.0f},
@@ -718,7 +505,7 @@ void luna_UI_Render(luna_Renderer_t *rd)
       continue;
     }
 
-    luna_Renderer_DrawQuad(
+    lunaRenderer_DrawQuad(
         rd,
         slider->bg_sprite,
         (vec2){1.0f, 1.0f},
@@ -730,7 +517,7 @@ void luna_UI_Render(luna_Renderer_t *rd)
     float pcent = ((slider->value - slider->min) / (slider->max - slider->min));
     pcent = cmclamp(pcent, 0.0f, 1.0f);
 
-    luna_Renderer_DrawQuad(
+    lunaRenderer_DrawQuad(
         rd,
         slider->slider_sprite,
         (vec2){1.0f, 1.0f},
@@ -742,7 +529,7 @@ void luna_UI_Render(luna_Renderer_t *rd)
 }
 
 void luna_UI_Update() {
-    const bool mouse_pressed = cinput_is_mouse_pressed(SDL_BUTTON_LEFT);
+    const bool mouse_pressed = lunaInput_IsMouseJustSignalled(SDL_BUTTON_LEFT);
     const vec2 mouse_position = lunaCamera_GetMouseGlobalPosition(&camera);
 
     for (int i = 0; i < cg_vector_size(&luna_ui_ctx.btons); i++) {
@@ -775,7 +562,7 @@ void luna_UI_Update() {
             .size = slider->size
         };
         if (slider->interactable && cmPointInsideRect(&mouse_position, &slider_rect)) {
-            if (cinput_is_mouse_held(LUNA_MOUSE_BUTTON_LEFT)) {
+            if (lunaInput_IsMouseSignalled(LUNA_MOUSE_BUTTON_LEFT)) {
                 float rel_mx = mouse_position.x - (slider->position.x - slider->size.x * 0.5f);
                 float clamped_mx = cmclamp(rel_mx, 0.0f, slider->size.x);
                 float percentage = clamped_mx / slider->size.x;
@@ -789,9 +576,198 @@ void luna_UI_Update() {
 }
 // lunaUI
 
-#include "../include/editor.h"
-
-void LunaEditor_Render(luna_Renderer_t *rd)
+void LunaEditor_Render(lunaRenderer_t *rd)
 {
-    
+    (void)rd;
+    // lunaRenderer_DrawQuad(rd, sprite_empty, (vec2){1.0f,1.0f}, (vec3){-8.0f,0.0f,0.0f}, (vec3){4.0f,20.0f,0.0f}, (vec4){1.0f,1.0f,1.0f,1.0f}, 5);
+}
+
+vec2 cinput_mouse_position;
+vec2 cinput_last_frame_mouse_position;
+cg_bitset_t cinput_kb_state;
+cg_bitset_t cinput_last_frame_kb_state;
+unsigned cinput_mouse_state;
+unsigned cinput_last_frame_mouse_state;
+
+static cg_hashmap_t *lunaInput_action_mapping;
+
+int lunaInput_SignalAction(const char *action)
+{
+  lunaInput_Action *ia = cg_hashmap_find(lunaInput_action_mapping, action);
+  if (!ia) {
+    return -1;
+  }
+  ia->this_frame = 1;
+  if (ia->response) ia->response(action, ia);
+  return 0;
+}
+
+lunaInput_KeyState lunaInput_GetKeyState(const SDL_Scancode sc) {
+
+  const lunaInput_KeyState this_frame_key_state = cg_bitset_access_bit(&cinput_kb_state, sc);
+  const lunaInput_KeyState last_frame_key_state = cg_bitset_access_bit(&cinput_last_frame_kb_state, sc);
+
+  // curly braces are beautiful, aren't they?
+  if (this_frame_key_state && last_frame_key_state) {
+    return LUNA_KEY_STATE_HELD;
+  } else if (!this_frame_key_state && !last_frame_key_state) {
+    return LUNA_KEY_STATE_NOT_HELD;
+  } else if (this_frame_key_state && !last_frame_key_state) {
+    return LUNA_KEY_STATE_PRESSED;
+  } else if (!this_frame_key_state && last_frame_key_state) {
+    return LUNA_KEY_STATE_RELEASED;
+  }
+
+  return -1;
+}
+
+bool lunaInput_IsKeySignalled(const SDL_Scancode sc) {
+  return lunaInput_GetKeyState(sc) == LUNA_KEY_STATE_HELD;
+}
+
+bool lunaInput_IsKeyUnsignalled(const SDL_Scancode sc) {
+  return lunaInput_GetKeyState(sc) == LUNA_KEY_STATE_NOT_HELD;
+}
+
+bool lunaInput_IsKeyJustSignalled(const SDL_Scancode sc) {
+  return lunaInput_GetKeyState(sc) == LUNA_KEY_STATE_PRESSED;
+}
+
+bool lunaInput_IsKeyJustUnsignalled(const SDL_Scancode sc) {
+  return lunaInput_GetKeyState(sc) == LUNA_KEY_STATE_RELEASED;
+}
+
+vec2 lunaInput_GetMousePosition(void) {
+  return cinput_mouse_position;
+}
+
+vec2 lunaInput_GetLastFrameMousePosition(void) {
+  return cinput_last_frame_mouse_position;
+}
+
+vec2 lunaInput_GetMouseDelta(void) {
+  return v2sub(lunaInput_GetLastFrameMousePosition(), lunaInput_GetMousePosition());
+}
+
+// button is 1 for left mouse, 2 for middle, 3 for right
+bool lunaInput_IsMouseJustSignalled(lunaInput_MouseButton button) {
+  return cinput_mouse_state & SDL_BUTTON(button) && !(cinput_last_frame_mouse_state & SDL_BUTTON(button));
+}
+
+bool lunaInput_IsMouseSignalled(lunaInput_MouseButton button) {
+  return cinput_mouse_state & SDL_BUTTON((int)button);
+}
+
+bool str_equal(const void *key1, const void *key2, unsigned long keysize) {
+  ( void )keysize;
+  const char *str1 = key1;
+  const char *str2 = key2;
+  return strcmp(str1, str2) == 0;
+}
+
+void lunaInput_Init() {
+  lunaInput_action_mapping = cg_hashmap_init(16, sizeof(const char *), sizeof(lunaInput_Action), NULL, str_equal);
+
+  cinput_kb_state = cg_bitset_init( SDL_NUM_SCANCODES );
+  cinput_last_frame_kb_state = cg_bitset_init( SDL_NUM_SCANCODES );
+  cinput_mouse_position = (vec2){};
+  cinput_last_frame_mouse_position = (vec2){};
+}
+
+void lunaInput_Update() {
+  int mx, my;
+  cinput_last_frame_mouse_state = cinput_mouse_state;
+  cinput_mouse_state = SDL_GetMouseState(&mx, &my);
+
+  const float width = luna_GetWindowSize().width;
+  const float height = luna_GetWindowSize().height;
+
+  cinput_last_frame_mouse_position = cinput_mouse_position;
+  cinput_mouse_position.x = ((float)mx / width)  * 2.0f - 1.0f;
+  cinput_mouse_position.y = ((float)my / height) * 2.0f - 1.0f;
+  cinput_mouse_position.y *= -1.0f;
+
+  const u8 *const sdl_kb_state = SDL_GetKeyboardState(NULL);
+  cg_bitset_copy_from(&cinput_last_frame_kb_state, &cinput_kb_state);
+  for (u32 i = 0; i < SDL_NUM_SCANCODES; i++) {
+    cg_bitset_set_bit_to(&cinput_kb_state, i, sdl_kb_state[i]);
+  }
+
+  int __i = 0;
+  ch_node_t *node;
+
+  int mouse_state = SDL_GetMouseState(NULL, NULL);
+
+  while ((node = cg_hashmap_iterate(lunaInput_action_mapping, &__i)) != NULL) {
+    lunaInput_Action *ia = (lunaInput_Action *)node->value;
+
+    ia->last_frame = ia->this_frame;
+
+    if (ia->key != 0) {
+      ia->this_frame = sdl_kb_state[ia->key];
+      if (ia->response) ia->response((const char *)node->key, ia);
+    } else if (ia->mouse != 255) {
+      ia->this_frame = (mouse_state & SDL_BUTTON(ia->mouse)) != 0;
+      if (ia->response) ia->response((const char *)node->key, ia);
+    } else {
+      ia->this_frame = 0;
+    }
+  }
+}
+
+void lunaInput_BindFunctionToAction(const char *action, lunaInput_ActionResponseFn response)
+{
+  lunaInput_Action *ia = cg_hashmap_find(lunaInput_action_mapping, action);
+  if (ia == NULL)
+      return;
+  ia->response = response;
+}
+
+void lunaInput_BindKeyToAction(SDL_Scancode key, const char *action) {
+  lunaInput_Action ia = {};
+  ia.key = key;
+  cg_hashmap_insert(lunaInput_action_mapping, action, &ia);
+}
+
+void lunaInput_BindMouseToAction(int bton, const char *action) {
+  lunaInput_Action ia = {};
+  ia.mouse = bton;
+  cg_hashmap_insert(lunaInput_action_mapping, action, &ia);
+}
+
+void lunaInput_UnbindAction(const char *action) {
+  lunaInput_Action *ia = cg_hashmap_find(lunaInput_action_mapping, action);
+  if (ia == NULL)
+    return;
+  ia->key = 0;
+  ia->mouse = 255;
+  ia->response = NULL;
+}
+
+bool lunaInput_IsActionSignalled(const char *action) {
+  lunaInput_Action *ia = cg_hashmap_find(lunaInput_action_mapping, action);
+  if (ia == NULL)
+    return false;
+  return ia->this_frame && ia->last_frame;
+}
+
+bool lunaInput_IsActionJustSignalled(const char *action) {
+  lunaInput_Action *ia = cg_hashmap_find(lunaInput_action_mapping, action);
+  if (ia == NULL)
+    return false;
+  return ia->this_frame && !ia->last_frame;
+}
+
+bool lunaInput_IsActionUnsignalled(const char *action) {
+  lunaInput_Action *ia = cg_hashmap_find(lunaInput_action_mapping, action);
+  if (ia == NULL)
+    return false;
+  return !ia->this_frame && !ia->last_frame;
+}
+
+bool lunaInput_IsActionJustUnsignalled(const char *action) {
+  lunaInput_Action *ia = cg_hashmap_find(lunaInput_action_mapping, action);
+  if (ia == NULL)
+    return false;
+  return !ia->this_frame && ia->last_frame;
 }

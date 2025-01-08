@@ -7,13 +7,19 @@
 
 #include <stdbool.h>
 #include <SDL2/SDL.h>
-#include "math/vec2.h"
-#include "math/vec4.h"
+#include "../math/vec2.h"
+#include "../math/vec4.h"
 #include "lunaGFX.h"
 #include "lunaSpriteRenderer.h"
+#include "../engine/lunaInput.h"
+
+typedef struct lunaTransform {
+    vec2 position, size;
+    vec4 rotation;
+} lunaTransform;
 
 typedef void (*lunaObjectUpdateFn)(float dt);
-typedef void (*lunaObjectRenderFn)(luna_Renderer_t *rd);
+typedef void (*lunaObjectRenderFn)(lunaRenderer_t *rd);
 typedef struct lunaObject lunaObject;
 typedef struct lunaScene lunaScene;
 
@@ -32,6 +38,8 @@ extern vec2 lunaObject_GetPosition(const lunaObject *obj);
 extern void lunaObject_SetPosition(lunaObject *obj, vec2 to);
 extern vec2 lunaObject_GetSize(const lunaObject *obj);
 extern void lunaObject_SetSize(lunaObject *obj, vec2 to);
+
+extern lunaTransform *lunaObject_GetTransform(lunaObject *obj);
 
 luna_SpriteRenderer *lunaObject_GetSpriteRenderer(lunaObject *obj);
 

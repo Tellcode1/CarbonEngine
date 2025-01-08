@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 // The size of each buffer (on the stack) that luna_printf may allocate
 // luna_printf may use at most 3 buffers.
@@ -15,8 +16,10 @@
   #define LUNA_PRINTF_STREAM stdout
 #endif
 
+extern bool luna_is_format_specifier(char c);
+
 // out should be around 12 bytes (10 for __INT32_MAX__ and 1 for negative sign and 1 for terminator)
-extern char *luna_itoa(int x, char out[], unsigned base);
+extern char *luna_itoa(long long x, char out[], int base);
 
 extern char *luna_ftoa(double x, char out[], int precision);
 

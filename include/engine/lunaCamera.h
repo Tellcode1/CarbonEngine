@@ -1,15 +1,15 @@
 #ifndef __LUNA_CAMERA_H__
 #define __LUNA_CAMERA_H__
 
-#include "math/mat.h"
-#include "math/vec2.h"
-#include "math/vec3.h"
-#include "math/vec4.h"
+#include "../math/mat.h"
+#include "../math/vec2.h"
+#include "../math/vec3.h"
+#include "../math/vec4.h"
 
 #include "lunaGFX.h"
-#include "GPU/buffer.h"
-#include "GPU/descriptors.h"
-#include "cinput.h"
+#include "../GPU/buffer.h"
+#include "../GPU/descriptors.h"
+#include "../engine/lunaInput.h"
 
 typedef struct lunaCamera lunaCamera;
 
@@ -95,7 +95,7 @@ static inline lunaCamera lunaCamera_Init() {
     // the size of a single uniform buffer.
     int ub_size = align_up(sizeof(camera_uniform_buffer), ub_align);
 
-    luna_GPU_CreateBuffer(ub_size * CAMERA_FAKE_BUFFER_COUNT, ub_align, 1, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, &camera.ub);
+    luna_GPU_CreateBuffer(ub_size * CAMERA_FAKE_BUFFER_COUNT, ub_align, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, &camera.ub);
     luna_GPU_AllocateMemory(ub_size * CAMERA_FAKE_BUFFER_COUNT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &camera.mem);
     luna_GPU_BindBufferToMemory(&camera.mem, 0, &camera.ub);
 
@@ -105,7 +105,7 @@ static inline lunaCamera lunaCamera_Init() {
     luna_AllocateDescriptorSet(&g_pool, bindings, 1, &camera.sets);
 
     VkDescriptorBufferInfo bufferinfo = {
-        .buffer = camera.ub.buffers[0],
+        .buffer = camera.ub.buffer,
         .offset = 0,
         .range = ub_size
     };
@@ -158,7 +158,7 @@ static inline void cam_set_position(lunaCamera *cam, const vec3 pos) {
     cam->actual_pos = pos;
 }
 
-static inline void lunaCamera_Update(lunaCamera *cam, struct luna_Renderer_t *rd) {
+static inline void lunaCamera_Update(lunaCamera *cam, struct lunaRenderer_t *rd) {
     const float yaw_rads = cmdeg2rad(cam->yaw), pitch_rads = cmdeg2rad(cam->pitch);
     const float cospitch = cosf(pitch_rads);
     vec3 new_front;
@@ -176,7 +176,7 @@ static inline void lunaCamera_Update(lunaCamera *cam, struct luna_Renderer_t *rd
 
     cam->position = cam->actual_pos;
 
-    const lunaExtent2D RenderExtent = luna_Renderer_GetRenderExtent(rd);
+    const lunaExtent2D RenderExtent = lunaRenderer_GetRenderExtent(rd);
     const float aspect = (float)RenderExtent.width / (float)RenderExtent.height;
     cam->perspective = m4perspective(cam->fov, aspect, cam->near_clip, cam->far_clip);
 
@@ -184,12 +184,12 @@ static inline void lunaCamera_Update(lunaCamera *cam, struct luna_Renderer_t *rd
     ub.perspective = cam->perspective;
     ub.ortho = cam->ortho;
     ub.view = cam->view;
-    cam->mem_mapped[ luna_Renderer_GetFrame(rd) ] = ub;
+    cam->mem_mapped[ lunaRenderer_GetFrame(rd) ] = ub;
 }
 
 static inline vec2 lunaCamera_GetMouseGlobalPosition(const lunaCamera *cam) {
     return v2add(
-        v2mulv(cinput_get_mouse_position(), (vec2){ CAMERA_ORTHO_W, CAMERA_ORTHO_H}),
+        v2mulv(lunaInput_GetMousePosition(), (vec2){ CAMERA_ORTHO_W, CAMERA_ORTHO_H}),
         (vec2){cam->position.x, cam->position.y}
     );
 }

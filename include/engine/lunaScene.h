@@ -4,7 +4,7 @@
 #include "lunaObject.h"
 
 typedef struct lunaScene lunaScene;
-typedef struct luna_Renderer_t luna_Renderer_t;
+typedef struct lunaRenderer_t lunaRenderer_t;
 
 typedef void (*lunaSceneLoadFn)(lunaScene *scn);
 
@@ -16,7 +16,7 @@ extern lunaScene *scene_main;
 
 extern lunaScene *lunaScene_Init();
 extern void lunaScene_Update();
-extern void lunaScene_Render(luna_Renderer_t *rd);
+extern void lunaScene_Render(lunaRenderer_t *rd);
 extern void lunaScene_Destroy(lunaScene *scene);
 extern void lunaScene_AssignLoadFn(lunaScene *scene, lunaSceneLoadFn fn);
 extern void lunaScene_AssignUnloadFn(lunaScene *scene, lunaSceneUnloadFn fn);

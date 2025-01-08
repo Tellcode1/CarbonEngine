@@ -11,15 +11,15 @@
 
 // I strive for a world where I do not have to call vulkan functions myself again
 
-#include "stdafx.h"
-#include "GPU/vkstdafx.h"
+#include "../common/stdafx.h"
+#include "../GPU/vkstdafx.h"
+#include "../GPU/texture.h"
+#include "../GPU/descriptors.h"
 #include "lunaGFXstdafx.h"
-#include "GPU/texture.h"
-#include "GPU/descriptors.h"
 
-#include "math/vec2.h"
-#include "math/vec3.h"
-#include "math/vec4.h"
+#include "../math/vec2.h"
+#include "../math/vec3.h"
+#include "../math/vec4.h"
 
 typedef luna_GPU_Texture luna_GPU_Texture;
 
@@ -44,7 +44,7 @@ typedef enum cg_renderer_flag_bits {
     CG_RENDERER_WINDOW_RESIZABLE = 1 << 2,
 } cg_renderer_flag_bits;
 
-typedef struct luna_Renderer_Config {
+typedef struct lunaRenderer_Config {
     lunaSampleCount        samples;
     lunaBufferMode         buffer_mode;
     lunaExtent2D           initial_window_size;
@@ -52,10 +52,10 @@ typedef struct luna_Renderer_Config {
     bool                   multisampling_enable;
     bool                   window_resizable;
     luna_Window_VSync      vsync_enabled;
-} luna_Renderer_Config;
+} lunaRenderer_Config;
 
-static inline luna_Renderer_Config crender_config_init() {
-    return (luna_Renderer_Config) {
+static inline lunaRenderer_Config crender_config_init() {
+    return (lunaRenderer_Config) {
         .samples = CG_SAMPLE_COUNT_NO_EXTRA_SAMPLES,
         .buffer_mode = CG_BUFFER_MODE_DOUBLE_BUFFERED,
         .initial_window_size = { 800, 600 },
@@ -67,23 +67,23 @@ static inline luna_Renderer_Config crender_config_init() {
 }
 
 typedef struct luna_SpriteRenderer luna_SpriteRenderer;
-typedef struct luna_Renderer_t luna_Renderer_t;
+typedef struct lunaRenderer_t lunaRenderer_t;
 
-extern luna_Renderer_t *luna_Renderer_Init(const luna_Renderer_Config *conf);
-extern void luna_Renderer_Destroy(struct luna_Renderer_t *rd);
+extern lunaRenderer_t *lunaRenderer_Init(const lunaRenderer_Config *conf);
+extern void lunaRenderer_Destroy(struct lunaRenderer_t *rd);
 
-extern bool luna_Renderer_BeginRender(struct luna_Renderer_t *rd);
-extern void luna_Renderer_EndRender(struct luna_Renderer_t *rd);
+extern bool lunaRenderer_BeginRender(struct lunaRenderer_t *rd);
+extern void lunaRenderer_EndRender(struct lunaRenderer_t *rd);
 
-extern int luna_Renderer_GetFrame(const struct luna_Renderer_t *rd);
-extern struct VkCommandBuffer_T *luna_Renderer_GetDrawBuffer(const luna_Renderer_t *rd);
-extern struct VkRenderPass_T *luna_Renderer_GetRenderPass(const luna_Renderer_t *rd);
-extern struct lunaExtent2D luna_Renderer_GetRenderExtent(const luna_Renderer_t *rd);
-extern int luna_Renderer_GetMaxFramesInFlight(const struct luna_Renderer_t *rd);
+extern int lunaRenderer_GetFrame(const struct lunaRenderer_t *rd);
+extern struct VkCommandBuffer_T *lunaRenderer_GetDrawBuffer(const lunaRenderer_t *rd);
+extern struct VkRenderPass_T *lunaRenderer_GetRenderPass(const lunaRenderer_t *rd);
+extern struct lunaExtent2D lunaRenderer_GetRenderExtent(const lunaRenderer_t *rd);
+extern int lunaRenderer_GetMaxFramesInFlight(const struct lunaRenderer_t *rd);
 
-extern void luna_Renderer_DrawTexturedQuad(luna_Renderer_t *rd, luna_SpriteRenderer *sprite_renderer, vec3 position, vec3 size, int layer);
-extern void luna_Renderer_DrawQuad(
-    luna_Renderer_t *rd,
+extern void lunaRenderer_DrawTexturedQuad(lunaRenderer_t *rd, luna_SpriteRenderer *sprite_renderer, vec3 position, vec3 size, int layer);
+extern void lunaRenderer_DrawQuad(
+    lunaRenderer_t *rd,
     sprite_t *spr,
     vec2 tex_coord_multiplier,
     vec3 position,
@@ -91,7 +91,9 @@ extern void luna_Renderer_DrawQuad(
     vec4 color,
     int layer
 );
-extern void luna_Renderer_DrawLine(luna_Renderer_t *rd, vec2 start, vec2 end, vec4 color, int layer);
+extern void lunaRenderer_DrawLine(lunaRenderer_t *rd, vec2 start, vec2 end, vec4 color, int layer);
+
+extern lunaExtent2D luna_GetWindowSize();
 
 #ifdef __cplusplus
     }

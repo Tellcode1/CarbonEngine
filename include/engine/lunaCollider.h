@@ -1,7 +1,7 @@
 #ifndef __LUNA_COLLIDER_H__
 #define __LUNA_COLLIDER_H__
 
-#include "math/vec2.h"
+#include "../math/vec2.h"
 
 typedef struct lunaCollider lunaCollider;
 typedef struct lunaScene lunaScene;

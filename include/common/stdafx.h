@@ -9,19 +9,26 @@
 #include <stdbool.h>
 #include <string.h>
 
+#define LOG_ERROR(err, ...) __LOG_ERROR(__PRETTY_FUNCTION__, err, ##__VA_ARGS__)
+#define LOG_AND_ABORT(err, ...) __LOG_AND_ABORT(__PRETTY_FUNCTION__, err, ##__VA_ARGS__)
+#define LOG_WARNING(err, ...) __LOG_WARNING(__PRETTY_FUNCTION__, err, ##__VA_ARGS__)
+#define LOG_INFO(err, ...) __LOG_INFO(__PRETTY_FUNCTION__, err, ##__VA_ARGS__)
+#define LOG_DEBUG(err, ...) __LOG_DEBUG(__PRETTY_FUNCTION__, err, ##__VA_ARGS__)
+#define LOG_CUSTOM(preceder, err, ...) __LOG_CUSTOM(__PRETTY_FUNCTION__, preceder, err, ##__VA_ARGS__)
+
 // puts but with formatting and with the preceder "error". does not stop execution of program
 // if you want that, use LOG_AND_ABORT instead.
-void LOG_ERROR(const char * fmt, ...);
+void __LOG_ERROR(const char *func, const char * fmt, ...);
 // formats the string, puts() it with the preceder "fatal error" and then aborts the program
-void LOG_AND_ABORT(const char * fmt, ...);
+void __LOG_AND_ABORT(const char *func, const char * fmt, ...);
 // puts but with formatting and with the preceder "warning"
-void LOG_WARNING(const char * fmt, ...);
+void __LOG_WARNING(const char *func, const char * fmt, ...);
 // puts but with formatting and with the preceder "info"
-void LOG_INFO(const char * fmt, ...);
+void __LOG_INFO(const char *func, const char * fmt, ...);
 // puts but with formatting and with the preceder "debug"
-void LOG_DEBUG(const char * fmt, ...);
+void __LOG_DEBUG(const char *func, const char * fmt, ...);
 
-void LOG_CUSTOM(const char *preceder, const char *fmt, ...);
+void __LOG_CUSTOM(const char *func, const char *preceder, const char *fmt, ...);
 
 #define __WRAPPER1(x, y) CB_CONCAT(x, y)
 
@@ -46,7 +53,7 @@ static inline struct tm *__CG_GET_TIME() {
     return tm;
 }
 
-extern void __CG_LOG(va_list args, const char *succeeder, const char *preceder, const char *str, unsigned char err);
+extern void __CG_LOG(va_list args, const char *fn, const char *succeeder, const char *preceder, const char *str, unsigned char err);
 
 #define CB_CONCAT(x, y) x##y
 #define array_len(arr) ((int)(sizeof(arr) / sizeof(arr[0])))

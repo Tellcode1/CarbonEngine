@@ -9,22 +9,21 @@
 #include "lunaObject.h"
 #include "lunaScene.h"
 
-#include "../include/math/vec3.h"
-#include "../include/math/vec2.h"
-#include "../include/math/mat.h"
+#include "../math/vec3.h"
+#include "../math/vec2.h"
+#include "../math/mat.h"
 
-#include "stdafx.h"
+#include "../common/stdafx.h"
 
-#include "containers/cgvector.h"
-#include "containers/cgstring.h"
-#include "containers/cghashmap.h"
-#include "containers/catlas.h"
+#include "../containers/cgvector.h"
+#include "../containers/cgstring.h"
+#include "../containers/cghashmap.h"
+#include "../containers/catlas.h"
 
-#include "GPU/vkstdafx.h"
-#include "GPU/texture.h"
-#include "GPU/buffer.h"
+#include "../GPU/texture.h"
+#include "../GPU/buffer.h"
 
-typedef struct luna_Renderer_t luna_Renderer_t;
+typedef struct lunaRenderer_t lunaRenderer_t;
 
 typedef enum HoriAlignment
 {
@@ -87,17 +86,17 @@ static inline ctext_text_render_info ctext_init_text_render_info() {
 }
 
 // Initializes the text renderer for ONLY that renderer
-extern void ctext_init(struct luna_Renderer_t *rd);
-extern void ctext_shutdown(struct luna_Renderer_t *rd);
+extern void ctext_init(struct lunaRenderer_t *rd);
+extern void ctext_shutdown(struct lunaRenderer_t *rd);
 
-extern void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scale, cfont_t **dst);
+extern void ctext_load_font(lunaRenderer_t *rd, const char *font_path, int scale, cfont_t **dst);
 
 extern void ctext_destroy_font(cfont_t *fnt);
 
 extern void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo, const char *fmt, ...);
 
-extern void ctext_flush_renders(luna_Renderer_t *rd);
-extern void __ctext_flush_font(luna_Renderer_t *rd, cfont_t *fnt);
+extern void ctext_flush_renders(lunaRenderer_t *rd);
+extern void __ctext_flush_font(lunaRenderer_t *rd, cfont_t *fnt);
 
 // Get the scale needed to fit the string in a box
 // The scale is calculated as if both the string and the box were at (0,0)
@@ -143,7 +142,7 @@ typedef struct cfont_t
     cg_vector_t /* ctext_text_drawcall_t */  drawcalls;
     cg_hashmap_t * /* unicode, ctext_glyph ctext_hasher<unicode>> */ glyph_map;
 
-    struct luna_Renderer_t *rd;
+    struct lunaRenderer_t *rd;
 } cfont_t;
 
 #ifdef __cplusplus

@@ -5,11 +5,10 @@
     extern "C" {
 #endif
 
-#include "stdafx.h"
+#include "../common/stdafx.h"
 #include "lunaCamera.h"
-#include "../external/volk/volk.h"
 
-struct luna_Renderer_Config;
+struct lunaRenderer_Config;
 union SDL_Event;
 
 extern u8 cg_current_frame;

@@ -2,10 +2,10 @@
 #define __LUNA_SPRITE_RENDERER_H__
 
 #include "sprite.h"
-#include "math/vec2.h"
-#include "math/vec4.h"
+#include "../math/vec2.h"
+#include "../math/vec4.h"
 
-typedef struct luna_Renderer_t luna_Renderer_t;
+typedef struct lunaRenderer_t lunaRenderer_t;
 typedef struct sprite_t sprite_t;
 
 typedef struct luna_SpriteRenderer {

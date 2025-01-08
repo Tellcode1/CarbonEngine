@@ -5,8 +5,8 @@
     extern "C" {
 #endif
 
-#include "lunaGFXstdafx.h"
-#include "GPU/format.h"
+#include "../engine/lunaGFXstdafx.h"
+#include "../GPU/format.h"
 
 // CPU Image
 typedef struct lunaImage {
@@ -14,6 +14,9 @@ typedef struct lunaImage {
     lunaFormat fmt;
     unsigned char *data;
 } lunaImage;
+
+extern int lunaImage_Compress(const unsigned char *input, size_t input_size, unsigned char *output, size_t *output_size);
+extern int lunaImage_Decompress(const unsigned char *compressed_data, size_t compressed_size, unsigned char *o_buf, size_t o_buf_sz);
 
 extern lunaImage lunaImage_Load(const char *path);
 extern lunaImage lunaImage_LoadPNG(const char *path);

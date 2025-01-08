@@ -1,5 +1,5 @@
-#ifndef __UNDESCRIPTOR_SET_H
-#define __UNDESCRIPTOR_SET_H
+#ifndef __LUNA_DESCRIPTORS_H__
+#define __LUNA_DESCRIPTORS_H__
 
 #include "vkstdafx.h"
 #include "../math/math.h"
@@ -38,4 +38,4 @@ extern void __luna_DescriptorPool_Allocate(luna_DescriptorPool *pool);
 extern void luna_DescriptorPool_Init(luna_DescriptorPool *dst);
 extern void luna_AllocateDescriptorSet(luna_DescriptorPool *pool, const VkDescriptorSetLayoutBinding *bindings, int nbindings, luna_DescriptorSet **dst);
 
-#endif
+#endif//__LUNA_DESCRIPTORS_H__

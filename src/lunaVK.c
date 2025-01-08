@@ -1,33 +1,26 @@
 #include "../include/GPU/lunaVK.h"
 #include "../include/GPU/pipeline.h"
-#include "../include/lunaGFXDef.h"
-#include "../include/lunaInternalObjects.h"
-#include "../include/lunaImage.h"
+#include "../include/engine/lunaGFXDef.h"
+#include "../include/engine/lunaObjectDef.h"
+#include "../include/common/lunaImage.h"
 
-#include "../include/lunaCamera.h"
-#include "../include/cinput.h"
-#include "../include/ctext.h"
-#include "../include/cengine.h"
-#include "../include/lunaObject.h"
-#include "../include/lunaSpriteRenderer.h"
+#include "../include/engine/lunaCamera.h"
+#include "../include/engine/lunaInput.h"
+#include "../include/engine/ctext.h"
+#include "../include/engine/cengine.h"
+#include "../include/engine/lunaObject.h"
+#include "../include/engine/lunaSpriteRenderer.h"
 
-#include "../include/cshadermanager.h"
-#include "../include/cshadermanagerdev.h"
+#include "../include/common/cshadermanager.h"
+#include "../include/common/cshadermanagerdev.h"
 
-#include "../include/lunaUI.h"
+#include "../include/engine/lunaUI.h"
 
 #include "../include/containers/cgvector.h"
-#include "../include/sys/io/printf.h"
+#include "../include/common/printf.h"
 
-#include <freetype2/ft2build.h>
-#include FT_FREETYPE_H
-#include FT_GLYPH_H
-#include "../include/ctext_font_file.h"
-
-#include <SDL2/SDL_vulkan.h>
-
-#include <stdio.h>
 #include <stdlib.h>
+#include <SDL2/SDL_vulkan.h>
 
 #define HAS_FLAG(flag) ((luna_GPU_vk_flag_register & flag) || (flags & flag))
 #define STR(s) #s
@@ -140,28 +133,28 @@ typedef enum ctext_err_t {
 } ctext_err_t;
 // ctext
 
-int luna_Renderer_GetFrame(const luna_Renderer_t *rd)
+int lunaRenderer_GetFrame(const lunaRenderer_t *rd)
 {
     return rd->renderer_frame;
 }
 
 
-VkCommandBuffer luna_Renderer_GetDrawBuffer(const luna_Renderer_t *rd)
+VkCommandBuffer lunaRenderer_GetDrawBuffer(const lunaRenderer_t *rd)
 {
     return *(VkCommandBuffer *)cg_vector_get(&rd->drawBuffers, rd->renderer_frame);
 }
 
-VkRenderPass luna_Renderer_GetRenderPass(const luna_Renderer_t *rd)
+VkRenderPass lunaRenderer_GetRenderPass(const lunaRenderer_t *rd)
 {
     return rd->render_pass;
 }
 
-lunaExtent2D luna_Renderer_GetRenderExtent(const luna_Renderer_t *rd)
+lunaExtent2D lunaRenderer_GetRenderExtent(const lunaRenderer_t *rd)
 {
     return rd->render_extent;
 }
 
-int luna_Renderer_GetMaxFramesInFlight(const luna_Renderer_t *rd)
+int lunaRenderer_GetMaxFramesInFlight(const lunaRenderer_t *rd)
 {
     return 1 + (int)rd->buffer_mode;
 }
@@ -180,7 +173,7 @@ bool luna_Quad_Visible(const vec3 *pos, const vec3 *siz) {
     );
 }
 
-void luna_Renderer_DrawTexturedQuad(luna_Renderer_t *rd, luna_SpriteRenderer *sprite_renderer, vec3 position, vec3 size, int layer)
+void lunaRenderer_DrawTexturedQuad(lunaRenderer_t *rd, luna_SpriteRenderer *sprite_renderer, vec3 position, vec3 size, int layer)
 {
         luna_DrawCall_t drawcall = {
         .type = LUNA_DRAWCALL_QUAD,
@@ -198,17 +191,17 @@ void luna_Renderer_DrawTexturedQuad(luna_Renderer_t *rd, luna_SpriteRenderer *sp
     cg_vector_push_back(&rd->drawcalls, &drawcall);
 }
 
-void luna_Renderer_DrawQuad(luna_Renderer_t *rd, sprite_t *spr, vec2 tex_coord_multiplier, vec3 position, vec3 size, vec4 color, int layer)
+void lunaRenderer_DrawQuad(lunaRenderer_t *rd, sprite_t *spr, vec2 tex_coord_multiplier, vec3 position, vec3 size, vec4 color, int layer)
 {
     // create a temporary sprite renderer and render an untextured quad with it
     luna_SpriteRenderer sprite_renderer = luna_SpriteRendererInit();
     sprite_renderer.spr = spr;
     sprite_renderer.tex_coord_multiplier = tex_coord_multiplier;
     sprite_renderer.color = color;
-    luna_Renderer_DrawTexturedQuad(rd, &sprite_renderer, position, size, layer);
+    lunaRenderer_DrawTexturedQuad(rd, &sprite_renderer, position, size, layer);
 }
 
-void luna_Renderer_DrawLine(luna_Renderer_t *rd, vec2 start, vec2 end, vec4 color, int layer)
+void lunaRenderer_DrawLine(lunaRenderer_t *rd, vec2 start, vec2 end, vec4 color, int layer)
 {
     luna_DrawCall_t drawcall = {
         .type = LUNA_DRAWCALL_LINE,
@@ -231,10 +224,12 @@ int __drawcall_compar(const void *obj1, const void *obj2) {
     return (call1->layer - call2->layer) + (call1->type - call2->type);
 }
 
-void luna_Renderer_RenderAll(luna_Renderer_t *rd) {
-    const uint32_t camera_ub_offset = luna_Renderer_GetFrame(rd) * sizeof(camera_uniform_buffer);
-    const VkCommandBuffer cmd = luna_Renderer_GetDrawBuffer(rd);
+void __lunaRenderer_FlushRenders(lunaRenderer_t *rd) {
+    const uint32_t camera_ub_offset = lunaRenderer_GetFrame(rd) * sizeof(camera_uniform_buffer);
+    const VkCommandBuffer cmd = lunaRenderer_GetDrawBuffer(rd);
     const VkDescriptorSet camera_set = camera.sets->set;
+
+    bool bound_quad_state = 0;
 
     cg_vector_sort(&rd->drawcalls, __drawcall_compar);
 
@@ -252,10 +247,14 @@ void luna_Renderer_RenderAll(luna_Renderer_t *rd) {
                 VkDeviceSize offsets = 0;
 
                 vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_Pipelines.Unlit.pipeline);
-                vkCmdBindVertexBuffers(cmd, 0, 1, rd->quad_vb.buffers, &offsets);
-                vkCmdBindIndexBuffer(cmd, rd->quad_vb.buffers[0], sizeof(quad_vertices), VK_INDEX_TYPE_UINT32);
+
+                if (!bound_quad_state) {
+                    vkCmdBindVertexBuffers(cmd, 0, 1, &rd->quad_vb.buffer, &offsets);
+                    vkCmdBindIndexBuffer(cmd, rd->quad_vb.buffer, sizeof(quad_vertices), VK_INDEX_TYPE_UINT32);
+                }
 
                 state = LUNA_DRAWCALL_QUAD;
+                bound_quad_state = 1;
             }
 
             struct push_constants {
@@ -320,7 +319,7 @@ void luna_Renderer_RenderAll(luna_Renderer_t *rd) {
     cg_vector_clear(&rd->drawcalls);
 }
 
-void luna_Renderer_PrepareQuadRenderer(luna_Renderer_t *rd)
+void lunaRenderer_PrepareQuadRenderer(lunaRenderer_t *rd)
 {
     memcpy(quad_vertices, (const quad_vertex[4]){
         (const quad_vertex){ .position = (vec3){+0.5f, +0.5f, 0.0f}, .tex_coords = (vec2){ 1.0f, 0.0f } },
@@ -332,7 +331,6 @@ void luna_Renderer_PrepareQuadRenderer(luna_Renderer_t *rd)
     luna_GPU_CreateBuffer(
         sizeof(quad_vertices) + sizeof(quad_indices),
         LUNA_GPU_ALIGNMENT_UNNECESSARY,
-        1,
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
         &rd->quad_vb
     );
@@ -351,7 +349,7 @@ void luna_Renderer_PrepareQuadRenderer(luna_Renderer_t *rd)
     free(data);
 }
 
-void luna_Renderer_Destroy(luna_Renderer_t *rd)
+void lunaRenderer_Destroy(lunaRenderer_t *rd)
 {
     vkDeviceWaitIdle(device);
 
@@ -412,7 +410,7 @@ void luna_Renderer_Destroy(luna_Renderer_t *rd)
     vkDestroyInstance(instance, NULL);
 }
 
-void create_optional_images(luna_Renderer_t *rd)
+void create_optional_images(lunaRenderer_t *rd)
 {
     vkGetSwapchainImagesKHR(device, rd->swapchain, &SwapChainImageCount, NULL);
     VkImage *swapchainImages = (VkImage *)malloc(SwapChainImageCount * sizeof(VkImage));
@@ -460,13 +458,12 @@ void create_optional_images(luna_Renderer_t *rd)
         }
 
         luna_GPU_BindTextureToMemory(&rd->depth_image_memory, i * rd->shadow_image_size, data->depth_image);
-        SetObjectName(device, (uint64_t)luna_GPU_TextureGetView(data->depth_image), VK_OBJECT_TYPE_IMAGE_VIEW, "I'm going to kys");
     }
 
     free(swapchainImages);
 }
 
-void create_framebuffers_and_swapchain_image_views(luna_Renderer_t *rd) {
+void create_framebuffers_and_swapchain_image_views(lunaRenderer_t *rd) {
     cg_vector_t /* VkImageView */ attachments = cg_vector_init(sizeof(VkImageView), 3);
 
     for (int i = 0; i < (int)SwapChainImageCount; i++) {
@@ -518,7 +515,7 @@ void create_framebuffers_and_swapchain_image_views(luna_Renderer_t *rd) {
     cg_vector_destroy(&attachments);
 }
 
-void luna_Renderer_InitializeGraphicsSingleton() {
+void lunaRenderer_InitializeGraphicsSingleton() {
     if (!luna_VK_GetSupportedFormat(physDevice, surface, &SwapChainImageFormat, &SwapChainColorSpace)) {
             LOG_AND_ABORT("No supported format for display.");
     }
@@ -579,7 +576,7 @@ void luna_Renderer_InitializeGraphicsSingleton() {
     cg_vector_destroy(&queueFamilies);
 }
 
-void luna_Renderer_InitializeRenderingComponents(luna_Renderer_t *rd, const luna_Renderer_Config *conf) {
+void lunaRenderer_InitializeRenderingComponents(lunaRenderer_t *rd, const lunaRenderer_Config *conf) {
     VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR;
 
     if (conf->vsync_enabled) {
@@ -660,13 +657,13 @@ void luna_Renderer_InitializeRenderingComponents(luna_Renderer_t *rd, const luna
     create_framebuffers_and_swapchain_image_views(rd);
 }
 
-luna_Renderer_t *luna_Renderer_Init(const luna_Renderer_Config *conf)
+lunaRenderer_t *lunaRenderer_Init(const lunaRenderer_Config *conf)
 {
     if (conf->multisampling_enable == 1) {
         LOG_ERROR("config samples must not be 1 if multisampling is enabled.");
         cassert(conf->samples != CG_SAMPLE_COUNT_1_SAMPLES);
     }
-    struct luna_Renderer_t *rd = (luna_Renderer_t *)calloc(1, sizeof(struct luna_Renderer_t));
+    struct lunaRenderer_t *rd = (lunaRenderer_t *)calloc(1, sizeof(struct lunaRenderer_t));
 
     // how many frames the renderer will render at once
     const int frames_in_flight = 1 + (int)conf->buffer_mode;
@@ -691,8 +688,8 @@ luna_Renderer_t *luna_Renderer_Init(const luna_Renderer_Config *conf)
     rd->render_extent.width = conf->initial_window_size.width;
     rd->render_extent.height = conf->initial_window_size.height;
 
-    luna_Renderer_InitializeGraphicsSingleton();
-    luna_Renderer_InitializeRenderingComponents(rd, conf);
+    lunaRenderer_InitializeGraphicsSingleton();
+    lunaRenderer_InitializeRenderingComponents(rd, conf);
 
     for(int i = 0; i < (int)SwapChainImageCount; i++)
 	{
@@ -718,17 +715,16 @@ luna_Renderer_t *luna_Renderer_Init(const luna_Renderer_Config *conf)
 
     // Initialize subsystems.
     csm_compile_updated();
-    cinput_init();
     ctext_init(rd);
 
     luna_VK_BakeGlobalPipelines(rd);
 
-    luna_Renderer_PrepareQuadRenderer(rd);
+    lunaRenderer_PrepareQuadRenderer(rd);
 
     return rd;
 }
 
-void crenderer_resize(luna_Renderer_t *rd) {
+void crenderer_resize(lunaRenderer_t *rd) {
     vkDeviceWaitIdle(device);
 
     const VkSemaphoreCreateInfo semaphoreCreateInfo = {
@@ -833,7 +829,7 @@ void crenderer_resize(luna_Renderer_t *rd) {
     cg__reset_frame_buffer_resized();
 }
 
-bool luna_Renderer_BeginRender(luna_Renderer_t *rd)
+bool lunaRenderer_BeginRender(lunaRenderer_t *rd)
 {
     lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, rd->renderer_frame);
 
@@ -905,7 +901,7 @@ bool luna_Renderer_BeginRender(luna_Renderer_t *rd)
 
 #define V2_TO_V3(v) ((vec3){ (v).x, (v).y, 0.0f })
 
-void luna_Renderer_EndRender(luna_Renderer_t *rd)
+void lunaRenderer_EndRender(lunaRenderer_t *rd)
 {
     const VkCommandBuffer drawBuffer = *(VkCommandBuffer *)cg_vector_get(&rd->drawBuffers, rd->renderer_frame);
 
@@ -925,7 +921,7 @@ void luna_Renderer_EndRender(luna_Renderer_t *rd)
     }
     ctext_flush_renders(rd);
     luna_UI_Render(rd);
-    luna_Renderer_RenderAll(rd);
+    __lunaRenderer_FlushRenders(rd);
 
     vkCmdEndRenderPass(drawBuffer);
     vkEndCommandBuffer(drawBuffer);
@@ -1006,7 +1002,7 @@ void __VK_DEBUG_LOG(const char *fmt, ...) {
     const char * succeeder = "\n";
     va_list args;
     va_start(args, fmt);
-    __CG_LOG(args, succeeder, preceder, fmt, 1);
+    __CG_LOG(args, STR(VKDebugMessengerCallback), succeeder, preceder, fmt, 1);
     va_end(args);
 }
 
@@ -1119,12 +1115,12 @@ VkInstance CreateInstance(const char* title) {
 
 		if (!validationLayersAvailable)
 		{
-			LOG_ERROR("VALIDATION LAYERS COULD NOT BE LOADED\nRequested layers:\n");
+			LOG_ERROR("Failed to initialize validation layers\nRequested layers:");
 			for(int i = 0; i < array_len(ValidationLayers); i++) {
 				LOG_ERROR("\t%s", ValidationLayers[i]);
 			}
 
-			LOG_ERROR("Instance provided these layers (i.e. These layers are available):");
+			LOG_ERROR("Available Layers::");
 			for(uint32_t i = 0; i < layerCount; i++)
 				LOG_ERROR("\t%s", ((VkLayerProperties *)cg_vector_data(&layerProperties))[i].layerName);
 
@@ -1239,7 +1235,7 @@ VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR surface)
 	vkEnumeratePhysicalDevices(instance, &physDeviceCount, NULL);
 	
 	if(physDeviceCount == 0) {
-		LOG_AND_ABORT("Huuuhhh??? No physical devices found? Are you running this on a banana???\n");
+		LOG_AND_ABORT("Huuuhhh??? No physical devices found? Are you running this on a banana???");
 	}
 
 	cg_vector_t /* VkPhysicalDevice */ physicalDevices = cg_vector_init(sizeof(VkPhysicalDevice), physDeviceCount);
@@ -1269,7 +1265,7 @@ VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR surface)
 					validated = true;
 			}
 			if (!validated) {
-				LOG_ERROR("Failed to validate extension with name: %s\n", extension);
+				LOG_ERROR("Failed to validate extension with name: %s", extension);
 				extensionsAvailable = false;
 			}
 		}
@@ -1287,7 +1283,7 @@ VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR surface)
 	VkPhysicalDeviceProperties properties;
 	vkGetPhysicalDeviceProperties(fallback, &properties);
 
-	LOG_ERROR("No device found. Falling back to device \"%s\".\n", properties.deviceName);
+	LOG_ERROR("No device found. Falling back to device \"%s\".", properties.deviceName);
 
 	PrintDeviceInfo(fallback);
 
@@ -1453,91 +1449,11 @@ void ctx_initialize(const char* title, u32 windowWidth, u32 windowHeight) {
 
 // ctext vv
 
-void ctext_load_font_from_ft(const char *font_path, bool sdf, cfont_t *dstref) {
-    FT_Library lib; FT_Face face;
-    if (FT_Init_FreeType(&lib))
-    {
-        LOG_ERROR("failed to initialize ft\n");
-    }
-
-    if (FT_New_Face(lib, font_path, 0, &face))
-    {
-        LOG_ERROR("failed to load font file: %s\n", font_path);
-        FT_Done_FreeType(lib);
-    }
-    FT_Set_Pixel_Sizes(face, 0, 256);
-
-    strncpy(dstref->family_name, face->family_name, 127);
-    strncpy(dstref->style_name, face->style_name, 127);
-
-    if (face->size->metrics.height) {
-        dstref->line_height = -face->size->metrics.height / (float)face->units_per_EM;
-    } else {
-        dstref->line_height = -(float)(face->ascender - face->descender) / face->size->metrics.y_scale;
-    }
-    dstref->atlas = catlas_init(4096, 4096);
-
-    for (int i = 0; i < 256; ++i) {
-        FT_UInt glyph_index = FT_Get_Char_Index(face, i);
-        if (glyph_index == 0) {
-            continue;
-        }
-        if (FT_Load_Glyph(face, glyph_index, FT_LOAD_DEFAULT)) {
-            continue;
-        }
-
-        if (i == ' ') {
-            dstref->space_width = (float)face->glyph->metrics.horiAdvance / (float)face->units_per_EM;
-            continue;
-        }
-
-        enum FT_Render_Mode_ render_mode = sdf ? FT_RENDER_MODE_SDF : FT_RENDER_MODE_NORMAL;
-        FT_Render_Glyph(face->glyph, render_mode);
-        FT_GlyphSlot g = face->glyph;
-
-        const int w = g->bitmap.width;
-        const int h = g->bitmap.rows;
-        const unsigned char *buffer = g->bitmap.buffer;
-
-        int x,y;
-        if (catlas_add_image(&dstref->atlas, w, h, buffer, &x, &y)) {
-            printf("atlas error\n");
-            continue;
-        }
-
-        FT_Glyph gl;
-        FT_Get_Glyph(face->glyph, &gl);
-
-        FT_BBox box;
-        FT_Glyph_Get_CBox(gl, FT_GLYPH_BBOX_UNSCALED, &box);
-
-        FT_Done_Glyph(gl);
-
-        const ctext_glyph retglyph = {
-            .x0 = box.xMin / (float)face->units_per_EM,
-            .x1 = box.xMax / (float)face->units_per_EM,
-            .y0 = box.yMin / (float)face->units_per_EM,
-            .y1 = box.yMax / (float)face->units_per_EM,
-
-            .l = (float)(x) / dstref->atlas.width,
-            .r = (float)(x + w) / dstref->atlas.width,
-            .b = (float)(y + h) / dstref->atlas.height,
-            .t = (float)(y) / dstref->atlas.height,
-
-            .advance = (float)face->glyph->metrics.horiAdvance / (float)face->units_per_EM
-        };
-
-        const char glyphi = i;
-        cg_hashmap_insert(dstref->glyph_map, &glyphi, &retglyph);
-    }
-
-    FT_Done_Face(face);
-    FT_Done_FreeType(lib);
-}
+#include "../include/common/fontc.h"
 
 /* I have no idea what any of this is */
 
-void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scale, cfont_t **dst)
+void ctext_load_font(lunaRenderer_t *rd, const char *font_path, int scale, cfont_t **dst)
 {
 	if (!rd || !dst) {
 		LOG_ERROR("pInfo or dst is NULL!");
@@ -1561,10 +1477,29 @@ void ctext_load_font(luna_Renderer_t *rd, const char *font_path, int scale, cfon
     dstref->glyph_map = cg_hashmap_init(16, sizeof(char), sizeof(ctext_glyph), NULL, NULL);
     dstref->drawcalls = cg_vector_init(sizeof(ctext_text_drawcall_t), 4);
 
-    // we somehow need multiple font cache support
-    if (ctext_ff_read("atlas.ff", dstref) != CTEXT_ERR_SUCCESS) {
-        ctext_load_font_from_ft(font_path, 0, dstref);
-        ctext_ff_write("atlas.ff", dstref);
+    fontc_file f_file;
+    fontc_read_font(font_path, &f_file);
+
+    dstref->line_height = f_file.header.line_height;
+    dstref->space_width = f_file.header.space_width;
+    dstref->atlas.width = f_file.header.bmpwidth;
+    dstref->atlas.height = f_file.header.bmpheight;
+    dstref->atlas.data = f_file.bitmap;
+
+    for (int i = 0; i < f_file.header.numglyphs; i++) {
+        ctext_glyph glyph = {
+            .x0 = f_file.glyphs[i].x0,
+            .x1 = f_file.glyphs[i].x1,
+            .y0 = f_file.glyphs[i].y0,
+            .y1 = f_file.glyphs[i].y1,
+            .l = f_file.glyphs[i].l,
+            .r = f_file.glyphs[i].r,
+            .b = f_file.glyphs[i].b,
+            .t = f_file.glyphs[i].t,
+            .advance = f_file.glyphs[i].advance
+        };
+        char glyphi = f_file.glyphs[i].codepoint;
+        cg_hashmap_insert(dstref->glyph_map, &glyphi, &glyph);
     }
 
     luna_GPU_TextureCreateInfo image_info = {
@@ -1650,7 +1585,7 @@ bool ctext__font_resize_buffer(cfont_t *fnt, int new_buffer_size)
 
     vkDeviceWaitIdle(device);
     
-    if (fnt->buffer.buffers[0]) {
+    if (fnt->buffer.buffer) {
         luna_GPU_DestroyBuffer(&fnt->buffer);
         luna_GPU_FreeMemory(&fnt->buffer_mem);
     }
@@ -1660,7 +1595,6 @@ bool ctext__font_resize_buffer(cfont_t *fnt, int new_buffer_size)
     luna_GPU_CreateBuffer(
         new_allocation_size,
         LUNA_GPU_ALIGNMENT_UNNECESSARY,
-        1,
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
         &fnt->buffer
     );
@@ -1672,9 +1606,9 @@ bool ctext__font_resize_buffer(cfont_t *fnt, int new_buffer_size)
     return true;
 }
 
-void ctext__render_drawcalls(luna_Renderer_t *rd, cfont_t *fnt) {
+void ctext__render_drawcalls(lunaRenderer_t *rd, cfont_t *fnt) {
 
-    const VkCommandBuffer cmd = luna_Renderer_GetDrawBuffer(rd);
+    const VkCommandBuffer cmd = lunaRenderer_GetDrawBuffer(rd);
     const VkDeviceSize offsets[] = { 0 };
 
     struct push_constants pc = {};
@@ -1683,13 +1617,13 @@ void ctext__render_drawcalls(luna_Renderer_t *rd, cfont_t *fnt) {
     const VkPipelineLayout pipeline_layout = g_Pipelines.Ctext.pipeline_layout;
 
     const VkDescriptorSet sets[] = { camera.sets->set, rd->ctext->desc_set->set };
-    const uint32_t camera_ub_offset = luna_Renderer_GetFrame(rd) * sizeof(camera_uniform_buffer);
+    const uint32_t camera_ub_offset = lunaRenderer_GetFrame(rd) * sizeof(camera_uniform_buffer);
 
     // Viewport && scissor are set by renderer so no need to set them here
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 2, sets, 1, &camera_ub_offset);
-    vkCmdBindVertexBuffers(cmd, 0, 1, &fnt->buffer.buffers[0], offsets);
+    vkCmdBindVertexBuffers(cmd, 0, 1, &fnt->buffer.buffer, offsets);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-    vkCmdBindIndexBuffer(cmd, fnt->buffer.buffers[0], fnt->index_buffer_offset, VK_INDEX_TYPE_UINT32);
+    vkCmdBindIndexBuffer(cmd, fnt->buffer.buffer, fnt->index_buffer_offset, VK_INDEX_TYPE_UINT32);
 
     int offset = 0;
     for (int i = 0; i < cg_vector_size(&fnt->drawcalls); i++) {
@@ -1796,7 +1730,7 @@ static int render_line(
             default: {
                 const ctext_glyph *glyph = (const ctext_glyph *)cg_hashmap_find(fnt->glyph_map, &c);
                 if (!glyph) {
-                    LOG_INFO("no glyph when rendering char %c", c);
+                    LOG_INFO("no glyph when rendering char %i", c);
                     continue;
                 }
                 const float glyph_x0 = glyph->x0 + x;
@@ -1936,7 +1870,7 @@ void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo, const char 
     va_start(arg, fmt);
 
     num = luna_vsnprintf(NULL, SIZE_MAX, fmt, arg);
-    buffer = malloc(num);
+    buffer = malloc(num + 1);
     va_start(arg, fmt);
 
     luna_vsnprintf(buffer, num + 1, fmt, arg);
@@ -1992,7 +1926,7 @@ void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo, const char 
     fnt->rendered_this_frame = 1;
 }
 
-void __ctext_flush_font(luna_Renderer_t *rd, cfont_t *fnt)
+void __ctext_flush_font(lunaRenderer_t *rd, cfont_t *fnt)
 {
     if (!fnt->rendered_this_frame) {
         return;
@@ -2058,7 +1992,7 @@ void __ctext_flush_font(luna_Renderer_t *rd, cfont_t *fnt)
     cg_vector_clear(&fnt->drawcalls);
 }
 
-void ctext_flush_renders(luna_Renderer_t *rd)
+void ctext_flush_renders(lunaRenderer_t *rd)
 {
     for (int i = 0; i < rd->ctext->fonts.m_size; i++) {
         cfont_t *fnt = cg_vector_get(&rd->ctext->fonts, i);
@@ -2100,7 +2034,7 @@ void ctext_label_set_vertical_align(ctext_label *label, VertAlignment v_align) {
     label->v_align = v_align;
 }
 
-void ctext_init(struct luna_Renderer_t *rd)
+void ctext_init(struct lunaRenderer_t *rd)
 {
     rd->ctext = calloc(1, sizeof(cg_ctext_module));
     cg_ctext_module *ctext = rd->ctext;
@@ -2135,114 +2069,10 @@ void ctext_init(struct luna_Renderer_t *rd)
     }
 }
 
-void ctext_shutdown(struct luna_Renderer_t *rd) {
+void ctext_shutdown(struct lunaRenderer_t *rd) {
     struct cg_ctext_module *ctext = rd->ctext;
 
     luna_DescriptorSetDestroy(ctext->desc_set);
-}
-
-void ctext_ff_write(const char *path, const cfont_t *fnt)
-{
-    ctext_ff_header header = {
-        .line_height = fnt->line_height,
-        .space_width = fnt->space_width,
-        .bmpwidth = fnt->atlas.width,
-        .bmpheight = fnt->atlas.height,
-        .numglyphs = cg_hashmap_size(fnt->glyph_map)
-    };
-
-    strncpy(header.path, fnt->path, 128);
-    strncpy(header.family_name, fnt->family_name, 128);
-    strncpy(header.style_name, fnt->style_name, 128);
-
-    FILE *f = fopen(path, "wb");
-    cassert(f != NULL);
-
-    fwrite(&header, sizeof(ctext_ff_header), 1, f);
-    ch_node_t **glyph_map_root = cg_hashmap_root_node(fnt->glyph_map);
-    for (int i = 0; i < cg_hashmap_capacity(fnt->glyph_map); i++) {
-        const ch_node_t *node = glyph_map_root[i];
-        if (node && node->is_occupied) {
-            const int node_key = *(char *)node->key;
-            const ctext_glyph *node_value = (ctext_glyph *)node->value;
-
-            const ctext_glyph_entry entry = {
-                .codepoint = node_key,
-                .advance = node_value->advance,
-                .x0 = node_value->x0,
-                .x1 = node_value->x1,
-                .y0 = node_value->y0,
-                .y1 = node_value->y1,
-                .l = node_value->l,
-                .b = node_value->b,
-                .r = node_value->r,
-                .t = node_value->t,
-            };
-            fwrite(&entry, sizeof(ctext_glyph_entry), 1, f);
-        }
-    }
-    fwrite(fnt->atlas.data, fnt->atlas.width * fnt->atlas.height, 1, f);
-
-    const lunaImage img = (lunaImage){
-        .w = fnt->atlas.width,
-        .h = fnt->atlas.height,
-        .data = fnt->atlas.data,
-        .fmt = LUNA_FORMAT_R8
-    };
-    lunaImage_WritePNG(&img, "PISS.png");
-    fclose(f);
-}
-
-int ctext_ff_read(const char *path, cfont_t *fnt) {
-    // warning, we somehow need to check if the cache is the exact font file the user is requesting for...
-    FILE *f = fopen(path, "rb");
-    if (f == NULL) {
-        return 1;
-    }
-
-    ctext_ff_header header;
-    fread(&header, sizeof(ctext_ff_header), 1, f);
-
-    bool correct_cache_file = (strncmp(header.path, path, 128) == 0);
-    if (!correct_cache_file) {
-        // the user is requesting a different font file
-        fclose(f);
-        return CTEXT_ERR_WRONG_CACHE;
-    }
-
-    strncpy(fnt->path, header.path, 128);
-    strncpy(fnt->family_name, header.family_name, 128);
-    strncpy(fnt->style_name, header.style_name, 128);
-
-    fnt->line_height = header.line_height;
-    fnt->space_width = header.space_width;
-    fnt->atlas.width = header.bmpwidth;
-    fnt->atlas.height = header.bmpheight;
-
-    for (int i = 0; i < header.numglyphs; i++) {
-        ctext_glyph_entry entry;
-        fread(&entry, sizeof(ctext_glyph_entry), 1, f);
-
-        char glyphi = entry.codepoint;
-        ctext_glyph glyph;
-        
-        glyph.advance = entry.advance;
-        glyph.x0 = entry.x0;
-        glyph.x1 = entry.x1;
-        glyph.y0 = entry.y0;
-        glyph.y1 = entry.y1;
-        glyph.l = entry.l;
-        glyph.b = entry.b;
-        glyph.r = entry.r;
-        glyph.t = entry.t;
-        cg_hashmap_insert(fnt->glyph_map, &glyphi, &glyph);
-    }
-    fnt->atlas.data = calloc(header.bmpwidth, header.bmpheight);
-    fread(fnt->atlas.data, header.bmpwidth * header.bmpheight, 1, f);
-
-    fclose(f);
-
-    return CTEXT_ERR_SUCCESS; // return 0
 }
 
 float ctext_get_scale_for_fit(const cfont_t *fnt, const cg_string_t *str, vec2 bbox)
@@ -2437,7 +2267,7 @@ void luna_AllocateDescriptorSet(luna_DescriptorPool *pool, const VkDescriptorSet
 }
 // lunaDescriptors ^^
 
-void __BakeUnlitPipeline(luna_Renderer_t *rd ) {
+void __BakeUnlitPipeline(lunaRenderer_t *rd ) {
     VkDescriptorSetLayoutBinding bindings[] = {
         // binding; descriptorType; descriptorCount; stageFlags; pImmutableSamplers;
         { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL },
@@ -2458,7 +2288,7 @@ void __BakeUnlitPipeline(luna_Renderer_t *rd ) {
     const csm_shader_t *shaders[] = { vertex, fragment };
     const VkDescriptorSetLayout layouts[] = { camera.sets->layout, g_Pipelines.Unlit.descriptor_layout };
 
-    const lunaExtent2D RenderExtent = luna_Renderer_GetRenderExtent(rd);
+    const lunaExtent2D RenderExtent = lunaRenderer_GetRenderExtent(rd);
 
 	const VkVertexInputAttributeDescription attributeDescriptions[] = {
         // location; binding; format; offset;
@@ -2479,7 +2309,7 @@ void __BakeUnlitPipeline(luna_Renderer_t *rd ) {
 	luna_GPU_PipelineCreateInfo pc = luna_GPU_InitPipelineCreateInfo();
     pc.format = SwapChainImageFormat;
     pc.subpass = 0;
-    pc.render_pass = luna_Renderer_GetRenderPass(rd);
+    pc.render_pass = lunaRenderer_GetRenderPass(rd);
 
     pc.nAttributeDescriptions = array_len(attributeDescriptions);
     pc.pAttributeDescriptions = attributeDescriptions;
@@ -2504,7 +2334,7 @@ void __BakeUnlitPipeline(luna_Renderer_t *rd ) {
     luna_GPU_CreateGraphicsPipeline(&pc, &g_Pipelines.Unlit.pipeline, 0);
 }
 
-void __BakeCtextPipeline(luna_Renderer_t *rd ) {
+void __BakeCtextPipeline(lunaRenderer_t *rd ) {
 	const VkVertexInputAttributeDescription attributeDescriptions[] = {
         // location; binding; format; offset;
         { 0, 0, luna_lunaFormatToVKFormat(LUNA_FORMAT_RGB32), 0 }, // pos
@@ -2539,7 +2369,7 @@ void __BakeCtextPipeline(luna_Renderer_t *rd ) {
     luna_GPU_PipelineCreateInfo pc = luna_GPU_InitPipelineCreateInfo();
     pc.format = SwapChainImageFormat;
     pc.subpass = 0;
-    pc.render_pass = luna_Renderer_GetRenderPass(rd);
+    pc.render_pass = lunaRenderer_GetRenderPass(rd);
 
     pc.nAttributeDescriptions = array_len(attributeDescriptions);
     pc.pAttributeDescriptions = attributeDescriptions;
@@ -2556,7 +2386,7 @@ void __BakeCtextPipeline(luna_Renderer_t *rd ) {
     pc.nDescriptorLayouts = array_len(layouts);
     pc.pDescriptorLayouts = layouts;
 
-    const lunaExtent2D RenderExtent = luna_Renderer_GetRenderExtent(rd);
+    const lunaExtent2D RenderExtent = lunaRenderer_GetRenderExtent(rd);
     pc.extent.width = RenderExtent.width;
     pc.extent.height = RenderExtent.height;
     pc.blend_state = &blend;
@@ -2567,7 +2397,7 @@ void __BakeCtextPipeline(luna_Renderer_t *rd ) {
     luna_GPU_CreateGraphicsPipeline(&pc, &g_Pipelines.Ctext.pipeline, 0);
 }
 
-void __BakeDebugLinePipeline(luna_Renderer_t *rd ) {
+void __BakeDebugLinePipeline(lunaRenderer_t *rd ) {
 	struct line_push_constants {
 		mat4 model;
 		vec4 color;
@@ -2593,7 +2423,7 @@ void __BakeDebugLinePipeline(luna_Renderer_t *rd ) {
     pc.format = SwapChainImageFormat;
 
     pc.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
-    pc.render_pass = luna_Renderer_GetRenderPass(rd);
+    pc.render_pass = lunaRenderer_GetRenderPass(rd);
 
     pc.nAttributeDescriptions = 0;
     pc.pAttributeDescriptions = NULL;
@@ -2610,7 +2440,7 @@ void __BakeDebugLinePipeline(luna_Renderer_t *rd ) {
     pc.nDescriptorLayouts = array_len(layouts);
     pc.pDescriptorLayouts = layouts;
 
-    const lunaExtent2D RenderExtent = luna_Renderer_GetRenderExtent(rd);
+    const lunaExtent2D RenderExtent = lunaRenderer_GetRenderExtent(rd);
     pc.extent.width = RenderExtent.width;
     pc.extent.height = RenderExtent.height;
     pc.blend_state = &blend;
@@ -2621,7 +2451,7 @@ void __BakeDebugLinePipeline(luna_Renderer_t *rd ) {
     luna_GPU_CreateGraphicsPipeline(&pc, &g_Pipelines.Line.pipeline, 0);
 }
 
-void luna_VK_BakeGlobalPipelines(luna_Renderer_t *rd )
+void luna_VK_BakeGlobalPipelines(lunaRenderer_t *rd )
 {
 	__BakeUnlitPipeline(rd);
     __BakeDebugLinePipeline(rd);
@@ -3315,7 +3145,6 @@ lunaFormat luna_VK_GetSupportedFormatForDraw(lunaFormat fmt) {
     return fmt;
 }
 
-static int img_ctr = 0;
 void luna_VK_CreateTextureEmpty(u32 width, u32 height, lunaFormat format, VkSampleCountFlagBits samples, VkImageUsageFlags usage, int *image_size, VkImage *dst, VkDeviceMemory *dstMem)
 {
     if (usage & VK_IMAGE_USAGE_SAMPLED_BIT) {
@@ -3338,9 +3167,6 @@ void luna_VK_CreateTextureEmpty(u32 width, u32 height, lunaFormat format, VkSamp
     imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     if (vkCreateImage(device, &imageCreateInfo, NULL, dst) != VK_SUCCESS)
         LOG_ERROR("Failed to create image");
-    char wbuf[128] = "IMAGE ";
-    SetObjectName(device, (uint64_t)(*dst), VK_OBJECT_TYPE_IMAGE, strcat(wbuf, luna_itoa(img_ctr, wbuf, 10)));
-    img_ctr++;
 
     VkMemoryRequirements imageMemoryRequirements;
     vkGetImageMemoryRequirements(device, *dst, &imageMemoryRequirements);
@@ -3491,12 +3317,11 @@ void luna_GPU_AllocateMemory(VkDeviceSize size, luna_GPU_MemoryUsage usage, luna
     }
 
     if (vkAllocateMemory(device, &alloc_info, NULL, &dst->memory) != VK_SUCCESS || !dst->memory) {
-        LOG_ERROR("An allocation has failed! What are we to do???\n");
+        LOG_ERROR("An allocation has failed! What are we to do???");
     }
 }
 
-static int buffer_ctr = 0;
-void luna_GPU_CreateBuffer(int size, int alignment, int nchilds, VkBufferUsageFlags usage, luna_GPU_Buffer *dst) {
+void luna_GPU_CreateBuffer(int size, int alignment, VkBufferUsageFlags usage, luna_GPU_Buffer *dst) {
     dst->size = size;
     dst->alignment = alignment;
     dst->type = usage;
@@ -3508,25 +3333,19 @@ void luna_GPU_CreateBuffer(int size, int alignment, int nchilds, VkBufferUsageFl
     buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     buffer_info.size = aligned_sz;
     buffer_info.usage = usage;
-    for (int i = 0; i < nchilds; i++) {
-        cassert(vkCreateBuffer(device, &buffer_info, NULL, &dst->buffers[i]) == VK_SUCCESS);
-    }
-    char wbuf[128] = "BUFFER ";
-    SetObjectName(device, (uint64_t)dst->buffers[0], VK_OBJECT_TYPE_BUFFER, strcat(wbuf, luna_itoa(buffer_ctr, wbuf, 10)));
-    buffer_ctr++;
-    dst->nchilds = nchilds;
+    cassert(vkCreateBuffer(device, &buffer_info, NULL, &dst->buffer) == VK_SUCCESS);
 }
 
 void luna_GPU_WriteToLocalBuffer(luna_GPU_Buffer *buffer, int size, void *data, int offset) {
     luna_GPU_Buffer staging_buffer;
-    luna_GPU_CreateBuffer(size, LUNA_GPU_ALIGNMENT_UNNECESSARY, 1, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, &staging_buffer);
+    luna_GPU_CreateBuffer(size, LUNA_GPU_ALIGNMENT_UNNECESSARY, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, &staging_buffer);
 
     luna_GPU_Memory staging_memory;
     luna_GPU_AllocateMemory(size, LUNA_GPU_MEMORY_USAGE_CPU_VISIBLE | LUNA_GPU_MEMORY_USAGE_CPU_WRITEABLE, &staging_memory);
 
     luna_GPU_BindBufferToMemory(&staging_memory, 0, &staging_buffer);
 
-    void *mapped;
+    void *mapped = NULL;
     luna_GPU_MapMemory(&staging_memory, size, 0, &mapped);
     memcpy(mapped, data, size);
     luna_GPU_UnmapMemory(&staging_memory);
@@ -3538,7 +3357,7 @@ void luna_GPU_WriteToLocalBuffer(luna_GPU_Buffer *buffer, int size, void *data, 
         .dstOffset = offset,
         .size = size,
     };
-    vkCmdCopyBuffer(cmd, staging_buffer.buffers[0], buffer->buffers[0], 1, &copy);
+    vkCmdCopyBuffer(cmd, staging_buffer.buffer, buffer->buffer, 1, &copy);
 
     if (luna_VK_EndCommandBuffer(cmd, GraphicsQueue, 1) != VK_SUCCESS) {
         LOG_ERROR("Failed to write data to GPU buffer");
@@ -3554,16 +3373,11 @@ void luna_GPU_WriteToUniformBuffer(luna_GPU_Buffer *buffer, int size, void *data
 
 void luna_GPU_WriteToBuffer(luna_GPU_Buffer *buffer, int size, void *data, int offset)
 {
-    // luna_GPU_MemoryUsage mem_usg = buffer->memory->usage;
-    // if (!(mem_usg & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)) {
-    //     luna_GPU_WriteToLocalBuffer(buffer, size, data, offset);
-    //     return;
-    // } else if (buffer->type & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT) {
-    //     luna_GPU_WriteToUniformBuffer(buffer, size, data, offset);
-    //     return;
-    // }
-
-    void *mapped;
+    if (!(buffer->memory->usage & LUNA_GPU_MEMORY_USAGE_CPU_VISIBLE)) {
+        luna_GPU_WriteToLocalBuffer(buffer, size, data, offset);
+        return;
+    }
+    void *mapped = NULL;
     luna_GPU_MapMemory(buffer->memory, size, offset, &mapped);
     memcpy(mapped, data, size);
     luna_GPU_UnmapMemory(buffer->memory);
@@ -3572,6 +3386,7 @@ void luna_GPU_WriteToBuffer(luna_GPU_Buffer *buffer, int size, void *data, int o
 void luna_GPU_MapMemory(luna_GPU_Memory *memory, int size, int offset, void **out) {
     if (!(memory->usage & LUNA_GPU_MEMORY_USAGE_CPU_VISIBLE)) {
         LOG_ERROR("Can not map memory which is not visible to the CPU. You may need to use a staging buffer");
+        LOG_ERROR("A better option would be to use luna_GPU_WriteToBuffer()");
         return;
     }
     if (vkMapMemory(device, memory->memory, offset, size, 0, &memory->mapped) != VK_SUCCESS) {
@@ -3608,10 +3423,7 @@ void luna_GPU_BindBufferToMemory(luna_GPU_Memory *mem, int offset, luna_GPU_Buff
     buffer->memory = mem;
     buffer->offset = offset;
 
-    const int aligned_sz = align_up(buffer->size, buffer->alignment);
-    for (int i = 0; i < buffer->nchilds; i++) {
-        vkBindBufferMemory(device, buffer->buffers[i], mem->memory, offset + i * aligned_sz);
-    }
+    vkBindBufferMemory(device, buffer->buffer, mem->memory, offset);
 }
 
 void luna_GPU_TextureAttachView(luna_GPU_Texture *tex, VkImageView view)
@@ -3663,12 +3475,10 @@ void luna_GPU_BindTextureToMemory(luna_GPU_Memory *mem, int offset, luna_GPU_Tex
 
 void luna_GPU_DestroyBuffer(luna_GPU_Buffer *buffer) {
     vkDeviceWaitIdle(device);
-    for (int i = 0; i < buffer->nchilds; i++) {
-        if (buffer->buffers[i]) {
-            vkDestroyBuffer(device, buffer->buffers[i], NULL);
-        } else {
-            LOG_INFO("Attempt to destroy a buffer (child index %i) which is NULL", i);
-        }
+    if (buffer->buffer) {
+        vkDestroyBuffer(device, buffer->buffer, NULL);
+    } else {
+        LOG_INFO("Attempt to destroy a buffer %u which is NULL");
     }
     memset(buffer, 0, sizeof(luna_GPU_Buffer));
 }
@@ -3817,7 +3627,7 @@ void luna_GPU_CreateTexture(const luna_GPU_TextureCreateInfo *pInfo, luna_GPU_Te
             usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
             break;
         default:
-            LOG_ERROR("Unknown texture usage: %u\n", pInfo->usage);
+            LOG_ERROR("Unknown texture usage: %u", pInfo->usage);
             break;
     }
     (*tex)->usage = usage;
@@ -3938,215 +3748,6 @@ lunaFormat luna_VKFormatTolunaFormat(VkFormat format) {
     }
 }
 
-void luna_FormatToString(lunaFormat format, const char **dst) {
-    switch(format) {
-        case LUNA_FORMAT_UNDEFINED: *dst = "LUNA_FORMAT_UNDEFINED"; return;
-        case LUNA_FORMAT_R8: *dst = "LUNA_FORMAT_R8"; return;
-        case LUNA_FORMAT_RG8: *dst = "LUNA_FORMAT_RG8"; return;
-        case LUNA_FORMAT_RGB8: *dst = "LUNA_FORMAT_RGB8"; return;
-        case LUNA_FORMAT_RGBA8: *dst = "LUNA_FORMAT_RGBA8"; return;
-        case LUNA_FORMAT_BGR8: *dst = "LUNA_FORMAT_BGR8"; return;
-        case LUNA_FORMAT_BGRA8: *dst = "LUNA_FORMAT_BGRA8"; return;
-        case LUNA_FORMAT_RGB16: *dst = "LUNA_FORMAT_RGB16"; return;
-        case LUNA_FORMAT_RGBA16: *dst = "LUNA_FORMAT_RGBA16"; return;
-        case LUNA_FORMAT_RG32: *dst = "LUNA_FORMAT_RG32"; return;
-        case LUNA_FORMAT_RGB32: *dst = "LUNA_FORMAT_RGB32"; return;
-        case LUNA_FORMAT_RGBA32: *dst = "LUNA_FORMAT_RGBA32"; return;
-        case LUNA_FORMAT_R8_SINT: *dst = "LUNA_FORMAT_R8_SINT"; return;
-        case LUNA_FORMAT_RG8_SINT: *dst = "LUNA_FORMAT_RG8_SINT"; return;
-        case LUNA_FORMAT_RGB8_SINT: *dst = "LUNA_FORMAT_RGB8_SINT"; return;
-        case LUNA_FORMAT_RGBA8_SINT: *dst = "LUNA_FORMAT_RGBA8_SINT"; return;
-        case LUNA_FORMAT_R8_UINT: *dst = "LUNA_FORMAT_R8_UINT"; return;
-        case LUNA_FORMAT_RG8_UINT: *dst = "LUNA_FORMAT_RG8_UINT"; return;
-        case LUNA_FORMAT_RGB8_UINT: *dst = "LUNA_FORMAT_RGB8_UINT"; return;
-        case LUNA_FORMAT_RGBA8_UINT: *dst = "LUNA_FORMAT_RGBA8_UINT"; return;
-        case LUNA_FORMAT_R8_SRGB: *dst = "LUNA_FORMAT_R8_SRGB"; return;
-        case LUNA_FORMAT_RG8_SRGB: *dst = "LUNA_FORMAT_RG8_SRGB"; return;
-        case LUNA_FORMAT_RGB8_SRGB: *dst = "LUNA_FORMAT_RGB8_SRGB"; return;
-        case LUNA_FORMAT_RGBA8_SRGB: *dst = "LUNA_FORMAT_RGBA8_SRGB"; return;
-        case LUNA_FORMAT_BGR8_SRGB: *dst = "LUNA_FORMAT_BGR8_SRGB"; return;
-        case LUNA_FORMAT_BGRA8_SRGB: *dst = "LUNA_FORMAT_BGRA8_SRGB"; return;
-        case LUNA_FORMAT_D16: *dst = "LUNA_FORMAT_D16"; return;
-        case LUNA_FORMAT_D24: *dst = "LUNA_FORMAT_D24"; return;
-        case LUNA_FORMAT_D32: *dst = "LUNA_FORMAT_D32"; return;
-        case LUNA_FORMAT_D24_S8: *dst = "LUNA_FORMAT_D24_S8"; return;
-        case LUNA_FORMAT_D32_S8: *dst = "LUNA_FORMAT_D32_S8"; return;
-        case LUNA_FORMAT_BC1: *dst = "LUNA_FORMAT_BC1"; return;
-        case LUNA_FORMAT_BC3: *dst = "LUNA_FORMAT_BC3"; return;
-        case LUNA_FORMAT_BC7: *dst = "LUNA_FORMAT_BC7"; return;
-    }
-}
-
-bool luna_FormatHasColorChannel(lunaFormat fmt)
-{
-    switch (fmt) {
-        case LUNA_FORMAT_D16:
-        case LUNA_FORMAT_D24:
-        case LUNA_FORMAT_D24_S8:
-        case LUNA_FORMAT_D32:
-        case LUNA_FORMAT_D32_S8:
-        case LUNA_FORMAT_BC1:
-        case LUNA_FORMAT_BC3:
-        case LUNA_FORMAT_BC7:
-        case LUNA_FORMAT_UNDEFINED:
-            return 0;
-        default:
-            return 1;
-    }
-}
-
-// Returns false even for stencil/depth and undefined format
-bool luna_FormatHasAlphaChannel(lunaFormat fmt) {
-    switch(fmt) {
-            case LUNA_FORMAT_RGBA8:
-            case LUNA_FORMAT_BGRA8:
-            case LUNA_FORMAT_RGBA16:
-            case LUNA_FORMAT_RGBA32:
-            case LUNA_FORMAT_RGBA8_SINT:
-            case LUNA_FORMAT_RGBA8_UINT:
-            case LUNA_FORMAT_RGBA8_SRGB:
-            case LUNA_FORMAT_BGRA8_SRGB:
-                return 1;
-            default:
-                return 0;
-    }
-}
-
-bool luna_FormatHasDepthChannel(lunaFormat fmt)
-{
-    switch (fmt) {
-        case LUNA_FORMAT_D16:
-        case LUNA_FORMAT_D24:
-        case LUNA_FORMAT_D24_S8:
-        case LUNA_FORMAT_D32:
-        case LUNA_FORMAT_D32_S8:
-            return 1;
-
-        default:
-            return 0;
-    }
-}
-
-bool luna_FormatHasStencilChannel(lunaFormat fmt)
-{
-    switch (fmt) {
-        case LUNA_FORMAT_D24_S8:
-        case LUNA_FORMAT_D32_S8:
-            return 1;
-
-        default:
-            return 0;
-    }
-}
-
-int luna_FormatGetBytesPerChannel(lunaFormat fmt)
-{
-    switch (fmt) {
-        case LUNA_FORMAT_R8:
-        case LUNA_FORMAT_RG8:
-        case LUNA_FORMAT_RGB8:
-        case LUNA_FORMAT_RGBA8:
-        case LUNA_FORMAT_BGR8:
-        case LUNA_FORMAT_BGRA8:
-        case LUNA_FORMAT_R8_SINT:
-        case LUNA_FORMAT_RG8_SINT:
-        case LUNA_FORMAT_RGB8_SINT:
-        case LUNA_FORMAT_RGBA8_SINT:
-        case LUNA_FORMAT_R8_UINT:
-        case LUNA_FORMAT_RG8_UINT:
-        case LUNA_FORMAT_RGB8_UINT:
-        case LUNA_FORMAT_RGBA8_UINT:
-        case LUNA_FORMAT_R8_SRGB:
-        case LUNA_FORMAT_RG8_SRGB:
-        case LUNA_FORMAT_RGB8_SRGB:
-        case LUNA_FORMAT_RGBA8_SRGB:
-        case LUNA_FORMAT_BGR8_SRGB:
-        case LUNA_FORMAT_BGRA8_SRGB:
-            return 1;
-
-        case LUNA_FORMAT_RGB16:
-        case LUNA_FORMAT_RGBA16:
-        case LUNA_FORMAT_D16:
-            return 2;
-
-        case LUNA_FORMAT_D24:
-        case LUNA_FORMAT_D24_S8:
-            return 3;
-
-        case LUNA_FORMAT_RG32:
-        case LUNA_FORMAT_RGB32:
-        case LUNA_FORMAT_RGBA32:
-        case LUNA_FORMAT_D32:
-        case LUNA_FORMAT_D32_S8:
-            return 4;
-
-        default:
-        case LUNA_FORMAT_BC1:
-        case LUNA_FORMAT_BC3:
-        case LUNA_FORMAT_BC7:
-        case LUNA_FORMAT_UNDEFINED:
-            return -1;
-    }
-}
-
-int luna_FormatGetBytesPerPixel(lunaFormat fmt)
-{
-    return luna_FormatGetBytesPerChannel(fmt) * luna_FormatGetNumChannels(fmt);
-}
-
-int luna_FormatGetNumChannels(lunaFormat fmt)
-{
-    switch (fmt) {
-        case LUNA_FORMAT_R8:
-        case LUNA_FORMAT_R8_SINT:
-        case LUNA_FORMAT_R8_UINT:
-        case LUNA_FORMAT_R8_SRGB:
-        case LUNA_FORMAT_D16:
-        case LUNA_FORMAT_D24:
-        case LUNA_FORMAT_D32:
-            return 1;
-
-        case LUNA_FORMAT_RG8:
-        case LUNA_FORMAT_RG32:
-        case LUNA_FORMAT_RG8_SINT:
-        case LUNA_FORMAT_RG8_UINT:
-        case LUNA_FORMAT_RG8_SRGB:
-        case LUNA_FORMAT_D24_S8:
-        case LUNA_FORMAT_D32_S8:
-            return 2;
- 
-        case LUNA_FORMAT_RGB8:
-        case LUNA_FORMAT_BGR8:
-        case LUNA_FORMAT_RGB16:
-        case LUNA_FORMAT_RGB32:
-        case LUNA_FORMAT_RGB8_SINT:
-        case LUNA_FORMAT_RGB8_UINT:
-        case LUNA_FORMAT_RGB8_SRGB:
-        case LUNA_FORMAT_BGR8_SRGB:
-            return 3;
-
-        case LUNA_FORMAT_RGBA8:
-        case LUNA_FORMAT_BGRA8:
-        case LUNA_FORMAT_RGBA16:
-        case LUNA_FORMAT_RGBA32:
-        case LUNA_FORMAT_RGBA8_SINT:
-        case LUNA_FORMAT_RGBA8_UINT:
-        case LUNA_FORMAT_RGBA8_SRGB:
-        case LUNA_FORMAT_BGRA8_SRGB:
-            return 4;
-
-        case LUNA_FORMAT_BC1:
-        case LUNA_FORMAT_BC3:
-        case LUNA_FORMAT_BC7:
-            // FIXME: Implement
-            return 0;
-
-        case LUNA_FORMAT_UNDEFINED:
-        default:
-            return 0;
-    }
-}
-
 // SPRITE
 typedef struct sprite_t {
     int w,h;
@@ -4187,10 +3788,10 @@ sprite_t *sprite_load_mem(const unsigned char *data, int w, int h, lunaFormat fm
     luna_GPU_AllocateMemory(mem_req.size, LUNA_GPU_MEMORY_USAGE_CPU_VISIBLE, &spr->mem);
     luna_GPU_BindTextureToMemory(&spr->mem, 0, spr->tex);
 
-    lunaImage img = {
+    const lunaImage img = (const lunaImage){
         .w = w, .h = h,
         .fmt = fmt,
-        .data = data
+        .data = (unsigned char *)data
     };
     luna_GPU_WriteToTexture(spr->tex, &img);
 

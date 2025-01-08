@@ -21,9 +21,8 @@ layout (push_constant) uniform push_constants {
 } pc;
 
 void main() {
-    float distance = texture(bitmap, texCoords).r;
-    if (distance < 0.01) {
-        discard;
-    }
-    outColor = vec4(f_col.rgb, f_col.a * distance);
+    float dist = texture(bitmap, texCoords).r;
+    const float smoothing = 0.1;
+    float alpha = smoothstep(0.1 - smoothing, 0.1 + smoothing, dist);
+    outColor = vec4(f_col.rgb, f_col.a * alpha);
 }

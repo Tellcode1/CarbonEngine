@@ -6,9 +6,9 @@
 
 #include <stdlib.h>
 
-#include "../../include/containers/cgvector.h"
-#include "../../include/math/math.h"
-#include "../../include/stdafx.h"
+#include "../include/containers/cgvector.h"
+#include "../include/math/math.h"
+#include "../include/common/stdafx.h"
 
 #ifndef cg_cont_alloc
     #define cg_cont_alloc malloc
@@ -541,6 +541,18 @@ int cg_hashmap_keysize(const cg_hashmap_t *map)
 int cg_hashmap_valuesize(const cg_hashmap_t *map)
 {
     return map->valuesize;
+}
+
+ch_node_t *cg_hashmap_iterate(const cg_hashmap_t *map, int *__i)
+{
+    for (; (*__i) < map->entries; (*__i)++) {
+        int i = *__i;
+        if (map->nodes[i] && map->nodes[i]->is_occupied) {
+            (*__i)++;
+            return map->nodes[i];
+        }
+    }
+    return NULL;
 }
 
 ch_node_t **cg_hashmap_root_node(const cg_hashmap_t *map)

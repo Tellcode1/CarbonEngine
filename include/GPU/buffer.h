@@ -2,7 +2,7 @@
 #define __LUNA_BUFFER_H__
 
 #include "memory.h"
-#include "../lunaGFXstdafx.h"
+#include "../engine/lunaGFXstdafx.h"
 
 typedef struct luna_GPU_Memory luna_GPU_Memory;
 
@@ -18,8 +18,7 @@ typedef enum luna_GPU_BufferType {
 } luna_GPU_BufferType;
 
 typedef struct luna_GPU_Buffer {
-    VkBuffer buffers[ 8 ];
-    int nchilds;
+    VkBuffer buffer;
     // The size of the buffer
     // Even if there are multiple children, this gives only the size of ONE buffer
     int size, alignment, offset;
@@ -29,7 +28,7 @@ typedef struct luna_GPU_Buffer {
 
 // Note: 'nchilds' count of buffers of size 'size' will be created.
 // The size will NOT be divided among the children.
-extern void luna_GPU_CreateBuffer(int size, int alignment, int nchilds, VkBufferUsageFlags usage, luna_GPU_Buffer *dst);
+extern void luna_GPU_CreateBuffer(int size, int alignment, VkBufferUsageFlags usage, luna_GPU_Buffer *dst);
 extern void luna_GPU_DestroyBuffer(luna_GPU_Buffer *buffer);
 
 extern void luna_GPU_WriteToBuffer(luna_GPU_Buffer *buffer, int size, void *data, int offset);
