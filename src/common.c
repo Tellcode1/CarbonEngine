@@ -1,6 +1,6 @@
 #include "../include/common/stdafx.h"
 #include "../include/common/printf.h"
-#include "../include/math/math.h"
+#include "../include/common/mem.h"
 
 #include "../include/common/lunaImage.h"
 
@@ -20,7 +20,7 @@ void __CG_LOG(va_list args, const char *fn, const char *succeeder, const char *p
 
   luna_fprintf(out, "[%d:%d:%d] ", time->tm_hour % 12, time->tm_min, time->tm_sec);
 
-  luna_fprintf(out, "[%s()] ", fn);
+  luna_fprintf(out, "[%s] ", fn);
 
   luna_vfprintf(out, preceder, args);
   luna_vfprintf(out, str, args);
@@ -504,7 +504,7 @@ const char* get_file_extension(const char *path) {
   return dot + 1;
 }
 
-int lunaImage_Compress(const unsigned char *input, size_t input_size, unsigned char *output, size_t *output_size)
+int luna_compress_data(const void *input, size_t input_size, void *output, size_t *output_size)
 {
   z_stream stream;
   memset(&stream, 0, sizeof(stream));
@@ -530,7 +530,7 @@ int lunaImage_Compress(const unsigned char *input, size_t input_size, unsigned c
   return 0;
 }
 
-int lunaImage_Decompress(const unsigned char *compressed_data, size_t compressed_size, unsigned char *o_buf, size_t o_buf_sz)
+int luna_decompress_data(const void *compressed_data, size_t compressed_size, void *o_buf, size_t o_buf_sz)
 {
   z_stream strm = {0};
   strm.next_in = (unsigned char *)compressed_data;
@@ -647,10 +647,10 @@ lunaImage lunaImage_LoadPNG(const char *path)
   }
 
   int rowbytes = png_get_rowbytes(png, info);
-  texture.data = (unsigned char*)malloc(rowbytes * texture.h * channels);
+  texture.data = (unsigned char*)luna_malloc(rowbytes * texture.h * channels);
   cassert(texture.data != NULL);
 
-  u8 **row_pointers = malloc(sizeof(u8 *) * texture.h);
+  u8 **row_pointers = luna_malloc(sizeof(u8 *) * texture.h);
   for (int y = 0; y < texture.h; y++) {
     row_pointers[y] = texture.data + y * texture.w * luna_FormatGetBytesPerPixel(texture.fmt);
   }
@@ -704,7 +704,7 @@ lunaImage lunaImage_LoadJPEG(const char *path)
       break;
     }
 
-    img.data = (unsigned char*)malloc(img.w * img.h * luna_FormatGetBytesPerPixel(img.fmt));
+    img.data = (unsigned char*)luna_malloc(img.w * img.h * luna_FormatGetBytesPerPixel(img.fmt));
 
     unsigned char *bufarr[1];
     for (int i = 0; i < (int)cinfo.output_height; i++) {
@@ -756,7 +756,7 @@ void lunaImage_WritePNG(const lunaImage *tex, const char *path)
 
   png_write_info(png, info);
 
-  png_bytep *row_pointers = malloc(sizeof(png_byte *) * tex->h);
+  png_bytep *row_pointers = luna_malloc(sizeof(png_byte *) * tex->h);
   for (int y = 0; y < tex->h; y++) {
       row_pointers[y] = tex->data + y * tex->w * bytesperpixel;
   }
@@ -977,4 +977,88 @@ int luna_FormatGetNumChannels(lunaFormat fmt)
         default:
             return 0;
     }
+}
+
+
+void *luna_memcpy(void *dst, size_t dstsz, const void *src, size_t sz) {
+  cassert(dst != NULL);
+  cassert(src != NULL);
+  cassert(dstsz != 0);
+  cassert(sz != 0);
+
+  // I saw this optimization trick a long time ago in some big codebase
+  // and it has sticken to me
+  // do you know how much I just get an ITCH to write memcpy myself?
+  if (((uintptr_t)src & 0x3) == 0 && ((uintptr_t)dst & 0x3) == 0) {
+    const int *read = (const int *)src;
+    int *write = (int *)dst;
+
+    const size_t int_count = sz / sizeof(int);
+    for (size_t i = 0; i < int_count; i++) {
+      write[i] = read[i];
+    }
+
+    const uchar *byte_read = (uchar *)(read + int_count);
+    uchar *byte_write = (uchar *)(write + int_count);
+
+    sz %= sizeof(int);
+    for (size_t i = 0; i < sz; i++) {
+      byte_write[i] = byte_read[i];
+    }
+  } else {
+    const uchar *read = (const uchar *)src;
+    uchar *write = (uchar *)dst;
+    for (size_t i = 0; i < sz; i++) {
+      write[i] = read[i];
+    }
+  }
+
+  return dst;
+}
+
+void *luna_memset(void *dst, ubyte to, size_t sz)
+{
+  cassert(dst != NULL);
+  cassert(sz != 0);
+
+  if (((uintptr_t)dst & 0x3) == 0) {
+    int *write = (int *)dst;
+
+    int i_to = (to << 24) | (to << 16) | (to << 8) | to;
+
+    const size_t int_count = sz / sizeof(int);
+    for (size_t i = 0; i < int_count; i++) {
+      write[i] = i_to;
+    }
+
+    uchar *byte_write = (uchar *)(write + int_count);
+
+    sz %= sizeof(int);
+    for (size_t i = 0; i < sz; i++) {
+      byte_write[i] = i_to;
+    }
+  } else {
+    uchar *write = (uchar *)dst;
+    for (size_t i = 0; i < sz; i++) {
+      write[i] = to;
+    }
+  }
+
+  return dst;
+}
+
+void *luna_memmove(void *dst, size_t dstsz, const void *src, size_t sz)
+{
+  void *ret = luna_memcpy(dst, dstsz, src, sz);
+  if (!ret) {
+    return NULL;
+  }
+  return luna_memset(dst, 0, sz);
+}
+
+void *luna_malloc(size_t sz)
+{
+  void *ptr = malloc(sz);
+  cassert(ptr != NULL);
+  return ptr;
 }

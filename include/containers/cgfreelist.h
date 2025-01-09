@@ -22,7 +22,7 @@ typedef struct cg_freelist_t {
 } cg_freelist_t;
 
 cg_node_t *cg_freelist_mknode(const cg_freelist_t *list, int size, cg_node_t *next, cg_node_t *prev) {
-    cg_node_t *node = malloc(sizeof(cg_node_t));
+    cg_node_t *node = luna_malloc(sizeof(cg_node_t));
     node->next = next;
     node->prev = prev;
     node->alloc = list->alloc_fn(size);
@@ -49,7 +49,7 @@ void *cg_freelist_alloc(cg_freelist_t *list, int size) {
         if (node == list->root && list->root->in_use && !list->root->next) {
             if (list->root->size < size) {
                 free(list->root->alloc);
-                list->root->alloc = malloc(size);
+                list->root->alloc = luna_malloc(size);
                 list->root->size = size;
             }
             list->root->in_use = 1;

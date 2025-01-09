@@ -21,7 +21,7 @@ typedef struct fontc_header {
   int magic;
   float line_height,space_width;
   int bmpwidth, bmpheight;
-  int img_compressed_sz;
+  int img_compressed_sz, glyphs_compressed_sz;
   int numglyphs;
 } fontc_header;
 

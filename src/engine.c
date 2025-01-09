@@ -1,13 +1,11 @@
 #include "../include/engine/cengine.h"
 #include "../include/engine/lunaInput.h"
-#include "../include/common/lunaImage.h"
 #include "../include/engine/lunaScene.h"
 #include "../include/engine/lunaCollider.h"
 #include "../include/engine/lunaUI.h"
 #include "../include/containers/cgvector.h"
 #include "../include/containers/cghashmap.h"
 #include "../include/containers/cgbitset.h"
-#include "../include/printf.h"
 
 #include "../external/box2d/include/box2d/box2d.h"
 
@@ -121,7 +119,7 @@ lunaObject *lunaObject_Create(lunaScene *scene, const char *name, bool is_static
     obj->transform.rotation = (vec4){ 0.0f, 0.0f, 0.0f, 1.0f };
 
     obj->spr_renderer = (luna_SpriteRenderer){};
-    obj->spr_renderer.spr = sprite_empty;
+    obj->spr_renderer.spr = lunaSprite_Empty;
     obj->spr_renderer.tex_coord_multiplier = (vec2){ 1.0f, 1.0f };
     obj->spr_renderer.color = (vec4){ 1.0f, 1.0f, 1.0f, 1.0f };
 
@@ -167,6 +165,9 @@ vec2 lunaObject_GetPosition(const lunaObject *obj)
 void lunaObject_SetPosition(lunaObject *obj, vec2 to)
 {
     obj->transform.position = to;
+    if (obj->col) {
+        lunaCollider_SetPosition(obj->col, to);
+    }
 }
 
 vec2 lunaObject_GetSize(const lunaObject *obj)
@@ -177,6 +178,9 @@ vec2 lunaObject_GetSize(const lunaObject *obj)
 void lunaObject_SetSize(lunaObject *obj, vec2 to)
 {
     obj->transform.size = to;
+    if (obj->col) {
+        lunaCollider_SetSize(obj->col, to);
+    }
 }
 
 lunaTransform *lunaObject_GetTransform(lunaObject *obj)
@@ -324,7 +328,7 @@ lunaScene *lunaScene_Init()
     lunaScene *scn = calloc(1, sizeof(lunaScene));
     
     b2WorldDef world_def = b2DefaultWorldDef();
-    world_def.gravity = (b2Vec2){0};
+    world_def.gravity = (b2Vec2){0.0f,-9.8f};
     scn->world = b2CreateWorld(&world_def);
     scn->objects = cg_vector_init(sizeof(lunaObject), 4);
     return scn;
@@ -332,7 +336,7 @@ lunaScene *lunaScene_Init()
 
 void lunaScene_Update()
 {
-    const float timeStep = 1.0f / 60.0f;
+    const double timeStep = 1.0 / 60.0;
     const int substeps = 4;
 
     b2World_Step(scene_main->world, timeStep, substeps);
@@ -340,17 +344,14 @@ void lunaScene_Update()
     lunaObject *objects = scene_main->objects.m_data;
 
     for (int i = 0; i < scene_main->objects.m_size; i++) {
-        lunaTransform *transform = &objects[i].transform;
         lunaCollider *col = objects[i].col;
         if (!col->enabled) {
             continue;
         }
 
-        b2BodyId body = col->body;
-        b2Vec2 pos = b2Body_GetPosition(body);
-        
-        col->position = (vec2){ pos.x, pos.y };
-        transform->position = (vec2){ pos.x, pos.y };
+        b2Vec2 pos = b2Body_GetPosition(col->body);
+
+        lunaObject_SetPosition(&objects[i], B2VEC2_TO_VEC2(pos));
     }
 
     const float dt = cg_get_delta_time();
@@ -442,7 +443,7 @@ void luna_UI_Shutdown() {
     cg_vector_destroy(&luna_ui_ctx.sliders);
 }
 
-luna_UI_Button *luna_UI_CreateButton(sprite_t *spr) {
+luna_UI_Button *luna_UI_CreateButton(lunaSprite_t *spr) {
     luna_UI_Button bton = (luna_UI_Button){};
     bton.position = (vec2){};
     bton.size = (vec2){1.0f,1.0f};
@@ -461,8 +462,8 @@ luna_UI_Slider *luna_UI_CreateSlider() {
     slider.value = 0.0f;
     slider.bg_color = (vec4){1.0f,1.0f,1.0f,1.0f};
     slider.slider_color = (vec4){1.0f,0.0f,0.0f,1.0f};
-    slider.bg_sprite = sprite_empty;
-    slider.slider_sprite = sprite_empty;
+    slider.bg_sprite = lunaSprite_Empty;
+    slider.slider_sprite = lunaSprite_Empty;
     slider.interactable = 0;
     cg_vector_push_back(&luna_ui_ctx.sliders, &slider);
     return (luna_UI_Slider *)cg_vector_get(&luna_ui_ctx.sliders, cg_vector_size(&luna_ui_ctx.sliders) - 1);
@@ -470,13 +471,13 @@ luna_UI_Slider *luna_UI_CreateSlider() {
 
 void luna_UI_DestroyButton(luna_UI_Button *obj)
 {
-    sprite_release(obj->spr);
+    lunaSprite_Release(obj->spr);
 }
 
 void luna_UI_DestroySlider(luna_UI_Slider *obj)
 {
-    sprite_release(obj->slider_sprite);
-    sprite_release(obj->bg_sprite);
+    lunaSprite_Release(obj->slider_sprite);
+    lunaSprite_Release(obj->bg_sprite);
 }
 
 void luna_UI_Render(lunaRenderer_t *rd)

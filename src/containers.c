@@ -9,9 +9,10 @@
 #include "../include/containers/cgvector.h"
 #include "../include/math/math.h"
 #include "../include/common/stdafx.h"
+#include "../include/common/mem.h"
 
 #ifndef cg_cont_alloc
-    #define cg_cont_alloc malloc
+    #define cg_cont_alloc luna_malloc
 #endif
 
 #ifndef cg_cont_calloc
@@ -333,8 +334,13 @@ void cg_string_prepend(cg_string_t *str, const char *prefix) {
         cg_string_resize(str, str->length + prefix_length + 1);
     }
 
-    memmove(str->data + prefix_length, str->data, str->length + 1);
-    memcpy(str->data, prefix, prefix_length);
+    luna_memmove(
+        str->data + prefix_length,
+        str->length + 1,
+        str->data,
+        str->length + 1
+    );
+    luna_memcpy(str->data, prefix_length, prefix, prefix_length);
     str->length += prefix_length;
 }
 
@@ -367,7 +373,12 @@ void cg_string_remove(cg_string_t *str, int index, int length) {
         length = str->length - index;
     }
 
-    memmove(str->data + index, str->data + index + length, str->length - index - length + 1);
+    luna_memmove(
+        str->data + index,
+        str->length - index - length + 1,
+        str->data + index + length,
+        str->length - index - length + 1
+    );
     str->length -= length;
 }
 
@@ -439,7 +450,7 @@ cg_hashmap_t *cg_hashmap_init(int init_size, int keysize, int valuesize, cg_hash
 {
     cassert(keysize > 0 && valuesize > 0);
 
-    cg_hashmap_t *map = malloc(sizeof(struct cg_hashmap_t));
+    cg_hashmap_t *map = luna_malloc(sizeof(struct cg_hashmap_t));
     cassert(map != NULL);
     (*map) = (cg_hashmap_t){};
 
@@ -599,7 +610,7 @@ void cg_hashmap_insert(cg_hashmap_t *map, const void *key, const void *value)
 
     if (!map->nodes[i]) {
         // Batch allocation for the entire node at once.
-        void *alloc = malloc(sizeof(ch_node_t) + map->keysize + map->valuesize);
+        void *alloc = luna_malloc(sizeof(ch_node_t) + map->keysize + map->valuesize);
         map->nodes[i] = alloc;
         map->nodes[i]->key = alloc + sizeof(ch_node_t);
         map->nodes[i]->value = alloc + sizeof(ch_node_t) + map->keysize;
@@ -632,7 +643,7 @@ void cg_hashmap_insert_or_replace(cg_hashmap_t *map, const void *key, void *valu
 
     if (!map->nodes[i]) {
         // Batch allocation for the entire node at once.
-        void *alloc = malloc(sizeof(ch_node_t) + map->keysize + map->valuesize);
+        void *alloc = luna_malloc(sizeof(ch_node_t) + map->keysize + map->valuesize);
         map->nodes[i] = alloc;
         map->nodes[i]->key = alloc + sizeof(ch_node_t);
         map->nodes[i]->value = alloc + sizeof(ch_node_t) + map->keysize;
@@ -660,8 +671,8 @@ void cg_hashmap_serialize(cg_hashmap_t *map, FILE *f) {
 }
 
 void cg_hashmap_read(cg_hashmap_t *map, FILE *f) {
-    void *key = malloc(map->keysize);
-    void *value = malloc(map->valuesize);
+    void *key = luna_malloc(map->keysize);
+    void *value = luna_malloc(map->valuesize);
 
     while (fread(value, map->valuesize, 1, f) == 1 && fread(key, map->keysize, 1, f) == 1) {
         cg_hashmap_insert(map, key, value);
@@ -716,7 +727,7 @@ bool catlas_add_image(catlas_t *__restrict__ atlas, int w, int h, const unsigned
 
     if (realloc_needed) {
         atlas->data = realloc(atlas->data, atlas->width * atlas->height);
-        memset(atlas->data + prev_w * prev_h, 0, (atlas->width - prev_w) * (atlas->height - prev_h));
+        luna_memset(atlas->data + prev_w * prev_h, 0, (atlas->width - prev_w) * (atlas->height - prev_h));
     }
 
     for (int y = 0; y < h; y++) {
@@ -781,7 +792,7 @@ void cg_bitset_copy_from(cg_bitset_t *dst, const cg_bitset_t *src)
 {
     if (src->size != dst->size && dst->data) {
         free(dst->data);
-        dst->data = malloc(src->size);
+        dst->data = luna_malloc(src->size);
         dst->size = src->size;
     }
     memcpy(dst->data, src->data, src->size);

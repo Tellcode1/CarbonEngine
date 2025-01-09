@@ -1,14 +1,10 @@
 #include "../include/GPU/lunaVK.h"
 #include "../include/GPU/pipeline.h"
-#include "../include/engine/lunaGFXDef.h"
-#include "../include/engine/lunaObjectDef.h"
 #include "../include/common/lunaImage.h"
 
 #include "../include/engine/lunaCamera.h"
-#include "../include/engine/lunaInput.h"
 #include "../include/engine/ctext.h"
 #include "../include/engine/cengine.h"
-#include "../include/engine/lunaObject.h"
 #include "../include/engine/lunaSpriteRenderer.h"
 
 #include "../include/common/cshadermanager.h"
@@ -18,6 +14,7 @@
 
 #include "../include/containers/cgvector.h"
 #include "../include/common/printf.h"
+#include "../include/common/mem.h"
 
 #include <stdlib.h>
 #include <SDL2/SDL_vulkan.h>
@@ -67,6 +64,105 @@ u32 luna_GPU_vk_flag_register = 0;
 
     luna_DescriptorPool g_pool;
     lunaCamera camera;
+
+typedef struct cg_ctext_module {
+    cg_vector_t fonts;
+    cg_vector_t labels;
+    luna_DescriptorSet *desc_set;
+    unsigned flags;
+} cg_ctext_module;
+
+typedef struct luna_QuadDrawCall_t {
+    lunaSprite_t *spr;
+    vec3 siz, pos;
+    vec2 tex_multiplier;
+    vec4 col;
+} luna_QuadDrawCall_t;
+
+typedef struct luna_LineDrawCall_t {
+    vec2 begin, end;
+    vec4 col;
+} luna_LineDrawCall_t;
+
+typedef enum luna_DrawCallType {
+    LUNA_DRAWCALL_QUAD = 0,
+    LUNA_DRAWCALL_LINE = 1,
+} luna_DrawCallType;
+
+typedef struct luna_DrawCall_t {
+    luna_DrawCallType type;
+    int layer;
+    union luna_DrawCallData {
+        luna_LineDrawCall_t line;
+        luna_QuadDrawCall_t quad;
+    } drawcall;
+} luna_DrawCall_t;
+
+typedef struct lunaRenderer_t
+{
+    unsigned flags;
+    lunaBufferMode buffer_mode;
+
+    VkRenderPass render_pass;
+    lunaExtent2D render_extent;
+
+    VkSwapchainKHR swapchain;
+    VkCommandPool commandPool;
+
+    u32 attachment_count;
+    u32 renderer_frame;
+    u32 imageIndex;
+
+    int shadow_image_size; // the size of ONE depth texture. Multiply by SwapchainImageCount to get total size
+    luna_GPU_Memory depth_image_memory;
+
+    luna_GPU_Texture *color_image;
+    luna_GPU_Memory color_image_memory;
+
+    VkFormat depth_buffer_format;
+
+    cg_vector_t renderData;
+    cg_vector_t drawBuffers;
+
+    cg_vector_t drawcalls;
+
+    cg_ctext_module *ctext;
+
+    // These are used to render all the sprites in the game (quad based sprites that is)
+    luna_GPU_Buffer quad_vb;
+    luna_GPU_Memory quad_memory;
+
+    void *mapped;
+} lunaRenderer_t;
+
+extern cg_vector_t g_Samplers;
+
+typedef struct luna_GPU_Sampler {
+    VkFilter filter;
+    VkSamplerMipmapMode mipmap_mode;
+    VkSamplerAddressMode address_mode;
+    float max_anisotropy;
+    float mip_lod_bias, min_lod, max_lod;
+    VkSampler vksampler;
+} luna_GPU_Sampler;
+
+typedef struct luna_GPU_Texture {
+    luna_GPU_Memory *memory;
+    int size,offset;
+
+    VkImageLayout layout;
+    VkImageAspectFlags aspect;
+    VkImageType type;
+    VkImageUsageFlags usage;
+
+    VkImage image;
+    VkImageView view;
+    VkExtent3D extent;
+    int miplevels, arraylayers;
+    lunaFormat format;
+    lunaSampleCount samples;
+} luna_GPU_Texture;
+
 // lunaGFX.h
 
 // lunaGFX vv
@@ -191,7 +287,7 @@ void lunaRenderer_DrawTexturedQuad(lunaRenderer_t *rd, luna_SpriteRenderer *spri
     cg_vector_push_back(&rd->drawcalls, &drawcall);
 }
 
-void lunaRenderer_DrawQuad(lunaRenderer_t *rd, sprite_t *spr, vec2 tex_coord_multiplier, vec3 position, vec3 size, vec4 color, int layer)
+void lunaRenderer_DrawQuad(lunaRenderer_t *rd, lunaSprite_t *spr, vec2 tex_coord_multiplier, vec3 position, vec3 size, vec4 color, int layer)
 {
     // create a temporary sprite renderer and render an untextured quad with it
     luna_SpriteRenderer sprite_renderer = luna_SpriteRendererInit();
@@ -278,7 +374,7 @@ void __lunaRenderer_FlushRenders(lunaRenderer_t *rd) {
                 &pc
             );
 
-            VkDescriptorSet sprite_set = sprite_get_descriptor(drawcall->drawcall.quad.spr);
+            VkDescriptorSet sprite_set = lunaSprite_GetDescriptorSet(drawcall->drawcall.quad.spr);
             const VkDescriptorSet sets[] = { camera_set, sprite_set };
 
             vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_Pipelines.Unlit.pipeline_layout, 0, 2, sets, 1, &camera_ub_offset);
@@ -321,7 +417,7 @@ void __lunaRenderer_FlushRenders(lunaRenderer_t *rd) {
 
 void lunaRenderer_PrepareQuadRenderer(lunaRenderer_t *rd)
 {
-    memcpy(quad_vertices, (const quad_vertex[4]){
+    luna_memcpy(quad_vertices, sizeof(quad_vertices), (const quad_vertex[4]){
         (const quad_vertex){ .position = (vec3){+0.5f, +0.5f, 0.0f}, .tex_coords = (vec2){ 1.0f, 0.0f } },
         (const quad_vertex){ .position = (vec3){-0.5f, +0.5f, 0.0f}, .tex_coords = (vec2){ 0.0f, 0.0f } },
         (const quad_vertex){ .position = (vec3){-0.5f, -0.5f, 0.0f}, .tex_coords = (vec2){ 0.0f, 1.0f } },
@@ -341,9 +437,9 @@ void lunaRenderer_PrepareQuadRenderer(lunaRenderer_t *rd)
     );
     luna_GPU_BindBufferToMemory(&rd->quad_memory, 0, &rd->quad_vb);
 
-    void *data = malloc(sizeof(quad_vertices) + sizeof(quad_indices));
-    memcpy(data, quad_vertices, sizeof(quad_vertices));
-    memcpy((char *)data + sizeof(quad_vertices), quad_indices, sizeof(quad_indices));
+    void *data = luna_malloc(sizeof(quad_vertices) + sizeof(quad_indices));
+    luna_memcpy(data, SIZE_MAX, quad_vertices, sizeof(quad_vertices));
+    luna_memcpy((char *)data + sizeof(quad_vertices), SIZE_MAX, quad_indices, sizeof(quad_indices));
     luna_GPU_WriteToBuffer(&rd->quad_vb, sizeof(quad_vertices) + sizeof(quad_indices), data, 0);
 
     free(data);
@@ -370,7 +466,7 @@ void lunaRenderer_Destroy(lunaRenderer_t *rd)
         vkDestroySampler(device, samp->vksampler, NULL);
     }
 
-    sprite_destroy(sprite_empty);
+    lunaSprite_Destroy(lunaSprite_Empty);
 
     lunaCamera_Destroy(&camera);
 
@@ -413,7 +509,7 @@ void lunaRenderer_Destroy(lunaRenderer_t *rd)
 void create_optional_images(lunaRenderer_t *rd)
 {
     vkGetSwapchainImagesKHR(device, rd->swapchain, &SwapChainImageCount, NULL);
-    VkImage *swapchainImages = (VkImage *)malloc(SwapChainImageCount * sizeof(VkImage));
+    VkImage *swapchainImages = (VkImage *)luna_malloc(SwapChainImageCount * sizeof(VkImage));
 	vkGetSwapchainImagesKHR(device, rd->swapchain, &SwapChainImageCount, swapchainImages);
 
     cg_vector_resize(&rd->renderData, SwapChainImageCount);
@@ -709,7 +805,7 @@ lunaRenderer_t *lunaRenderer_Init(const lunaRenderer_Config *conf)
 
     luna_DescriptorPool_Init(&g_pool);
 
-    sprite_empty = sprite_load_disk("../Assets/empty.png");
+    lunaSprite_Empty = lunaSprite_LoadFromDisk("../Assets/empty.png");
 
     camera = lunaCamera_Init();
 
@@ -1468,7 +1564,7 @@ void ctext_load_font(lunaRenderer_t *rd, const char *font_path, int scale, cfont
         cg_vector_push_back(&rd->ctext->fonts, &stack);
     }
     *dst = &((cfont_t *)(rd->ctext->fonts.m_data))[ rd->ctext->fonts.m_size - 1 ];
-    memset(*dst, 0, sizeof(cfont_t));
+    luna_memset(*dst, 0, sizeof(cfont_t));
 
     cfont_t *dstref = *dst;
 
@@ -1564,8 +1660,10 @@ void ctext_destroy_font(cfont_t *fnt)
     luna_GPU_DestroyTexture(fnt->texture);
     luna_GPU_FreeMemory(&fnt->texture_mem);
 
-    luna_GPU_DestroyBuffer(&fnt->buffer);
-    luna_GPU_FreeMemory(&fnt->buffer_mem);
+    if (fnt->buffer.buffer != NULL) {
+        luna_GPU_DestroyBuffer(&fnt->buffer);
+        luna_GPU_FreeMemory(&fnt->buffer_mem);
+    }
     cg_vector_destroy(&fnt->drawcalls);
     cg_hashmap_destroy(fnt->glyph_map);
 }
@@ -1870,7 +1968,7 @@ void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo, const char 
     va_start(arg, fmt);
 
     num = luna_vsnprintf(NULL, SIZE_MAX, fmt, arg);
-    buffer = malloc(num + 1);
+    buffer = luna_malloc(num + 1);
     va_start(arg, fmt);
 
     luna_vsnprintf(buffer, num + 1, fmt, arg);
@@ -1889,7 +1987,7 @@ void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo, const char 
     const size_t index_count = effective_length * 6;
     const size_t allocation_size = (vertex_count * sizeof(cglyph_vertex_t)) + (index_count * sizeof(u32));
 
-    void *allocation = malloc(allocation_size);
+    void *allocation = luna_malloc(allocation_size);
 
     ctext_text_drawcall_t drawcall = {};
     drawcall.vertices = (cglyph_vertex_t *)allocation;
@@ -1964,13 +2062,15 @@ void __ctext_flush_font(lunaRenderer_t *rd, cfont_t *fnt)
     u32 index_copy_iterator = 0;
     for (int i = 0; i < cg_vector_size(&fnt->drawcalls); i++) {
         const ctext_text_drawcall_t *drawcall = (ctext_text_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
-        memcpy(
+        luna_memcpy(
             mapped + vertex_copy_iterator,
+            drawcall->vertex_count * sizeof(cglyph_vertex_t),
             drawcall->vertices,
             drawcall->vertex_count * sizeof(cglyph_vertex_t)
         );
-        memcpy(
+        luna_memcpy(
             mapped + total_vertex_byte_size + index_copy_iterator,
+            drawcall->index_count * sizeof(u32),
             drawcall->indices,
             drawcall->index_count * sizeof(u32)
         );
@@ -2050,8 +2150,8 @@ void ctext_init(struct lunaRenderer_t *rd)
     luna_AllocateDescriptorSet(&g_pool, bindings, array_len(bindings), &ctext->desc_set);
 
     const VkDescriptorImageInfo empty_img_info = {
-        .sampler = sprite_get_sampler(sprite_empty),
-        .imageView = sprite_get_internal_view(sprite_empty),
+        .sampler = lunaSprite_GetSampler(lunaSprite_Empty),
+        .imageView = lunaSprite_GetVkImageView(lunaSprite_Empty),
         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     };
 
@@ -2091,7 +2191,7 @@ float ctext_get_scale_for_fit(const cfont_t *fnt, const cg_string_t *str, vec2 b
 void luna_DescriptorSetSubmitWrite(luna_DescriptorSet *set, const VkWriteDescriptorSet *write) {
     set->writes = realloc(set->writes, (set->nwrites+1) * sizeof(VkWriteDescriptorSet));
     cassert(set->writes != NULL);
-    memcpy(&set->writes[set->nwrites], write, sizeof(VkWriteDescriptorSet));
+    luna_memcpy(&set->writes[set->nwrites], (set->nwrites+1) * sizeof(VkWriteDescriptorSet), write, sizeof(VkWriteDescriptorSet));
     set->nwrites++;
     vkUpdateDescriptorSets(device, 1, write, 0, 0);
 }
@@ -2141,11 +2241,11 @@ void __luna_DescriptorPool_Allocate(luna_DescriptorPool *pool) {
     VkDescriptorPool new_pool;
     cassert(vkCreateDescriptorPool(device, &poolInfo, NULL, &new_pool) == VK_SUCCESS);
 
-    VkDescriptorSet *new_sets = malloc(sizeof(VkDescriptorSet) * pool->nsets);
+    VkDescriptorSet *new_sets = luna_malloc(sizeof(VkDescriptorSet) * pool->nsets);
     cassert(new_sets != NULL);
 
     if (pool->nsets > 0) {
-        VkDescriptorSetLayout *layouts = malloc(sizeof(VkDescriptorSetLayout) * pool->nsets);
+        VkDescriptorSetLayout *layouts = luna_malloc(sizeof(VkDescriptorSetLayout) * pool->nsets);
         for (int i = 0; i < pool->nsets; i++) {
             layouts[i] = pool->sets[i]->layout;
         }
@@ -2164,7 +2264,7 @@ void __luna_DescriptorPool_Allocate(luna_DescriptorPool *pool) {
     for (int i = 0; i < pool->nsets; i++) {
         ncopies += pool->sets[i]->nwrites;
     }
-    VkCopyDescriptorSet *copies = malloc(sizeof(VkCopyDescriptorSet) * ncopies);
+    VkCopyDescriptorSet *copies = luna_malloc(sizeof(VkCopyDescriptorSet) * ncopies);
 
     ncopies = 0;
     for (int i = 0; i < pool->nsets; i++) {
@@ -2212,8 +2312,8 @@ void luna_DescriptorPool_Init(luna_DescriptorPool *dst) {
         { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 0, 0 },
         { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 0, 0 },
     };
-    memcpy(dst->descriptors, pool_sizes, sizeof(pool_sizes));
-    dst->sets = malloc(sizeof(luna_DescriptorSet *));
+    luna_memcpy(dst->descriptors, sizeof(dst->descriptors), pool_sizes, sizeof(pool_sizes));
+    dst->sets = luna_malloc(sizeof(luna_DescriptorSet *));
     dst->max_child_sets = 1;
     dst->nsets = 0;
     __luna_DescriptorPool_Allocate(dst);
@@ -2249,7 +2349,7 @@ void luna_AllocateDescriptorSet(luna_DescriptorPool *pool, const VkDescriptorSet
     (*dst) = set;
 
     set->pool = pool;
-    set->writes = malloc(sizeof(VkWriteDescriptorSet));
+    set->writes = luna_malloc(sizeof(VkWriteDescriptorSet));
     cassert(set->writes != NULL);
 
     VkDescriptorSetLayoutCreateInfo layoutinfo = {};
@@ -2935,7 +3035,7 @@ void luna_VK_StageBufferTransfer(VkBuffer dst, void *data, u64 size)
 
     void* mapped;
     vkMapMemory(device, stagingBufferMemory, 0, size, 0, &mapped);
-    memcpy(mapped, data, size);
+    luna_memcpy(mapped, SIZE_MAX, data, size);
     vkUnmapMemory(device, stagingBufferMemory);
 
     const VkBufferCopy copy = {
@@ -3087,7 +3187,7 @@ void luna_VK_StageImageTransfer(VkImage dst, const void *data, int width, int he
 
     void *stagingBufferMapped;
     cassert(vkMapMemory(device, stagingBufferMemory, 0, stagingBufferRequirements.size, 0, &stagingBufferMapped) == VK_SUCCESS);
-    memcpy(stagingBufferMapped, data, image_size);
+    luna_memcpy(stagingBufferMapped, SIZE_MAX, data, image_size);
     vkUnmapMemory(device, stagingBufferMemory);
 
     const VkCommandBuffer cmd = luna_VK_BeginCommandBuffer();
@@ -3347,7 +3447,7 @@ void luna_GPU_WriteToLocalBuffer(luna_GPU_Buffer *buffer, int size, void *data, 
 
     void *mapped = NULL;
     luna_GPU_MapMemory(&staging_memory, size, 0, &mapped);
-    memcpy(mapped, data, size);
+    luna_memcpy(mapped, SIZE_MAX, data, size);
     luna_GPU_UnmapMemory(&staging_memory);
 
     VkCommandBuffer cmd = luna_VK_BeginCommandBuffer();
@@ -3367,7 +3467,7 @@ void luna_GPU_WriteToLocalBuffer(luna_GPU_Buffer *buffer, int size, void *data, 
 void luna_GPU_WriteToUniformBuffer(luna_GPU_Buffer *buffer, int size, void *data, int offset) {
     void *mapped;
     luna_GPU_MapMemory(buffer->memory, size, offset, &mapped);
-    memcpy(mapped, data, size);
+    luna_memcpy(mapped, SIZE_MAX, data, size);
     luna_GPU_UnmapMemory(buffer->memory);
 }
 
@@ -3379,7 +3479,7 @@ void luna_GPU_WriteToBuffer(luna_GPU_Buffer *buffer, int size, void *data, int o
     }
     void *mapped = NULL;
     luna_GPU_MapMemory(buffer->memory, size, offset, &mapped);
-    memcpy(mapped, data, size);
+    luna_memcpy(mapped, SIZE_MAX, data, size);
     luna_GPU_UnmapMemory(buffer->memory);
 }
 
@@ -3474,25 +3574,28 @@ void luna_GPU_BindTextureToMemory(luna_GPU_Memory *mem, int offset, luna_GPU_Tex
 }
 
 void luna_GPU_DestroyBuffer(luna_GPU_Buffer *buffer) {
-    vkDeviceWaitIdle(device);
-    if (buffer->buffer) {
-        vkDestroyBuffer(device, buffer->buffer, NULL);
-    } else {
-        LOG_INFO("Attempt to destroy a buffer %u which is NULL");
+    if (!buffer->buffer) {
+        LOG_INFO("Attempt to destroy a buffer %u which has a NULL VkBuffer", buffer);
+        return;
     }
-    memset(buffer, 0, sizeof(luna_GPU_Buffer));
+    vkDeviceWaitIdle(device);
+    vkDestroyBuffer(device, buffer->buffer, NULL);
+    luna_memset(buffer, 0, sizeof(luna_GPU_Buffer));
 }
 
 void luna_GPU_DestroyTexture(luna_GPU_Texture *tex) {
     vkDeviceWaitIdle(device);
-    if (tex->image) {
-        vkDestroyImageView(device, tex->view, NULL);
-    } else {
+    if (!tex->view) {
+        LOG_INFO("Attempt to destroy an image view which is NULL");
+        return;
+    }
+    if (!tex->image) {
         LOG_INFO("Attempt to destroy an image which is NULL");
+        return;
     }
-    if (tex->view) {
-        vkDestroyImage(device, tex->image, NULL);
-    }
+    vkDestroyImage(device, tex->image, NULL);
+    vkDestroyImageView(device, tex->view, NULL);
+    luna_memset(tex, 0, sizeof(luna_GPU_Texture));
 }
 
 int luna_GPU_GetBufferSize(const luna_GPU_Buffer *buffer) {
@@ -3749,7 +3852,7 @@ lunaFormat luna_VKFormatTolunaFormat(VkFormat format) {
 }
 
 // SPRITE
-typedef struct sprite_t {
+typedef struct lunaSprite_t {
     int w,h;
     int rcount;
     lunaFormat fmt;
@@ -3757,13 +3860,13 @@ typedef struct sprite_t {
     luna_GPU_Memory mem;
     luna_GPU_Sampler *sampler;
     luna_DescriptorSet *set;
-} sprite_t;
+} lunaSprite_t;
 
-sprite_t *sprite_empty = NULL;
+lunaSprite_t *lunaSprite_Empty = NULL;
 
-sprite_t *sprite_load_mem(const unsigned char *data, int w, int h, lunaFormat fmt)
+lunaSprite_t *lunaSprite_LoadFromMemory(const unsigned char *data, int w, int h, lunaFormat fmt)
 {
-    sprite_t *spr = calloc(1, sizeof(struct sprite_t));
+    lunaSprite_t *spr = calloc(1, sizeof(struct lunaSprite_t));
 
     spr->rcount = 1;
 
@@ -3816,7 +3919,7 @@ sprite_t *sprite_load_mem(const unsigned char *data, int w, int h, lunaFormat fm
 
     VkDescriptorImageInfo desc_img = {
         .sampler = luna_GPU_SamplerGet(spr->sampler),
-        .imageView = sprite_get_internal_view(spr),
+        .imageView = lunaSprite_GetVkImageView(spr),
         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
     };
 
@@ -3834,61 +3937,61 @@ sprite_t *sprite_load_mem(const unsigned char *data, int w, int h, lunaFormat fm
     return spr;
 }
 
-sprite_t *sprite_load_disk(const char *path)
+lunaSprite_t *lunaSprite_LoadFromDisk(const char *path)
 {
     lunaImage tex = lunaImage_Load(path);
-    sprite_t *spr = sprite_load_mem(tex.data, tex.w, tex.h, tex.fmt);
+    lunaSprite_t *spr = lunaSprite_LoadFromMemory(tex.data, tex.w, tex.h, tex.fmt);
     spr->rcount = 1;
     free(tex.data);
     return spr;
 }
 
-void sprite_destroy(sprite_t *spr)
+void lunaSprite_Destroy(lunaSprite_t *spr)
 {
     luna_GPU_DestroyTexture(spr->tex);
     luna_GPU_FreeMemory(&spr->mem);
 }
 
-void sprite_lock(sprite_t *spr)
+void lunaSprite_Lock(lunaSprite_t *spr)
 {
     spr->rcount++;
 }
 
-void sprite_release(sprite_t *spr)
+void lunaSprite_Release(lunaSprite_t *spr)
 {
     spr->rcount--;
     if (spr->rcount <= 0) {
-        sprite_destroy(spr);
+        lunaSprite_Destroy(spr);
     }
 }
 
-void sprite_get_dimensions(const sprite_t *spr, int *w, int *h)
+void lunaSprite_GetDimensions(const lunaSprite_t *spr, int *w, int *h)
 {
     if (w) { *w = spr->w; }
     if (h) { *h = spr->h; }
 }
 
-VkImage sprite_get_internal(const sprite_t *spr)
+VkImage lunaSprite_GetVkImage(const lunaSprite_t *spr)
 {
     return luna_GPU_TextureGet(spr->tex);
 }
 
-VkImageView sprite_get_internal_view(const sprite_t *spr)
+VkImageView lunaSprite_GetVkImageView(const lunaSprite_t *spr)
 {
     return luna_GPU_TextureGetView(spr->tex);
 }
 
-VkDescriptorSet sprite_get_descriptor(const sprite_t *spr)
+VkDescriptorSet lunaSprite_GetDescriptorSet(const lunaSprite_t *spr)
 {
     return spr->set->set;
 }
 
-VkSampler sprite_get_sampler(const sprite_t *spr)
+VkSampler lunaSprite_GetSampler(const lunaSprite_t *spr)
 {
     return luna_GPU_SamplerGet(spr->sampler);
 }
 
-lunaFormat sprite_get_format(const sprite_t *spr)
+lunaFormat lunaSprite_GetFormat(const lunaSprite_t *spr)
 {
     return spr->fmt;
 }

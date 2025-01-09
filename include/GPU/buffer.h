@@ -2,7 +2,6 @@
 #define __LUNA_BUFFER_H__
 
 #include "memory.h"
-#include "../engine/lunaGFXstdafx.h"
 
 typedef struct luna_GPU_Memory luna_GPU_Memory;
 

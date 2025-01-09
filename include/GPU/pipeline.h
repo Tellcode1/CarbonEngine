@@ -1,5 +1,5 @@
-#ifndef __CVK_H
-#define __CVK_H
+#ifndef __LUNA_PIPELINE_H__
+#define __LUNA_PIPELINE_H__
 
 #ifdef __cplusplus
 	extern "C" {
@@ -178,4 +178,4 @@ extern void luna_GPU_CreateSwapchain(luna_GPU_SwapchainCreateInfo const* pCreate
 	}
 #endif
 
-#endif//__CVK_H
+#endif//__LUNA_PIPELINE_H__

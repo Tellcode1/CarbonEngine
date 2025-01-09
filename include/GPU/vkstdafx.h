@@ -1,5 +1,5 @@
-#ifndef __STDAFX_H__
-#define __STDAFX_H__
+#ifndef __VK_STDAFX_H__
+#define __VK_STDAFX_H__
 
 #include "../common/stdafx.h"
 
@@ -42,4 +42,4 @@ extern VkSampleCountFlagBits MAX_SAMPLES;
 extern unsigned char SUPPORTS_MULTISAMPLING;
 extern float MAX_ANISOTROPY;
 
-#endif //__STDAFX_H__
+#endif //__VK_STDAFX_H__

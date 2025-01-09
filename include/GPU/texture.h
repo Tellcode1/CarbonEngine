@@ -2,7 +2,6 @@
 #define __LUNA_TEXTURE_H__
 
 #include "memory.h"
-#include "../engine/lunaGFXstdafx.h"
 #include "../common/lunaImage.h"
 #include "format.h"
 

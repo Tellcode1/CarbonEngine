@@ -7,6 +7,7 @@
 #include <libgen.h>
 
 #include "../include/common/printf.h"
+#include "../include/common/mem.h"
 
 #ifndef WIN32
     #include <unistd.h>
@@ -98,9 +99,14 @@ int compare_shader_t(const void *a, const void *b) {
 
 void csm_add_shader_to_map(struct csm_shader_cache_entry entry, csm_shader_t **dst) {
 
-    struct csm_shader_t *new_map = malloc((nshaders + 1) * sizeof(struct csm_shader_t));
+    struct csm_shader_t *new_map = luna_malloc((nshaders + 1) * sizeof(struct csm_shader_t));
     if (nshaders > 0) {
-        memcpy(new_map, shader_map, nshaders * sizeof(struct csm_shader_t));
+        luna_memcpy(
+            new_map,
+            nshaders * sizeof(struct csm_shader_t),
+            shader_map,
+            nshaders * sizeof(struct csm_shader_t)
+        );
     }
     if (shader_map != NULL)
         free(shader_map);
@@ -192,7 +198,7 @@ int read_shader_spirv(const char *output, unsigned **spirv, int *spirvsize)
     }
     fseek(f, 0, SEEK_SET);
 
-    unsigned *buffer = malloc(fsize);
+    unsigned *buffer = luna_malloc(fsize);
     if (!buffer) {
         goto err;
     }
@@ -233,9 +239,14 @@ void __csm_create_shader(VkDevice vkdevice, const unsigned *bytes, int nbytes, s
 }
 
 void csm_register_all_shaders(VkDevice vkdevice, struct csm_shader_entry *entries, int nentries) {
-    struct csm_shader_t *new_shader_map = malloc((nshaders + nentries) * sizeof(struct csm_shader_t));
+    struct csm_shader_t *new_shader_map = luna_malloc((nshaders + nentries) * sizeof(struct csm_shader_t));
     if (shader_map) {
-        memcpy(new_shader_map, shader_map, nshaders * sizeof(struct csm_shader_t));
+        luna_memcpy(
+            new_shader_map,
+            nshaders * sizeof(struct csm_shader_t),
+            shader_map,
+            nshaders * sizeof(struct csm_shader_t)
+        );
         free(shader_map);
     }
     shader_map = new_shader_map;
@@ -324,7 +335,7 @@ void update_cache(const csm_shader_cache_entry * restrict entries, int count) {
         return;
     }
 
-    csm_shader_disk *write = malloc(sizeof(csm_shader_disk) * count);
+    csm_shader_disk *write = luna_malloc(sizeof(csm_shader_disk) * count);
 
     for (int i = 0; i < count; i++) {
         strncpy(write[i].name, entries[i].name, 128);
@@ -342,7 +353,7 @@ void write_new_cache(const csm_shader_entry * restrict entries, int count) {
     FILE *f = fopen("shaders.cache", "wb");
     cassert(f != NULL);
 
-    csm_shader_disk *write = malloc(sizeof(csm_shader_disk) * count);
+    csm_shader_disk *write = luna_malloc(sizeof(csm_shader_disk) * count);
 
     for (int i = 0; i < count; i++) {
         strncpy(write[i].name, entries[i].name, 128);
@@ -402,7 +413,7 @@ csm_shader_entry * load_all_entries(const char *shader_list_file_path, int *coun
     }
 
     int currallocsize = 16;
-    csm_shader_entry *entries = malloc(currallocsize * sizeof(csm_shader_entry));
+    csm_shader_entry *entries = luna_malloc(currallocsize * sizeof(csm_shader_entry));
     cassert(entries != NULL);
 
     char line[ 256 ];
@@ -572,7 +583,7 @@ void csm_shutdown()
 
 #endif // CSM
 
-#if defined(FONTC)
+#if (FONTC)
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -655,11 +666,11 @@ bool fontc_atlas_add_image(fontc_atlas_t *__restrict__ atlas, int w, int h, cons
 
   if (realloc_needed) {
     atlas->data = realloc(atlas->data, atlas->width * atlas->height);
-    memset(atlas->data + prev_w * prev_h, 0, (atlas->width - prev_w) * (atlas->height - prev_h));
+    luna_memset(atlas->data + prev_w * prev_h, 0, (atlas->width - prev_w) * (atlas->height - prev_h));
   }
 
   for (int y = 0; y < h; y++) {
-    memcpy(atlas->data + (atlas->next_x + (atlas->next_y + y) * atlas->width), data + (y * w), w);
+    luna_memcpy(atlas->data + (atlas->next_x + (atlas->next_y + y) * atlas->width), SIZE_MAX, data + (y * w), w);
   }
 
   *x = atlas->next_x;
@@ -683,16 +694,27 @@ void fontc_read_font(const char *path, fontc_file *file) {
     LOG_ERROR("Invalid magic number for font file");
     return;
   }
-  file->glyphs = malloc(sizeof(fontc_glyph) * file->header.numglyphs);
-  if (!file->glyphs) {
-    LOG_ERROR("malloc\n");
-    return;
-  }
-  fread(file->glyphs, sizeof(fontc_glyph), file->header.numglyphs, f);
-  unsigned char *recv = malloc(file->header.img_compressed_sz);
+
+  file->glyphs = luna_malloc(sizeof(fontc_glyph) * file->header.numglyphs);
+  fontc_glyph *compressed_glyphs = luna_malloc(file->header.numglyphs * sizeof(fontc_glyph));
+  fread(compressed_glyphs, file->header.glyphs_compressed_sz, 1, f);
+  luna_decompress_data(
+    compressed_glyphs,
+    file->header.glyphs_compressed_sz,
+    compressed_glyphs,
+    file->header.numglyphs * sizeof(fontc_glyph)
+  );
+
+  unsigned char *recv = luna_malloc(file->header.img_compressed_sz);
   fread(recv, file->header.img_compressed_sz, 1, f);
-  file->bitmap = malloc(file->header.bmpwidth * file->header.bmpheight);
-  cassert(lunaImage_Decompress(recv, file->header.img_compressed_sz, file->bitmap, file->header.bmpwidth * file->header.bmpheight) != -1);
+  file->bitmap = luna_malloc(file->header.bmpwidth * file->header.bmpheight);
+  cassert(luna_decompress_data(
+    recv,
+    file->header.img_compressed_sz,
+    file->bitmap,
+    file->header.bmpwidth * file->header.bmpheight) != -1
+  );
+
   fclose(f);
 }
 
@@ -723,7 +745,7 @@ void fontc_bake_font(const char *font_path, const char *out) {
     header.line_height = -(float)(face->ascender - face->descender) / face->size->metrics.y_scale;
   }
 
-  fontc_glyph *glyphs = malloc(sizeof(fontc_glyph) * 256);
+  fontc_glyph *glyphs = luna_malloc(sizeof(fontc_glyph) * 256);
   if (!glyphs) {
     LOG_ERROR("Failed to allocate memory for glyphs");
     return;
@@ -795,14 +817,22 @@ void fontc_bake_font(const char *font_path, const char *out) {
   file.bitmap = atlas.data;
 
   size_t o_size = 4096 * 4096;
-  unsigned char *buf = malloc(o_size);
-  lunaImage_Compress(file.bitmap, file.header.bmpwidth * file.header.bmpheight, buf, &o_size);
+  unsigned char *buf = luna_malloc(o_size);
+  luna_compress_data(file.bitmap, file.header.bmpwidth * file.header.bmpheight, buf, &o_size);
+
+  size_t glyph_o_size;
+  fontc_glyph *compressed_glyphs = luna_malloc(file.header.numglyphs * sizeof(fontc_glyph));
+  luna_compress_data((const unsigned char *)file.glyphs, file.header.numglyphs * sizeof(fontc_glyph), (unsigned char *)compressed_glyphs, &glyph_o_size);
+
+  free(file.glyphs);
+  file.glyphs = compressed_glyphs;
 
   file.header.img_compressed_sz = o_size;
+  file.header.glyphs_compressed_sz = glyph_o_size;
 
   FILE *f = fopen(out, "wb");
   fwrite(&file.header, sizeof(fontc_header), 1, f);
-  fwrite(glyphs, sizeof(struct fontc_glyph), header.numglyphs, f);
+  fwrite(compressed_glyphs, glyph_o_size, 1, f);
   fwrite(buf, o_size, 1, f);
   fclose(f);
 }

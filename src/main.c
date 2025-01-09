@@ -1,19 +1,14 @@
-#include <stdlib.h>
 #include <math.h>
 
 #include "../include/common/stdafx.h"
 #include "../include/engine/cengine.h"
 #include "../include/engine/ctext.h"
 #include "../include/engine/lunaInput.h"
-#include "../include/common/cshadermanager.h"
-#include "../include/containers/cgstring.h"
 #include "../include/engine/lunaCamera.h"
-#include "../include/common/lunaImage.h"
 #include "../include/engine/lunaUI.h"
 #include "../include/engine/lunaScene.h"
 #include "../include/engine/lunaObject.h"
 #include "../include/common/timer.h"
-#include "../include/common/printf.h"
 #include "../include/engine/lunaInput.h"
 
 static size_t cookie_count = 0;
@@ -51,7 +46,9 @@ int main(int argc, char *argv[]) {
     lunaRenderer_t *rd = lunaRenderer_Init(&rdconf);
 
     lunaInput_Init();
-    lunaInput_BindKeyToAction(SDL_SCANCODE_SPACE, "+press");
+    lunaInput_BindKeyToAction(SDL_SCANCODE_SPACE, "+jump");
+    lunaInput_BindKeyToAction(SDL_SCANCODE_RIGHT, "+right");
+    lunaInput_BindKeyToAction(SDL_SCANCODE_LEFT, "+left");
 
     const float updateTime = 5.0f; // seconds. 1.5f = 1.5 seconds
     float totalTime = 0.0f;
@@ -65,9 +62,9 @@ int main(int argc, char *argv[]) {
     float accumulator = 0.0f;
     const float timeStep = 1.0f / 60.0f;
 
-    luna_UI_Init(rd);
+    luna_UI_Init();
 
-    luna_UI_Button *bton = luna_UI_CreateButton(sprite_load_disk("../Assets/x.png"));
+    luna_UI_Button *bton = luna_UI_CreateButton(lunaSprite_LoadFromDisk("../Assets/x.png"));
     bton->size.x = 5.0f;
     bton->size.y = 5.0f;
     bton->pressed = leave_game;
@@ -77,24 +74,18 @@ int main(int argc, char *argv[]) {
 
     lunaScene_ChangeToScene(scn);
 
-    luna_UI_Button *cookie = luna_UI_CreateButton(sprite_load_disk("../Assets/cookie.png"));
-    cookie->pressed = pressed;
-    cookie->hover = hoover;
-    cookie->size = (vec2){5.0f,5.0f};
-    cookie->position = (vec2){-6.0f, 0.0f};
-    (void)cookie;
+    lunaObject *player = lunaObject_Create(
+        scene_main, "Player",
+        0, (vec2){}, (vec2){1.0f,1.0f},
+        0
+    );
 
-    ctext_label *cookie_num = ctext_create_label(scene_main, amongus);
-    ctext_label *cookie_per_sec = ctext_create_label(scene_main, amongus);
-
-    ctext_label_set_horizontal_align(cookie_num, CTEXT_HORI_ALIGN_CENTER);
-    ctext_label_set_horizontal_align(cookie_per_sec, CTEXT_HORI_ALIGN_CENTER);
-
-    lunaObject *label_obj = ctext_label_get_object(cookie_num);
-    lunaObject_Move(label_obj, (vec2){ 0.0f, 90.0f });
-
-    label_obj = ctext_label_get_object(cookie_per_sec);
-    lunaObject_Move(label_obj, (vec2){ 0.0f, 80.0f });
+    lunaObject *ground = lunaObject_Create(
+        scene_main, "Player",
+        1, (vec2){0.0f,-2.0f}, (vec2){10.0f,1.0f},
+        0
+    );
+    (void)ground;
 
     timer cookie_timer = timer_begin(1.0f);
 
@@ -117,9 +108,18 @@ int main(int argc, char *argv[]) {
         }
         lunaInput_Update();
 
-        if (lunaInput_IsActionSignalled("+press")) {
-            luna_printf("+press\n");
+        if (lunaInput_IsActionSignalled("+left")) {
+            lunaObject_Move(player, (vec2){-25.0f * cg_get_delta_time(), 0.0f});
         }
+        if (lunaInput_IsActionSignalled("+right")) {
+            lunaObject_Move(player, (vec2){25.0f * cg_get_delta_time(),  0.0f});
+        }
+        if (lunaInput_IsActionJustSignalled("+jump")) {
+            lunaObject_Move(player, (vec2){0.0f, 5.0f});
+        }
+
+        camera.position.x = lunaObject_GetPosition(player).x;
+        camera.position.y = lunaObject_GetPosition(player).y;
 
         // Profiling code
         totalTime += dt;
@@ -133,25 +133,19 @@ int main(int argc, char *argv[]) {
 
         lunaCamera_Update(&camera, rd);
 
-        lunaScene_Update(&event);
+        lunaScene_Update();
 
         if (timer_is_done(&cookie_timer)) {
             cookie_count += floorf(cookies_per_second);
             cookie_timer = timer_begin(1.0f);
         }
 
-        luna_UI_Update(&camera);
+        luna_UI_Update();
         if (!bton->was_hovered) { // If the mouse is NOT on the button, change it back to it's default color
             bton->color = (vec4){ 1.0f, 1.0f, 1.0f, 1.0f };
         }
         bton->position = v2add((vec2){camera.position.x, camera.position.y}, (vec2){ -9.0f, 9.0f });
         bton->size = (vec2){ 1.0f, 1.0f };
-
-        if (cookie->was_hovered) {
-            cookie->color = (vec4){0.7f,0.7f,0.7f, 1.0f};
-        } else {
-            cookie->color = (vec4){1.0f,1.0f,1.0f, 1.0f};
-        }
 
         if (lunaRenderer_BeginRender(rd)) {
             lunaScene_Render(rd);
@@ -164,16 +158,7 @@ int main(int argc, char *argv[]) {
                 0
             );
 
-            char buf[ 1024 ];
-            luna_snprintf(buf, 1024, "%l cookies", cookie_count);
-            ctext_label_set_text(cookie_num, buf);
 
-            memset(buf, 0, sizeof(buf));
-            char poot[  1024 ];
-            luna_ftoa(cookies_per_second, poot, 0);
-            strcat(buf, poot);
-            strcat(buf, " cookies per second");
-            ctext_label_set_text(cookie_per_sec, buf);
 
             lunaRenderer_EndRender(rd);
         }
@@ -182,7 +167,6 @@ int main(int argc, char *argv[]) {
     lunaScene_Destroy(scn);
 
     luna_UI_DestroyButton(bton);
-    luna_UI_DestroyButton(cookie);
 
     vkDeviceWaitIdle(device);
     ctext_destroy_font(amongus);

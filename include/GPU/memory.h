@@ -1,12 +1,11 @@
-#ifndef __LUNA_MEMORY_H__
-#define __LUNA_MEMORY_H__
+#ifndef __LUNA_GPU_MEMORY_H__
+#define __LUNA_GPU_MEMORY_H__
 
 // ! doesn't take into account alignment, etc.
 // * This is so when we eventually have to switch to an allocator it's much easier
 
 // This header should be fragmented into multiple, each for their own object.
 
-#include "../engine/lunaGFXstdafx.h"
 #include "format.h"
 
 #define LUNA_GPU_MAX_CHILDREN_PER_OBJECT 8
