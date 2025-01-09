@@ -23,7 +23,7 @@ extern void lunaImage_WritePNG(const lunaImage *tex, const char *path);
 extern void lunaImage_WriteJPEG(const lunaImage *tex, const char *path);
 
 // dst_channels must be greater than src channels!
-uint8_t *lunaImage_PadChannels(const lunaImage *src, int dst_channels);
+unsigned char *lunaImage_PadChannels(const lunaImage *src, int dst_channels);
 
 #ifdef __cplusplus
     }

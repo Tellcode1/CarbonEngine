@@ -31,23 +31,26 @@ add_subdirectory(${CMAKE_SOURCE_DIR}/external/volk)
 
 add_executable(${OUTPUT} ${SOURCES})
 
-# LC is the common library that every library should link with
-add_library(LC STATIC src/common.c)
-target_compile_options(LC PRIVATE -O3)
-target_link_libraries(LC jpeg png z)
+# LC was lunaCore btw
+# I forgot what it meant after an hour so that's why I'm replacing it
+
+# core is the common library that every library should link with
+add_library(core STATIC src/common.c)
+target_compile_options(core PRIVATE -O3)
+target_link_libraries(core jpeg png z)
 
 add_executable(shadermanager src/preprocessors.c)
 target_compile_definitions(shadermanager PRIVATE CSM=1 CSM_EXECUTABLE=1)
-target_link_libraries(shadermanager m LC)
+target_link_libraries(shadermanager m core)
 target_compile_options(shadermanager PRIVATE -O3 --fast-math)
 
 add_executable(fontc src/preprocessors.c)
 target_compile_definitions(fontc PRIVATE FONTC=1 FONTC_EXECUTABLE=1)
-target_link_libraries(fontc freetype m LC)
+target_link_libraries(fontc freetype m core)
 target_compile_options(fontc PRIVATE -O3 -g)
 
 set(LIBS
-    LC
+    core
     volk
     m
     SDL2

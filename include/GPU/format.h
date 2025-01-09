@@ -1,6 +1,8 @@
 #ifndef __LUNA_FORMAT_H__
 #define __LUNA_FORMAT_H__
 
+#include <stdbool.h>
+
 typedef enum lunaFormat {
     LUNA_FORMAT_UNDEFINED = 0,
 

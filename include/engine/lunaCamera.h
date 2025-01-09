@@ -4,7 +4,6 @@
 #include "../math/mat.h"
 #include "../math/vec2.h"
 #include "../math/vec3.h"
-#include "../math/vec4.h"
 
 #include "lunaGFX.h"
 #include "../GPU/buffer.h"
@@ -29,7 +28,7 @@ typedef struct camera_uniform_buffer {
     mat4 view;
 } camera_uniform_buffer;
 
-typedef struct lunaCamera {
+struct lunaCamera {
     // TODO: move to uniform buffer with data like current app time, delta time, etc.
     // To be honest i dont know what delta time is supposed to be
     // doing on the GPU except for particle simulations but you ought to
@@ -60,7 +59,7 @@ typedef struct lunaCamera {
     // luna_GPU_Texture *render_texture;
     // VkFramebuffer framebuffer;
     // VkRenderPass render_pass;
-} lunaCamera;
+};
 
 static inline void lunaCamera_Destroy(lunaCamera *cam) {
     // luna_DescriptorSetDestroy(cam->sets);
@@ -148,13 +147,13 @@ static inline void lunaCamera_Rotate(lunaCamera *cam, float yaw_, float pitch_) 
     cam->pitch = cmclamp( cam->pitch, -bound, bound );
 }
 
-static inline void cam_move(lunaCamera *cam, const vec3 amt) {
+static inline void lunaCamera_Move(lunaCamera *cam, const vec3 amt) {
     cam->actual_pos = v3add(cam->actual_pos, v3muls(cam->right, amt.x));
     cam->actual_pos = v3add(cam->actual_pos, v3muls(cam->up   , amt.y));
     cam->actual_pos = v3add(cam->actual_pos, v3muls(cam->front, amt.z));
 }
 
-static inline void cam_set_position(lunaCamera *cam, const vec3 pos) {
+static inline void lunaCamera_SetPosition(lunaCamera *cam, const vec3 pos) {
     cam->actual_pos = pos;
 }
 

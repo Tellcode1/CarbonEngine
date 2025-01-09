@@ -6,12 +6,12 @@
 #endif
 
 #include <stdbool.h>
+#include "lunaCollider.h"
 #include <SDL2/SDL.h>
 #include "../math/vec2.h"
 #include "../math/vec4.h"
 #include "lunaGFX.h"
 #include "lunaSpriteRenderer.h"
-#include "../engine/lunaInput.h"
 
 typedef struct lunaTransform {
     vec2 position, size;
@@ -27,7 +27,7 @@ typedef enum lunaObject_Flags {
     LUNA_OBJECT_NO_COLLISION = 1,
 } lunaObject_Flags;
 
-extern lunaObject *lunaObject_Create(lunaScene *scene, const char *name, bool is_static, /*is body static? or is it dynamic?*/ vec2 position, vec2 size, unsigned flags);
+extern lunaObject *lunaObject_Create(lunaScene *scene, const char *name, lunaCollider_Type col_type, vec2 position, vec2 size, unsigned flags);
 extern void lunaObject_Destroy(lunaObject *obj);
 
 extern void lunaObject_AssignOnUpdateFn(lunaObject *obj, lunaObjectUpdateFn fn);
@@ -40,8 +40,8 @@ extern vec2 lunaObject_GetSize(const lunaObject *obj);
 extern void lunaObject_SetSize(lunaObject *obj, vec2 to);
 
 extern lunaTransform *lunaObject_GetTransform(lunaObject *obj);
-
-luna_SpriteRenderer *lunaObject_GetSpriteRenderer(lunaObject *obj);
+extern lunaCollider *lunaObject_GetCollider(lunaObject *obj);
+extern luna_SpriteRenderer *lunaObject_GetSpriteRenderer(lunaObject *obj);
 
 #ifdef __cplusplus
     }
