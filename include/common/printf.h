@@ -7,7 +7,12 @@
 #include <stdbool.h>
 
 // The size of each buffer (on the stack) that luna_printf may allocate
-// luna_printf may use at most 3 buffers.
+// luna_printf may use at most 2 buffers.
+// one is used for fast writing access and one is used when writing to a stream as an intermediary
+
+// we could copy luna_vsnprintf into a vnfprintf that would stream the write_buffer to the stream
+// we'll see
+
 #ifndef LUNA_PRINTF_BUFSIZ
   #define LUNA_PRINTF_BUFSIZ 1024
 #endif
@@ -19,13 +24,21 @@
 extern bool luna_is_format_specifier(char c);
 
 // out should be around 12 bytes (10 for __INT32_MAX__ and 1 for negative sign and 1 for terminator)
-extern char *luna_itoa(long long x, char out[], int base);
+extern char *luna_itoa(long long x, char out[], int base, size_t max);
 
-extern char *luna_ftoa(double x, char out[], int precision);
+// @return The number of characters written excluding the NULL terminator
+extern size_t luna_itoa2(long long x, char out[], int base, size_t max);
+
+extern char *luna_ftoa(double x, char out[], int precision, size_t max);
+
+// @return The number of characters written excluding the NULL terminator
+extern size_t luna_ftoa2(double x, char out[], int precision, size_t max);
 
 extern int luna_atoi(const char str[]);
 
 extern double luna_atof(const char str[]);
+
+extern size_t luna_ptoa(void* p, char *buf, size_t max);
 
 // returns the numbers of characters written
 extern size_t luna_printf(const char *fmt, ...);

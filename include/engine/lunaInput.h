@@ -8,39 +8,44 @@
 
 typedef struct lunaInput_Action lunaInput_Action;
 
-typedef enum lunaInput_ActionType {
-  LUNA_INPUT_ACTION_TYPE_KEYBOARD = 1,
-  LUNA_INPUT_ACTION_TYPE_MOUSE = 2,
-  LUNA_INPUT_ACTION_TYPE_ALL = (1 | 2)
-} lunaInput_ActionType;
-
-typedef enum lunaInput_KeyState
-{
-  LUNA_KEY_STATE_PRESSED = 0,
-  LUNA_KEY_STATE_RELEASED = 1,
-  LUNA_KEY_STATE_HELD = 2,
-  LUNA_KEY_STATE_NOT_HELD = 3,
-} lunaInput_KeyState;
-
-typedef enum lunaInput_MouseButton {
-  LUNA_MOUSE_BUTTON_LEFT = 0,
-  LUNA_MOUSE_BUTTON_MIDDLE = 1,
-  LUNA_MOUSE_BUTTON_RIGHT = 2,
-} lunaInput_MouseButton;
+typedef enum lunaInput_ActionType lunaInput_ActionType;
+typedef enum lunaInput_KeyState lunaInput_KeyState;
+typedef enum lunaInput_MouseButton lunaInput_MouseButton;
 
 // A function that is called every time an action is signalled
 // This is better than polling the event every frame when the action is signalled multiple times per frame
 typedef void (*lunaInput_ActionResponseFn)( const char *action, const lunaInput_Action *ia);
 
-typedef struct lunaInput_Action {
+enum lunaInput_ActionType {
+  LUNA_INPUT_ACTION_TYPE_KEYBOARD = 1,
+  LUNA_INPUT_ACTION_TYPE_MOUSE = 2,
+  LUNA_INPUT_ACTION_TYPE_ALL = (1 | 2)
+};
+
+enum lunaInput_KeyState
+{
+  LUNA_KEY_STATE_PRESSED = 0,
+  LUNA_KEY_STATE_RELEASED = 1,
+  LUNA_KEY_STATE_HELD = 2,
+  LUNA_KEY_STATE_NOT_HELD = 3,
+};
+
+enum lunaInput_MouseButton {
+  LUNA_MOUSE_BUTTON_LEFT = 0,
+  LUNA_MOUSE_BUTTON_MIDDLE = 1,
+  LUNA_MOUSE_BUTTON_RIGHT = 2,
+};
+
+struct lunaInput_Action {
   SDL_Scancode key;
   uint8_t mouse;
   lunaInput_ActionResponseFn response;
   bool this_frame, last_frame;
-} lunaInput_Action;
+};
 
 extern void lunaInput_Init();
 extern void lunaInput_Update();
+extern void lunaInput_Shutdown();
 
 void lunaInput_BindFunctionToAction(const char *action, lunaInput_ActionResponseFn response);
 

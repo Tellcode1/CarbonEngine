@@ -21,7 +21,7 @@ typedef struct luna_GPU_Texture luna_GPU_Texture;
 
 extern luna_DescriptorPool g_pool;
 extern struct lunaCamera camera;
-typedef struct lunaSprite_t lunaSprite_t;
+typedef struct lunaSprite lunaSprite;
 
 typedef enum luna_Window_OptionBits {
     LUNA_WINDOW_OPTION_VSYNC           = 1 << 0,
@@ -121,7 +121,7 @@ extern int lunaRenderer_GetMaxFramesInFlight(const struct lunaRenderer_t *rd);
 extern void lunaRenderer_DrawTexturedQuad(lunaRenderer_t *rd, luna_SpriteRenderer *sprite_renderer, vec3 position, vec3 size, int layer);
 extern void lunaRenderer_DrawQuad(
     lunaRenderer_t *rd,
-    lunaSprite_t *spr,
+    lunaSprite *spr,
     vec2 tex_coord_multiplier,
     vec3 position,
     vec3 size,

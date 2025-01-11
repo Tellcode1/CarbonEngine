@@ -20,6 +20,7 @@ set(OUTPUT
 
 set(SOURCES
     src/main.c
+    src/core.c
     src/engine.c
     src/preprocessors.c
     src/containers.c
@@ -35,8 +36,8 @@ add_executable(${OUTPUT} ${SOURCES})
 # I forgot what it meant after an hour so that's why I'm replacing it
 
 # core is the common library that every library should link with
-add_library(core STATIC src/common.c)
-target_compile_options(core PRIVATE -O3)
+add_library(core STATIC src/core.c)
+target_compile_options(core PRIVATE -O3 -g)
 target_link_libraries(core jpeg png z)
 
 add_executable(shadermanager src/preprocessors.c)
@@ -50,12 +51,15 @@ target_link_libraries(fontc freetype m core)
 target_compile_options(fontc PRIVATE -O3 -g)
 
 set(LIBS
-    core
+    # core
     volk
     m
     SDL2
     freetype
     box2d
+    jpeg
+    png
+    z
 )
 
 target_precompile_headers(${OUTPUT} PUBLIC ${CMAKE_SOURCE_DIR}/include/common/stdafx.h)

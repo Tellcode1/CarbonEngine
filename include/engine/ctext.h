@@ -5,7 +5,6 @@
     extern "C" {
 #endif
 
-#include "lunaCamera.h"
 #include "lunaObject.h"
 #include "lunaScene.h"
 
@@ -13,7 +12,6 @@
 #include "../math/vec2.h"
 #include "../math/mat.h"
 
-#include "../common/stdafx.h"
 
 #include "../containers/cgvector.h"
 #include "../containers/cgstring.h"
@@ -23,21 +21,19 @@
 #include "../GPU/texture.h"
 #include "../GPU/buffer.h"
 
-typedef struct lunaRenderer_t lunaRenderer_t;
-
-typedef enum HoriAlignment
+typedef enum ctext_hori_align
 {
     CTEXT_HORI_ALIGN_LEFT = 0,
     CTEXT_HORI_ALIGN_CENTER = 1,
     CTEXT_HORI_ALIGN_RIGHT = 2,
-} HoriAlignment;
+} ctext_hori_align;
 
-typedef enum VertAlignment
+typedef enum ctext_vert_align
 {
     CTEXT_VERT_ALIGN_TOP = 0,
     CTEXT_VERT_ALIGN_CENTER = 1,
     CTEXT_VERT_ALIGN_BOTTOM = 2,
-} VertAlignment;
+} ctext_vert_align;
 
 // Since the hash is to be used for individual characters, we can expect
 // that there will only be one entry for each character.
@@ -53,8 +49,8 @@ typedef struct cfont_t cfont_t;
 
 typedef struct ctext_text_render_info {
     mat4 model;
-    HoriAlignment horizontal;
-    VertAlignment vertical;
+    ctext_hori_align horizontal;
+    ctext_vert_align vertical;
     vec4 color;
     vec3 position;
     float scale; // if scale_for_fit is 1, this is multiplied by the calculated scale.
@@ -69,8 +65,9 @@ extern void ctext_destroy_label(ctext_label *label);
 
 extern lunaObject *ctext_label_get_object(const ctext_label *label);
 extern void ctext_label_set_text(ctext_label *label, const char *text);
-extern void ctext_label_set_horizontal_align(ctext_label *label, HoriAlignment h_align);
-extern void ctext_label_set_vertical_align(ctext_label *label, VertAlignment v_align);
+extern void ctext_label_set_horizontal_align(ctext_label *label, ctext_hori_align h_align);
+extern void ctext_label_set_vertical_align(ctext_label *label, ctext_vert_align v_align);
+extern void ctext_label_set_text_scale(ctext_label *label, float scale);
 
 static inline ctext_text_render_info ctext_init_text_render_info() {
     return (ctext_text_render_info) {
@@ -79,7 +76,7 @@ static inline ctext_text_render_info ctext_init_text_render_info() {
         .vertical = CTEXT_VERT_ALIGN_CENTER,
         .color = (vec4){ 1.0f, 1.0f, 1.0f, 1.0f },
         .position = (vec3){ 0.0f, 0.0f, 0.0f },
-        .scale = 1.0f,
+        .scale = 0.5f,
         .bbox = (vec2){},
         .scale_for_fit = 0
     };
@@ -109,10 +106,10 @@ typedef struct ctext_glyph
     float advance;
 } ctext_glyph;
 
-typedef struct ctext_text_drawcall_t ctext_text_drawcall_t;
+typedef struct ctext_drawcall_t ctext_drawcall_t;
 
 /* Internal CFont struct. Do not modify yourselves! */
-typedef struct cfont_t
+struct cfont_t
 {
     char path[ 128 ];
     char family_name[ 128 ];
@@ -139,11 +136,11 @@ typedef struct cfont_t
     bool rendered_this_frame;
 
     int chars_drawn;
-    cg_vector_t /* ctext_text_drawcall_t */  drawcalls;
+    cg_vector_t /* ctext_drawcall_t */  drawcalls;
     cg_hashmap_t * /* unicode, ctext_glyph ctext_hasher<unicode>> */ glyph_map;
 
     struct lunaRenderer_t *rd;
-} cfont_t;
+};
 
 #ifdef __cplusplus
     }

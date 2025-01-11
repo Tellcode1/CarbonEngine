@@ -8,6 +8,7 @@
 #include "lunaGFX.h"
 #include "../GPU/buffer.h"
 #include "../GPU/descriptors.h"
+#include "../GPU/memory.h"
 #include "../engine/lunaInput.h"
 
 typedef struct lunaCamera lunaCamera;

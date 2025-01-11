@@ -1,8 +1,6 @@
 #ifndef __LUNA_SCENE_H__
 #define __LUNA_SCENE_H__
 
-#include "lunaObject.h"
-
 typedef struct lunaScene lunaScene;
 typedef struct lunaRenderer_t lunaRenderer_t;
 

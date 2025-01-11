@@ -1,13 +1,12 @@
 #ifndef __LUNA_TEXTURE_H__
 #define __LUNA_TEXTURE_H__
 
-#include "memory.h"
-#include "../common/lunaImage.h"
+#include "../engine/lunaGFX.h"
 #include "format.h"
 
-typedef struct luna_GPU_Memory luna_GPU_Memory;
-typedef struct luna_GPU_Texture luna_GPU_Texture;
 typedef struct luna_GPU_Sampler luna_GPU_Sampler;
+typedef struct lunaImage lunaImage;
+typedef struct luna_GPU_Memory luna_GPU_Memory;
 
 typedef enum luna_GPU_TextureUsage {
     LUNA_GPU_TEXTURE_USAGE_SAMPLED_TEXTURE = 0,

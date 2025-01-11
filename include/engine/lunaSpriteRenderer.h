@@ -6,10 +6,9 @@
 #include "../math/vec4.h"
 
 typedef struct lunaRenderer_t lunaRenderer_t;
-typedef struct lunaSprite_t lunaSprite_t;
 
 typedef struct luna_SpriteRenderer {
-    lunaSprite_t *spr;
+    lunaSprite *spr;
     bool flip_horizontal;
     bool flip_vertical;
     vec2 tex_coord_multiplier; // This is multiplied with the texture coordinates while rendering.

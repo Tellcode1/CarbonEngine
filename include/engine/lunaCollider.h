@@ -25,7 +25,9 @@ typedef struct lunaCollider_RayHit {
     bool hit;
 } lunaCollider_RayHit;
 
-extern lunaCollider *lunaCollider_Init(lunaScene *scene, vec2 position, vec2 size, lunaCollider_Type type, lunaCollider_Shape shape, bool start_enabled);
+// mask defines the layers that the collider can collide with
+// both layer and mask must be bitmasks
+extern lunaCollider *lunaCollider_Init(lunaScene *scene, vec2 position, vec2 size, lunaCollider_Type type, lunaCollider_Shape shape, uint64_t layer, uint64_t mask, bool start_enabled);
 extern void lunaCollider_Destroy(lunaCollider *col);
 
 extern vec2 lunaCollider_GetPosition(const lunaCollider *col);
@@ -34,7 +36,7 @@ extern void lunaCollider_SetPosition(lunaCollider *col, vec2 to);
 vec2 lunaCollider_GetSize(const lunaCollider *col);
 void lunaCollider_SetSize(lunaCollider *col, vec2 to);
 
-extern lunaCollider_RayHit lunaCollider_RayCast(const lunaCollider *col, vec2 orig, vec2 dir);
+extern lunaCollider_RayHit lunaCollider_RayCast(const lunaCollider *col, vec2 orig, vec2 dir, uint32_t layer, uint32_t mask);
 
 // You need to update the colliders through luneScene_Update();
 

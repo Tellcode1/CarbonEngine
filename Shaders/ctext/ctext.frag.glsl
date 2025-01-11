@@ -18,11 +18,12 @@ layout (push_constant) uniform push_constants {
     mat4 model;
     vec4 color;
     vec4 outline_color;
+    float scale;
 } pc;
 
 void main() {
     float dist = texture(bitmap, texCoords).r;
-    const float smoothing = 0.1;
-    float alpha = smoothstep(0.1 - smoothing, 0.1 + smoothing, dist);
+    const float smoothing = 0.1 / pc.scale;
+    float alpha = smoothstep(pc.scale - smoothing, pc.scale + smoothing, dist);
     outColor = vec4(f_col.rgb, f_col.a * alpha);
 }

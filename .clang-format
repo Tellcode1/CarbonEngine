@@ -35,5 +35,5 @@ NamespaceIndentation: None
 CompactNamespaces: false
 
 Cpp11BracedListStyle: true
-Standard: Cpp11
+Standard: C11
 ReflowComments: true
