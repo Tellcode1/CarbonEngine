@@ -1,10 +1,7 @@
-#include "../include/common/mem.h"
-#include "../include/common/printf.h"
 
-#include <libgen.h>
-#include <stdio.h>
+#include "../include/common/printf.h"
+#include "../include/common/string.h"
 #include <stdlib.h>
-#include <string.h>
 #include <sys/stat.h>
 #include <time.h>
 
@@ -17,13 +14,13 @@
 #endif
 
 #if !(CSM_EXECUTABLE)
-#include "../include/GPU/vkstdafx.h"
 
 struct csm_shader_t *shader_map = NULL;
 int nshaders = 0;
+
+
 #endif
 
-#include "../include/common/cshadermanager.h"
 #include "../include/common/cshadermanagerdev.h"
 #include "../include/common/stdafx.h"
 
@@ -60,6 +57,8 @@ static inline void __CSM_LOG_ERROR(const char *fn, const char *fmt, ...) {
 
 #if CSM_EXECUTABLE
 
+#include "../include/common/cshadermanager.h"
+
 #define CMD_HELP_MSG                                                           \
   "cmd can be any of:\n\
 <default> compile: compile only those that have been changed since last ran,\n\
@@ -81,9 +80,9 @@ int main(int argc, char *argv[]) {
   const char *cmd = (argc < 3) ? "compile" : argv[2];
 
   if (strcmp(cmd, "compile-force") == 0) {
-    csm_compile_all(NULL);
+    csm_compile_all();
   } else if (strcmp(cmd, "compile") == 0) {
-    csm_compile_updated(NULL);
+    csm_compile_updated();
   } else {
     luna_printf("usage: %s <compile list path = \"../compilelist.txt\"> <cmd = "
                 "compile>\n",
@@ -113,7 +112,7 @@ void csm_add_shader_to_map(struct csm_shader_cache_entry entry,
                 nshaders * sizeof(struct csm_shader_t));
   }
   if (shader_map != NULL)
-    free(shader_map);
+    luna_free(shader_map);
   shader_map = new_map;
 
   struct csm_shader_t add;
@@ -225,6 +224,9 @@ err:
   return -1;
 }
 
+
+#include "../include/GPU/vkstdafx.h"
+
 void __csm_create_shader(VkDevice vkdevice, const unsigned *bytes, int nbytes,
                          struct csm_shader_t *out) {
   // SpvReflectShaderModule reflect_module;
@@ -250,7 +252,7 @@ void csm_register_all_shaders(VkDevice vkdevice,
   if (shader_map) {
     luna_memcpy(new_shader_map, nshaders * sizeof(struct csm_shader_t),
                 shader_map, nshaders * sizeof(struct csm_shader_t));
-    free(shader_map);
+    luna_free(shader_map);
   }
   shader_map = new_shader_map;
 
@@ -293,8 +295,6 @@ void csm_register_all_shaders(VkDevice vkdevice,
 }
 
 #endif // CSM_EXECUTABLE != 1
-
-#include <errno.h>
 
 void csm_set_list_file(const char *path) { list = path; }
 
@@ -397,6 +397,7 @@ void create_parent_dirs(const char path[256]) {
   }
 }
 
+#include <errno.h>
 time_t get_mtime(const char *fpath) {
   struct stat file_stats;
   if (stat(fpath, &file_stats) == 0) {
@@ -556,8 +557,8 @@ void csm_compile_updated() {
   csm_register_all_shaders(device, entries, nentries);
 #endif // CSM_EXECUTABLE != 1
 
-  free(entries);
-  free(cacheentries);
+  luna_free(entries);
+  luna_free(cacheentries);
 }
 
 void csm_compile_all() {
@@ -574,7 +575,7 @@ void csm_compile_all() {
 
   write_new_cache(entries, count);
 
-  free(entries);
+  luna_free(entries);
 }
 
 void csm_shutdown() {
@@ -590,11 +591,8 @@ void csm_shutdown() {
 
 #if (FONTC)
 
-#include <freetype2/ft2build.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include FT_FREETYPE_H
-#include FT_GLYPH_H
 
 #include "../include/common/fontc.h"
 
@@ -712,15 +710,19 @@ void fontc_read_font(const char *path, fontc_file *file) {
   fread(compressed_glyphs, file->header.glyphs_compressed_sz, 1, f);
   fread(compressed_image, file->header.img_compressed_sz, 1, f);
 
-  cassert(luna_decompress_data(compressed_glyphs,
+  cassert(luna_bufdecompress(compressed_glyphs,
                                file->header.glyphs_compressed_sz, file->glyphs,
                                total_glyph_size) != -1);
-  cassert(luna_decompress_data(
+  cassert(luna_bufdecompress(
               compressed_image, file->header.img_compressed_sz, file->bitmap,
               file->header.bmpwidth * file->header.bmpheight) != -1);
 
   fclose(f);
 }
+
+#include <freetype2/ft2build.h>
+#include FT_FREETYPE_H
+#include FT_GLYPH_H
 
 void fontc_bake_font(const char *font_path, const char *out) {
   FT_Library lib;
@@ -821,11 +823,11 @@ void fontc_bake_font(const char *font_path, const char *out) {
   unsigned char *compressed_image = luna_malloc(image_o_size);
   fontc_glyph *compressed_glyphs = luna_malloc(glyph_o_size);
 
-  luna_compress_data(atlas.data, image_o_size, compressed_image, &image_o_size);
-  luna_compress_data(glyphs, glyph_o_size, compressed_glyphs, &glyph_o_size);
+  luna_bufcompress(atlas.data, image_o_size, compressed_image, &image_o_size);
+  luna_bufcompress(glyphs, glyph_o_size, compressed_glyphs, &glyph_o_size);
 
-  free(atlas.data);
-  free(glyphs);
+  luna_free(atlas.data);
+  luna_free(glyphs);
 
   file.glyphs = compressed_glyphs;
 
@@ -844,7 +846,10 @@ void fontc_bake_font(const char *font_path, const char *out) {
   bytes_written += glyph_o_size;
   bytes_written += image_o_size;
 
-  LOG_INFO("Wrote %i bytes to %s", bytes_written, out);
+  char buf[128];
+  luna_btoa(bytes_written, 1, buf, 127);
+  buf[127] = 0;
+  LOG_INFO("Wrote %s to %s", buf, out);
 }
 
 #endif // FONTC

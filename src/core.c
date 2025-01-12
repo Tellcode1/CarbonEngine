@@ -1,8 +1,7 @@
 #include "../include/common/lunaImage.h"
-#include "../include/common/mem.h"
 #include "../include/common/printf.h"
 #include "../include/common/stdafx.h"
-#include "../include/common/str.h"
+#include "../include/common/string.h"
 
 #include <SDL2/SDL.h>
 #include <ctype.h>
@@ -79,17 +78,13 @@ size_t luna_itoa2(long long x, char out[], int base, size_t max) {
     int dig = x / pwr;
     // this is for non base 10 digits
     // it'll still work for base 10 though
-    out[i++] = '0' + dig;
+    out[i++] = (dig < 10) ? '0' + dig : 'A' + (dig - 10);
+    // lmao I accidentally removed the code because it wasn't working...
     x %= pwr;
     pwr /= base;
   }
   out[i++] = 0;
   return i - 1;
-}
-
-char *luna_itoa(long long x, char out[], int base, size_t max) {
-  luna_itoa2(x, out, base, max);
-  return out;
 }
 
 size_t luna_ftoa2(double n, char s[], int precision, size_t max) {
@@ -176,11 +171,6 @@ size_t luna_ftoa2(double n, char s[], int precision, size_t max) {
   }
   *c = '\0';
   return c - s;
-}
-
-char *luna_ftoa(double n, char s[], int precision, size_t max) {
-  luna_ftoa2(n, s, precision, max);
-  return s;
 }
 
 // Returns __INT32_MAX__ on error.
@@ -272,7 +262,7 @@ double luna_atof(const char str[]) {
   return result;
 }
 
-size_t luna_ptoa(void* p, char *buf, size_t max) {
+size_t luna_ptoa2(void* p, char *buf, size_t max) {
   unsigned long addr = (unsigned long)p;
   char digs[] = "0123456789abcdef";
 
@@ -288,6 +278,28 @@ size_t luna_ptoa(void* p, char *buf, size_t max) {
   buf[w] = 0;
   return w;
 };
+
+size_t luna_btoa2(size_t x, bool upgrade, char *buf, size_t max) {
+  size_t written = 0;
+  if (upgrade) {
+    const char *stages[] = {
+      " B"," KB"," MB"," GB"," TB"," PB"
+    };
+    double b = (double)x;
+    int stagei = 0; // we could use log here but that'd be overkill
+    while (b >= 1000.0) {
+      stagei++;
+      b /= 1000.0;
+    }
+    written = luna_ftoa2(b, buf, 3, max);
+    buf += written;
+    max -= written;
+    written += luna_strncpy(buf, stages[stagei], max);
+  } else {
+    written = luna_itoa2(x, buf, 10, max);
+  }
+  return written;
+}
 
 // Moral of the story? FU@# SIZE_MAX
 // I spent an HOUR trying to figure out what's going wrong
@@ -468,7 +480,7 @@ size_t luna_vsnprintf(char *dest, size_t max_chars, const char *fmt,
         break;
       case 'p':
         p = va_arg(args, void *);
-        written = luna_ptoa(p, write_buffer, max_chars - chars_written);
+        written = luna_ptoa2(p, write_buffer, max_chars - chars_written);
         luna_printf_write_to_buf(&write, &chars_written, max_chars,
                                  write_buffer, written);
         break;
@@ -596,10 +608,10 @@ const char *get_file_extension(const char *path) {
   return dot + 1;
 }
 
-int luna_compress_data(const void *input, size_t input_size, void *output,
+int luna_bufcompress(const void *input, size_t input_size, void *output,
                        size_t *output_size) {
   z_stream stream;
-  memset(&stream, 0, sizeof(stream));
+  luna_memset(&stream, 0, sizeof(stream));
 
   if (deflateInit(&stream, Z_BEST_COMPRESSION) != Z_OK) {
     return -1;
@@ -622,7 +634,7 @@ int luna_compress_data(const void *input, size_t input_size, void *output,
   return 0;
 }
 
-int luna_decompress_data(const void *compressed_data, size_t compressed_size,
+int luna_bufdecompress(const void *compressed_data, size_t compressed_size,
                          void *o_buf, size_t o_buf_sz) {
   z_stream strm = {0};
   strm.next_in = (unsigned char *)compressed_data;
@@ -758,7 +770,7 @@ lunaImage lunaImage_LoadPNG(const char *path) {
 
   png_destroy_read_struct(&png, &info, NULL);
   fclose(f);
-  free(row_pointers);
+  luna_free(row_pointers);
 
   return texture;
 }
@@ -864,7 +876,7 @@ void lunaImage_WritePNG(const lunaImage *tex, const char *path) {
     row_pointers[y] = tex->data + y * tex->w * bytesperpixel;
   }
   png_write_image(png, row_pointers);
-  free(row_pointers);
+  luna_free(row_pointers);
 
   png_write_end(png, NULL);
 
@@ -1181,7 +1193,7 @@ void *luna_memcpy(void *dst, size_t dstsz, const void *src, size_t sz) {
 }
 
 // rewritten memcpy
-void *luna_memset(void *dst, ubyte to, size_t sz) {
+void *luna_memset(void *dst, char to, size_t sz) {
   cassert(dst != NULL);
   cassert(sz != 0);
 
@@ -1225,6 +1237,24 @@ void *luna_malloc(size_t sz) {
   return ptr;
 }
 
+void luna_free(void *block) {
+  cassert(block != NULL);
+  free(block);
+}
+
+void *luna_memchr(const void *p, int chr, size_t psize) {
+  if (!p || !psize) {
+    return NULL;
+  }
+  const unsigned char *read = (const unsigned char *)p;
+  const unsigned char chk = chr;
+  for (size_t i = 0; i < psize; i++) {
+    if (read[i] == chk)
+      return (void *)(read + i);
+  }
+  return NULL;
+}
+
 // we use a function instead of cmmin to avoid recalculations
 static inline size_t min(size_t a, size_t b) { return ((a) < (b) ? (a) : (b)); }
 
@@ -1234,9 +1264,9 @@ size_t luna_strncpy(char *dest, const char *src, size_t max) {
   }
   size_t i = 0;
   // clang-format off
-  for (; i < max - 1 && src[i]; i++) // max - 1 so we can fit the NULL terminator
+  while (i < max - 1 && src[i]) // max - 1 so we can fit the NULL terminator
   {
-    dest[i] = src[i];
+    dest[i] = src[i]; i++;
   }
   // clang-format on
   dest[i] = 0;
@@ -1244,20 +1274,30 @@ size_t luna_strncpy(char *dest, const char *src, size_t max) {
   return i;
 }
 
-char *luna_strnchr(char *str, int chr, size_t max) {
+char *luna_strchr(char *str, int chr) {
   if (!str) {
     return NULL;
   }
-
-  char *i = str;
-  while (*i && (size_t)(i - str) < max) {
-    if (*i == chr)
-      break;
-    i++;
+  while (*str) {
+    if (*str == chr)
+      return str;
+    str++;
   }
-
-  return i;
+  return NULL;
 }
+
+char *luna_strrchr(char *str, int chr) {
+  const char *beg = str;
+  str += luna_strlen(str) - 1;
+  while (str >= beg) {
+    if (*str == chr) {
+      return (char *)str;
+    }
+    str--;
+  }
+  return NULL;
+}
+
 
 int luna_strncmp(const char *s1, const char *s2, size_t max) {
   if (!s1 || !s2 || max == 0) {

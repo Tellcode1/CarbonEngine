@@ -4,10 +4,6 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-#include <freetype2/ft2build.h>
-#include FT_FREETYPE_H
-#include FT_GLYPH_H
-
 #define FONTC_MAGIC 2222022
 #define cmmax(a, b) ((a) > (b) ? (a) : (b))
 #define cmmin(a, b) ((a) < (b) ? (a) : (b))

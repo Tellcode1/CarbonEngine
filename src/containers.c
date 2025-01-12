@@ -1,4 +1,4 @@
-#include "../include/common/mem.h"
+#include "../include/common/string.h"
 #include "../include/common/stdafx.h"
 #include "../include/containers/catlas.h"
 #include "../include/containers/cgbitset.h"
@@ -22,7 +22,7 @@
 #endif
 
 #ifndef cg_cont_free
-#define cg_cont_free free
+#define cg_cont_free luna_free
 #endif
 
 // ==============================
@@ -48,7 +48,7 @@ cg_vector_t cg_vector_init(int typesize, int init_size) {
 void cg_vector_destroy(cg_vector_t *vec) {
   if (vec) {
     if (vec->m_data) {
-      free(vec->m_data);
+      luna_free(vec->m_data);
     }
   }
 }
@@ -458,10 +458,10 @@ void cg_hashmap_destroy(cg_hashmap_t *map) {
   }
   for (int i = 0; i < map->entries; i++) {
     if (map->nodes[i]) {
-      free(map->nodes[i]);
+      luna_free(map->nodes[i]);
     }
   }
-  free(map->nodes);
+  luna_free(map->nodes);
 }
 
 void cg_hashmap_resize(cg_hashmap_t *map, int new_size) {
@@ -483,10 +483,10 @@ void cg_hashmap_resize(cg_hashmap_t *map, int new_size) {
       ch_node_t *node = old_nodes[i];
       if (node && node->is_occupied) {
         cg_hashmap_insert(map, node->key, node->value);
-        free(node);
+        luna_free(node);
       }
     }
-    free(old_nodes);
+    luna_free(old_nodes);
   }
 }
 
@@ -496,10 +496,10 @@ void cg_hashmap_clear(cg_hashmap_t *map) {
   }
   for (int i = 0; i < map->entries; i++) {
     if (map->nodes[i]) {
-      free(map->nodes[i]);
+      luna_free(map->nodes[i]);
     }
   }
-  free(map->nodes);
+  luna_free(map->nodes);
   map->nodes = NULL;
   map->size = 0;
   map->entries = 0;
@@ -637,8 +637,8 @@ void cg_hashmap_read(cg_hashmap_t *map, FILE *f) {
     cg_hashmap_insert(map, key, value);
   }
 
-  free(key);
-  free(value);
+  luna_free(key);
+  luna_free(value);
 }
 
 // ==============================
@@ -742,11 +742,11 @@ cg_bitset_bit cg_bitset_access_bit(cg_bitset_t *set, int bitindex) {
 
 void cg_bitset_copy_from(cg_bitset_t *dst, const cg_bitset_t *src) {
   if (src->size != dst->size && dst->data) {
-    free(dst->data);
+    luna_free(dst->data);
     dst->data = luna_malloc(src->size);
     dst->size = src->size;
   }
   memcpy(dst->data, src->data, src->size);
 }
 
-void cg_bitset_destroy(cg_bitset_t *set) { free(set->data); }
+void cg_bitset_destroy(cg_bitset_t *set) { luna_free(set->data); }

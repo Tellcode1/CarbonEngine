@@ -48,7 +48,7 @@ void *cg_freelist_alloc(cg_freelist_t *list, int size) {
 
         if (node == list->root && list->root->in_use && !list->root->next) {
             if (list->root->size < size) {
-                free(list->root->alloc);
+                luna_free(list->root->alloc);
                 list->root->alloc = luna_malloc(size);
                 list->root->size = size;
             }

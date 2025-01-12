@@ -23,7 +23,7 @@ extern luna_DescriptorPool g_pool;
 extern struct lunaCamera camera;
 typedef struct lunaSprite lunaSprite;
 
-typedef enum luna_Window_OptionBits {
+typedef enum lunaWindow_OptionBits {
     LUNA_WINDOW_OPTION_VSYNC           = 1 << 0,
     LUNA_WINDOW_OPTION_RESIZABLE       = 1 << 1,
     LUNA_WINDOW_OPTION_BORDERLESS      = 1 << 2,
@@ -33,31 +33,31 @@ typedef enum luna_Window_OptionBits {
     LUNA_WINDOW_OPTION_HIDDEN          = 1 << 6,
     LUNA_WINDOW_OPTION_HIGH_DPI        = 1 << 7,
     LUNA_WINDOW_OPTION_ALWAYS_ON_TOP   = 1 << 8,
-} luna_Window_OptionBits;
+} lunaWindow_OptionBits;
 
-typedef enum luna_Window_VSyncBits {
+typedef enum lunaWindow_VSyncBits {
     LUNA_WINDOW_VSYNC_DISABLED = 0,
     LUNA_WINDOW_VSYNC_ENABLED = 1
-} luna_Window_VSyncBits;
+} lunaWindow_VSyncBits;
 typedef bool luna_Window_VSync;
 
-typedef enum luna_Window_BufferModeBits {
-    CG_BUFFER_MODE_SINGLE_BUFFERED = 0,
-    CG_BUFFER_MODE_DOUBLE_BUFFERED = 1,
-    CG_BUFFER_MODE_TRIPLE_BUFFERED = 2,
-} luna_Window_BufferModeBits;
+typedef enum lunaWindow_BufferModeBits {
+    LUNA_BUFFER_MODE_SINGLE_BUFFERED = 0,
+    LUNA_BUFFER_MODE_DOUBLE_BUFFERED = 1,
+    LUNA_BUFFER_MODE_TRIPLE_BUFFERED = 2,
+} lunaWindow_BufferModeBits;
 typedef unsigned lunaBufferMode;
 
-typedef enum cg_sample_count_bits {
-    CG_SAMPLE_COUNT_MAX_SUPPORTED = 0xFFFFFFFF,
-    CG_SAMPLE_COUNT_NO_EXTRA_SAMPLES = 1,
-    CG_SAMPLE_COUNT_1_SAMPLES = 1,
-    CG_SAMPLE_COUNT_2_SAMPLES = 2,
-    CG_SAMPLE_COUNT_4_SAMPLES = 4,
-    CG_SAMPLE_COUNT_8_SAMPLES = 8,
-    CG_SAMPLE_COUNT_16_SAMPLES = 16,
-    CG_SAMPLE_COUNT_32_SAMPLES = 32,
-} cg_sample_count_bits;
+typedef enum lunaRenderer_SampleCountBits {
+    LUNA_SAMPLE_COUNT_MAX_SUPPORTED = 0xFFFFFFFF,
+    LUNA_SAMPLE_COUNT_NO_EXTRA_SAMPLES = 1,
+    LUNA_SAMPLE_COUNT_1_SAMPLES = 1,
+    LUNA_SAMPLE_COUNT_2_SAMPLES = 2,
+    LUNA_SAMPLE_COUNT_4_SAMPLES = 4,
+    LUNA_SAMPLE_COUNT_8_SAMPLES = 8,
+    LUNA_SAMPLE_COUNT_16_SAMPLES = 16,
+    LUNA_SAMPLE_COUNT_32_SAMPLES = 32,
+} lunaRenderer_SampleCountBits;
 typedef unsigned lunaSampleCount;
 
 typedef struct lunaExtent2D {
@@ -79,7 +79,7 @@ typedef enum cg_renderer_flag_bits {
     CG_RENDERER_MULTISAMPLING_ENABLE = 1 << 0,
     CG_RENDERER_VSYNC_ENABLE = 1 << 1,
     CG_RENDERER_WINDOW_RESIZABLE = 1 << 2,
-} cg_renderer_flag_bits;
+} lunaRenderer_FlagsBits;
 
 typedef struct lunaRenderer_Config {
     lunaSampleCount        samples;
@@ -91,10 +91,10 @@ typedef struct lunaRenderer_Config {
     luna_Window_VSync      vsync_enabled;
 } lunaRenderer_Config;
 
-static inline lunaRenderer_Config crender_config_init() {
+static inline lunaRenderer_Config lunaRenderer_ConfigInit() {
     return (lunaRenderer_Config) {
-        .samples = CG_SAMPLE_COUNT_NO_EXTRA_SAMPLES,
-        .buffer_mode = CG_BUFFER_MODE_DOUBLE_BUFFERED,
+        .samples = LUNA_SAMPLE_COUNT_NO_EXTRA_SAMPLES,
+        .buffer_mode = LUNA_BUFFER_MODE_DOUBLE_BUFFERED,
         .initial_window_size = { 800, 600 },
         .exit_key = 41, /* SDL_SCANCODE_ESCAPE */
         .multisampling_enable = 0,
@@ -112,13 +112,15 @@ extern void lunaRenderer_Destroy(struct lunaRenderer_t *rd);
 extern bool lunaRenderer_BeginRender(struct lunaRenderer_t *rd);
 extern void lunaRenderer_EndRender(struct lunaRenderer_t *rd);
 
+extern void lunaRenderer_SetClearColor(struct lunaRenderer_t *rd, vec4 col);
+
 extern int lunaRenderer_GetFrame(const struct lunaRenderer_t *rd);
 extern struct VkCommandBuffer_T *lunaRenderer_GetDrawBuffer(const lunaRenderer_t *rd);
 extern struct VkRenderPass_T *lunaRenderer_GetRenderPass(const lunaRenderer_t *rd);
 extern struct lunaExtent2D lunaRenderer_GetRenderExtent(const lunaRenderer_t *rd);
 extern int lunaRenderer_GetMaxFramesInFlight(const struct lunaRenderer_t *rd);
 
-extern void lunaRenderer_DrawTexturedQuad(lunaRenderer_t *rd, luna_SpriteRenderer *sprite_renderer, vec3 position, vec3 size, int layer);
+extern void lunaRenderer_DrawTexturedQuad(lunaRenderer_t *rd, const luna_SpriteRenderer *sprite_renderer, vec3 position, vec3 size, int layer);
 extern void lunaRenderer_DrawQuad(
     lunaRenderer_t *rd,
     lunaSprite *spr,

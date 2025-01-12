@@ -5,7 +5,7 @@
 #include "../include/common/cshadermanagerdev.h"
 #include "../include/common/fontc.h"
 #include "../include/common/lunaImage.h"
-#include "../include/common/mem.h"
+#include "../include/common/string.h"
 #include "../include/common/printf.h"
 #include "../include/containers/cgvector.h"
 #include "../include/engine/cengine.h"
@@ -133,6 +133,8 @@ struct lunaRenderer_t {
   // that is)
   luna_GPU_Buffer quad_vb;
   luna_GPU_Memory quad_memory;
+
+  vec4 clear_color;
 
   void *mapped;
 };
@@ -264,7 +266,7 @@ bool luna_Quad_Visible(const vec3 *pos, const vec3 *siz) {
 }
 
 void lunaRenderer_DrawTexturedQuad(lunaRenderer_t *rd,
-                                   luna_SpriteRenderer *sprite_renderer,
+                                   const luna_SpriteRenderer *sprite_renderer,
                                    vec3 position, vec3 size, int layer) {
   luna_DrawCall_t drawcall = {
       .type = LUNA_DRAWCALL_QUAD,
@@ -436,7 +438,7 @@ void lunaRenderer_PrepareQuadRenderer(lunaRenderer_t *rd) {
   luna_GPU_WriteToBuffer(&rd->quad_vb,
                          sizeof(quad_vertices) + sizeof(quad_indices), data, 0);
 
-  free(data);
+  luna_free(data);
 }
 
 void lunaRenderer_Destroy(lunaRenderer_t *rd) {
@@ -495,7 +497,7 @@ void lunaRenderer_Destroy(lunaRenderer_t *rd) {
     luna_GPU_FreeMemory(&rd->color_image_memory);
   }
   vkDestroyRenderPass(device, rd->render_pass, NULL);
-  free(rd);
+  luna_free(rd);
 
   vkDestroyDebugUtilsMessengerEXT(instance, debugMessenger, NULL);
   vkDestroySurfaceKHR(instance, surface, NULL);
@@ -564,7 +566,7 @@ void create_optional_images(lunaRenderer_t *rd) {
                                  i * rd->shadow_image_size, data->depth_image);
   }
 
-  free(swapchainImages);
+  luna_free(swapchainImages);
 }
 
 void create_framebuffers_and_swapchain_image_views(lunaRenderer_t *rd) {
@@ -710,12 +712,12 @@ void lunaRenderer_InitializeRenderingComponents(
 
   if (conf->vsync_enabled) {
     switch (conf->buffer_mode) {
-    case CG_BUFFER_MODE_SINGLE_BUFFERED:
-    case CG_BUFFER_MODE_DOUBLE_BUFFERED:
+    case LUNA_BUFFER_MODE_SINGLE_BUFFERED:
+    case LUNA_BUFFER_MODE_DOUBLE_BUFFERED:
     default:
       present_mode = VK_PRESENT_MODE_FIFO_KHR;
       break;
-    case CG_BUFFER_MODE_TRIPLE_BUFFERED:
+    case LUNA_BUFFER_MODE_TRIPLE_BUFFERED:
       present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
       break;
       break;
@@ -734,7 +736,7 @@ void lunaRenderer_InitializeRenderingComponents(
   luna_GPU_CreateSwapchain(&scio, &rd->swapchain);
 
   VkSampleCountFlagBits conf_samples;
-  if (conf->samples == CG_SAMPLE_COUNT_MAX_SUPPORTED) {
+  if (conf->samples == LUNA_SAMPLE_COUNT_MAX_SUPPORTED) {
     conf_samples = MAX_SAMPLES;
   } else {
     conf_samples = (VkSampleCountFlagBits)conf->samples;
@@ -793,7 +795,7 @@ void lunaRenderer_InitializeRenderingComponents(
 lunaRenderer_t *lunaRenderer_Init(const lunaRenderer_Config *conf) {
   if (conf->multisampling_enable == 1) {
     LOG_ERROR("config samples must not be 1 if multisampling is enabled.");
-    cassert(conf->samples != CG_SAMPLE_COUNT_1_SAMPLES);
+    cassert(conf->samples != LUNA_SAMPLE_COUNT_1_SAMPLES);
   }
   struct lunaRenderer_t *rd =
       (lunaRenderer_t *)calloc(1, sizeof(struct lunaRenderer_t));
@@ -844,7 +846,8 @@ lunaRenderer_t *lunaRenderer_Init(const lunaRenderer_Config *conf) {
 
   luna_DescriptorPool_Init(&g_pool);
 
-  lunaSprite_Empty = lunaSprite_LoadFromDisk("../Assets/empty.png");
+  const unsigned char empty_data[3] = {255,255,255}; // fill rgb with 255 so it's white
+  lunaSprite_Empty = lunaSprite_LoadFromMemory(empty_data, 1, 1, LUNA_FORMAT_RGB8);
 
   camera = lunaCamera_Init();
 
@@ -894,7 +897,7 @@ void crenderer_resize(lunaRenderer_t *rd) {
   for (u32 i = 0; i < SwapChainImageCount; i++) {
     lunaFrameRenderData *data =
         (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
-    free(data->sc_image);
+    luna_free(data->sc_image);
     vkDestroyImageView(device, luna_GPU_TextureGetView(data->sc_image),
                        NULL); // as the view was silently smushed into the
                               // structure, we just kinda smush it out as well.
@@ -926,12 +929,12 @@ void crenderer_resize(lunaRenderer_t *rd) {
 
   if (rd->flags & CG_RENDERER_VSYNC_ENABLE) {
     switch (rd->buffer_mode) {
-    case CG_BUFFER_MODE_SINGLE_BUFFERED:
-    case CG_BUFFER_MODE_DOUBLE_BUFFERED:
+    case LUNA_BUFFER_MODE_SINGLE_BUFFERED:
+    case LUNA_BUFFER_MODE_DOUBLE_BUFFERED:
     default:
       present_mode = VK_PRESENT_MODE_FIFO_KHR;
       break;
-    case CG_BUFFER_MODE_TRIPLE_BUFFERED:
+    case LUNA_BUFFER_MODE_TRIPLE_BUFFERED:
       present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
       break;
       break;
@@ -1013,7 +1016,7 @@ bool lunaRenderer_BeginRender(lunaRenderer_t *rd) {
       .clearValueCount = 2,
       .pClearValues =
           (VkClearValue[2]){
-              {.color = (VkClearColorValue){{0.0f, 0.0f, 0.0f, 1.0f}}},
+              {.color = (VkClearColorValue){{rd->clear_color.x, rd->clear_color.y, rd->clear_color.z, rd->clear_color.w}}},
               {.depthStencil = (VkClearDepthStencilValue){1.0f, 0}}},
   };
 
@@ -1107,6 +1110,10 @@ void lunaRenderer_EndRender(lunaRenderer_t *rd) {
   }
 
   rd->renderer_frame = (rd->renderer_frame + 1) % (1 + (int)rd->buffer_mode);
+}
+
+void lunaRenderer_SetClearColor(struct lunaRenderer_t *rd, vec4 col) {
+  rd->clear_color = col;
 }
 // lunaGFX ^^
 
@@ -1700,7 +1707,7 @@ void ctext_load_font(lunaRenderer_t *rd, const char *font_path, int scale,
 
   luna_GPU_TextureCreateInfo image_info = {
       .format = LUNA_FORMAT_R8,
-      .samples = CG_SAMPLE_COUNT_1_SAMPLES,
+      .samples = LUNA_SAMPLE_COUNT_1_SAMPLES,
       .type = VK_IMAGE_TYPE_2D,
       .usage = LUNA_GPU_TEXTURE_USAGE_SAMPLED_TEXTURE,
       .extent = (VkExtent3D){.width = dstref->atlas.width,
@@ -2073,7 +2080,7 @@ void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo,
   }
 
   str = cg_string_init_str(buffer);
-  free(buffer);
+  luna_free(buffer);
 
   const size_t vertex_count = effective_length * 4;
   const size_t index_count = effective_length * 6;
@@ -2094,7 +2101,7 @@ void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo,
   // can we not have a bounds check before making the vertices?
   // probably not..
   if (gen_vertices(fnt, &drawcall, pInfo, str, pInfo->scale) != 0) {
-    free(allocation);
+    luna_free(allocation);
     cg_string_destroy(str);
     return;
   }
@@ -2171,7 +2178,7 @@ void __ctext_flush_font(lunaRenderer_t *rd, cfont_t *fnt) {
   for (int i = 0; i < cg_vector_size(&fnt->drawcalls); i++) {
     ctext_drawcall_t *drawcall =
         (ctext_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
-    free(drawcall->vertices);
+    luna_free(drawcall->vertices);
   }
   cg_vector_clear(&fnt->drawcalls);
 }
@@ -2292,15 +2299,15 @@ void luna_DescriptorSetSubmitWrite(luna_DescriptorSet *set,
 
 void luna_DescriptorSetDestroy(luna_DescriptorSet *set) {
   vkDestroyDescriptorSetLayout(device, set->layout, NULL);
-  free(set->writes);
-  free(set);
+  luna_free(set->writes);
+  luna_free(set);
 }
 
 void luna_DescriptorPoolDestroy(luna_DescriptorPool *pool) {
   for (int i = 0; i < pool->nsets; i++) {
     luna_DescriptorSetDestroy(pool->sets[i]);
   }
-  free(pool->sets);
+  luna_free(pool->sets);
   vkDestroyDescriptorPool(device, pool->pool, NULL);
 }
 
@@ -2355,7 +2362,7 @@ void __luna_DescriptorPool_Allocate(luna_DescriptorPool *pool) {
     cassert(vkAllocateDescriptorSets(device, &setAllocInfo, new_sets) ==
             VK_SUCCESS);
 
-    free(layouts);
+    luna_free(layouts);
   }
 
   int ncopies = 0;
@@ -2392,8 +2399,8 @@ void __luna_DescriptorPool_Allocate(luna_DescriptorPool *pool) {
   }
   pool->pool = new_pool;
 
-  free(new_sets);
-  free(copies);
+  luna_free(new_sets);
+  luna_free(copies);
 }
 
 void luna_DescriptorPool_Init(luna_DescriptorPool *dst) {
@@ -2874,7 +2881,7 @@ void luna_GPU_CreateGraphicsPipeline(
 
   base_pipeline = *dstPipeline;
 
-  free(shader_infos);
+  luna_free(shader_infos);
 }
 
 void luna_GPU_CreateRenderPass(luna_GPU_RenderPassCreateInfo const *pCreateInfo,
@@ -4135,7 +4142,7 @@ lunaSprite *lunaSprite_LoadFromMemory(const unsigned char *data, int w, int h,
 
   luna_GPU_TextureCreateInfo tex_info = {
       .format = fmt,
-      .samples = CG_SAMPLE_COUNT_1_SAMPLES,
+      .samples = LUNA_SAMPLE_COUNT_1_SAMPLES,
       .type = VK_IMAGE_TYPE_2D,
       .usage = LUNA_GPU_TEXTURE_USAGE_SAMPLED_TEXTURE,
       .extent = (VkExtent3D){.width = w, .height = h, .depth = 1},
@@ -4197,7 +4204,7 @@ lunaSprite *lunaSprite_LoadFromDisk(const char *path) {
   lunaImage tex = lunaImage_Load(path);
   lunaSprite *spr = lunaSprite_LoadFromMemory(tex.data, tex.w, tex.h, tex.fmt);
   spr->rcount = 1;
-  free(tex.data);
+  luna_free(tex.data);
   return spr;
 }
 

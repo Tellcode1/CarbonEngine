@@ -1,5 +1,6 @@
 #include "../include/common/printf.h"
 #include "../include/common/stdafx.h"
+#include "../include/common/timer.h"
 #include "../include/engine/cengine.h"
 #include "../include/engine/ctext.h"
 #include "../include/engine/lunaCamera.h"
@@ -29,6 +30,8 @@ void hoover(lunaUI_Button *self) {
 }
 
 int main(int argc, char *argv[]) {
+  timer start_timer = timer_begin(0.1);
+
   (void)argc;
   (void)argv;
   SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);
@@ -37,13 +40,13 @@ int main(int argc, char *argv[]) {
 
   cg_initialize_context("luna", window_size.width, window_size.height);
 
-  lunaRenderer_Config rdconf = crender_config_init();
+  lunaRenderer_Config rdconf = lunaRenderer_ConfigInit();
   rdconf.vsync_enabled = 0;
-  rdconf.buffer_mode = CG_BUFFER_MODE_TRIPLE_BUFFERED;
+  rdconf.buffer_mode = LUNA_BUFFER_MODE_TRIPLE_BUFFERED;
   rdconf.window_resizable = 0;
   rdconf.initial_window_size = window_size;
   rdconf.multisampling_enable = 0;
-  rdconf.samples = CG_SAMPLE_COUNT_1_SAMPLES;
+  rdconf.samples = LUNA_SAMPLE_COUNT_1_SAMPLES;
   lunaRenderer_t *rd = lunaRenderer_Init(&rdconf);
 
   lunaInput_Init();
@@ -78,6 +81,7 @@ int main(int argc, char *argv[]) {
       lunaObject_Create(scene_main, "Player", LUNA_COLLIDER_TYPE_DYNAMIC,
                         B2_DEFAULT_CATEGORY_BITS, B2_DEFAULT_MASK_BITS,
                         (vec2){0.0f, 0.0f}, (vec2){1.0f, 1.0f}, 0);
+  lunaObject_GetSpriteRenderer(player)->spr = lunaSprite_LoadFromDisk("../Assets/circle.png");
 
   lunaObject *ground = lunaObject_Create(
       scene_main, "Ground", LUNA_COLLIDER_TYPE_STATIC, B2_DEFAULT_CATEGORY_BITS,
@@ -87,8 +91,9 @@ int main(int argc, char *argv[]) {
   ctext_label *l = ctext_create_label(scene_main, amongus);
 
   // What in the unholy f%$ where you doing
-  LOG_DEBUG("Initialized in %ld ms (%.3f s)", SDL_GetTicks64(),
-            SDL_GetTicks64() / 1000.0f);
+  LOG_DEBUG("Initialized in %li ms (%.3f s)",
+            (long)(timer_time_since_start(&start_timer) * 1000.0),
+            timer_time_since_start(&start_timer));
   while (cg_running()) {
     cg_update();
     const double dt = cg_get_delta_time();
@@ -146,6 +151,8 @@ int main(int argc, char *argv[]) {
     lunaObject *obj = ctext_label_get_object(l);
     lunaObject_SetPosition(obj, lunaObject_GetPosition(player));
 
+    lunaRenderer_SetClearColor(rd, (vec4){.x=0.5f*(sinf(cg_get_time()) + 1.0f), .y=0.3f, .z=0.2f, .w=1.0f});
+
     if (lunaRenderer_BeginRender(rd)) {
 
       lunaScene_Render(rd);
@@ -159,6 +166,7 @@ int main(int argc, char *argv[]) {
   lunaUI_DestroyButton(bton);
 
   vkDeviceWaitIdle(device);
+  lunaSprite_Release(lunaObject_GetSpriteRenderer(player)->spr);
   ctext_destroy_font(amongus);
   lunaRenderer_Destroy(rd);
   lunaInput_Shutdown();

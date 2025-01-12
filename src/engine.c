@@ -8,11 +8,9 @@
 #include "../include/engine/lunaObject.h"
 #include "../include/engine/lunaScene.h"
 #include "../include/engine/lunaUI.h"
-#include "box2d/math_functions.h"
-#include "box2d/types.h"
 
 #include <SDL2/SDL.h>
-#include <string.h>
+#include "../include/common/string.h"
 
 u8 cg_current_frame = 0;
 u64 cg_last_frame_time =
@@ -268,7 +266,7 @@ lunaCollider *lunaCollider_Init(lunaScene *scene, vec2 position, vec2 size,
 void lunaCollider_Destroy(lunaCollider *col) {
   if (col && col->enabled) {
     b2DestroyBody(col->body);
-    free(col);
+    luna_free(col);
   }
 }
 
@@ -399,9 +397,7 @@ void lunaScene_Render(lunaRenderer_t *rd) {
     if (spr_renderer->flip_vertical) {
       texmul.y *= -1.0f;
     }
-    lunaRenderer_DrawQuad(rd, spr_renderer->spr, texmul,
-                          (vec3){pos.x, pos.y, 0.0f},
-                          (vec3){siz.x, siz.y, 1.0f}, spr_renderer->color, 0);
+    lunaRenderer_DrawTexturedQuad(rd, spr_renderer, (vec3){pos.x,pos.y,0.0f}, (vec3){siz.x,siz.y,0.0f}, 0);
   }
   for (int i = 0; i < scene_main->objects.m_size; i++) {
     if (objects[i].render_fn) {
@@ -413,7 +409,7 @@ void lunaScene_Render(lunaRenderer_t *rd) {
 
 void lunaScene_Destroy(lunaScene *scene) {
   b2DestroyWorld(scene->world);
-  free(scene);
+  luna_free(scene);
 }
 
 void lunaScene_AssignLoadFn(lunaScene *scene, lunaSceneLoadFn fn) {
