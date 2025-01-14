@@ -1,8 +1,8 @@
 #ifndef __LUNA_STR_H__
 #define __LUNA_STR_H__
 
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 // This is literally using the 'n' types of the string functions
 

@@ -10,34 +10,34 @@ extern const char *shader_compiler_args;
 extern const char *list;
 
 typedef struct csm_shader_entry {
-    char path[256];
-    char output_path[256];
-    char name[128];
-    char stage[4];
-    long last_modified;
+  char path[256];
+  char output_path[256];
+  char name[128];
+  char stage[4];
+  long last_modified;
 } csm_shader_entry;
 
 // how the csm shader is stored on the disk
 typedef struct csm_shader_disk {
-    char name[128];
-    char path[128];
-    long last_modified;
+  char name[128];
+  char path[128];
+  long last_modified;
 } csm_shader_disk;
 
 typedef struct csm_shader_t {
-    char name[128];
-    VkShaderModule_T *shader_module; // the vk shader handle
-    unsigned stage;
+  char name[128];
+  VkShaderModule_T *shader_module; // the vk shader handle
+  unsigned stage;
 } csm_shader_t;
 
 extern struct csm_shader_t *shader_map;
 extern int nshaders;
 
 typedef struct csm_shader_cache_entry {
-    char path[256];
-    char output_path[256];
-    char name[128];
-    long last_modified;
+  char path[256];
+  char output_path[256];
+  char name[128];
+  long last_modified;
 } csm_shader_cache_entry;
 
 typedef struct VkDevice_T VkDevice_T;
@@ -45,4 +45,4 @@ typedef struct VkDevice_T VkDevice_T;
 extern void __csm_create_shader(VkDevice_T *__restrict vkdevice, const unsigned *__restrict bytes, int nbytes, struct csm_shader_t *__restrict out);
 void __csm_vk_register_shaders(csm_shader_entry *entries, int nentries);
 
-#endif//__CSM_DEV_H
+#endif //__CSM_DEV_H

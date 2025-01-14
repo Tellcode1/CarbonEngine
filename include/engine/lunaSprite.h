@@ -3,8 +3,8 @@
 
 // Renderable sprite
 
-#define VK_FORWARD_DECLARE(s)\
-  typedef struct s##_T s##_T;\
+#define VK_FORWARD_DECLARE(s)                                                                                                                        \
+  typedef struct s##_T s##_T;                                                                                                                        \
   typedef s##_T *s;
 
 VK_FORWARD_DECLARE(VkImage);
@@ -35,4 +35,4 @@ extern VkDescriptorSet lunaSprite_GetDescriptorSet(const lunaSprite *spr);
 extern VkSampler lunaSprite_GetSampler(const lunaSprite *spr);
 extern lunaFormat lunaSprite_GetFormat(const lunaSprite *spr);
 
-#endif//__LUNA_SPRITE_H__
+#endif //__LUNA_SPRITE_H__

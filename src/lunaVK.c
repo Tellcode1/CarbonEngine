@@ -1,16 +1,16 @@
 #include "../include/GPU/lunaVK.h"
 
+#include "../common/printf.h"
+#include "../common/string.h"
 #include "../include/GPU/pipeline.h"
-#include "../include/common/cshadermanager.h"
-#include "../include/common/cshadermanagerdev.h"
-#include "../include/common/fontc.h"
-#include "../include/common/lunaImage.h"
-#include "../include/common/string.h"
-#include "../include/common/printf.h"
 #include "../include/containers/cgvector.h"
 #include "../include/engine/cengine.h"
+#include "../include/engine/cshadermanager.h"
+#include "../include/engine/cshadermanagerdev.h"
 #include "../include/engine/ctext.h"
+#include "../include/engine/fontc.h"
 #include "../include/engine/lunaCamera.h"
+#include "../include/engine/lunaImage.h"
 #include "../include/engine/lunaSpriteRenderer.h"
 #include "../include/engine/lunaUI.h"
 
@@ -18,16 +18,15 @@
 #include <stdlib.h>
 
 #define HAS_FLAG(flag) ((luna_GPU_vk_flag_register & flag) || (flags & flag))
-#define STR(s) #s
+#define STR(s)         #s
 
 // lunaVK.h
-VkCommandPool pool = VK_NULL_HANDLE;
+VkCommandPool pool     = VK_NULL_HANDLE;
 VkCommandBuffer buffer = VK_NULL_HANDLE;
 
-luna_GPU_ResultCheckFn __cvk_resultFunc =
-    __cvk_defaultResultCheckFunc; // To not cause nullptr dereference.
-                                  // SetResultCheckFunc also checks for nullptr
-                                  // and handles it.
+luna_GPU_ResultCheckFn __cvk_resultFunc = __cvk_defaultResultCheckFunc; // To not cause nullptr dereference.
+                                                                        // SetResultCheckFunc also checks for nullptr
+                                                                        // and handles it.
 u32 luna_GPU_vk_flag_register = 0;
 // lunaVK.h
 
@@ -35,33 +34,33 @@ u32 luna_GPU_vk_flag_register = 0;
 luna_BakedPipelines g_Pipelines;
 
 VkPipeline base_pipeline = NULL;
-VkPipelineCache cache = NULL;
+VkPipelineCache cache    = NULL;
 
 cg_vector_t g_Samplers;
 // lunaPipelines.h
 
 // lunaGFX.h
-VkInstance instance = NULL;
-VkDevice device = NULL;
-VkPhysicalDevice physDevice = NULL;
-VkSurfaceKHR surface = NULL;
-SDL_Window *window = NULL;
+VkInstance instance                     = NULL;
+VkDevice device                         = NULL;
+VkPhysicalDevice physDevice             = NULL;
+VkSurfaceKHR surface                    = NULL;
+SDL_Window *window                      = NULL;
 VkDebugUtilsMessengerEXT debugMessenger = NULL;
 
 lunaFormat SwapChainImageFormat;
 VkColorSpaceKHR SwapChainColorSpace;
-u32 SwapChainImageCount = 0;
-u32 GraphicsFamilyIndex = 0;
-u32 PresentFamilyIndex = 0;
-u32 ComputeFamilyIndex = 0;
-u32 TransferQueueIndex = 0;
+u32 SwapChainImageCount           = 0;
+u32 GraphicsFamilyIndex           = 0;
+u32 PresentFamilyIndex            = 0;
+u32 ComputeFamilyIndex            = 0;
+u32 TransferQueueIndex            = 0;
 u32 GraphicsAndComputeFamilyIndex = 0;
-VkQueue GraphicsQueue = VK_NULL_HANDLE;
-VkQueue GraphicsAndComputeQueue = VK_NULL_HANDLE;
-VkQueue PresentQueue = VK_NULL_HANDLE;
-VkQueue ComputeQueue = VK_NULL_HANDLE;
-VkQueue TransferQueue = VK_NULL_HANDLE;
-VkSampleCountFlagBits Samples = VK_SAMPLE_COUNT_1_BIT;
+VkQueue GraphicsQueue             = VK_NULL_HANDLE;
+VkQueue GraphicsAndComputeQueue   = VK_NULL_HANDLE;
+VkQueue PresentQueue              = VK_NULL_HANDLE;
+VkQueue ComputeQueue              = VK_NULL_HANDLE;
+VkQueue TransferQueue             = VK_NULL_HANDLE;
+VkSampleCountFlagBits Samples     = VK_SAMPLE_COUNT_1_BIT;
 
 luna_DescriptorPool g_pool;
 lunaCamera camera;
@@ -237,8 +236,7 @@ int lunaRenderer_GetFrame(const lunaRenderer_t *rd) {
 }
 
 VkCommandBuffer lunaRenderer_GetDrawBuffer(const lunaRenderer_t *rd) {
-  return *(VkCommandBuffer *)cg_vector_get(&rd->drawBuffers,
-                                           rd->renderer_frame);
+  return *(VkCommandBuffer *)cg_vector_get(&rd->drawBuffers, rd->renderer_frame);
 }
 
 VkRenderPass lunaRenderer_GetRenderPass(const lunaRenderer_t *rd) {
@@ -256,47 +254,36 @@ int lunaRenderer_GetMaxFramesInFlight(const lunaRenderer_t *rd) {
 #define ABSF(x) ((x >= 0.0f) ? (x) : -(x))
 
 bool luna_Quad_Visible(const vec3 *pos, const vec3 *siz) {
-  const float half_width = siz->x * 0.5f;
+  const float half_width  = siz->x * 0.5f;
   const float half_height = siz->y * 0.5f;
-  const float dx = fabsf(pos->x - camera.position.x); // delta x & y
-  const float dy = fabsf(pos->y - camera.position.y); //
+  const float dx          = fabsf(pos->x - camera.position.x); // delta x & y
+  const float dy          = fabsf(pos->y - camera.position.y); //
 
-  return (dx <= (half_width + CAMERA_ORTHO_W) &&
-          dy <= (half_height + CAMERA_ORTHO_H));
+  return (dx <= (half_width + CAMERA_ORTHO_W) && dy <= (half_height + CAMERA_ORTHO_H));
 }
 
-void lunaRenderer_DrawTexturedQuad(lunaRenderer_t *rd,
-                                   const luna_SpriteRenderer *sprite_renderer,
-                                   vec3 position, vec3 size, int layer) {
-  luna_DrawCall_t drawcall = {
-      .type = LUNA_DRAWCALL_QUAD,
-      .layer = layer,
-      .drawcall = {
-          .quad = {.spr = sprite_renderer->spr,
-                   .tex_multiplier = sprite_renderer->tex_coord_multiplier,
-                   .pos = position,
-                   .siz = size,
-                   .col = sprite_renderer->color}}};
+void lunaRenderer_DrawTexturedQuad(lunaRenderer_t *rd, const luna_SpriteRenderer *sprite_renderer, vec3 position, vec3 size, int layer) {
+  luna_DrawCall_t drawcall = {.type     = LUNA_DRAWCALL_QUAD,
+                              .layer    = layer,
+                              .drawcall = {.quad = {.spr            = sprite_renderer->spr,
+                                                    .tex_multiplier = sprite_renderer->tex_coord_multiplier,
+                                                    .pos            = position,
+                                                    .siz            = size,
+                                                    .col            = sprite_renderer->color}}};
   cg_vector_push_back(&rd->drawcalls, &drawcall);
 }
 
-void lunaRenderer_DrawQuad(lunaRenderer_t *rd, lunaSprite *spr,
-                           vec2 tex_coord_multiplier, vec3 position, vec3 size,
-                           vec4 color, int layer) {
+void lunaRenderer_DrawQuad(lunaRenderer_t *rd, lunaSprite *spr, vec2 tex_coord_multiplier, vec3 position, vec3 size, vec4 color, int layer) {
   // create a temporary sprite renderer and render an untextured quad with it
-  luna_SpriteRenderer sprite_renderer = luna_SpriteRendererInit();
-  sprite_renderer.spr = spr;
+  luna_SpriteRenderer sprite_renderer  = luna_SpriteRendererInit();
+  sprite_renderer.spr                  = spr;
   sprite_renderer.tex_coord_multiplier = tex_coord_multiplier;
-  sprite_renderer.color = color;
+  sprite_renderer.color                = color;
   lunaRenderer_DrawTexturedQuad(rd, &sprite_renderer, position, size, layer);
 }
 
-void lunaRenderer_DrawLine(lunaRenderer_t *rd, vec2 start, vec2 end, vec4 color,
-                           int layer) {
-  luna_DrawCall_t drawcall = {
-      .type = LUNA_DRAWCALL_LINE,
-      .layer = layer,
-      .drawcall = {.line = {.begin = start, .end = end, .col = color}}};
+void lunaRenderer_DrawLine(lunaRenderer_t *rd, vec2 start, vec2 end, vec4 color, int layer) {
+  luna_DrawCall_t drawcall = {.type = LUNA_DRAWCALL_LINE, .layer = layer, .drawcall = {.line = {.begin = start, .end = end, .col = color}}};
   cg_vector_push_back(&rd->drawcalls, &drawcall);
 }
 
@@ -308,9 +295,8 @@ int __drawcall_compar(const void *obj1, const void *obj2) {
 }
 
 void __lunaRenderer_FlushRenders(lunaRenderer_t *rd) {
-  const uint32_t camera_ub_offset =
-      lunaRenderer_GetFrame(rd) * sizeof(camera_uniform_buffer);
-  const VkCommandBuffer cmd = lunaRenderer_GetDrawBuffer(rd);
+  const uint32_t camera_ub_offset  = lunaRenderer_GetFrame(rd) * sizeof(camera_uniform_buffer);
+  const VkCommandBuffer cmd        = lunaRenderer_GetDrawBuffer(rd);
   const VkDescriptorSet camera_set = camera.sets->set;
 
   bool bound_quad_state = 0;
@@ -320,8 +306,7 @@ void __lunaRenderer_FlushRenders(lunaRenderer_t *rd) {
   luna_DrawCallType state = (unsigned)-1;
 
   for (int i = 0; i < cg_vector_size(&rd->drawcalls); i++) {
-    const luna_DrawCall_t *drawcall =
-        &((luna_DrawCall_t *)cg_vector_data(&rd->drawcalls))[i];
+    const luna_DrawCall_t *drawcall = &((luna_DrawCall_t *)cg_vector_data(&rd->drawcalls))[i];
 
     if (drawcall->type == LUNA_DRAWCALL_QUAD) {
       // if (!luna_Quad_Visible(&drawcall->drawcall.quad.pos,
@@ -332,16 +317,14 @@ void __lunaRenderer_FlushRenders(lunaRenderer_t *rd) {
       if (state != LUNA_DRAWCALL_QUAD) {
         VkDeviceSize offsets = 0;
 
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          g_Pipelines.Unlit.pipeline);
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_Pipelines.Unlit.pipeline);
 
         if (!bound_quad_state) {
           vkCmdBindVertexBuffers(cmd, 0, 1, &rd->quad_vb.buffer, &offsets);
-          vkCmdBindIndexBuffer(cmd, rd->quad_vb.buffer, sizeof(quad_vertices),
-                               VK_INDEX_TYPE_UINT32);
+          vkCmdBindIndexBuffer(cmd, rd->quad_vb.buffer, sizeof(quad_vertices), VK_INDEX_TYPE_UINT32);
         }
 
-        state = LUNA_DRAWCALL_QUAD;
+        state            = LUNA_DRAWCALL_QUAD;
         bound_quad_state = 1;
       }
 
@@ -351,37 +334,29 @@ void __lunaRenderer_FlushRenders(lunaRenderer_t *rd) {
         vec2 tex_multiplier; // Multiplied with the tex coords
       } pc;
 
-      mat4 scale = m4scale(m4init(1.0f), drawcall->drawcall.quad.siz);
-      mat4 rotate = m4init(1.0f);
-      mat4 translate = m4translate(m4init(1.0f), drawcall->drawcall.quad.pos);
-      pc.model = m4mul(translate, m4mul(rotate, scale));
-      pc.color = drawcall->drawcall.quad.col;
+      mat4 scale        = m4scale(m4init(1.0f), drawcall->drawcall.quad.siz);
+      mat4 rotate       = m4init(1.0f);
+      mat4 translate    = m4translate(m4init(1.0f), drawcall->drawcall.quad.pos);
+      pc.model          = m4mul(translate, m4mul(rotate, scale));
+      pc.color          = drawcall->drawcall.quad.col;
       pc.tex_multiplier = drawcall->drawcall.quad.tex_multiplier;
-      vkCmdPushConstants(cmd, g_Pipelines.Unlit.pipeline_layout,
-                         VK_SHADER_STAGE_VERTEX_BIT |
-                             VK_SHADER_STAGE_FRAGMENT_BIT,
-                         0, sizeof(struct push_constants), &pc);
+      vkCmdPushConstants(cmd, g_Pipelines.Unlit.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+                         sizeof(struct push_constants), &pc);
 
-      VkDescriptorSet sprite_set =
-          lunaSprite_GetDescriptorSet(drawcall->drawcall.quad.spr);
+      VkDescriptorSet sprite_set   = lunaSprite_GetDescriptorSet(drawcall->drawcall.quad.spr);
       const VkDescriptorSet sets[] = {camera_set, sprite_set};
 
-      vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                              g_Pipelines.Unlit.pipeline_layout, 0, 2, sets, 1,
-                              &camera_ub_offset);
+      vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_Pipelines.Unlit.pipeline_layout, 0, 2, sets, 1, &camera_ub_offset);
       vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
     } else if (drawcall->type == LUNA_DRAWCALL_LINE) {
       if (state != LUNA_DRAWCALL_LINE) {
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          g_Pipelines.Line.pipeline);
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_Pipelines.Line.pipeline);
 
         state = LUNA_DRAWCALL_LINE;
       }
 
       const VkDescriptorSet sets[] = {camera_set};
-      vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                              g_Pipelines.Line.pipeline_layout, 0, 1, sets, 1,
-                              &camera_ub_offset);
+      vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_Pipelines.Line.pipeline_layout, 0, 1, sets, 1, &camera_ub_offset);
 
       struct line_push_constants {
         mat4 model;
@@ -389,16 +364,12 @@ void __lunaRenderer_FlushRenders(lunaRenderer_t *rd) {
         vec2 line_begin;
         vec2 line_end;
       } pc;
-      pc.model = m4init(1.0f);
-      pc.color = drawcall->drawcall.line.col;
-      pc.line_begin = (vec2){drawcall->drawcall.line.begin.x,
-                             drawcall->drawcall.line.begin.y};
-      pc.line_end =
-          (vec2){drawcall->drawcall.line.end.x, drawcall->drawcall.line.end.y};
-      vkCmdPushConstants(cmd, g_Pipelines.Line.pipeline_layout,
-                         VK_SHADER_STAGE_VERTEX_BIT |
-                             VK_SHADER_STAGE_FRAGMENT_BIT,
-                         0, sizeof(struct line_push_constants), &pc);
+      pc.model      = m4init(1.0f);
+      pc.color      = drawcall->drawcall.line.col;
+      pc.line_begin = (vec2){drawcall->drawcall.line.begin.x, drawcall->drawcall.line.begin.y};
+      pc.line_end   = (vec2){drawcall->drawcall.line.end.x, drawcall->drawcall.line.end.y};
+      vkCmdPushConstants(cmd, g_Pipelines.Line.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+                         sizeof(struct line_push_constants), &pc);
 
       vkCmdDraw(cmd, 2, 1, 0, 0);
     }
@@ -409,34 +380,22 @@ void __lunaRenderer_FlushRenders(lunaRenderer_t *rd) {
 
 void lunaRenderer_PrepareQuadRenderer(lunaRenderer_t *rd) {
   luna_memcpy(quad_vertices, sizeof(quad_vertices),
-              (const quad_vertex[4]){
-                  (const quad_vertex){.position = (vec3){+0.5f, +0.5f, 0.0f},
-                                      .tex_coords = (vec2){1.0f, 0.0f}},
-                  (const quad_vertex){.position = (vec3){-0.5f, +0.5f, 0.0f},
-                                      .tex_coords = (vec2){0.0f, 0.0f}},
-                  (const quad_vertex){.position = (vec3){-0.5f, -0.5f, 0.0f},
-                                      .tex_coords = (vec2){0.0f, 1.0f}},
-                  (const quad_vertex){.position = (vec3){+0.5f, -0.5f, 0.0f},
-                                      .tex_coords = (vec2){1.0f, 1.0f}}},
+              (const quad_vertex[4]){(const quad_vertex){.position = (vec3){+0.5f, +0.5f, 0.0f}, .tex_coords = (vec2){1.0f, 0.0f}},
+                                     (const quad_vertex){.position = (vec3){-0.5f, +0.5f, 0.0f}, .tex_coords = (vec2){0.0f, 0.0f}},
+                                     (const quad_vertex){.position = (vec3){-0.5f, -0.5f, 0.0f}, .tex_coords = (vec2){0.0f, 1.0f}},
+                                     (const quad_vertex){.position = (vec3){+0.5f, -0.5f, 0.0f}, .tex_coords = (vec2){1.0f, 1.0f}}},
               sizeof(quad_vertices));
 
-  luna_GPU_CreateBuffer(sizeof(quad_vertices) + sizeof(quad_indices),
-                        LUNA_GPU_ALIGNMENT_UNNECESSARY,
-                        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
-                            VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                        &rd->quad_vb);
-  luna_GPU_AllocateMemory(sizeof(quad_vertices) + sizeof(quad_indices),
-                          VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
-                              VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+  luna_GPU_CreateBuffer(sizeof(quad_vertices) + sizeof(quad_indices), LUNA_GPU_ALIGNMENT_UNNECESSARY,
+                        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, &rd->quad_vb);
+  luna_GPU_AllocateMemory(sizeof(quad_vertices) + sizeof(quad_indices), VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
                           &rd->quad_memory);
   luna_GPU_BindBufferToMemory(&rd->quad_memory, 0, &rd->quad_vb);
 
   void *data = luna_malloc(sizeof(quad_vertices) + sizeof(quad_indices));
   luna_memcpy(data, SIZE_MAX, quad_vertices, sizeof(quad_vertices));
-  luna_memcpy((char *)data + sizeof(quad_vertices), SIZE_MAX, quad_indices,
-              sizeof(quad_indices));
-  luna_GPU_WriteToBuffer(&rd->quad_vb,
-                         sizeof(quad_vertices) + sizeof(quad_indices), data, 0);
+  luna_memcpy((char *)data + sizeof(quad_vertices), SIZE_MAX, quad_indices, sizeof(quad_indices));
+  luna_GPU_WriteToBuffer(&rd->quad_vb, sizeof(quad_vertices) + sizeof(quad_indices), data, 0);
 
   luna_free(data);
 }
@@ -447,8 +406,7 @@ void lunaRenderer_Destroy(lunaRenderer_t *rd) {
   // we were only making frames_in_flight fences and it was working for some
   // reason!! that was the reason we were getting errors!
   for (int i = 0; i < (int)SwapChainImageCount; i++) {
-    lunaFrameRenderData *data =
-        (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
+    lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
     luna_GPU_DestroyTexture(data->depth_image);
     vkDestroyImageView(device, luna_GPU_TextureGetView(data->sc_image),
                        NULL); // as the view was silently smushed into the
@@ -482,9 +440,7 @@ void lunaRenderer_Destroy(lunaRenderer_t *rd) {
   vkFreeCommandBuffers(device, pool, 1, &buffer);
   vkDestroyCommandPool(device, pool, NULL);
 
-  vkFreeCommandBuffers(device, rd->commandPool,
-                       cg_vector_size(&rd->drawBuffers),
-                       (VkCommandBuffer *)cg_vector_data(&rd->drawBuffers));
+  vkFreeCommandBuffers(device, rd->commandPool, cg_vector_size(&rd->drawBuffers), (VkCommandBuffer *)cg_vector_data(&rd->drawBuffers));
   vkDestroyCommandPool(device, rd->commandPool, NULL);
   cg_vector_destroy(&rd->drawBuffers);
 
@@ -508,124 +464,96 @@ void lunaRenderer_Destroy(lunaRenderer_t *rd) {
 
 void create_optional_images(lunaRenderer_t *rd) {
   vkGetSwapchainImagesKHR(device, rd->swapchain, &SwapChainImageCount, NULL);
-  VkImage *swapchainImages =
-      (VkImage *)luna_malloc(SwapChainImageCount * sizeof(VkImage));
-  vkGetSwapchainImagesKHR(device, rd->swapchain, &SwapChainImageCount,
-                          swapchainImages);
+  VkImage *swapchainImages = (VkImage *)luna_malloc(SwapChainImageCount * sizeof(VkImage));
+  vkGetSwapchainImagesKHR(device, rd->swapchain, &SwapChainImageCount, swapchainImages);
 
   cg_vector_resize(&rd->renderData, SwapChainImageCount);
 
   if (rd->flags & CG_RENDERER_MULTISAMPLING_ENABLE) {
     int color_image_size = 0;
-    luna_VK_CreateTextureEmpty(
-        rd->render_extent.width, rd->render_extent.height, SwapChainImageFormat,
-        Samples,
-        VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
-            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-        &color_image_size, &rd->color_image->image, NULL);
-    luna_GPU_AllocateMemory(color_image_size,
-                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
-                                VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT,
-                            &rd->color_image_memory);
+    luna_VK_CreateTextureEmpty(rd->render_extent.width, rd->render_extent.height, SwapChainImageFormat, Samples,
+                               VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, &color_image_size,
+                               &rd->color_image->image, NULL);
+    luna_GPU_AllocateMemory(color_image_size, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, &rd->color_image_memory);
     luna_GPU_BindTextureToMemory(&rd->color_image_memory, 0, rd->color_image);
   }
 
   // attachment vector will be like <color resolve, depth attachment, swapchain
   // image>
   for (int i = 0; i < (int)SwapChainImageCount; i++) {
-    lunaFrameRenderData *data =
-        (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
-    (data->sc_image) = calloc(1, sizeof(luna_GPU_Texture));
-    data->sc_image->image = swapchainImages[i];
+    lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
+    (data->sc_image)          = calloc(1, sizeof(luna_GPU_Texture));
+    data->sc_image->image     = swapchainImages[i];
 
     const luna_GPU_TextureCreateInfo image_info = {
-        .format = LUNA_FORMAT_D32,
-        .samples = Samples,
-        .type = VK_IMAGE_TYPE_2D,
-        .usage = LUNA_GPU_TEXTURE_USAGE_DEPTH_TEXTURE,
-        .extent = (VkExtent3D){.width = rd->render_extent.width,
-                               .height = rd->render_extent.height,
-                               .depth = 1},
+        .format      = LUNA_FORMAT_D32,
+        .samples     = Samples,
+        .type        = VK_IMAGE_TYPE_2D,
+        .usage       = LUNA_GPU_TEXTURE_USAGE_DEPTH_TEXTURE,
+        .extent      = (VkExtent3D){.width = rd->render_extent.width, .height = rd->render_extent.height, .depth = 1},
         .arraylayers = 1,
-        .miplevels = 1,
+        .miplevels   = 1,
     };
     luna_GPU_CreateTexture(&image_info, &data->depth_image);
 
     if (i == 0) {
       VkMemoryRequirements memReqs = {};
-      vkGetImageMemoryRequirements(
-          device, luna_GPU_TextureGet(data->depth_image), &memReqs);
+      vkGetImageMemoryRequirements(device, luna_GPU_TextureGet(data->depth_image), &memReqs);
 
       rd->shadow_image_size = memReqs.size;
-      luna_GPU_AllocateMemory(rd->shadow_image_size * SwapChainImageCount,
-                              LUNA_GPU_MEMORY_USAGE_GPU_LOCAL,
-                              &rd->depth_image_memory);
+      luna_GPU_AllocateMemory(rd->shadow_image_size * SwapChainImageCount, LUNA_GPU_MEMORY_USAGE_GPU_LOCAL, &rd->depth_image_memory);
     }
 
-    luna_GPU_BindTextureToMemory(&rd->depth_image_memory,
-                                 i * rd->shadow_image_size, data->depth_image);
+    luna_GPU_BindTextureToMemory(&rd->depth_image_memory, i * rd->shadow_image_size, data->depth_image);
   }
 
   luna_free(swapchainImages);
 }
 
 void create_framebuffers_and_swapchain_image_views(lunaRenderer_t *rd) {
-  cg_vector_t /* VkImageView */ attachments =
-      cg_vector_init(sizeof(VkImageView), 3);
+  cg_vector_t /* VkImageView */ attachments = cg_vector_init(sizeof(VkImageView), 3);
 
   for (int i = 0; i < (int)SwapChainImageCount; i++) {
-    lunaFrameRenderData *data =
-        (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
+    lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
 
     // we don't know anything about the swapchain_image, as it's a swapchain
     // image so we have to manually create the image view;
-    VkImageViewCreateInfo imageViewCreateInfo = {};
-    imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    imageViewCreateInfo.image = luna_GPU_TextureGet(data->sc_image);
-    imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    imageViewCreateInfo.format =
-        luna_lunaFormatToVKFormat(SwapChainImageFormat);
-    imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-    imageViewCreateInfo.subresourceRange.levelCount = 1;
+    VkImageViewCreateInfo imageViewCreateInfo           = {};
+    imageViewCreateInfo.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    imageViewCreateInfo.image                           = luna_GPU_TextureGet(data->sc_image);
+    imageViewCreateInfo.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
+    imageViewCreateInfo.format                          = luna_lunaFormatToVKFormat(SwapChainImageFormat);
+    imageViewCreateInfo.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+    imageViewCreateInfo.subresourceRange.baseMipLevel   = 0;
+    imageViewCreateInfo.subresourceRange.levelCount     = 1;
     imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-    imageViewCreateInfo.subresourceRange.layerCount = 1;
+    imageViewCreateInfo.subresourceRange.layerCount     = 1;
     VkImageView vioew;
-    if (vkCreateImageView(device, &imageViewCreateInfo, NULL, &vioew) !=
-        VK_SUCCESS) {
+    if (vkCreateImageView(device, &imageViewCreateInfo, NULL, &vioew) != VK_SUCCESS) {
       LOG_ERROR("Failed to create view for swapchain image %d", i);
     }
 
     luna_GPU_TextureAttachView(data->sc_image, vioew);
 
-    const VkImageView swapchain_image_view =
-        luna_GPU_TextureGetView(data->sc_image);
-    const VkImageView depth_image_view =
-        luna_GPU_TextureGetView(data->depth_image);
+    const VkImageView swapchain_image_view = luna_GPU_TextureGetView(data->sc_image);
+    const VkImageView depth_image_view     = luna_GPU_TextureGetView(data->depth_image);
 
     cg_vector_clear(&attachments);
     if (rd->flags & CG_RENDERER_MULTISAMPLING_ENABLE) {
-      cg_vector_push_set(
-          &attachments,
-          (VkImageView[]){luna_GPU_TextureGetView(rd->color_image),
-                          depth_image_view, swapchain_image_view},
-          3);
+      cg_vector_push_set(&attachments, (VkImageView[]){luna_GPU_TextureGetView(rd->color_image), depth_image_view, swapchain_image_view}, 3);
     } else {
-      cg_vector_push_set(
-          &attachments, (VkImageView[]){swapchain_image_view, depth_image_view},
-          2);
+      cg_vector_push_set(&attachments, (VkImageView[]){swapchain_image_view, depth_image_view}, 2);
     }
 
     VkFramebufferCreateInfo framebufferInfo = {};
-    framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    framebufferInfo.renderPass = rd->render_pass;
-    framebufferInfo.attachmentCount = cg_vector_size(&attachments);
-    framebufferInfo.pAttachments = (VkImageView *)cg_vector_data(&attachments);
-    framebufferInfo.width = rd->render_extent.width;
-    framebufferInfo.height = rd->render_extent.height;
-    framebufferInfo.layers = 1;
-    if (vkCreateFramebuffer(device, &framebufferInfo, NULL,
-                            &data->color_framebuffer) != VK_SUCCESS) {
+    framebufferInfo.sType                   = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    framebufferInfo.renderPass              = rd->render_pass;
+    framebufferInfo.attachmentCount         = cg_vector_size(&attachments);
+    framebufferInfo.pAttachments            = (VkImageView *)cg_vector_data(&attachments);
+    framebufferInfo.width                   = rd->render_extent.width;
+    framebufferInfo.height                  = rd->render_extent.height;
+    framebufferInfo.layers                  = 1;
+    if (vkCreateFramebuffer(device, &framebufferInfo, NULL, &data->color_framebuffer) != VK_SUCCESS) {
       LOG_ERROR("Failed to create framebuffer for swapchain image %d", i);
     }
   }
@@ -634,80 +562,68 @@ void create_framebuffers_and_swapchain_image_views(lunaRenderer_t *rd) {
 }
 
 void lunaRenderer_InitializeGraphicsSingleton() {
-  if (!luna_VK_GetSupportedFormat(physDevice, surface, &SwapChainImageFormat,
-                                  &SwapChainColorSpace)) {
+  if (!luna_VK_GetSupportedFormat(physDevice, surface, &SwapChainImageFormat, &SwapChainColorSpace)) {
     LOG_AND_ABORT("No supported format for display.");
   }
   SwapChainImageCount = luna_VK_GetSurfaceImageCount(physDevice, surface);
 
   u32 queueCount = 0;
   vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, NULL);
-  cg_vector_t /* VkQueueFamilyProperties */ queueFamilies =
-      cg_vector_init(sizeof(VkQueueFamilyProperties), queueCount);
-  vkGetPhysicalDeviceQueueFamilyProperties(
-      physDevice, &queueCount,
-      (VkQueueFamilyProperties *)cg_vector_data(&queueFamilies));
+  cg_vector_t /* VkQueueFamilyProperties */ queueFamilies = cg_vector_init(sizeof(VkQueueFamilyProperties), queueCount);
+  vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, (VkQueueFamilyProperties *)cg_vector_data(&queueFamilies));
 
-  u32 graphicsFamily = 0, graphicsAndComputeFamily = 0, presentFamily = 0,
-      computeFamily = 0, transferFamily = 0;
-  bool foundGraphicsFamily = false, foundGraphicsAndComputeFamily = false,
-       foundPresentFamily = false, foundComputeFamily = false,
+  u32 graphicsFamily = 0, graphicsAndComputeFamily = 0, presentFamily = 0, computeFamily = 0, transferFamily = 0;
+  bool foundGraphicsFamily = false, foundGraphicsAndComputeFamily = false, foundPresentFamily = false, foundComputeFamily = false,
        foundTransferFamily = false;
 
   u32 i = 0;
   for (u32 j = 0; j < queueCount; j++) {
-    const VkQueueFamilyProperties queueFamily =
-        ((VkQueueFamilyProperties *)cg_vector_data(&queueFamilies))[j];
+    const VkQueueFamilyProperties queueFamily = ((VkQueueFamilyProperties *)cg_vector_data(&queueFamilies))[j];
     VkBool32 presentSupport;
-    vkGetPhysicalDeviceSurfaceSupportKHR(physDevice, i, surface,
-                                         &presentSupport);
+    vkGetPhysicalDeviceSurfaceSupportKHR(physDevice, i, surface, &presentSupport);
 
-    if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT &&
-        queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) {
-      graphicsAndComputeFamily = i;
+    if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT && queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) {
+      graphicsAndComputeFamily      = i;
       foundGraphicsAndComputeFamily = true;
     }
     if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-      graphicsFamily = i;
+      graphicsFamily      = i;
       foundGraphicsFamily = true;
     }
     if (queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) {
-      computeFamily = i;
+      computeFamily      = i;
       foundComputeFamily = true;
     }
     if (queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT) {
-      transferFamily = i;
+      transferFamily      = i;
       foundTransferFamily = true;
     }
     if (presentSupport) {
-      presentFamily = i;
+      presentFamily      = i;
       foundPresentFamily = true;
     }
-    if (foundGraphicsFamily && foundGraphicsAndComputeFamily &&
-        foundPresentFamily && foundComputeFamily && foundTransferFamily)
+    if (foundGraphicsFamily && foundGraphicsAndComputeFamily && foundPresentFamily && foundComputeFamily && foundTransferFamily)
       break;
 
     i++;
   }
 
-  GraphicsFamilyIndex = graphicsFamily;
-  ComputeFamilyIndex = computeFamily;
-  TransferQueueIndex = transferFamily;
-  PresentFamilyIndex = presentFamily;
+  GraphicsFamilyIndex           = graphicsFamily;
+  ComputeFamilyIndex            = computeFamily;
+  TransferQueueIndex            = transferFamily;
+  PresentFamilyIndex            = presentFamily;
   GraphicsAndComputeFamilyIndex = graphicsAndComputeFamily;
 
   vkGetDeviceQueue(device, GraphicsFamilyIndex, 0, &GraphicsQueue);
   vkGetDeviceQueue(device, ComputeFamilyIndex, 0, &ComputeQueue);
   vkGetDeviceQueue(device, TransferQueueIndex, 0, &TransferQueue);
   vkGetDeviceQueue(device, PresentFamilyIndex, 0, &PresentQueue);
-  vkGetDeviceQueue(device, GraphicsAndComputeFamilyIndex, 0,
-                   &GraphicsAndComputeQueue);
+  vkGetDeviceQueue(device, GraphicsAndComputeFamilyIndex, 0, &GraphicsAndComputeQueue);
 
   cg_vector_destroy(&queueFamilies);
 }
 
-void lunaRenderer_InitializeRenderingComponents(
-    lunaRenderer_t *rd, const lunaRenderer_Config *conf) {
+void lunaRenderer_InitializeRenderingComponents(lunaRenderer_t *rd, const lunaRenderer_Config *conf) {
   VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR;
 
   if (conf->vsync_enabled) {
@@ -727,12 +643,12 @@ void lunaRenderer_InitializeRenderingComponents(
   }
 
   luna_GPU_SwapchainCreateInfo scio = {};
-  scio.extent.width = rd->render_extent.width;
-  scio.extent.height = rd->render_extent.height;
-  scio.present_mode = present_mode;
-  scio.format = SwapChainImageFormat;
-  scio.color_space = SwapChainColorSpace;
-  scio.image_count = SwapChainImageCount;
+  scio.extent.width                 = rd->render_extent.width;
+  scio.extent.height                = rd->render_extent.height;
+  scio.present_mode                 = present_mode;
+  scio.format                       = SwapChainImageFormat;
+  scio.color_space                  = SwapChainColorSpace;
+  scio.image_count                  = SwapChainImageCount;
   luna_GPU_CreateSwapchain(&scio, &rd->swapchain);
 
   VkSampleCountFlagBits conf_samples;
@@ -741,9 +657,8 @@ void lunaRenderer_InitializeRenderingComponents(
   } else {
     conf_samples = (VkSampleCountFlagBits)conf->samples;
   }
-  const VkSampleCountFlagBits samples =
-      conf->multisampling_enable ? conf_samples : VK_SAMPLE_COUNT_1_BIT;
-  Samples = samples;
+  const VkSampleCountFlagBits samples = conf->multisampling_enable ? conf_samples : VK_SAMPLE_COUNT_1_BIT;
+  Samples                             = samples;
 
   if (conf->multisampling_enable) {
     luna_GPU_vk_flag_register |= CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING;
@@ -754,11 +669,10 @@ void lunaRenderer_InitializeRenderingComponents(
   rd->attachment_count++;
 
   VkCommandPoolCreateInfo cmdPoolCreateInfo = {};
-  cmdPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-  cmdPoolCreateInfo.queueFamilyIndex = GraphicsFamilyIndex;
-  cmdPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-  if (vkCreateCommandPool(device, &cmdPoolCreateInfo, NULL, &rd->commandPool) !=
-      VK_SUCCESS) {
+  cmdPoolCreateInfo.sType                   = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+  cmdPoolCreateInfo.queueFamilyIndex        = GraphicsFamilyIndex;
+  cmdPoolCreateInfo.flags                   = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+  if (vkCreateCommandPool(device, &cmdPoolCreateInfo, NULL, &rd->commandPool) != VK_SUCCESS) {
     LOG_ERROR("Failed to create command pool");
   }
 
@@ -771,21 +685,19 @@ void lunaRenderer_InitializeRenderingComponents(
   }
 
   VkCommandBufferAllocateInfo cmdAllocInfo = {};
-  cmdAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-  cmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-  cmdAllocInfo.commandBufferCount = frames_in_flight;
-  cmdAllocInfo.commandPool = rd->commandPool;
-  vkAllocateCommandBuffers(device, &cmdAllocInfo,
-                           (VkCommandBuffer *)cg_vector_data(&rd->drawBuffers));
+  cmdAllocInfo.sType                       = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+  cmdAllocInfo.level                       = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+  cmdAllocInfo.commandBufferCount          = frames_in_flight;
+  cmdAllocInfo.commandPool                 = rd->commandPool;
+  vkAllocateCommandBuffers(device, &cmdAllocInfo, (VkCommandBuffer *)cg_vector_data(&rd->drawBuffers));
 
-  rd->depth_buffer_format =
-      luna_lunaFormatToVKFormat(LUNA_FORMAT_D32); // replace (probably)
+  rd->depth_buffer_format = luna_lunaFormatToVKFormat(LUNA_FORMAT_D32); // replace (probably)
 
   luna_GPU_RenderPassCreateInfo rpi = {};
-  rpi.format = SwapChainImageFormat;
-  rpi.depthBufferFormat = luna_VKFormatTolunaFormat(rd->depth_buffer_format);
-  rpi.subpass = 0;
-  rpi.samples = samples;
+  rpi.format                        = SwapChainImageFormat;
+  rpi.depthBufferFormat             = luna_VKFormatTolunaFormat(rd->depth_buffer_format);
+  rpi.subpass                       = 0;
+  rpi.samples                       = samples;
   luna_GPU_CreateRenderPass(&rpi, &rd->render_pass, luna_GPU_vk_flag_register);
 
   create_optional_images(rd);
@@ -797,17 +709,15 @@ lunaRenderer_t *lunaRenderer_Init(const lunaRenderer_Config *conf) {
     LOG_ERROR("config samples must not be 1 if multisampling is enabled.");
     cassert(conf->samples != LUNA_SAMPLE_COUNT_1_SAMPLES);
   }
-  struct lunaRenderer_t *rd =
-      (lunaRenderer_t *)calloc(1, sizeof(struct lunaRenderer_t));
+  struct lunaRenderer_t *rd = (lunaRenderer_t *)calloc(1, sizeof(struct lunaRenderer_t));
 
   // how many frames the renderer will render at once
   const int frames_in_flight = 1 + (int)conf->buffer_mode;
 
-  g_Samplers = cg_vector_init(sizeof(luna_GPU_Sampler), 4);
-  rd->drawcalls = cg_vector_init(sizeof(luna_DrawCall_t), 4);
+  g_Samplers      = cg_vector_init(sizeof(luna_GPU_Sampler), 4);
+  rd->drawcalls   = cg_vector_init(sizeof(luna_DrawCall_t), 4);
   rd->drawBuffers = cg_vector_init(sizeof(VkCommandBuffer), frames_in_flight);
-  rd->renderData =
-      cg_vector_init(sizeof(lunaFrameRenderData), frames_in_flight);
+  rd->renderData  = cg_vector_init(sizeof(lunaFrameRenderData), frames_in_flight);
 
   if (conf->multisampling_enable) {
     rd->flags |= CG_RENDERER_MULTISAMPLING_ENABLE;
@@ -820,34 +730,27 @@ lunaRenderer_t *lunaRenderer_Init(const lunaRenderer_Config *conf) {
   }
   rd->buffer_mode = conf->buffer_mode;
 
-  rd->render_extent.width = conf->initial_window_size.width;
+  rd->render_extent.width  = conf->initial_window_size.width;
   rd->render_extent.height = conf->initial_window_size.height;
 
   lunaRenderer_InitializeGraphicsSingleton();
   lunaRenderer_InitializeRenderingComponents(rd, conf);
 
   for (int i = 0; i < (int)SwapChainImageCount; i++) {
-    const VkSemaphoreCreateInfo semaphoreCreateInfo = {
-        VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, NULL, 0};
+    const VkSemaphoreCreateInfo semaphoreCreateInfo = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, NULL, 0};
 
-    const VkFenceCreateInfo fenceCreateInfo = {
-        VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, NULL,
-        VK_FENCE_CREATE_SIGNALED_BIT};
+    const VkFenceCreateInfo fenceCreateInfo = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, NULL, VK_FENCE_CREATE_SIGNALED_BIT};
 
-    lunaFrameRenderData *data =
-        (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
-    cassert(vkCreateSemaphore(device, &semaphoreCreateInfo, NULL,
-                              &data->render_finish_semaphore) == VK_SUCCESS);
-    cassert(vkCreateSemaphore(device, &semaphoreCreateInfo, NULL,
-                              &data->image_available_semaphore) == VK_SUCCESS);
-    cassert(vkCreateFence(device, &fenceCreateInfo, NULL,
-                          &data->in_flight_fence) == VK_SUCCESS);
+    lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
+    cassert(vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->render_finish_semaphore) == VK_SUCCESS);
+    cassert(vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->image_available_semaphore) == VK_SUCCESS);
+    cassert(vkCreateFence(device, &fenceCreateInfo, NULL, &data->in_flight_fence) == VK_SUCCESS);
   }
 
   luna_DescriptorPool_Init(&g_pool);
 
-  const unsigned char empty_data[3] = {255,255,255}; // fill rgb with 255 so it's white
-  lunaSprite_Empty = lunaSprite_LoadFromMemory(empty_data, 1, 1, LUNA_FORMAT_RGB8);
+  const unsigned char empty_data[3] = {255, 255, 255}; // fill rgb with 255 so it's white
+  lunaSprite_Empty                  = lunaSprite_LoadFromMemory(empty_data, 1, 1, LUNA_FORMAT_RGB8);
 
   camera = lunaCamera_Init();
 
@@ -865,16 +768,13 @@ lunaRenderer_t *lunaRenderer_Init(const lunaRenderer_Config *conf) {
 void crenderer_resize(lunaRenderer_t *rd) {
   vkDeviceWaitIdle(device);
 
-  const VkSemaphoreCreateInfo semaphoreCreateInfo = {
-      VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, NULL, 0};
+  const VkSemaphoreCreateInfo semaphoreCreateInfo = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, NULL, 0};
 
-  const VkFenceCreateInfo fenceCreateInfo = {
-      VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, NULL, VK_FENCE_CREATE_SIGNALED_BIT};
+  const VkFenceCreateInfo fenceCreateInfo = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, NULL, VK_FENCE_CREATE_SIGNALED_BIT};
 
   // adhoc method of resetting them
   for (int i = 0; i < (int)SwapChainImageCount; i++) {
-    lunaFrameRenderData *data =
-        (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
+    lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
     vkDestroySemaphore(device, data->image_available_semaphore, NULL);
     vkDestroySemaphore(device, data->render_finish_semaphore, NULL);
     vkDestroyFence(device, data->in_flight_fence, NULL);
@@ -882,8 +782,8 @@ void crenderer_resize(lunaRenderer_t *rd) {
     luna_GPU_DestroyTexture(data->depth_image);
 
     data->image_available_semaphore = NULL;
-    data->render_finish_semaphore = NULL;
-    data->in_flight_fence = NULL;
+    data->render_finish_semaphore   = NULL;
+    data->in_flight_fence           = NULL;
   }
 
   if (rd->color_image) {
@@ -895,8 +795,7 @@ void crenderer_resize(lunaRenderer_t *rd) {
   }
 
   for (u32 i = 0; i < SwapChainImageCount; i++) {
-    lunaFrameRenderData *data =
-        (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
+    lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
     luna_free(data->sc_image);
     vkDestroyImageView(device, luna_GPU_TextureGetView(data->sc_image),
                        NULL); // as the view was silently smushed into the
@@ -909,13 +808,12 @@ void crenderer_resize(lunaRenderer_t *rd) {
   SDL_Vulkan_GetDrawableSize(window, &w, &h);
 
   VkSurfaceCapabilitiesKHR surface_capabilities;
-  vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physDevice, surface,
-                                            &surface_capabilities);
+  vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physDevice, surface, &surface_capabilities);
 
-  const u32 min_width = surface_capabilities.minImageExtent.width;
+  const u32 min_width  = surface_capabilities.minImageExtent.width;
   const u32 min_height = surface_capabilities.minImageExtent.height;
 
-  const u32 max_width = surface_capabilities.maxImageExtent.width;
+  const u32 max_width  = surface_capabilities.maxImageExtent.width;
   const u32 max_height = surface_capabilities.maxImageExtent.height;
 
   w = cmclamp((u32)w, min_width, max_width);
@@ -944,13 +842,13 @@ void crenderer_resize(lunaRenderer_t *rd) {
   }
 
   luna_GPU_SwapchainCreateInfo scio = {};
-  scio.extent.width = rd->render_extent.width;
-  scio.extent.height = rd->render_extent.height;
-  scio.present_mode = present_mode;
-  scio.format = SwapChainImageFormat;
-  scio.color_space = SwapChainColorSpace;
-  scio.image_count = SwapChainImageCount;
-  scio.old_swapchain = old_swapchain;
+  scio.extent.width                 = rd->render_extent.width;
+  scio.extent.height                = rd->render_extent.height;
+  scio.present_mode                 = present_mode;
+  scio.format                       = SwapChainImageFormat;
+  scio.color_space                  = SwapChainColorSpace;
+  scio.image_count                  = SwapChainImageCount;
+  scio.old_swapchain                = old_swapchain;
   luna_GPU_CreateSwapchain(&scio, &rd->swapchain);
   vkDestroySwapchainKHR(device, old_swapchain, NULL);
 
@@ -959,39 +857,29 @@ void crenderer_resize(lunaRenderer_t *rd) {
   create_framebuffers_and_swapchain_image_views(rd);
 
   for (int i = 0; i < (int)SwapChainImageCount; i++) {
-    lunaFrameRenderData *data =
-        (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
-    cassert(vkCreateSemaphore(device, &semaphoreCreateInfo, NULL,
-                              &data->render_finish_semaphore) == VK_SUCCESS);
-    cassert(vkCreateSemaphore(device, &semaphoreCreateInfo, NULL,
-                              &data->image_available_semaphore) == VK_SUCCESS);
-    cassert(vkCreateFence(device, &fenceCreateInfo, NULL,
-                          &data->in_flight_fence) == VK_SUCCESS);
+    lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, i);
+    cassert(vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->render_finish_semaphore) == VK_SUCCESS);
+    cassert(vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &data->image_available_semaphore) == VK_SUCCESS);
+    cassert(vkCreateFence(device, &fenceCreateInfo, NULL, &data->in_flight_fence) == VK_SUCCESS);
   }
 
   cg__reset_frame_buffer_resized();
 }
 
 bool lunaRenderer_BeginRender(lunaRenderer_t *rd) {
-  lunaFrameRenderData *data =
-      (lunaFrameRenderData *)cg_vector_get(&rd->renderData, rd->renderer_frame);
+  lunaFrameRenderData *data = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, rd->renderer_frame);
 
   vkWaitForFences(device, 1, &data->in_flight_fence, VK_TRUE, UINT64_MAX);
 
-  const VkResult imageAcquireResult = vkAcquireNextImageKHR(
-      device, rd->swapchain, UINT64_MAX, data->image_available_semaphore,
-      VK_NULL_HANDLE, &rd->imageIndex);
+  const VkResult imageAcquireResult =
+      vkAcquireNextImageKHR(device, rd->swapchain, UINT64_MAX, data->image_available_semaphore, VK_NULL_HANDLE, &rd->imageIndex);
 
-  const VkCommandBuffer drawBuffer =
-      *(VkCommandBuffer *)cg_vector_get(&rd->drawBuffers, rd->renderer_frame);
+  const VkCommandBuffer drawBuffer = *(VkCommandBuffer *)cg_vector_get(&rd->drawBuffers, rd->renderer_frame);
 
-  if (imageAcquireResult == VK_ERROR_OUT_OF_DATE_KHR ||
-      imageAcquireResult == VK_SUBOPTIMAL_KHR ||
-      cg_get_frame_buffer_resized()) {
+  if (imageAcquireResult == VK_ERROR_OUT_OF_DATE_KHR || imageAcquireResult == VK_SUBOPTIMAL_KHR || cg_get_frame_buffer_resized()) {
     crenderer_resize(rd);
     return false;
-  } else if (imageAcquireResult != VK_SUCCESS &&
-             imageAcquireResult != VK_SUBOPTIMAL_KHR) {
+  } else if (imageAcquireResult != VK_SUCCESS && imageAcquireResult != VK_SUBOPTIMAL_KHR) {
     LOG_ERROR("Failed to acquire image from swapchain");
     return false;
   }
@@ -1001,44 +889,36 @@ bool lunaRenderer_BeginRender(lunaRenderer_t *rd) {
   // * Maybe the user should have control of the clear color but I don't really
   // care lmao
 
-  VkFramebuffer fb =
-      (*(lunaFrameRenderData *)(cg_vector_get(&rd->renderData, rd->imageIndex)))
-          .color_framebuffer;
+  VkFramebuffer fb = (*(lunaFrameRenderData *)(cg_vector_get(&rd->renderData, rd->imageIndex))).color_framebuffer;
 
   // Why was this static?
   VkRenderPassBeginInfo renderPassInfo = {
-      .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-      .renderPass = rd->render_pass,
-      .framebuffer = fb,
-      .renderArea = (VkRect2D){.extent = (VkExtent2D){rd->render_extent.width,
-                                                      rd->render_extent.height},
-                               .offset = {}},
+      .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+      .renderPass      = rd->render_pass,
+      .framebuffer     = fb,
+      .renderArea      = (VkRect2D){.extent = (VkExtent2D){rd->render_extent.width, rd->render_extent.height}, .offset = {}},
       .clearValueCount = 2,
-      .pClearValues =
-          (VkClearValue[2]){
-              {.color = (VkClearColorValue){{rd->clear_color.x, rd->clear_color.y, rd->clear_color.z, rd->clear_color.w}}},
-              {.depthStencil = (VkClearDepthStencilValue){1.0f, 0}}},
+      .pClearValues = (VkClearValue[2]){{.color = (VkClearColorValue){{rd->clear_color.x, rd->clear_color.y, rd->clear_color.z, rd->clear_color.w}}},
+                                        {.depthStencil = (VkClearDepthStencilValue){1.0f, 0}}},
   };
 
-  const VkCommandBufferBeginInfo beginInfo = {
-      VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, NULL, 0, NULL};
+  const VkCommandBufferBeginInfo beginInfo = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, NULL, 0, NULL};
 
   vkBeginCommandBuffer(drawBuffer, &beginInfo);
   vkCmdBeginRenderPass(drawBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
   VkViewport viewport = {};
-  viewport.x = 0.0f;
-  viewport.y = 0.0f;
-  viewport.width = rd->render_extent.width;
-  viewport.height = rd->render_extent.height;
-  viewport.minDepth = 0.0f;
-  viewport.maxDepth = 1.0f;
+  viewport.x          = 0.0f;
+  viewport.y          = 0.0f;
+  viewport.width      = rd->render_extent.width;
+  viewport.height     = rd->render_extent.height;
+  viewport.minDepth   = 0.0f;
+  viewport.maxDepth   = 1.0f;
   vkCmdSetViewport(drawBuffer, 0, 1, &viewport);
 
   VkRect2D scissor = {};
-  scissor.offset = (VkOffset2D){0, 0};
-  scissor.extent = (VkExtent2D){(unsigned)rd->render_extent.width,
-                                (unsigned)rd->render_extent.height};
+  scissor.offset   = (VkOffset2D){0, 0};
+  scissor.extent   = (VkExtent2D){(unsigned)rd->render_extent.width, (unsigned)rd->render_extent.height};
   vkCmdSetScissor(drawBuffer, 0, 1, &scissor);
 
   return true;
@@ -1047,8 +927,7 @@ bool lunaRenderer_BeginRender(lunaRenderer_t *rd) {
 #define V2_TO_V3(v) ((vec3){(v).x, (v).y, 0.0f})
 
 void lunaRenderer_EndRender(lunaRenderer_t *rd) {
-  const VkCommandBuffer drawBuffer =
-      *(VkCommandBuffer *)cg_vector_get(&rd->drawBuffers, rd->renderer_frame);
+  const VkCommandBuffer drawBuffer = *(VkCommandBuffer *)cg_vector_get(&rd->drawBuffers, rd->renderer_frame);
 
   for (int i = 0; i < rd->ctext->labels.m_size; i++) {
     ctext_label *label = cg_vector_get(&rd->ctext->labels, i);
@@ -1056,10 +935,10 @@ void lunaRenderer_EndRender(lunaRenderer_t *rd) {
     luna_SpriteRenderer *spr_rd = lunaObject_GetSpriteRenderer(label->obj);
 
     ctext_text_render_info r_info = ctext_init_text_render_info();
-    r_info.position = V2_TO_V3(lunaObject_GetPosition(label->obj));
-    r_info.color = spr_rd->color;
-    r_info.horizontal = label->h_align;
-    r_info.vertical = label->v_align;
+    r_info.position               = V2_TO_V3(lunaObject_GetPosition(label->obj));
+    r_info.color                  = spr_rd->color;
+    r_info.horizontal             = label->h_align;
+    r_info.vertical               = label->v_align;
     ctext_render(label->fnt, &r_info, "%s", cg_string_data(label->text));
   }
   ctext_flush_renders(rd);
@@ -1070,42 +949,38 @@ void lunaRenderer_EndRender(lunaRenderer_t *rd) {
   vkEndCommandBuffer(drawBuffer);
 
   VkSubmitInfo submitInfo = {};
-  submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+  submitInfo.sType        = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-  const lunaFrameRenderData *data =
-      (lunaFrameRenderData *)cg_vector_get(&rd->renderData, rd->renderer_frame);
-  const VkSemaphore waitSemaphores[] = {data->image_available_semaphore};
+  const lunaFrameRenderData *data      = (lunaFrameRenderData *)cg_vector_get(&rd->renderData, rd->renderer_frame);
+  const VkSemaphore waitSemaphores[]   = {data->image_available_semaphore};
   const VkSemaphore signalSemaphores[] = {data->render_finish_semaphore};
 
-  VkPipelineStageFlags waitStages[] = {
-      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-  submitInfo.pWaitDstStageMask = waitStages;
+  VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+  submitInfo.pWaitDstStageMask      = waitStages;
 
   submitInfo.waitSemaphoreCount = 1;
-  submitInfo.pWaitSemaphores = waitSemaphores;
+  submitInfo.pWaitSemaphores    = waitSemaphores;
 
   const VkCommandBuffer buffers[] = {drawBuffer};
-  submitInfo.commandBufferCount = array_len(buffers);
-  submitInfo.pCommandBuffers = buffers;
+  submitInfo.commandBufferCount   = array_len(buffers);
+  submitInfo.pCommandBuffers      = buffers;
 
   submitInfo.signalSemaphoreCount = 1;
-  submitInfo.pSignalSemaphores = signalSemaphores;
+  submitInfo.pSignalSemaphores    = signalSemaphores;
 
   vkQueueSubmit(PresentQueue, 1, &submitInfo, data->in_flight_fence);
 
-  VkPresentInfoKHR presentInfo = {};
-  presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+  VkPresentInfoKHR presentInfo   = {};
+  presentInfo.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
   presentInfo.waitSemaphoreCount = 1;
-  presentInfo.pWaitSemaphores =
-      signalSemaphores; // This is signalSemaphores so that this starts as
-                        // soon as the signaled semaphores are signaled.
-  presentInfo.pImageIndices = &rd->imageIndex;
+  presentInfo.pWaitSemaphores    = signalSemaphores; // This is signalSemaphores so that this starts as
+                                                     // soon as the signaled semaphores are signaled.
+  presentInfo.pImageIndices  = &rd->imageIndex;
   presentInfo.swapchainCount = 1;
-  presentInfo.pSwapchains = &rd->swapchain;
+  presentInfo.pSwapchains    = &rd->swapchain;
 
   const VkResult result = vkQueuePresentKHR(PresentQueue, &presentInfo);
-  if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR ||
-      cg_get_frame_buffer_resized()) {
+  if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || cg_get_frame_buffer_resized()) {
     crenderer_resize(rd);
   }
 
@@ -1150,7 +1025,7 @@ static const VkPhysicalDeviceFeatures WantedFeatures = {
 };
 
 void __VK_DEBUG_LOG(const char *fmt, ...) {
-  const char *preceder = "vkdebug: ";
+  const char *preceder  = "vkdebug: ";
   const char *succeeder = "\n";
   va_list args;
   va_start(args, fmt);
@@ -1158,11 +1033,10 @@ void __VK_DEBUG_LOG(const char *fmt, ...) {
   va_end(args);
 }
 
-static SDL_UNUSED VKAPI_ATTR VkBool32 VKAPI_CALL VKDebugMessengerCallback(
-    VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-    VkDebugUtilsMessageTypeFlagsEXT messageType,
-    const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
-    void *pUserData) {
+static SDL_UNUSED VKAPI_ATTR VkBool32 VKAPI_CALL VKDebugMessengerCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+                                                                          VkDebugUtilsMessageTypeFlagsEXT messageType,
+                                                                          const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
+                                                                          void *pUserData) {
 
   (void)messageSeverity;
   (void)messageType;
@@ -1180,9 +1054,9 @@ static SDL_UNUSED VKAPI_ATTR VkBool32 VKAPI_CALL VKDebugMessengerCallback(
 
 cg_vector_t setify(u32 i1, u32 i2, u32 i3, u32 i4) {
   cg_vector_t ret = cg_vector_init(sizeof(u32), 4);
-  u32 nums[4] = {i1, i2, i3, i4};
+  u32 nums[4]     = {i1, i2, i3, i4};
   for (int j = 0; j < array_len(nums); j++) {
-    const u32 e = nums[j];
+    const u32 e     = nums[j];
     bool already_in = false;
     for (int i = 0; i < cg_vector_size(&ret); i++) {
       if (e == *(u32 *)cg_vector_get(&ret, i))
@@ -1202,24 +1076,20 @@ VkInstance CreateInstance(const char *title) {
                   "I can't do anything about that.");
   }
 
-  VkApplicationInfo appInfo = {};
-  appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+  VkApplicationInfo appInfo  = {};
+  appInfo.sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO;
   appInfo.applicationVersion = VK_API_VERSION_1_0;
-  appInfo.apiVersion = VK_API_VERSION_1_0;
-  appInfo.pApplicationName = title;
-  appInfo.pEngineName = "Carbon";
-  appInfo.engineVersion = 0;
+  appInfo.apiVersion         = VK_API_VERSION_1_0;
+  appInfo.pApplicationName   = title;
+  appInfo.pEngineName        = "Carbon";
+  appInfo.engineVersion      = 0;
 
   uint32_t SDLExtensionCount = 0;
   SDL_Vulkan_GetInstanceExtensions(window, &SDLExtensionCount, NULL);
-  cg_vector_t /* const char* */ SDLExtensions =
-      cg_vector_init(sizeof(const char *), SDLExtensionCount);
-  SDL_Vulkan_GetInstanceExtensions(
-      window, &SDLExtensionCount,
-      (const char **)cg_vector_data(&SDLExtensions));
+  cg_vector_t /* const char* */ SDLExtensions = cg_vector_init(sizeof(const char *), SDLExtensionCount);
+  SDL_Vulkan_GetInstanceExtensions(window, &SDLExtensionCount, (const char **)cg_vector_data(&SDLExtensions));
 
-  cg_vector_t enabledExtensions = cg_vector_init(
-      sizeof(const char *), array_len(RequiredInstanceExtensions));
+  cg_vector_t enabledExtensions = cg_vector_init(sizeof(const char *), array_len(RequiredInstanceExtensions));
 
   for (int i = 0; i < array_len(RequiredInstanceExtensions); i++) {
     const char *ext = RequiredInstanceExtensions[i];
@@ -1232,15 +1102,11 @@ VkInstance CreateInstance(const char *title) {
 
   u32 extensionCount = 0;
   vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, NULL);
-  cg_vector_t /* VkExtensionProperties */ extensions =
-      cg_vector_init(sizeof(VkExtensionProperties), extensionCount);
-  vkEnumerateInstanceExtensionProperties(
-      NULL, &extensionCount,
-      (VkExtensionProperties *)cg_vector_data(&extensions));
+  cg_vector_t /* VkExtensionProperties */ extensions = cg_vector_init(sizeof(VkExtensionProperties), extensionCount);
+  vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, (VkExtensionProperties *)cg_vector_data(&extensions));
 
   for (u32 i = 0; i < extensionCount; i++) {
-    const char *name =
-        ((VkExtensionProperties *)cg_vector_data(&extensions))[i].extensionName;
+    const char *name = ((VkExtensionProperties *)cg_vector_data(&extensions))[i].extensionName;
     for (int j = 0; j < array_len(WantedInstanceExtensions); j++) {
       const char *want = WantedInstanceExtensions[j];
       if (strcmp(name, want) == 0) {
@@ -1250,30 +1116,25 @@ VkInstance CreateInstance(const char *title) {
     }
   }
 
-  VkInstanceCreateInfo instanceCreateinfo = {};
-  instanceCreateinfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-  instanceCreateinfo.pApplicationInfo = &appInfo;
-  instanceCreateinfo.enabledExtensionCount = cg_vector_size(&enabledExtensions);
-  instanceCreateinfo.ppEnabledExtensionNames =
-      (const char **)cg_vector_data(&enabledExtensions);
+  VkInstanceCreateInfo instanceCreateinfo    = {};
+  instanceCreateinfo.sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+  instanceCreateinfo.pApplicationInfo        = &appInfo;
+  instanceCreateinfo.enabledExtensionCount   = cg_vector_size(&enabledExtensions);
+  instanceCreateinfo.ppEnabledExtensionNames = (const char **)cg_vector_data(&enabledExtensions);
 
 #ifdef DEBUG
 
   bool validationLayersAvailable = false;
-  uint32_t layerCount = 0;
+  uint32_t layerCount            = 0;
 
   vkEnumerateInstanceLayerProperties(&layerCount, NULL);
-  cg_vector_t /* VkLayerProperties */ layerProperties =
-      cg_vector_init(sizeof(VkLayerProperties), layerCount);
-  vkEnumerateInstanceLayerProperties(
-      &layerCount, (VkLayerProperties *)cg_vector_data(&layerProperties));
+  cg_vector_t /* VkLayerProperties */ layerProperties = cg_vector_init(sizeof(VkLayerProperties), layerCount);
+  vkEnumerateInstanceLayerProperties(&layerCount, (VkLayerProperties *)cg_vector_data(&layerProperties));
 
   if (array_len(ValidationLayers) != 0) {
     for (int j = 0; j < array_len(ValidationLayers); j++) {
       for (uint32_t i = 0; i < layerCount; i++) {
-        if (strcmp(ValidationLayers[j],
-                   ((VkLayerProperties *)cg_vector_data(&layerProperties))[i]
-                       .layerName) == 0) {
+        if (strcmp(ValidationLayers[j], ((VkLayerProperties *)cg_vector_data(&layerProperties))[i].layerName) == 0) {
           validationLayersAvailable = true;
         }
       }
@@ -1287,22 +1148,17 @@ VkInstance CreateInstance(const char *title) {
 
       LOG_ERROR("Available Layers::");
       for (uint32_t i = 0; i < layerCount; i++)
-        LOG_ERROR("\t%s",
-                  ((VkLayerProperties *)cg_vector_data(&layerProperties))[i]
-                      .layerName);
+        LOG_ERROR("\t%s", ((VkLayerProperties *)cg_vector_data(&layerProperties))[i].layerName);
 
       LOG_ERROR("But instance asked for (i.e. are not available):");
 
-      cg_vector_t /* const char* */ missingLayers =
-          cg_vector_init(sizeof(const char *), 16);
+      cg_vector_t /* const char* */ missingLayers = cg_vector_init(sizeof(const char *), 16);
 
       for (int i = 0; i < array_len(ValidationLayers); i++) {
-        const char *layer = ValidationLayers[i];
+        const char *layer   = ValidationLayers[i];
         bool layerAvailable = false;
         for (uint32_t i = 0; i < layerCount; i++) {
-          if (strcmp(layer,
-                     ((VkLayerProperties *)cg_vector_data(&layerProperties))[i]
-                         .layerName) == 0) {
+          if (strcmp(layer, ((VkLayerProperties *)cg_vector_data(&layerProperties))[i].layerName) == 0) {
             layerAvailable = true;
             break;
           }
@@ -1318,13 +1174,13 @@ VkInstance CreateInstance(const char *title) {
       abort();
     }
 
-    instanceCreateinfo.enabledLayerCount = array_len(ValidationLayers);
+    instanceCreateinfo.enabledLayerCount   = array_len(ValidationLayers);
     instanceCreateinfo.ppEnabledLayerNames = ValidationLayers;
   }
 
 #else
 
-  instanceCreateinfo.enabledLayerCount = 0;
+  instanceCreateinfo.enabledLayerCount   = 0;
   instanceCreateinfo.ppEnabledLayerNames = NULL;
 
 #endif
@@ -1335,28 +1191,22 @@ VkInstance CreateInstance(const char *title) {
 #ifdef DEBUG
   if (validationLayersAvailable) {
     VkDebugUtilsMessengerCreateInfoEXT createInfo = {};
-    createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-    createInfo.messageSeverity =
-        VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-    createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-                             VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+    createInfo.sType                              = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+    createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+                                 VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+    createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
                              VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
     createInfo.pfnUserCallback = VKDebugMessengerCallback;
 
     PFN_vkCreateDebugUtilsMessengerEXT _CreateDebugUtilsMessenger =
-        (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
-            instance, "vkCreateDebugUtilsMessengerEXT");
+        (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
 
     if (_CreateDebugUtilsMessenger) {
       VkResult r;
-      if ((r = _CreateDebugUtilsMessenger(instance, &createInfo, NULL,
-                                          &debugMessenger)) != VK_SUCCESS)
+      if ((r = _CreateDebugUtilsMessenger(instance, &createInfo, NULL, &debugMessenger)) != VK_SUCCESS)
         LOG_ERROR("Vulkan debug messenger could not start. err %i", r);
       else
-        LOG_DEBUG("Vulkan debug messenger has been set to %s()",
-                  STR(VKDebugMessengerCallback));
+        LOG_DEBUG("Vulkan debug messenger has been set to %s()", STR(VKDebugMessengerCallback));
     } else
       LOG_ERROR("vkCreateDebugUtilsMessengerEXT proc address not found");
   }
@@ -1393,12 +1243,10 @@ void PrintDeviceInfo(VkPhysicalDevice device) {
   }
 
   // I think it looks cleaner this way
-  LOG_INFO("(%s) %s VK API Version %d.%d", deviceTypeStr, properties.deviceName,
-           properties.apiVersion >> 22, (properties.apiVersion >> 12) & 0x3FF);
+  LOG_INFO("(%s) %s VK API Version %d.%d", deviceTypeStr, properties.deviceName, properties.apiVersion >> 22, (properties.apiVersion >> 12) & 0x3FF);
 }
 
-VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance,
-                                      VkSurfaceKHR surface) {
+VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR surface) {
 
   uint32_t physDeviceCount = 0;
   vkEnumeratePhysicalDevices(instance, &physDeviceCount, NULL);
@@ -1408,40 +1256,30 @@ VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance,
                   "on a banana???");
   }
 
-  cg_vector_t /* VkPhysicalDevice */ physicalDevices =
-      cg_vector_init(sizeof(VkPhysicalDevice), physDeviceCount);
-  vkEnumeratePhysicalDevices(
-      instance, &physDeviceCount,
-      (VkPhysicalDevice *)cg_vector_data(&physicalDevices));
+  cg_vector_t /* VkPhysicalDevice */ physicalDevices = cg_vector_init(sizeof(VkPhysicalDevice), physDeviceCount);
+  vkEnumeratePhysicalDevices(instance, &physDeviceCount, (VkPhysicalDevice *)cg_vector_data(&physicalDevices));
 
   for (u32 i = 0; i < physDeviceCount; i++) {
-    const VkPhysicalDevice device =
-        ((VkPhysicalDevice *)cg_vector_data(&physicalDevices))[i];
+    const VkPhysicalDevice device = ((VkPhysicalDevice *)cg_vector_data(&physicalDevices))[i];
 
     uint32_t formatCount = 0;
     vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, NULL);
 
     uint32_t presentModeCount = 0;
-    vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface,
-                                              &presentModeCount, NULL);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, NULL);
 
     bool extensionsAvailable = true;
 
     uint32_t extensionCount = 0;
     vkEnumerateDeviceExtensionProperties(device, NULL, &extensionCount, NULL);
-    cg_vector_t /* VkExtensionProperties */ availableExtensions =
-        cg_vector_init(sizeof(VkExtensionProperties), extensionCount);
-    vkEnumerateDeviceExtensionProperties(
-        device, NULL, &extensionCount,
-        (VkExtensionProperties *)cg_vector_data(&availableExtensions));
+    cg_vector_t /* VkExtensionProperties */ availableExtensions = cg_vector_init(sizeof(VkExtensionProperties), extensionCount);
+    vkEnumerateDeviceExtensionProperties(device, NULL, &extensionCount, (VkExtensionProperties *)cg_vector_data(&availableExtensions));
 
     for (int i = 0; i < array_len(RequiredDeviceExtensions); i++) {
       const char *extension = RequiredDeviceExtensions[i];
-      bool validated = false;
+      bool validated        = false;
       for (u32 j = 0; j < extensionCount; j++) {
-        if (strcmp(extension, ((VkExtensionProperties *)cg_vector_data(
-                                  &availableExtensions))[j]
-                                  .extensionName) == 0)
+        if (strcmp(extension, ((VkExtensionProperties *)cg_vector_data(&availableExtensions))[j].extensionName) == 0)
           validated = true;
       }
       if (!validated) {
@@ -1458,14 +1296,12 @@ VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance,
     }
   }
 
-  VkPhysicalDevice fallback =
-      ((VkPhysicalDevice *)cg_vector_data(&physicalDevices))[0];
+  VkPhysicalDevice fallback = ((VkPhysicalDevice *)cg_vector_data(&physicalDevices))[0];
 
   VkPhysicalDeviceProperties properties;
   vkGetPhysicalDeviceProperties(fallback, &properties);
 
-  LOG_ERROR("No device found. Falling back to device \"%s\".",
-            properties.deviceName);
+  LOG_ERROR("No device found. Falling back to device \"%s\".", properties.deviceName);
 
   PrintDeviceInfo(fallback);
 
@@ -1477,86 +1313,69 @@ VkPhysicalDevice ChoosePhysicalDevice(VkInstance instance,
 VkDevice CreateDevice() {
   u32 queueCount = 0;
   vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, NULL);
-  cg_vector_t /* VkQueueFamilyProperties */ queueFamilies =
-      cg_vector_init(sizeof(VkQueueFamilyProperties), queueCount);
-  vkGetPhysicalDeviceQueueFamilyProperties(
-      physDevice, &queueCount,
-      (VkQueueFamilyProperties *)cg_vector_data(&queueFamilies));
+  cg_vector_t /* VkQueueFamilyProperties */ queueFamilies = cg_vector_init(sizeof(VkQueueFamilyProperties), queueCount);
+  vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueCount, (VkQueueFamilyProperties *)cg_vector_data(&queueFamilies));
 
   // Clang loves complaining about these.
-  u32 graphicsFamily = 0, presentFamily = 0, computeFamily = 0,
-      transferFamily = 0;
-  (void)graphicsFamily, (void)presentFamily, (void)computeFamily,
-      (void)transferFamily;
+  u32 graphicsFamily = 0, presentFamily = 0, computeFamily = 0, transferFamily = 0;
+  (void)graphicsFamily, (void)presentFamily, (void)computeFamily, (void)transferFamily;
 
-  bool foundGraphicsFamily = false, foundPresentFamily = false,
-       foundComputeFamily = false, foundTransferFamily = false;
+  bool foundGraphicsFamily = false, foundPresentFamily = false, foundComputeFamily = false, foundTransferFamily = false;
 
   u32 i = 0;
   for (int j = 0; j < cg_vector_size(&queueFamilies); j++) {
-    const VkQueueFamilyProperties queueFamily =
-        ((VkQueueFamilyProperties *)cg_vector_data(&queueFamilies))[j];
-    VkBool32 presentSupport = false;
-    vkGetPhysicalDeviceSurfaceSupportKHR(physDevice, i, surface,
-                                         &presentSupport);
+    const VkQueueFamilyProperties queueFamily = ((VkQueueFamilyProperties *)cg_vector_data(&queueFamilies))[j];
+    VkBool32 presentSupport                   = false;
+    vkGetPhysicalDeviceSurfaceSupportKHR(physDevice, i, surface, &presentSupport);
 
     if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-      graphicsFamily = i;
+      graphicsFamily      = i;
       foundGraphicsFamily = true;
     }
     if (queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) {
-      computeFamily = i;
+      computeFamily      = i;
       foundComputeFamily = true;
     }
     if (queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT) {
-      transferFamily = i;
+      transferFamily      = i;
       foundTransferFamily = true;
     }
     if (presentSupport) {
-      presentFamily = i;
+      presentFamily      = i;
       foundPresentFamily = true;
     }
-    if (foundGraphicsFamily && foundComputeFamily && foundPresentFamily &&
-        foundTransferFamily)
+    if (foundGraphicsFamily && foundComputeFamily && foundPresentFamily && foundTransferFamily)
       break;
 
     i++;
   }
 
-  cg_vector_t /* u32 */ uniqueQueueFamilies =
-      setify(graphicsFamily, presentFamily, computeFamily, transferFamily);
-  cg_vector_t /* VkDeviceQueueCreateInfo */ queueCreateInfos = cg_vector_init(
-      sizeof(VkDeviceQueueCreateInfo), cg_vector_size(&uniqueQueueFamilies));
+  cg_vector_t /* u32 */ uniqueQueueFamilies                  = setify(graphicsFamily, presentFamily, computeFamily, transferFamily);
+  cg_vector_t /* VkDeviceQueueCreateInfo */ queueCreateInfos = cg_vector_init(sizeof(VkDeviceQueueCreateInfo), cg_vector_size(&uniqueQueueFamilies));
 
   const float queuePriority = 1.0f;
 
   for (int i = 0; i < cg_vector_size(&uniqueQueueFamilies); i++) {
     VkDeviceQueueCreateInfo queueInfo = {};
-    queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    queueInfo.queueFamilyIndex =
-        ((u32 *)cg_vector_data(&uniqueQueueFamilies))[i];
-    queueInfo.queueCount = 1;
-    queueInfo.pQueuePriorities = &queuePriority;
+    queueInfo.sType                   = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queueInfo.queueFamilyIndex        = ((u32 *)cg_vector_data(&uniqueQueueFamilies))[i];
+    queueInfo.queueCount              = 1;
+    queueInfo.pQueuePriorities        = &queuePriority;
     cg_vector_push_back(&queueCreateInfos, &queueInfo);
   }
 
-  cg_vector_t /* const char* */ enabledExtensions = cg_vector_init(
-      sizeof(const char *),
-      array_len(WantedDeviceExtensions) + array_len(RequiredDeviceExtensions));
+  cg_vector_t /* const char* */ enabledExtensions =
+      cg_vector_init(sizeof(const char *), array_len(WantedDeviceExtensions) + array_len(RequiredDeviceExtensions));
 
   u32 extensionCount;
   vkEnumerateDeviceExtensionProperties(physDevice, NULL, &extensionCount, NULL);
-  cg_vector_t /* VkExtensionProperties */ extensions =
-      cg_vector_init(sizeof(VkExtensionProperties), extensionCount);
-  vkEnumerateDeviceExtensionProperties(
-      physDevice, NULL, &extensionCount,
-      (VkExtensionProperties *)cg_vector_data(&extensions));
+  cg_vector_t /* VkExtensionProperties */ extensions = cg_vector_init(sizeof(VkExtensionProperties), extensionCount);
+  vkEnumerateDeviceExtensionProperties(physDevice, NULL, &extensionCount, (VkExtensionProperties *)cg_vector_data(&extensions));
 
   for (int i = 0; i < array_len(WantedDeviceExtensions); i++) {
     const char *wanted = WantedDeviceExtensions[i];
     for (u32 i = 0; i < extensionCount; i++) {
-      VkExtensionProperties ext =
-          ((VkExtensionProperties *)cg_vector_data(&extensions))[i];
+      VkExtensionProperties ext = ((VkExtensionProperties *)cg_vector_data(&extensions))[i];
       if (strcmp(wanted, ext.extensionName) == 0) {
         cg_vector_push_back(&enabledExtensions, &ext.extensionName);
       }
@@ -1565,11 +1384,9 @@ VkDevice CreateDevice() {
 
   for (int i = 0; i < array_len(RequiredDeviceExtensions); i++) {
     const char *required = RequiredDeviceExtensions[i];
-    bool validated = false;
+    bool validated       = false;
     for (u32 i = 0; i < extensionCount; i++) {
-      const char *extName =
-          ((VkExtensionProperties *)cg_vector_data(&extensions))[i]
-              .extensionName;
+      const char *extName = ((VkExtensionProperties *)cg_vector_data(&extensions))[i].extensionName;
       if (strcmp(required, extName) == 0) {
         cg_vector_push_back(&enabledExtensions, &extName);
         validated = true;
@@ -1583,18 +1400,15 @@ VkDevice CreateDevice() {
   VkPhysicalDeviceFeatures availableFeatures = {};
   vkGetPhysicalDeviceFeatures(physDevice, &availableFeatures);
 
-  VkDeviceCreateInfo deviceCreateInfo = {};
-  deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-  deviceCreateInfo.queueCreateInfoCount = cg_vector_size(&queueCreateInfos);
-  deviceCreateInfo.pQueueCreateInfos =
-      (const VkDeviceQueueCreateInfo *)cg_vector_data(&queueCreateInfos);
-  deviceCreateInfo.enabledExtensionCount = cg_vector_size(&enabledExtensions);
-  deviceCreateInfo.ppEnabledExtensionNames =
-      (const char *const *)cg_vector_data(&enabledExtensions);
-  deviceCreateInfo.pEnabledFeatures = &WantedFeatures;
+  VkDeviceCreateInfo deviceCreateInfo      = {};
+  deviceCreateInfo.sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+  deviceCreateInfo.queueCreateInfoCount    = cg_vector_size(&queueCreateInfos);
+  deviceCreateInfo.pQueueCreateInfos       = (const VkDeviceQueueCreateInfo *)cg_vector_data(&queueCreateInfos);
+  deviceCreateInfo.enabledExtensionCount   = cg_vector_size(&enabledExtensions);
+  deviceCreateInfo.ppEnabledExtensionNames = (const char *const *)cg_vector_data(&enabledExtensions);
+  deviceCreateInfo.pEnabledFeatures        = &WantedFeatures;
 
-  if (vkCreateDevice(physDevice, &deviceCreateInfo, NULL, &device) !=
-      VK_SUCCESS) {
+  if (vkCreateDevice(physDevice, &deviceCreateInfo, NULL, &device) != VK_SUCCESS) {
     LOG_AND_ABORT("Failed to create device");
   }
 
@@ -1608,9 +1422,8 @@ VkDevice CreateDevice() {
 }
 
 void ctx_initialize(const char *title, u32 windowWidth, u32 windowHeight) {
-  window = SDL_CreateWindow(title, SDL_WINDOWPOS_UNDEFINED,
-                            SDL_WINDOWPOS_UNDEFINED, windowWidth, windowHeight,
-                            SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
+  window =
+      SDL_CreateWindow(title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, windowWidth, windowHeight, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
   cassert(window != NULL);
 
   instance = CreateInstance(title);
@@ -1630,7 +1443,7 @@ void ctx_initialize(const char *title, u32 windowWidth, u32 windowHeight) {
   VkPhysicalDeviceProperties props;
   vkGetPhysicalDeviceProperties(physDevice, &props);
 
-  MAX_ANISOTROPY = props.limits.maxSamplerAnisotropy;
+  MAX_ANISOTROPY         = props.limits.maxSamplerAnisotropy;
   SUPPORTS_MULTISAMPLING = true;
 
   const VkSampleCountFlags samples = props.limits.framebufferColorSampleCounts;
@@ -1647,7 +1460,7 @@ void ctx_initialize(const char *title, u32 windowWidth, u32 windowHeight) {
   } else if (samples & VK_SAMPLE_COUNT_2_BIT) {
     MAX_SAMPLES = VK_SAMPLE_COUNT_2_BIT;
   } else {
-    MAX_SAMPLES = VK_SAMPLE_COUNT_1_BIT;
+    MAX_SAMPLES            = VK_SAMPLE_COUNT_1_BIT;
     SUPPORTS_MULTISAMPLING = false;
   }
 }
@@ -1657,8 +1470,7 @@ void ctx_initialize(const char *title, u32 windowWidth, u32 windowHeight) {
 
 /* I have no idea what any of this is */
 
-void ctext_load_font(lunaRenderer_t *rd, const char *font_path, int scale,
-                     cfont_t **dst) {
+void ctext_load_font(lunaRenderer_t *rd, const char *font_path, int scale, cfont_t **dst) {
   if (!rd || !dst) {
     LOG_ERROR("pInfo or dst is NULL!");
   }
@@ -1678,81 +1490,70 @@ void ctext_load_font(lunaRenderer_t *rd, const char *font_path, int scale,
 
   dstref->rd = rd;
 
-  dstref->glyph_map =
-      cg_hashmap_init(16, sizeof(char), sizeof(ctext_glyph), NULL, NULL);
+  dstref->glyph_map = cg_hashmap_init(16, sizeof(char), sizeof(ctext_glyph), NULL, NULL);
   dstref->drawcalls = cg_vector_init(sizeof(ctext_drawcall_t), 4);
 
   fontc_file f_file;
   fontc_read_font(font_path, &f_file);
 
+  catlas_t atlas;
+
   dstref->line_height = f_file.header.line_height;
   dstref->space_width = f_file.header.space_width;
-  dstref->atlas.width = f_file.header.bmpwidth;
-  dstref->atlas.height = f_file.header.bmpheight;
-  dstref->atlas.data = f_file.bitmap;
+  atlas.width         = f_file.header.bmpwidth;
+  atlas.height        = f_file.header.bmpheight;
+  atlas.data          = f_file.bitmap;
 
   for (int i = 0; i < f_file.header.numglyphs; i++) {
-    ctext_glyph glyph = {.x0 = f_file.glyphs[i].x0,
-                         .x1 = f_file.glyphs[i].x1,
-                         .y0 = f_file.glyphs[i].y0,
-                         .y1 = f_file.glyphs[i].y1,
-                         .l = f_file.glyphs[i].l,
-                         .r = f_file.glyphs[i].r,
-                         .b = f_file.glyphs[i].b,
-                         .t = f_file.glyphs[i].t,
+    ctext_glyph glyph = {.x0      = f_file.glyphs[i].x0,
+                         .x1      = f_file.glyphs[i].x1,
+                         .y0      = f_file.glyphs[i].y0,
+                         .y1      = f_file.glyphs[i].y1,
+                         .l       = f_file.glyphs[i].l,
+                         .r       = f_file.glyphs[i].r,
+                         .b       = f_file.glyphs[i].b,
+                         .t       = f_file.glyphs[i].t,
                          .advance = f_file.glyphs[i].advance};
-    char glyphi = f_file.glyphs[i].codepoint;
+    char glyphi       = f_file.glyphs[i].codepoint;
     cg_hashmap_insert(dstref->glyph_map, &glyphi, &glyph);
   }
 
-  luna_GPU_TextureCreateInfo image_info = {
-      .format = LUNA_FORMAT_R8,
-      .samples = LUNA_SAMPLE_COUNT_1_SAMPLES,
-      .type = VK_IMAGE_TYPE_2D,
-      .usage = LUNA_GPU_TEXTURE_USAGE_SAMPLED_TEXTURE,
-      .extent = (VkExtent3D){.width = dstref->atlas.width,
-                             .height = dstref->atlas.height,
-                             .depth = 1},
-      .arraylayers = 1,
-      .miplevels = 1};
+  luna_GPU_TextureCreateInfo image_info = {.format      = LUNA_FORMAT_R8,
+                                           .samples     = LUNA_SAMPLE_COUNT_1_SAMPLES,
+                                           .type        = VK_IMAGE_TYPE_2D,
+                                           .usage       = LUNA_GPU_TEXTURE_USAGE_SAMPLED_TEXTURE,
+                                           .extent      = (VkExtent3D){.width = atlas.width, .height = atlas.height, .depth = 1},
+                                           .arraylayers = 1,
+                                           .miplevels   = 1};
   luna_GPU_CreateTexture(&image_info, &dstref->texture);
 
   VkMemoryRequirements imageMemoryRequirements;
-  vkGetImageMemoryRequirements(device, luna_GPU_TextureGet(dstref->texture),
-                               &imageMemoryRequirements);
+  vkGetImageMemoryRequirements(device, luna_GPU_TextureGet(dstref->texture), &imageMemoryRequirements);
 
-  luna_GPU_AllocateMemory(imageMemoryRequirements.size,
-                          LUNA_GPU_MEMORY_USAGE_GPU_LOCAL,
-                          &dstref->texture_mem);
+  luna_GPU_AllocateMemory(imageMemoryRequirements.size, LUNA_GPU_MEMORY_USAGE_GPU_LOCAL, &dstref->texture_mem);
   luna_GPU_BindTextureToMemory(&dstref->texture_mem, 0, dstref->texture);
 
-  const int atlas_w = dstref->atlas.width, atlas_h = dstref->atlas.height;
+  const int atlas_w = atlas.width, atlas_h = atlas.height;
 
-  lunaImage atlas = (lunaImage){.w = atlas_w,
-                                .h = atlas_h,
-                                .fmt = LUNA_FORMAT_R8,
-                                .data = dstref->atlas.data};
-  luna_GPU_WriteToTexture(dstref->texture, &atlas);
+  lunaImage atlas_img = (lunaImage){.w = atlas_w, .h = atlas_h, .fmt = LUNA_FORMAT_R8, .data = atlas.data};
+  luna_GPU_WriteToTexture(dstref->texture, &atlas_img);
 
   const luna_GPU_SamplerCreateInfo sampler_info = {
-      .filter = VK_FILTER_LINEAR,
-      .mipmap_mode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-      .address_mode = VK_SAMPLER_ADDRESS_MODE_REPEAT};
+      .filter = VK_FILTER_LINEAR, .mipmap_mode = VK_SAMPLER_MIPMAP_MODE_LINEAR, .address_mode = VK_SAMPLER_ADDRESS_MODE_REPEAT};
   luna_GPU_CreateSampler(&sampler_info, &dstref->sampler);
 
   const VkDescriptorImageInfo ctext_bitmap_image_info = {
-      .sampler = luna_GPU_SamplerGet(dstref->sampler),
-      .imageView = luna_GPU_TextureGetView(dstref->texture),
+      .sampler     = luna_GPU_SamplerGet(dstref->sampler),
+      .imageView   = luna_GPU_TextureGetView(dstref->texture),
       .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
   };
 
-  VkWriteDescriptorSet writeSet = {
-      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-      .dstSet = rd->ctext->desc_set->set,
-      .dstBinding = 0,
-      .descriptorCount = 1,
-      .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-      .pImageInfo = &ctext_bitmap_image_info};
+  VkWriteDescriptorSet writeSet = {.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                   .dstSet          = rd->ctext->desc_set->set,
+                                   .dstBinding      = 0,
+                                   .descriptorCount = 1,
+                                   .descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                   .pImageInfo      = &ctext_bitmap_image_info};
   for (int i = 0; i < CTEXT_MAX_FONT_COUNT; i++) {
     writeSet.dstArrayElement = i;
     luna_DescriptorSetSubmitWrite(rd->ctext->desc_set, &writeSet);
@@ -1788,57 +1589,45 @@ bool ctext__font_resize_buffer(cfont_t *fnt, int new_buffer_size) {
     luna_GPU_FreeMemory(&fnt->buffer_mem);
   }
 
-  luna_GPU_AllocateMemory(new_allocation_size,
-                          LUNA_GPU_MEMORY_USAGE_GPU_LOCAL |
-                              LUNA_GPU_MEMORY_USAGE_CPU_WRITEABLE,
-                          &fnt->buffer_mem);
+  luna_GPU_AllocateMemory(new_allocation_size, LUNA_GPU_MEMORY_USAGE_GPU_LOCAL | LUNA_GPU_MEMORY_USAGE_CPU_WRITEABLE, &fnt->buffer_mem);
 
-  luna_GPU_CreateBuffer(new_allocation_size, LUNA_GPU_ALIGNMENT_UNNECESSARY,
-                        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
-                            VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+  luna_GPU_CreateBuffer(new_allocation_size, LUNA_GPU_ALIGNMENT_UNNECESSARY, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
                         &fnt->buffer);
   luna_GPU_BindBufferToMemory(&fnt->buffer_mem, 0, &fnt->buffer);
 
   fnt->allocated_size = new_allocation_size;
-  fnt->to_render = 0;
+  fnt->to_render      = 0;
 
   return true;
 }
 
 void ctext__render_drawcalls(lunaRenderer_t *rd, cfont_t *fnt) {
 
-  const VkCommandBuffer cmd = lunaRenderer_GetDrawBuffer(rd);
+  const VkCommandBuffer cmd    = lunaRenderer_GetDrawBuffer(rd);
   const VkDeviceSize offsets[] = {0};
 
   struct push_constants pc = {};
 
-  const VkPipeline pipeline = g_Pipelines.Ctext.pipeline;
+  const VkPipeline pipeline              = g_Pipelines.Ctext.pipeline;
   const VkPipelineLayout pipeline_layout = g_Pipelines.Ctext.pipeline_layout;
 
-  const VkDescriptorSet sets[] = {camera.sets->set, rd->ctext->desc_set->set};
-  const uint32_t camera_ub_offset =
-      lunaRenderer_GetFrame(rd) * sizeof(camera_uniform_buffer);
+  const VkDescriptorSet sets[]    = {camera.sets->set, rd->ctext->desc_set->set};
+  const uint32_t camera_ub_offset = lunaRenderer_GetFrame(rd) * sizeof(camera_uniform_buffer);
 
   // Viewport && scissor are set by renderer so no need to set them here
-  vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout,
-                          0, 2, sets, 1, &camera_ub_offset);
+  vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 2, sets, 1, &camera_ub_offset);
   vkCmdBindVertexBuffers(cmd, 0, 1, &fnt->buffer.buffer, offsets);
   vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-  vkCmdBindIndexBuffer(cmd, fnt->buffer.buffer, fnt->index_buffer_offset,
-                       VK_INDEX_TYPE_UINT32);
+  vkCmdBindIndexBuffer(cmd, fnt->buffer.buffer, fnt->index_buffer_offset, VK_INDEX_TYPE_UINT32);
 
   int offset = 0;
   for (int i = 0; i < cg_vector_size(&fnt->drawcalls); i++) {
-    ctext_drawcall_t *drawcall =
-        (ctext_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
+    ctext_drawcall_t *drawcall = (ctext_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
 
     pc.model = drawcall->model;
     pc.scale = drawcall->scale;
     pc.color = drawcall->color;
-    vkCmdPushConstants(cmd, pipeline_layout,
-                       VK_SHADER_STAGE_VERTEX_BIT |
-                           VK_SHADER_STAGE_FRAGMENT_BIT,
-                       0, sizeof(struct push_constants), &pc);
+    vkCmdPushConstants(cmd, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(struct push_constants), &pc);
 
     vkCmdDrawIndexed(cmd, drawcall->index_count, 1, 0, offset, 0);
     offset += drawcall->vertex_count;
@@ -1847,10 +1636,10 @@ void ctext__render_drawcalls(lunaRenderer_t *rd, cfont_t *fnt) {
 
 static cg_vector_t split_string(const cg_string_t *str) {
   cg_vector_t result;
-  cg_string_t *substr = NULL;
+  cg_string_t *substr  = NULL;
   const char *str_data = cg_string_data(str);
-  const int str_len = cg_string_length(str);
-  int i_start = 0;
+  const int str_len    = cg_string_length(str);
+  int i_start          = 0;
 
   result = cg_vector_init(sizeof(cg_string_t *), 16);
 
@@ -1875,8 +1664,7 @@ static cg_vector_t split_string(const cg_string_t *str) {
 
 // Get the unscaled size of the string
 // Warning: slow
-static void ctext_get_text_size(const cfont_t *fnt, const cg_string_t *str,
-                                float *w, float *h) {
+static void ctext_get_text_size(const cfont_t *fnt, const cg_string_t *str, float *w, float *h) {
   const int len = cg_string_length(str);
   float width = 0.0f, height = fnt->line_height;
 
@@ -1893,8 +1681,7 @@ static void ctext_get_text_size(const cfont_t *fnt, const cg_string_t *str,
       height += fnt->line_height;
       continue;
     default: {
-      const ctext_glyph *glyph =
-          (ctext_glyph *)cg_hashmap_find(fnt->glyph_map, &c);
+      const ctext_glyph *glyph = (ctext_glyph *)cg_hashmap_find(fnt->glyph_map, &c);
       if (!glyph) {
         continue;
       }
@@ -1911,11 +1698,8 @@ static void ctext_get_text_size(const cfont_t *fnt, const cg_string_t *str,
   }
 }
 
-static int render_line(const cfont_t *fnt, const cg_string_t *str,
-                       const ctext_drawcall_t *drawcall,
-                       const ctext_text_render_info *pInfo,
-                       const int glyph_iter, float x, const float y,
-                       float scale) {
+static int render_line(const cfont_t *fnt, const cg_string_t *str, const ctext_drawcall_t *drawcall, const ctext_text_render_info *pInfo,
+                       const int glyph_iter, float x, const float y, float scale) {
   const int len = cg_string_length(str);
 
   int iter = 0;
@@ -1929,8 +1713,7 @@ static int render_line(const cfont_t *fnt, const cg_string_t *str,
       x += fnt->space_width * 4.0f;
       continue;
     default: {
-      const ctext_glyph *glyph =
-          (const ctext_glyph *)cg_hashmap_find(fnt->glyph_map, &c);
+      const ctext_glyph *glyph = (const ctext_glyph *)cg_hashmap_find(fnt->glyph_map, &c);
       if (!glyph) {
         LOG_INFO("no glyph when rendering char %i", c);
         continue;
@@ -1950,12 +1733,12 @@ static int render_line(const cfont_t *fnt, const cg_string_t *str,
       // clang-format on
 
       u32 *i_out = drawcall->indices + (glyph_iter + iter) * 6;
-      i_out[0] = index_offset;
-      i_out[1] = index_offset + 1;
-      i_out[2] = index_offset + 2;
-      i_out[3] = index_offset + 2;
-      i_out[4] = index_offset + 3;
-      i_out[5] = index_offset;
+      i_out[0]   = index_offset;
+      i_out[1]   = index_offset + 1;
+      i_out[2]   = index_offset + 2;
+      i_out[3]   = index_offset + 2;
+      i_out[4]   = index_offset + 3;
+      i_out[5]   = index_offset;
 
       x += glyph->advance;
       iter++;
@@ -1978,16 +1761,13 @@ static inline int get_effective_length(const char *buf, int buflen) {
   return len;
 }
 
-int gen_vertices(cfont_t *fnt, ctext_drawcall_t *drawcall,
-                 const ctext_text_render_info *pInfo, const cg_string_t *str,
-                 const float scale) {
+int gen_vertices(cfont_t *fnt, ctext_drawcall_t *drawcall, const ctext_text_render_info *pInfo, const cg_string_t *str, const float scale) {
   if (cg_string_length(str) == 0) {
     return 1;
   }
 
   cg_vector_t splitted_strings = split_string(str);
-  const int old_chars_drawn = fnt->chars_drawn,
-            line_count = splitted_strings.m_size;
+  const int old_chars_drawn = fnt->chars_drawn, line_count = splitted_strings.m_size;
 
   // this is here because the functions above this are supposed to
   // make sure line count is not 0
@@ -2009,8 +1789,7 @@ int gen_vertices(cfont_t *fnt, ctext_drawcall_t *drawcall,
     break;
   default:
     __builtin_unreachable();
-    LOG_ERROR("Invalid vertical alignment. Specified (int)%u. (Implement?)",
-              pInfo->vertical);
+    LOG_ERROR("Invalid vertical alignment. Specified (int)%u. (Implement?)", pInfo->vertical);
     break;
     break;
   }
@@ -2018,8 +1797,7 @@ int gen_vertices(cfont_t *fnt, ctext_drawcall_t *drawcall,
   for (int i = 0; i < line_count; i++) {
     // render_line returns the number of chars DRAWN. not the number of
     // characters in the string.
-    const cg_string_t *line =
-        ((cg_string_t **)cg_vector_data(&splitted_strings))[i];
+    const cg_string_t *line = ((cg_string_t **)cg_vector_data(&splitted_strings))[i];
 
     ctext_get_text_size(fnt, line, &text_w, &text_h);
 
@@ -2035,17 +1813,14 @@ int gen_vertices(cfont_t *fnt, ctext_drawcall_t *drawcall,
       break;
     default:
       __builtin_unreachable();
-      LOG_ERROR("Invalid horizontal alignment. Specified (int)%u. (Implement?)",
-                pInfo->horizontal);
+      LOG_ERROR("Invalid horizontal alignment. Specified (int)%u. (Implement?)", pInfo->horizontal);
       break;
     }
 
-    fnt->chars_drawn +=
-        render_line(fnt, line, drawcall, pInfo,
-                    // This gives us the number of characters this function call
-                    // has drawn. only this call.
-                    cmmax(fnt->chars_drawn - old_chars_drawn, 0), xpos,
-                    ypos + (i * fnt->line_height), scale);
+    fnt->chars_drawn += render_line(fnt, line, drawcall, pInfo,
+                                    // This gives us the number of characters this function call
+                                    // has drawn. only this call.
+                                    cmmax(fnt->chars_drawn - old_chars_drawn, 0), xpos, ypos + (i * fnt->line_height), scale);
   }
 
   for (int i = 0; i < line_count; i++) {
@@ -2057,8 +1832,7 @@ int gen_vertices(cfont_t *fnt, ctext_drawcall_t *drawcall,
   return 0;
 }
 
-void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo,
-                  const char *fmt, ...) {
+void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo, const char *fmt, ...) {
   cg_string_t *str;
   size_t num, effective_length;
   char *buffer;
@@ -2066,7 +1840,7 @@ void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo,
   va_list arg;
   va_start(arg, fmt);
 
-  num = luna_vsnprintf(NULL, LUNA_PRINTF_BUFSIZ, fmt, arg);
+  num    = luna_vsnprintf(NULL, LUNA_PRINTF_BUFSIZ, fmt, arg);
   buffer = luna_malloc(num + 1);
   va_start(arg, fmt);
 
@@ -2082,17 +1856,16 @@ void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo,
   str = cg_string_init_str(buffer);
   luna_free(buffer);
 
-  const size_t vertex_count = effective_length * 4;
-  const size_t index_count = effective_length * 6;
-  const size_t allocation_size =
-      (vertex_count * sizeof(cglyph_vertex_t)) + (index_count * sizeof(u32));
+  const size_t vertex_count    = effective_length * 4;
+  const size_t index_count     = effective_length * 6;
+  const size_t allocation_size = (vertex_count * sizeof(cglyph_vertex_t)) + (index_count * sizeof(u32));
 
   void *allocation = luna_malloc(allocation_size);
 
   ctext_drawcall_t drawcall = {};
-  drawcall.vertices = (cglyph_vertex_t *)allocation;
-  drawcall.index_offset = (vertex_count * sizeof(cglyph_vertex_t));
-  drawcall.indices = (u32 *)((uchar *)allocation + drawcall.index_offset);
+  drawcall.vertices         = (cglyph_vertex_t *)allocation;
+  drawcall.index_offset     = (vertex_count * sizeof(cglyph_vertex_t));
+  drawcall.indices          = (u32 *)((uchar *)allocation + drawcall.index_offset);
 
   drawcall.color = pInfo->color;
   drawcall.scale = pInfo->scale;
@@ -2107,7 +1880,7 @@ void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo,
   }
 
   drawcall.vertex_count = effective_length * 4;
-  drawcall.index_count = effective_length * 6;
+  drawcall.index_count  = effective_length * 6;
 
   cg_vector_push_back(&fnt->drawcalls, &drawcall);
 
@@ -2123,11 +1896,10 @@ void __ctext_flush_font(lunaRenderer_t *rd, cfont_t *fnt) {
     fnt->rendered_this_frame = 0;
   }
   u32 total_vertex_byte_size = 0;
-  u32 total_index_count = 0;
+  u32 total_index_count      = 0;
 
   for (int i = 0; i < cg_vector_size(&fnt->drawcalls); i++) {
-    const ctext_drawcall_t *drawcall =
-        (ctext_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
+    const ctext_drawcall_t *drawcall = (ctext_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
     total_vertex_byte_size += drawcall->vertex_count * sizeof(cglyph_vertex_t);
     total_index_count += drawcall->index_count;
   }
@@ -2137,32 +1909,26 @@ void __ctext_flush_font(lunaRenderer_t *rd, cfont_t *fnt) {
   }
 
   const u32 total_index_byte_size = total_index_count * sizeof(u32);
-  const u32 total_buffer_size = total_index_byte_size + total_vertex_byte_size;
+  const u32 total_buffer_size     = total_index_byte_size + total_vertex_byte_size;
 
-  const bool fnt_buffer_resized =
-      ctext__font_resize_buffer(fnt, total_buffer_size);
+  const bool fnt_buffer_resized = ctext__font_resize_buffer(fnt, total_buffer_size);
 
   if (fnt->to_render && !fnt_buffer_resized) {
     ctext__render_drawcalls(rd, fnt);
   }
 
   uint8_t *mapped;
-  vkMapMemory(device, fnt->buffer_mem.memory, 0, total_buffer_size, 0,
-              (void **)&mapped);
+  vkMapMemory(device, fnt->buffer_mem.memory, 0, total_buffer_size, 0, (void **)&mapped);
 
   // this may be dumb but I am too
 
   u32 vertex_copy_iterator = 0;
-  u32 index_copy_iterator = 0;
+  u32 index_copy_iterator  = 0;
   for (int i = 0; i < cg_vector_size(&fnt->drawcalls); i++) {
-    const ctext_drawcall_t *drawcall =
-        (ctext_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
-    luna_memcpy(mapped + vertex_copy_iterator,
-                drawcall->vertex_count * sizeof(cglyph_vertex_t),
-                drawcall->vertices,
+    const ctext_drawcall_t *drawcall = (ctext_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
+    luna_memcpy(mapped + vertex_copy_iterator, drawcall->vertex_count * sizeof(cglyph_vertex_t), drawcall->vertices,
                 drawcall->vertex_count * sizeof(cglyph_vertex_t));
-    luna_memcpy(mapped + total_vertex_byte_size + index_copy_iterator,
-                drawcall->index_count * sizeof(u32), drawcall->indices,
+    luna_memcpy(mapped + total_vertex_byte_size + index_copy_iterator, drawcall->index_count * sizeof(u32), drawcall->indices,
                 drawcall->index_count * sizeof(u32));
     vertex_copy_iterator += drawcall->vertex_count * sizeof(cglyph_vertex_t);
     index_copy_iterator += drawcall->index_count * sizeof(u32);
@@ -2170,14 +1936,13 @@ void __ctext_flush_font(lunaRenderer_t *rd, cfont_t *fnt) {
   vkUnmapMemory(device, fnt->buffer_mem.memory);
 
   fnt->index_buffer_offset = total_vertex_byte_size;
-  fnt->index_count = total_index_count;
-  fnt->to_render = true;
+  fnt->index_count         = total_index_count;
+  fnt->to_render           = true;
 
   fnt->chars_drawn = 0;
 
   for (int i = 0; i < cg_vector_size(&fnt->drawcalls); i++) {
-    ctext_drawcall_t *drawcall =
-        (ctext_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
+    ctext_drawcall_t *drawcall = (ctext_drawcall_t *)cg_vector_get(&fnt->drawcalls, i);
     luna_free(drawcall->vertices);
   }
   cg_vector_clear(&fnt->drawcalls);
@@ -2194,15 +1959,13 @@ ctext_label *ctext_create_label(lunaScene *scene, cfont_t *fnt) {
   ctext_label label = {
       .h_align = CTEXT_HORI_ALIGN_LEFT,
       .v_align = CTEXT_VERT_ALIGN_TOP,
-      .index = fnt->rd->ctext->labels.m_size,
-      .text = cg_string_init(0),
-      .fnt = fnt,
-      .obj = lunaObject_Create(scene, "Text Label", 0, 0, 0, (vec2){},
-                               (vec2){1.0f, 1.0f}, LUNA_OBJECT_NO_COLLISION),
+      .index   = fnt->rd->ctext->labels.m_size,
+      .text    = cg_string_init(0),
+      .fnt     = fnt,
+      .obj     = lunaObject_Create(scene, "Text Label", 0, 0, 0, (vec2){}, (vec2){1.0f, 1.0f}, LUNA_OBJECT_NO_COLLISION),
   };
   cg_vector_push_back(&fnt->rd->ctext->labels, &label);
-  return &(((ctext_label *)fnt->rd->ctext->labels
-                .m_data)[fnt->rd->ctext->labels.m_size - 1]);
+  return &(((ctext_label *)fnt->rd->ctext->labels.m_data)[fnt->rd->ctext->labels.m_size - 1]);
 }
 
 void ctext_destroy_label(ctext_label *label) {
@@ -2217,12 +1980,10 @@ lunaObject *ctext_label_get_object(const ctext_label *label) {
 void ctext_label_set_text(ctext_label *label, const char *text) {
   cg_string_set(label->text, text);
 }
-void ctext_label_set_horizontal_align(ctext_label *label,
-                                      ctext_hori_align h_align) {
+void ctext_label_set_horizontal_align(ctext_label *label, ctext_hori_align h_align) {
   label->h_align = h_align;
 }
-void ctext_label_set_vertical_align(ctext_label *label,
-                                    ctext_vert_align v_align) {
+void ctext_label_set_vertical_align(ctext_label *label, ctext_vert_align v_align) {
   label->v_align = v_align;
 }
 
@@ -2231,34 +1992,31 @@ void ctext_label_set_text_scale(ctext_label *label, float scale) {
 }
 
 void ctext_init(struct lunaRenderer_t *rd) {
-  rd->ctext = calloc(1, sizeof(cg_ctext_module));
+  rd->ctext              = calloc(1, sizeof(cg_ctext_module));
   cg_ctext_module *ctext = rd->ctext;
 
-  ctext->fonts = cg_vector_init(sizeof(cfont_t), 4);
+  ctext->fonts  = cg_vector_init(sizeof(cfont_t), 4);
   ctext->labels = cg_vector_init(sizeof(ctext_label), 4);
 
   const VkDescriptorSetLayoutBinding bindings[] = {
       // binding; descriptorType; descriptorCount; stageFlags;
       // pImmutableSamplers;
-      {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, CTEXT_MAX_FONT_COUNT,
-       VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
+      {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, CTEXT_MAX_FONT_COUNT, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
   };
 
-  luna_AllocateDescriptorSet(&g_pool, bindings, array_len(bindings),
-                             &ctext->desc_set);
+  luna_AllocateDescriptorSet(&g_pool, bindings, array_len(bindings), &ctext->desc_set);
 
-  const VkDescriptorImageInfo empty_img_info = {
-      .sampler = lunaSprite_GetSampler(lunaSprite_Empty),
-      .imageView = lunaSprite_GetVkImageView(lunaSprite_Empty),
-      .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+  const VkDescriptorImageInfo empty_img_info = {.sampler     = lunaSprite_GetSampler(lunaSprite_Empty),
+                                                .imageView   = lunaSprite_GetVkImageView(lunaSprite_Empty),
+                                                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
   VkWriteDescriptorSet write_set = {
-      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-      .dstSet = ctext->desc_set->set,
-      .dstBinding = 0,
+      .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      .dstSet          = ctext->desc_set->set,
+      .dstBinding      = 0,
       .descriptorCount = 1,
-      .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-      .pImageInfo = &empty_img_info,
+      .descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+      .pImageInfo      = &empty_img_info,
   };
   for (int i = 0; i < CTEXT_MAX_FONT_COUNT; i++) {
     write_set.dstArrayElement = i;
@@ -2272,8 +2030,7 @@ void ctext_shutdown(struct lunaRenderer_t *rd) {
   luna_DescriptorSetDestroy(ctext->desc_set);
 }
 
-float ctext_get_scale_for_fit(const cfont_t *fnt, const cg_string_t *str,
-                              vec2 bbox) {
+float ctext_get_scale_for_fit(const cfont_t *fnt, const cg_string_t *str, vec2 bbox) {
   float width, height;
   ctext_get_text_size(fnt, str, &width, &height);
 
@@ -2285,14 +2042,10 @@ float ctext_get_scale_for_fit(const cfont_t *fnt, const cg_string_t *str,
 // ctext ^^
 
 // lunaDescriptors vv
-void luna_DescriptorSetSubmitWrite(luna_DescriptorSet *set,
-                                   const VkWriteDescriptorSet *write) {
-  set->writes =
-      realloc(set->writes, (set->nwrites + 1) * sizeof(VkWriteDescriptorSet));
+void luna_DescriptorSetSubmitWrite(luna_DescriptorSet *set, const VkWriteDescriptorSet *write) {
+  set->writes = realloc(set->writes, (set->nwrites + 1) * sizeof(VkWriteDescriptorSet));
   cassert(set->writes != NULL);
-  luna_memcpy(&set->writes[set->nwrites],
-              (set->nwrites + 1) * sizeof(VkWriteDescriptorSet), write,
-              sizeof(VkWriteDescriptorSet));
+  luna_memcpy(&set->writes[set->nwrites], (set->nwrites + 1) * sizeof(VkWriteDescriptorSet), write, sizeof(VkWriteDescriptorSet));
   set->nwrites++;
   vkUpdateDescriptorSets(device, 1, write, 0, 0);
 }
@@ -2313,14 +2066,13 @@ void luna_DescriptorPoolDestroy(luna_DescriptorPool *pool) {
 
 void __luna_DescriptorPool_Allocate(luna_DescriptorPool *pool) {
   VkDescriptorPoolSize allocations[11] = {};
-  int descriptors_written = 0;
+  int descriptors_written              = 0;
 
   for (int i = 0; i < 11; i++) {
     if (pool->descriptors[i].capacity == 0) {
       continue;
     }
-    allocations[descriptors_written] = (VkDescriptorPoolSize){
-        pool->descriptors[i].type, pool->descriptors[i].capacity};
+    allocations[descriptors_written] = (VkDescriptorPoolSize){pool->descriptors[i].type, pool->descriptors[i].capacity};
     descriptors_written++;
   }
 
@@ -2333,34 +2085,29 @@ void __luna_DescriptorPool_Allocate(luna_DescriptorPool *pool) {
     pool->max_child_sets = cmmax(pool->max_child_sets * 2, 1);
   }
 
-  VkDescriptorPoolCreateInfo poolInfo = {
-      .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-      .maxSets = pool->max_child_sets,
-      .poolSizeCount = descriptors_written,
-      .pPoolSizes = allocations};
+  VkDescriptorPoolCreateInfo poolInfo = {.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+                                         .maxSets       = pool->max_child_sets,
+                                         .poolSizeCount = descriptors_written,
+                                         .pPoolSizes    = allocations};
 
   VkDescriptorPool new_pool;
-  cassert(vkCreateDescriptorPool(device, &poolInfo, NULL, &new_pool) ==
-          VK_SUCCESS);
+  cassert(vkCreateDescriptorPool(device, &poolInfo, NULL, &new_pool) == VK_SUCCESS);
 
-  VkDescriptorSet *new_sets =
-      luna_malloc(sizeof(VkDescriptorSet) * pool->nsets);
+  VkDescriptorSet *new_sets = luna_malloc(sizeof(VkDescriptorSet) * pool->nsets);
   cassert(new_sets != NULL);
 
   if (pool->nsets > 0) {
-    VkDescriptorSetLayout *layouts =
-        luna_malloc(sizeof(VkDescriptorSetLayout) * pool->nsets);
+    VkDescriptorSetLayout *layouts = luna_malloc(sizeof(VkDescriptorSetLayout) * pool->nsets);
     for (int i = 0; i < pool->nsets; i++) {
       layouts[i] = pool->sets[i]->layout;
     }
 
     VkDescriptorSetAllocateInfo setAllocInfo = {};
-    setAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    setAllocInfo.descriptorPool = new_pool;
-    setAllocInfo.descriptorSetCount = pool->nsets;
-    setAllocInfo.pSetLayouts = layouts;
-    cassert(vkAllocateDescriptorSets(device, &setAllocInfo, new_sets) ==
-            VK_SUCCESS);
+    setAllocInfo.sType                       = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    setAllocInfo.descriptorPool              = new_pool;
+    setAllocInfo.descriptorSetCount          = pool->nsets;
+    setAllocInfo.pSetLayouts                 = layouts;
+    cassert(vkAllocateDescriptorSets(device, &setAllocInfo, new_sets) == VK_SUCCESS);
 
     luna_free(layouts);
   }
@@ -2369,8 +2116,7 @@ void __luna_DescriptorPool_Allocate(luna_DescriptorPool *pool) {
   for (int i = 0; i < pool->nsets; i++) {
     ncopies += pool->sets[i]->nwrites;
   }
-  VkCopyDescriptorSet *copies =
-      luna_malloc(sizeof(VkCopyDescriptorSet) * ncopies);
+  VkCopyDescriptorSet *copies = luna_malloc(sizeof(VkCopyDescriptorSet) * ncopies);
 
   ncopies = 0;
   for (int i = 0; i < pool->nsets; i++) {
@@ -2378,15 +2124,15 @@ void __luna_DescriptorPool_Allocate(luna_DescriptorPool *pool) {
 
     for (int writei = 0; writei < old_set->nwrites; writei++) {
       VkWriteDescriptorSet *write = &old_set->writes[writei];
-      copies[ncopies] = (VkCopyDescriptorSet){
-          .sType = VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET,
-          .srcSet = old_set->set,
-          .srcBinding = write->dstBinding,
-          .srcArrayElement = write->dstArrayElement,
-          .dstSet = new_sets[i],
-          .dstBinding = write->dstBinding,
-          .dstArrayElement = write->dstArrayElement,
-          .descriptorCount = write->descriptorCount,
+      copies[ncopies]             = (VkCopyDescriptorSet){
+                      .sType           = VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET,
+                      .srcSet          = old_set->set,
+                      .srcBinding      = write->dstBinding,
+                      .srcArrayElement = write->dstArrayElement,
+                      .dstSet          = new_sets[i],
+                      .dstBinding      = write->dstBinding,
+                      .dstArrayElement = write->dstArrayElement,
+                      .descriptorCount = write->descriptorCount,
       };
       ncopies++;
     }
@@ -2404,7 +2150,7 @@ void __luna_DescriptorPool_Allocate(luna_DescriptorPool *pool) {
 }
 
 void luna_DescriptorPool_Init(luna_DescriptorPool *dst) {
-  *dst = (luna_DescriptorPool){};
+  *dst                                 = (luna_DescriptorPool){};
   luna_DescriptorPoolSize pool_sizes[] = {
       {VK_DESCRIPTOR_TYPE_SAMPLER, 0, 0},
       {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, 0},
@@ -2418,27 +2164,22 @@ void luna_DescriptorPool_Init(luna_DescriptorPool *dst) {
       {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 0, 0},
       {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 0, 0},
   };
-  luna_memcpy(dst->descriptors, sizeof(dst->descriptors), pool_sizes,
-              sizeof(pool_sizes));
-  dst->sets = luna_malloc(sizeof(luna_DescriptorSet *));
+  luna_memcpy(dst->descriptors, sizeof(dst->descriptors), pool_sizes, sizeof(pool_sizes));
+  dst->sets           = luna_malloc(sizeof(luna_DescriptorSet *));
   dst->max_child_sets = 1;
-  dst->nsets = 0;
+  dst->nsets          = 0;
   __luna_DescriptorPool_Allocate(dst);
 }
 
-void luna_AllocateDescriptorSet(luna_DescriptorPool *pool,
-                                const VkDescriptorSetLayoutBinding *bindings,
-                                int nbindings, luna_DescriptorSet **dst) {
+void luna_AllocateDescriptorSet(luna_DescriptorPool *pool, const VkDescriptorSetLayoutBinding *bindings, int nbindings, luna_DescriptorSet **dst) {
 
   bool need_realloc = 0;
   for (int i = 0; i < 11; i++) {
     for (int j = 0; j < nbindings; j++) {
       luna_DescriptorPoolSize *descriptor = &pool->descriptors[i];
       if (descriptor->type == bindings[j].descriptorType) {
-        descriptor->capacity =
-            cmmax(descriptor->capacity * 2,
-                  (int)bindings[j].descriptorCount + descriptor->capacity);
-        need_realloc = 1;
+        descriptor->capacity = cmmax(descriptor->capacity * 2, (int)bindings[j].descriptorCount + descriptor->capacity);
+        need_realloc         = 1;
       }
     }
   }
@@ -2446,8 +2187,7 @@ void luna_AllocateDescriptorSet(luna_DescriptorPool *pool,
   if (need_realloc || ((pool->nsets + 1) > pool->max_child_sets)) {
     if ((pool->nsets + 1) > pool->max_child_sets) {
       pool->max_child_sets = cmmax(pool->max_child_sets * 2, 1);
-      pool->sets = realloc(pool->sets,
-                           pool->max_child_sets * sizeof(luna_DescriptorSet));
+      pool->sets           = realloc(pool->sets, pool->max_child_sets * sizeof(luna_DescriptorSet));
     }
 
     __luna_DescriptorPool_Allocate(pool);
@@ -2460,24 +2200,22 @@ void luna_AllocateDescriptorSet(luna_DescriptorPool *pool,
 
   (*dst) = set;
 
-  set->pool = pool;
+  set->pool   = pool;
   set->writes = luna_malloc(sizeof(VkWriteDescriptorSet));
   cassert(set->writes != NULL);
 
   VkDescriptorSetLayoutCreateInfo layoutinfo = {};
-  layoutinfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-  layoutinfo.pBindings = bindings;
-  layoutinfo.bindingCount = nbindings;
-  cassert(vkCreateDescriptorSetLayout(device, &layoutinfo, NULL,
-                                      &set->layout) == VK_SUCCESS);
+  layoutinfo.sType                           = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+  layoutinfo.pBindings                       = bindings;
+  layoutinfo.bindingCount                    = nbindings;
+  cassert(vkCreateDescriptorSetLayout(device, &layoutinfo, NULL, &set->layout) == VK_SUCCESS);
 
   VkDescriptorSetAllocateInfo setAllocInfo = {};
-  setAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-  setAllocInfo.descriptorPool = pool->pool;
-  setAllocInfo.descriptorSetCount = 1;
-  setAllocInfo.pSetLayouts = &set->layout;
-  cassert(vkAllocateDescriptorSets(device, &setAllocInfo, &set->set) ==
-          VK_SUCCESS);
+  setAllocInfo.sType                       = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+  setAllocInfo.descriptorPool              = pool->pool;
+  setAllocInfo.descriptorSetCount          = 1;
+  setAllocInfo.pSetLayouts                 = &set->layout;
+  cassert(vkAllocateDescriptorSets(device, &setAllocInfo, &set->set) == VK_SUCCESS);
 }
 // lunaDescriptors ^^
 
@@ -2485,17 +2223,14 @@ void __BakeUnlitPipeline(lunaRenderer_t *rd) {
   VkDescriptorSetLayoutBinding bindings[] = {
       // binding; descriptorType; descriptorCount; stageFlags;
       // pImmutableSamplers;
-      {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1,
-       VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
+      {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
   };
 
   VkDescriptorSetLayoutCreateInfo layoutinfo = {};
-  layoutinfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-  layoutinfo.pBindings = bindings;
-  layoutinfo.bindingCount = 1;
-  cassert(vkCreateDescriptorSetLayout(device, &layoutinfo, NULL,
-                                      &g_Pipelines.Unlit.descriptor_layout) ==
-          VK_SUCCESS);
+  layoutinfo.sType                           = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+  layoutinfo.pBindings                       = bindings;
+  layoutinfo.bindingCount                    = 1;
+  cassert(vkCreateDescriptorSetLayout(device, &layoutinfo, NULL, &g_Pipelines.Unlit.descriptor_layout) == VK_SUCCESS);
 
   csm_shader_t *vertex, *fragment;
   csm_load_shader("Unlit/vert", &vertex);
@@ -2503,9 +2238,8 @@ void __BakeUnlitPipeline(lunaRenderer_t *rd) {
 
   cassert(vertex != NULL && fragment != NULL);
 
-  const csm_shader_t *shaders[] = {vertex, fragment};
-  const VkDescriptorSetLayout layouts[] = {camera.sets->layout,
-                                           g_Pipelines.Unlit.descriptor_layout};
+  const csm_shader_t *shaders[]         = {vertex, fragment};
+  const VkDescriptorSetLayout layouts[] = {camera.sets->layout, g_Pipelines.Unlit.descriptor_layout};
 
   const lunaExtent2D RenderExtent = lunaRenderer_GetRenderExtent(rd);
 
@@ -2515,19 +2249,17 @@ void __BakeUnlitPipeline(lunaRenderer_t *rd) {
       {1, 0, VK_FORMAT_R32G32_SFLOAT, sizeof(vec3)}, // texcoord
   };
 
-  const VkVertexInputBindingDescription bindingDescriptions[] = {
-      // binding; stride; inputRate
-      {0, sizeof(vec3) + sizeof(vec2), VK_VERTEX_INPUT_RATE_VERTEX}};
+  const VkVertexInputBindingDescription bindingDescriptions[] = {// binding; stride; inputRate
+                                                                 {0, sizeof(vec3) + sizeof(vec2), VK_VERTEX_INPUT_RATE_VERTEX}};
 
   const VkPushConstantRange pushConstants[] = {
       // stageFlags, offset, size
-      {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
-       sizeof(mat4) + sizeof(vec4) + sizeof(vec2)}};
+      {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(mat4) + sizeof(vec4) + sizeof(vec2)}};
 
   luna_GPU_PipelineCreateInfo pc = luna_GPU_InitPipelineCreateInfo();
-  pc.format = SwapChainImageFormat;
-  pc.subpass = 0;
-  pc.render_pass = lunaRenderer_GetRenderPass(rd);
+  pc.format                      = SwapChainImageFormat;
+  pc.subpass                     = 0;
+  pc.render_pass                 = lunaRenderer_GetRenderPass(rd);
 
   pc.nAttributeDescriptions = array_len(attributeDescriptions);
   pc.pAttributeDescriptions = attributeDescriptions;
@@ -2544,9 +2276,9 @@ void __BakeUnlitPipeline(lunaRenderer_t *rd) {
   pc.nDescriptorLayouts = array_len(layouts);
   pc.pDescriptorLayouts = layouts;
 
-  pc.extent.width = RenderExtent.width;
+  pc.extent.width  = RenderExtent.width;
   pc.extent.height = RenderExtent.height;
-  pc.samples = Samples;
+  pc.samples       = Samples;
   luna_GPU_CreatePipelineLayout(&pc, &g_Pipelines.Unlit.pipeline_layout);
   pc.pipeline_layout = g_Pipelines.Unlit.pipeline_layout;
   luna_GPU_CreateGraphicsPipeline(&pc, &g_Pipelines.Unlit.pipeline, 0);
@@ -2559,31 +2291,27 @@ void __BakeCtextPipeline(lunaRenderer_t *rd) {
       {1, 0, luna_lunaFormatToVKFormat(LUNA_FORMAT_RG32), sizeof(vec3)}, // uv
   };
 
-  const VkVertexInputBindingDescription bindingDescriptions[] = {
-      // binding; stride; inputRate
-      {0, sizeof(vec3) + sizeof(vec2), VK_VERTEX_INPUT_RATE_VERTEX}};
+  const VkVertexInputBindingDescription bindingDescriptions[] = {// binding; stride; inputRate
+                                                                 {0, sizeof(vec3) + sizeof(vec2), VK_VERTEX_INPUT_RATE_VERTEX}};
 
   const VkPushConstantRange pushConstants[] = {
       // stageFlags, offset, size
-      {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
-       sizeof(struct push_constants)},
+      {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(struct push_constants)},
   };
 
   csm_shader_t *vertex, *fragment;
   cassert(csm_load_shader("ctext/vert", &vertex) != -1);
   cassert(csm_load_shader("ctext/frag", &fragment) != -1);
 
-  csm_shader_t *shaders[] = {vertex, fragment};
-  VkDescriptorSetLayout layouts[] = {camera.sets->layout,
-                                     rd->ctext->desc_set->layout};
+  csm_shader_t *shaders[]         = {vertex, fragment};
+  VkDescriptorSetLayout layouts[] = {camera.sets->layout, rd->ctext->desc_set->layout};
 
-  const luna_GPU_PipelineBlendState blend =
-      luna_GPU_InitPipelineBlendState(CVK_BLEND_PRESET_ALPHA);
+  const luna_GPU_PipelineBlendState blend = luna_GPU_InitPipelineBlendState(CVK_BLEND_PRESET_ALPHA);
 
   luna_GPU_PipelineCreateInfo pc = luna_GPU_InitPipelineCreateInfo();
-  pc.format = SwapChainImageFormat;
-  pc.subpass = 0;
-  pc.render_pass = lunaRenderer_GetRenderPass(rd);
+  pc.format                      = SwapChainImageFormat;
+  pc.subpass                     = 0;
+  pc.render_pass                 = lunaRenderer_GetRenderPass(rd);
 
   pc.nAttributeDescriptions = array_len(attributeDescriptions);
   pc.pAttributeDescriptions = attributeDescriptions;
@@ -2601,10 +2329,10 @@ void __BakeCtextPipeline(lunaRenderer_t *rd) {
   pc.pDescriptorLayouts = layouts;
 
   const lunaExtent2D RenderExtent = lunaRenderer_GetRenderExtent(rd);
-  pc.extent.width = RenderExtent.width;
-  pc.extent.height = RenderExtent.height;
-  pc.blend_state = &blend;
-  pc.samples = Samples;
+  pc.extent.width                 = RenderExtent.width;
+  pc.extent.height                = RenderExtent.height;
+  pc.blend_state                  = &blend;
+  pc.samples                      = Samples;
 
   luna_GPU_CreatePipelineLayout(&pc, &g_Pipelines.Ctext.pipeline_layout);
   pc.pipeline_layout = g_Pipelines.Ctext.pipeline_layout;
@@ -2621,24 +2349,22 @@ void __BakeDebugLinePipeline(lunaRenderer_t *rd) {
 
   const VkPushConstantRange pushConstants[] = {
       // stageFlags, offset, size
-      {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
-       sizeof(struct line_push_constants)},
+      {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(struct line_push_constants)},
   };
 
   csm_shader_t *vertex, *fragment;
   cassert(csm_load_shader("Debug/Line/vert", &vertex) != -1);
   cassert(csm_load_shader("Debug/Line/frag", &fragment) != -1);
 
-  csm_shader_t *shaders[] = {vertex, fragment};
+  csm_shader_t *shaders[]         = {vertex, fragment};
   VkDescriptorSetLayout layouts[] = {camera.sets->layout};
 
-  const luna_GPU_PipelineBlendState blend =
-      luna_GPU_InitPipelineBlendState(CVK_BLEND_PRESET_ALPHA);
+  const luna_GPU_PipelineBlendState blend = luna_GPU_InitPipelineBlendState(CVK_BLEND_PRESET_ALPHA);
 
   luna_GPU_PipelineCreateInfo pc = luna_GPU_InitPipelineCreateInfo();
-  pc.format = SwapChainImageFormat;
+  pc.format                      = SwapChainImageFormat;
 
-  pc.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+  pc.topology    = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
   pc.render_pass = lunaRenderer_GetRenderPass(rd);
 
   pc.nAttributeDescriptions = 0;
@@ -2657,10 +2383,10 @@ void __BakeDebugLinePipeline(lunaRenderer_t *rd) {
   pc.pDescriptorLayouts = layouts;
 
   const lunaExtent2D RenderExtent = lunaRenderer_GetRenderExtent(rd);
-  pc.extent.width = RenderExtent.width;
-  pc.extent.height = RenderExtent.height;
-  pc.blend_state = &blend;
-  pc.samples = Samples;
+  pc.extent.width                 = RenderExtent.width;
+  pc.extent.height                = RenderExtent.height;
+  pc.blend_state                  = &blend;
+  pc.samples                      = Samples;
 
   luna_GPU_CreatePipelineLayout(&pc, &g_Pipelines.Line.pipeline_layout);
   pc.pipeline_layout = g_Pipelines.Line.pipeline_layout;
@@ -2690,9 +2416,7 @@ void luna_VK_DestroyGlobalPipelines() {
   }
 }
 
-void luna_GPU_CreateGraphicsPipeline(
-    const luna_GPU_PipelineCreateInfo *pCreateInfo, VkPipeline *dstPipeline,
-    u32 flags) {
+void luna_GPU_CreateGraphicsPipeline(const luna_GPU_PipelineCreateInfo *pCreateInfo, VkPipeline *dstPipeline, u32 flags) {
   CVK_REQUIRED_PTR(device);
   CVK_REQUIRED_PTR(pCreateInfo);
   CVK_REQUIRED_PTR(dstPipeline);
@@ -2710,164 +2434,144 @@ void luna_GPU_CreateGraphicsPipeline(
   VkPipelineVertexInputStateCreateInfo vertexInputState = {
       .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
 
-      .vertexBindingDescriptionCount = pCreateInfo->nBindingDescriptions,
-      .pVertexBindingDescriptions = pCreateInfo->pBindingDescriptions,
+      .vertexBindingDescriptionCount   = pCreateInfo->nBindingDescriptions,
+      .pVertexBindingDescriptions      = pCreateInfo->pBindingDescriptions,
       .vertexAttributeDescriptionCount = pCreateInfo->nAttributeDescriptions,
-      .pVertexAttributeDescriptions = pCreateInfo->pAttributeDescriptions,
+      .pVertexAttributeDescriptions    = pCreateInfo->pAttributeDescriptions,
   };
 
   VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = {};
-  inputAssemblyState.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-  inputAssemblyState.primitiveRestartEnable = VK_FALSE;
-  inputAssemblyState.topology = pCreateInfo->topology;
+  inputAssemblyState.sType                                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+  inputAssemblyState.primitiveRestartEnable                 = VK_FALSE;
+  inputAssemblyState.topology                               = pCreateInfo->topology;
 
   VkViewport viewportState = {};
-  viewportState.x = 0;
-  viewportState.y = 0;
-  viewportState.width = (float)(pCreateInfo->extent.width);
-  viewportState.height = (float)(pCreateInfo->extent.height);
-  viewportState.minDepth = 0.0f;
-  viewportState.maxDepth = 1.0f;
+  viewportState.x          = 0;
+  viewportState.y          = 0;
+  viewportState.width      = (float)(pCreateInfo->extent.width);
+  viewportState.height     = (float)(pCreateInfo->extent.height);
+  viewportState.minDepth   = 0.0f;
+  viewportState.maxDepth   = 1.0f;
 
   VkRect2D scissor = {};
-  scissor.offset = (VkOffset2D){0, 0};
-  scissor.extent = pCreateInfo->extent;
+  scissor.offset   = (VkOffset2D){0, 0};
+  scissor.extent   = pCreateInfo->extent;
 
   VkPipelineViewportStateCreateInfo viewportStateCreateInfo = {};
-  viewportStateCreateInfo.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-  viewportStateCreateInfo.pViewports = &viewportState;
-  viewportStateCreateInfo.pScissors = &scissor;
-  viewportStateCreateInfo.scissorCount = 1;
-  viewportStateCreateInfo.viewportCount = 1;
+  viewportStateCreateInfo.sType                             = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+  viewportStateCreateInfo.pViewports                        = &viewportState;
+  viewportStateCreateInfo.pScissors                         = &scissor;
+  viewportStateCreateInfo.scissorCount                      = 1;
+  viewportStateCreateInfo.viewportCount                     = 1;
 
   VkPipelineRasterizationStateCreateInfo rasterizerPipelineStateCreateInfo = {};
-  rasterizerPipelineStateCreateInfo.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-  rasterizerPipelineStateCreateInfo.depthClampEnable = VK_FALSE;
-  rasterizerPipelineStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
-  rasterizerPipelineStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
+  rasterizerPipelineStateCreateInfo.sType                                  = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+  rasterizerPipelineStateCreateInfo.depthClampEnable                       = VK_FALSE;
+  rasterizerPipelineStateCreateInfo.rasterizerDiscardEnable                = VK_FALSE;
+  rasterizerPipelineStateCreateInfo.polygonMode                            = VK_POLYGON_MODE_FILL;
 
   if (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_CULLING))
-    rasterizerPipelineStateCreateInfo.cullMode =
-        VK_CULL_MODE_BACK_BIT; // No one uses other culling modes. If you do, I
-                               // hate you.
+    rasterizerPipelineStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT; // No one uses other culling modes. If you do, I
+                                                                        // hate you.
   else
     rasterizerPipelineStateCreateInfo.cullMode = VK_CULL_MODE_NONE;
 
-  rasterizerPipelineStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-  rasterizerPipelineStateCreateInfo.depthBiasEnable = VK_FALSE;
+  rasterizerPipelineStateCreateInfo.frontFace               = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+  rasterizerPipelineStateCreateInfo.depthBiasEnable         = VK_FALSE;
   rasterizerPipelineStateCreateInfo.depthBiasConstantFactor = 0.0f;
-  rasterizerPipelineStateCreateInfo.depthBiasClamp = 0.0f;
-  rasterizerPipelineStateCreateInfo.depthBiasSlopeFactor = 0.0f;
-  rasterizerPipelineStateCreateInfo.lineWidth = 1.0f;
+  rasterizerPipelineStateCreateInfo.depthBiasClamp          = 0.0f;
+  rasterizerPipelineStateCreateInfo.depthBiasSlopeFactor    = 0.0f;
+  rasterizerPipelineStateCreateInfo.lineWidth               = 1.0f;
 
   VkPipelineMultisampleStateCreateInfo multisamplerPipelineStageCreateInfo = {};
-  multisamplerPipelineStageCreateInfo.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-  multisamplerPipelineStageCreateInfo.sampleShadingEnable = VK_FALSE;
-  multisamplerPipelineStageCreateInfo.alphaToCoverageEnable = VK_FALSE;
-  multisamplerPipelineStageCreateInfo.alphaToOneEnable = VK_FALSE;
-  multisamplerPipelineStageCreateInfo.minSampleShading = 1.0f;
-  multisamplerPipelineStageCreateInfo.pSampleMask = VK_NULL_HANDLE;
+  multisamplerPipelineStageCreateInfo.sType                                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+  multisamplerPipelineStageCreateInfo.sampleShadingEnable                  = VK_FALSE;
+  multisamplerPipelineStageCreateInfo.alphaToCoverageEnable                = VK_FALSE;
+  multisamplerPipelineStageCreateInfo.alphaToOneEnable                     = VK_FALSE;
+  multisamplerPipelineStageCreateInfo.minSampleShading                     = 1.0f;
+  multisamplerPipelineStageCreateInfo.pSampleMask                          = VK_NULL_HANDLE;
 
   if (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING))
-    multisamplerPipelineStageCreateInfo.rasterizationSamples =
-        pCreateInfo->samples;
+    multisamplerPipelineStageCreateInfo.rasterizationSamples = pCreateInfo->samples;
   else
-    multisamplerPipelineStageCreateInfo.rasterizationSamples =
-        VK_SAMPLE_COUNT_1_BIT;
+    multisamplerPipelineStageCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
   VkPipelineColorBlendAttachmentState colorblendAttachmentState = {};
 
   if (pCreateInfo->blend_state != NULL) {
     const luna_GPU_PipelineBlendState *blendState = pCreateInfo->blend_state;
 
-    colorblendAttachmentState.blendEnable = VK_TRUE;
-    colorblendAttachmentState.srcColorBlendFactor =
-        blendState->srcColorBlendFactor;
-    colorblendAttachmentState.dstColorBlendFactor =
-        blendState->dstColorBlendFactor;
-    colorblendAttachmentState.colorBlendOp = blendState->colorBlendOp;
-    colorblendAttachmentState.srcAlphaBlendFactor =
-        blendState->srcAlphaBlendFactor;
-    colorblendAttachmentState.dstAlphaBlendFactor =
-        blendState->dstAlphaBlendFactor;
-    colorblendAttachmentState.alphaBlendOp = blendState->alphaBlendOp;
-    colorblendAttachmentState.colorWriteMask = blendState->colorWriteMask;
+    colorblendAttachmentState.blendEnable         = VK_TRUE;
+    colorblendAttachmentState.srcColorBlendFactor = blendState->srcColorBlendFactor;
+    colorblendAttachmentState.dstColorBlendFactor = blendState->dstColorBlendFactor;
+    colorblendAttachmentState.colorBlendOp        = blendState->colorBlendOp;
+    colorblendAttachmentState.srcAlphaBlendFactor = blendState->srcAlphaBlendFactor;
+    colorblendAttachmentState.dstAlphaBlendFactor = blendState->dstAlphaBlendFactor;
+    colorblendAttachmentState.alphaBlendOp        = blendState->alphaBlendOp;
+    colorblendAttachmentState.colorWriteMask      = blendState->colorWriteMask;
   } else {
     colorblendAttachmentState.blendEnable = VK_FALSE;
     colorblendAttachmentState.colorWriteMask =
-        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
   }
 
   VkPipelineColorBlendStateCreateInfo colorblendState = {};
-  colorblendState.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-  colorblendState.attachmentCount = 1;
-  colorblendState.pAttachments = &colorblendAttachmentState;
-  colorblendState.logicOp = VK_LOGIC_OP_COPY;
-  colorblendState.logicOpEnable = VK_FALSE;
-  colorblendState.blendConstants[0] = 0.0f;
-  colorblendState.blendConstants[1] = 0.0f;
-  colorblendState.blendConstants[2] = 0.0f;
-  colorblendState.blendConstants[3] = 0.0f;
+  colorblendState.sType                               = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+  colorblendState.attachmentCount                     = 1;
+  colorblendState.pAttachments                        = &colorblendAttachmentState;
+  colorblendState.logicOp                             = VK_LOGIC_OP_COPY;
+  colorblendState.logicOpEnable                       = VK_FALSE;
+  colorblendState.blendConstants[0]                   = 0.0f;
+  colorblendState.blendConstants[1]                   = 0.0f;
+  colorblendState.blendConstants[2]                   = 0.0f;
+  colorblendState.blendConstants[3]                   = 0.0f;
 
   VkPipelineShaderStageCreateInfo *shader_infos =
-      (VkPipelineShaderStageCreateInfo *)calloc(
-          pCreateInfo->nShaders, sizeof(VkPipelineShaderStageCreateInfo));
+      (VkPipelineShaderStageCreateInfo *)calloc(pCreateInfo->nShaders, sizeof(VkPipelineShaderStageCreateInfo));
   for (int i = 0; i < pCreateInfo->nShaders; i++) {
-    shader_infos[i].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    shader_infos[i].stage =
-        (VkShaderStageFlagBits)pCreateInfo->pShaders[i]->stage;
-    shader_infos[i].module =
-        (VkShaderModule)pCreateInfo->pShaders[i]->shader_module;
-    shader_infos[i].pName = "main";
+    shader_infos[i].sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shader_infos[i].stage  = (VkShaderStageFlagBits)pCreateInfo->pShaders[i]->stage;
+    shader_infos[i].module = (VkShaderModule)pCreateInfo->pShaders[i]->shader_module;
+    shader_infos[i].pName  = "main";
   }
 
   VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {
-      .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-      .stageCount = pCreateInfo->nShaders,
-      .pStages = shader_infos,
-      .pVertexInputState = &vertexInputState,
+      .sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+      .stageCount          = pCreateInfo->nShaders,
+      .pStages             = shader_infos,
+      .pVertexInputState   = &vertexInputState,
       .pInputAssemblyState = &inputAssemblyState,
-      .pViewportState = &viewportStateCreateInfo,
+      .pViewportState      = &viewportStateCreateInfo,
       .pRasterizationState = &rasterizerPipelineStateCreateInfo,
-      .pMultisampleState = &multisamplerPipelineStageCreateInfo,
-      .pColorBlendState = &colorblendState,
-      .layout = pCreateInfo->pipeline_layout,
-      .renderPass = pCreateInfo->render_pass,
-      .subpass = pCreateInfo->subpass,
-      .basePipelineHandle = pCreateInfo->old_pipeline,
-      .basePipelineIndex = 0, // ?
+      .pMultisampleState   = &multisamplerPipelineStageCreateInfo,
+      .pColorBlendState    = &colorblendState,
+      .layout              = pCreateInfo->pipeline_layout,
+      .renderPass          = pCreateInfo->render_pass,
+      .subpass             = pCreateInfo->subpass,
+      .basePipelineHandle  = pCreateInfo->old_pipeline,
+      .basePipelineIndex   = 0, // ?
   };
 
   VkPipelineDynamicStateCreateInfo dynamicStateInfo = {};
-  const VkDynamicState dynamicStates[] = {VK_DYNAMIC_STATE_VIEWPORT,
-                                          VK_DYNAMIC_STATE_SCISSOR};
+  const VkDynamicState dynamicStates[]              = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
   if (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_DYNAMIC_VIEWPORT)) {
   } else {
-    dynamicStateInfo.sType =
-        VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    dynamicStateInfo.dynamicStateCount = 2;
-    dynamicStateInfo.pDynamicStates = dynamicStates;
+    dynamicStateInfo.sType                   = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamicStateInfo.dynamicStateCount       = 2;
+    dynamicStateInfo.pDynamicStates          = dynamicStates;
     graphicsPipelineCreateInfo.pDynamicState = &dynamicStateInfo;
   }
 
-  VkPipelineDepthStencilStateCreateInfo depthStencilState = {
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
+  VkPipelineDepthStencilStateCreateInfo depthStencilState = {.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
   if (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_DEPTH_CHECK)) {
-    depthStencilState.sType =
-        VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    depthStencilState.depthTestEnable = VK_TRUE;
-    depthStencilState.depthWriteEnable = VK_TRUE;
-    depthStencilState.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+    depthStencilState.sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencilState.depthTestEnable       = VK_TRUE;
+    depthStencilState.depthWriteEnable      = VK_TRUE;
+    depthStencilState.depthCompareOp        = VK_COMPARE_OP_LESS_OR_EQUAL;
     depthStencilState.depthBoundsTestEnable = VK_FALSE;
-    depthStencilState.minDepthBounds = 0.0f;
-    depthStencilState.maxDepthBounds = 1.0f;
-    depthStencilState.stencilTestEnable = VK_FALSE;
+    depthStencilState.minDepthBounds        = 0.0f;
+    depthStencilState.maxDepthBounds        = 1.0f;
+    depthStencilState.stencilTestEnable     = VK_FALSE;
 
     graphicsPipelineCreateInfo.pDepthStencilState = &depthStencilState;
   }
@@ -2875,17 +2579,14 @@ void luna_GPU_CreateGraphicsPipeline(
   graphicsPipelineCreateInfo.basePipelineHandle = base_pipeline;
 
   // if(cacheIsNull) cacheCreator.join();
-  CVK_ResultCheck(vkCreateGraphicsPipelines(device, pCreateInfo->cache, 1,
-                                            &graphicsPipelineCreateInfo,
-                                            VK_NULL_HANDLE, dstPipeline));
+  CVK_ResultCheck(vkCreateGraphicsPipelines(device, pCreateInfo->cache, 1, &graphicsPipelineCreateInfo, VK_NULL_HANDLE, dstPipeline));
 
   base_pipeline = *dstPipeline;
 
   luna_free(shader_infos);
 }
 
-void luna_GPU_CreateRenderPass(luna_GPU_RenderPassCreateInfo const *pCreateInfo,
-                               VkRenderPass *dstRenderPass, u32 flags) {
+void luna_GPU_CreateRenderPass(luna_GPU_RenderPassCreateInfo const *pCreateInfo, VkRenderPass *dstRenderPass, u32 flags) {
   CVK_REQUIRED_PTR(device);
   CVK_REQUIRED_PTR(pCreateInfo);
   CVK_REQUIRED_PTR(dstRenderPass);
@@ -2896,48 +2597,41 @@ void luna_GPU_CreateRenderPass(luna_GPU_RenderPassCreateInfo const *pCreateInfo,
   }
 
   VkAttachmentDescription colorAttachmentDescription = {};
-  colorAttachmentDescription.format =
-      luna_lunaFormatToVKFormat(pCreateInfo->format);
-  colorAttachmentDescription.samples =
-      HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING) ? pCreateInfo->samples
-                                                       : VK_SAMPLE_COUNT_1_BIT;
-  colorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+  colorAttachmentDescription.format                  = luna_lunaFormatToVKFormat(pCreateInfo->format);
+  colorAttachmentDescription.samples = HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING) ? pCreateInfo->samples : VK_SAMPLE_COUNT_1_BIT;
+  colorAttachmentDescription.loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
   colorAttachmentDescription.storeOp =
-      HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING)
-          ? VK_ATTACHMENT_STORE_OP_DONT_CARE
-          : VK_ATTACHMENT_STORE_OP_STORE;
-  colorAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+      HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING) ? VK_ATTACHMENT_STORE_OP_DONT_CARE : VK_ATTACHMENT_STORE_OP_STORE;
+  colorAttachmentDescription.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
   colorAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-  colorAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  colorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+  colorAttachmentDescription.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+  colorAttachmentDescription.finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
   // colorAttachmentDescription.finalLayout =
   // (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING)) ?
   // VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
   VkAttachmentReference colorAttachmentReference = {};
-  colorAttachmentReference.attachment = 0;
-  colorAttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+  colorAttachmentReference.attachment            = 0;
+  colorAttachmentReference.layout                = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
   VkSubpassDescription subpass = {};
-  subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+  subpass.pipelineBindPoint    = VK_PIPELINE_BIND_POINT_GRAPHICS;
   subpass.colorAttachmentCount = 1;
-  subpass.pColorAttachments = &colorAttachmentReference;
+  subpass.pColorAttachments    = &colorAttachmentReference;
 
-  cg_vector_t /* VkAttachmentDescription */ attachments =
-      cg_vector_init(sizeof(VkAttachmentDescription), 5);
+  cg_vector_t /* VkAttachmentDescription */ attachments = cg_vector_init(sizeof(VkAttachmentDescription), 5);
   cg_vector_push_back(&attachments, &colorAttachmentDescription);
 
-  VkAttachmentDescription depthAttachment = {};
+  VkAttachmentDescription depthAttachment  = {};
   VkAttachmentReference depthAttachmentRef = {};
   if (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_DEPTH_CHECK)) {
-    depthAttachment.format = luna_lunaFormatToVKFormat(
-        pCreateInfo->depthBufferFormat); // Why wasn't this being used?
-    depthAttachment.samples = pCreateInfo->samples;
-    depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depthAttachment.format         = luna_lunaFormatToVKFormat(pCreateInfo->depthBufferFormat); // Why wasn't this being used?
+    depthAttachment.samples        = pCreateInfo->samples;
+    depthAttachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthAttachment.storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depthAttachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
 
     // if (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING))
     // 	depthAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -2945,8 +2639,7 @@ void luna_GPU_CreateRenderPass(luna_GPU_RenderPassCreateInfo const *pCreateInfo,
     depthAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
     depthAttachmentRef.attachment = cg_vector_size(&attachments);
-    depthAttachmentRef.layout =
-        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    depthAttachmentRef.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     subpass.pDepthStencilAttachment = &depthAttachmentRef;
 
@@ -2954,20 +2647,19 @@ void luna_GPU_CreateRenderPass(luna_GPU_RenderPassCreateInfo const *pCreateInfo,
   }
 
   VkAttachmentReference colorAttachmentResolveRef = {};
-  VkAttachmentDescription colorAttachmentResolve = {};
+  VkAttachmentDescription colorAttachmentResolve  = {};
   if (HAS_FLAG(CVK_PIPELINE_FLAGS_FORCE_MULTISAMPLING)) {
-    colorAttachmentResolve.format =
-        luna_lunaFormatToVKFormat(pCreateInfo->format);
-    colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
-    colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    colorAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAttachmentResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAttachmentResolve.format         = luna_lunaFormatToVKFormat(pCreateInfo->format);
+    colorAttachmentResolve.samples        = VK_SAMPLE_COUNT_1_BIT;
+    colorAttachmentResolve.loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAttachmentResolve.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachmentResolve.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     colorAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    colorAttachmentResolve.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+    colorAttachmentResolve.finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
     colorAttachmentResolveRef.attachment = cg_vector_size(&attachments);
-    colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachmentResolveRef.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
     cg_vector_push_back(&attachments, &colorAttachmentResolve);
 
@@ -2975,22 +2667,18 @@ void luna_GPU_CreateRenderPass(luna_GPU_RenderPassCreateInfo const *pCreateInfo,
   }
 
   VkRenderPassCreateInfo renderPassInfo = {};
-  renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-  renderPassInfo.attachmentCount = cg_vector_size(&attachments);
-  renderPassInfo.pAttachments =
-      (const VkAttachmentDescription *)cg_vector_data(&attachments);
-  renderPassInfo.subpassCount = 1;
-  renderPassInfo.pSubpasses = &subpass;
-  renderPassInfo.dependencyCount = 0;
-  renderPassInfo.pDependencies = NULL;
+  renderPassInfo.sType                  = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+  renderPassInfo.attachmentCount        = cg_vector_size(&attachments);
+  renderPassInfo.pAttachments           = (const VkAttachmentDescription *)cg_vector_data(&attachments);
+  renderPassInfo.subpassCount           = 1;
+  renderPassInfo.pSubpasses             = &subpass;
+  renderPassInfo.dependencyCount        = 0;
+  renderPassInfo.pDependencies          = NULL;
 
-  CVK_ResultCheck(vkCreateRenderPass(device, &renderPassInfo, VK_NULL_HANDLE,
-                                     dstRenderPass));
+  CVK_ResultCheck(vkCreateRenderPass(device, &renderPassInfo, VK_NULL_HANDLE, dstRenderPass));
 }
 
-void luna_GPU_CreatePipelineLayout(
-    luna_GPU_PipelineCreateInfo const *pCreateInfo,
-    VkPipelineLayout *dstLayout) {
+void luna_GPU_CreatePipelineLayout(luna_GPU_PipelineCreateInfo const *pCreateInfo, VkPipelineLayout *dstLayout) {
   CVK_REQUIRED_PTR(device);
   CVK_REQUIRED_PTR(pCreateInfo);
   CVK_REQUIRED_PTR(dstLayout);
@@ -3011,19 +2699,16 @@ void luna_GPU_CreatePipelineLayout(
   // }
 
   VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
-  pipelineLayoutCreateInfo.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  pipelineLayoutCreateInfo.setLayoutCount = pCreateInfo->nDescriptorLayouts;
-  pipelineLayoutCreateInfo.pSetLayouts = pCreateInfo->pDescriptorLayouts;
-  pipelineLayoutCreateInfo.pushConstantRangeCount = pCreateInfo->nPushConstants;
-  pipelineLayoutCreateInfo.pPushConstantRanges = pCreateInfo->pPushConstants;
+  pipelineLayoutCreateInfo.sType                      = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  pipelineLayoutCreateInfo.setLayoutCount             = pCreateInfo->nDescriptorLayouts;
+  pipelineLayoutCreateInfo.pSetLayouts                = pCreateInfo->pDescriptorLayouts;
+  pipelineLayoutCreateInfo.pushConstantRangeCount     = pCreateInfo->nPushConstants;
+  pipelineLayoutCreateInfo.pPushConstantRanges        = pCreateInfo->pPushConstants;
 
-  CVK_ResultCheck(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo,
-                                         VK_NULL_HANDLE, dstLayout));
+  CVK_ResultCheck(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, VK_NULL_HANDLE, dstLayout));
 }
 
-void luna_GPU_CreateSwapchain(luna_GPU_SwapchainCreateInfo const *pCreateInfo,
-                              VkSwapchainKHR *dstSwapchain) {
+void luna_GPU_CreateSwapchain(luna_GPU_SwapchainCreateInfo const *pCreateInfo, VkSwapchainKHR *dstSwapchain) {
   CVK_REQUIRED_PTR(device);
   CVK_REQUIRED_PTR(pCreateInfo);
   CVK_NOT_EQUAL_TO(pCreateInfo->extent.width, 0);
@@ -3032,95 +2717,89 @@ void luna_GPU_CreateSwapchain(luna_GPU_SwapchainCreateInfo const *pCreateInfo,
   CVK_NOT_EQUAL_TO(pCreateInfo->image_count, 0);
 
   VkSwapchainCreateInfoKHR swapChainCreateInfo = {};
-  swapChainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-  swapChainCreateInfo.surface = surface;
-  swapChainCreateInfo.imageExtent = pCreateInfo->extent;
-  swapChainCreateInfo.minImageCount = pCreateInfo->image_count;
-  swapChainCreateInfo.imageFormat =
-      luna_lunaFormatToVKFormat(pCreateInfo->format);
-  swapChainCreateInfo.imageColorSpace = pCreateInfo->color_space;
-  swapChainCreateInfo.imageArrayLayers = 1;
-  swapChainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-  swapChainCreateInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-  swapChainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-  swapChainCreateInfo.clipped = VK_TRUE;
-  swapChainCreateInfo.presentMode = pCreateInfo->present_mode;
-  swapChainCreateInfo.oldSwapchain = pCreateInfo->old_swapchain;
-  swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-  CVK_ResultCheck(vkCreateSwapchainKHR(device, &swapChainCreateInfo,
-                                       VK_NULL_HANDLE, dstSwapchain));
+  swapChainCreateInfo.sType                    = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+  swapChainCreateInfo.surface                  = surface;
+  swapChainCreateInfo.imageExtent              = pCreateInfo->extent;
+  swapChainCreateInfo.minImageCount            = pCreateInfo->image_count;
+  swapChainCreateInfo.imageFormat              = luna_lunaFormatToVKFormat(pCreateInfo->format);
+  swapChainCreateInfo.imageColorSpace          = pCreateInfo->color_space;
+  swapChainCreateInfo.imageArrayLayers         = 1;
+  swapChainCreateInfo.imageUsage               = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+  swapChainCreateInfo.preTransform             = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+  swapChainCreateInfo.compositeAlpha           = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+  swapChainCreateInfo.clipped                  = VK_TRUE;
+  swapChainCreateInfo.presentMode              = pCreateInfo->present_mode;
+  swapChainCreateInfo.oldSwapchain             = pCreateInfo->old_swapchain;
+  swapChainCreateInfo.imageSharingMode         = VK_SHARING_MODE_EXCLUSIVE;
+  CVK_ResultCheck(vkCreateSwapchainKHR(device, &swapChainCreateInfo, VK_NULL_HANDLE, dstSwapchain));
 }
 
-luna_GPU_PipelineBlendState
-luna_GPU_InitPipelineBlendState(luna_GPU_PipelineBlendPreset preset) {
+luna_GPU_PipelineBlendState luna_GPU_InitPipelineBlendState(luna_GPU_PipelineBlendPreset preset) {
   luna_GPU_PipelineBlendState ret = {};
-  ret.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                       VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  ret.colorWriteMask              = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
   switch (preset) {
   case CVK_BLEND_PRESET_NONE:
     ret.srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
     ret.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-    ret.colorBlendOp = VK_BLEND_OP_ADD;
+    ret.colorBlendOp        = VK_BLEND_OP_ADD;
     ret.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
     ret.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-    ret.alphaBlendOp = VK_BLEND_OP_ADD;
+    ret.alphaBlendOp        = VK_BLEND_OP_ADD;
     break;
   case CVK_BLEND_PRESET_ALPHA:
     ret.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
     ret.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    ret.colorBlendOp = VK_BLEND_OP_ADD;
+    ret.colorBlendOp        = VK_BLEND_OP_ADD;
     ret.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
     ret.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-    ret.alphaBlendOp = VK_BLEND_OP_ADD;
+    ret.alphaBlendOp        = VK_BLEND_OP_ADD;
     break;
   case CVK_BLEND_PRESET_ADDITIVE:
     ret.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
     ret.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-    ret.colorBlendOp = VK_BLEND_OP_ADD;
+    ret.colorBlendOp        = VK_BLEND_OP_ADD;
     ret.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
     ret.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-    ret.alphaBlendOp = VK_BLEND_OP_ADD;
+    ret.alphaBlendOp        = VK_BLEND_OP_ADD;
     break;
   case CVK_BLEND_PRESET_MULTIPLICATIVE:
     ret.srcColorBlendFactor = VK_BLEND_FACTOR_DST_COLOR;
     ret.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-    ret.colorBlendOp = VK_BLEND_OP_ADD;
+    ret.colorBlendOp        = VK_BLEND_OP_ADD;
     ret.srcAlphaBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;
     ret.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-    ret.alphaBlendOp = VK_BLEND_OP_ADD;
+    ret.alphaBlendOp        = VK_BLEND_OP_ADD;
     break;
   case CVK_BLEND_PRESET_PREMULTIPLIED_ALPHA:
     ret.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
     ret.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    ret.colorBlendOp = VK_BLEND_OP_ADD;
+    ret.colorBlendOp        = VK_BLEND_OP_ADD;
     ret.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
     ret.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    ret.alphaBlendOp = VK_BLEND_OP_ADD;
+    ret.alphaBlendOp        = VK_BLEND_OP_ADD;
     break;
   case CVK_BLEND_PRESET_SUBTRACTIVE:
     ret.srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
     ret.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-    ret.colorBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;
+    ret.colorBlendOp        = VK_BLEND_OP_REVERSE_SUBTRACT;
     ret.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
     ret.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-    ret.alphaBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;
+    ret.alphaBlendOp        = VK_BLEND_OP_REVERSE_SUBTRACT;
     break;
   default:
     ret.srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
     ret.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-    ret.colorBlendOp = VK_BLEND_OP_ADD;
+    ret.colorBlendOp        = VK_BLEND_OP_ADD;
     ret.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
     ret.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-    ret.alphaBlendOp = VK_BLEND_OP_ADD;
+    ret.alphaBlendOp        = VK_BLEND_OP_ADD;
     break;
   }
   return ret;
 }
 
-void luna_VK_CreateBuffer(u64 size, VkBufferUsageFlags usageFlags,
-                          VkMemoryPropertyFlags propertyFlags,
-                          VkBuffer *dstBuffer, VkDeviceMemory *retMem,
+void luna_VK_CreateBuffer(u64 size, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags, VkBuffer *dstBuffer, VkDeviceMemory *retMem,
                           bool externallyAllocated) {
   if (size == 0) {
     return;
@@ -3130,12 +2809,11 @@ void luna_VK_CreateBuffer(u64 size, VkBufferUsageFlags usageFlags,
   VkDeviceMemory newMemory;
 
   VkBufferCreateInfo bufferCreateInfo = {};
-  bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-  bufferCreateInfo.size = size;
-  bufferCreateInfo.usage = usageFlags;
-  bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-  if (vkCreateBuffer(device, &bufferCreateInfo, NULL, &newBuffer) !=
-      VK_SUCCESS) {
+  bufferCreateInfo.sType              = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+  bufferCreateInfo.size               = size;
+  bufferCreateInfo.usage              = usageFlags;
+  bufferCreateInfo.sharingMode        = VK_SHARING_MODE_EXCLUSIVE;
+  if (vkCreateBuffer(device, &bufferCreateInfo, NULL, &newBuffer) != VK_SUCCESS) {
     printf("Renderer::failed to create staging buffer!");
   }
 
@@ -3144,10 +2822,9 @@ void luna_VK_CreateBuffer(u64 size, VkBufferUsageFlags usageFlags,
 
   if (!externallyAllocated) {
     VkMemoryAllocateInfo allocInfo = {};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = bufferMemoryRequirements.size;
-    allocInfo.memoryTypeIndex = luna_VK_GetMemType(
-        bufferMemoryRequirements.memoryTypeBits, propertyFlags);
+    allocInfo.sType                = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize       = bufferMemoryRequirements.size;
+    allocInfo.memoryTypeIndex      = luna_VK_GetMemType(bufferMemoryRequirements.memoryTypeBits, propertyFlags);
     if (vkAllocateMemory(device, &allocInfo, NULL, &newMemory) != VK_SUCCESS) {
       LOG_ERROR("failed to alloc gpu memory for buffer");
     }
@@ -3164,30 +2841,23 @@ void luna_VK_StageBufferTransfer(VkBuffer dst, void *data, u64 size) {
   VkDeviceMemory stagingBufferMemory;
 
   VkBufferCreateInfo stagingBufferInfo = {};
-  stagingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-  stagingBufferInfo.size = size;
-  stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
-                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+  stagingBufferInfo.sType              = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+  stagingBufferInfo.size               = size;
+  stagingBufferInfo.usage       = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
   stagingBufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-  if (vkCreateBuffer(device, &stagingBufferInfo, NULL, &stagingBuffer) !=
-      VK_SUCCESS) {
+  if (vkCreateBuffer(device, &stagingBufferInfo, NULL, &stagingBuffer) != VK_SUCCESS) {
     printf("Failed to create staging buffer!");
   }
 
   VkMemoryRequirements stagingBufferMemoryRequirements;
-  vkGetBufferMemoryRequirements(device, stagingBuffer,
-                                &stagingBufferMemoryRequirements);
+  vkGetBufferMemoryRequirements(device, stagingBuffer, &stagingBufferMemoryRequirements);
 
   VkMemoryAllocateInfo stagingBufferAlloc = {};
-  stagingBufferAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-  stagingBufferAlloc.allocationSize = stagingBufferMemoryRequirements.size;
+  stagingBufferAlloc.sType                = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  stagingBufferAlloc.allocationSize       = stagingBufferMemoryRequirements.size;
   stagingBufferAlloc.memoryTypeIndex =
-      luna_VK_GetMemType(stagingBufferMemoryRequirements.memoryTypeBits,
-                         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-  if (vkAllocateMemory(device, &stagingBufferAlloc, NULL,
-                       &stagingBufferMemory) != VK_SUCCESS) {
+      luna_VK_GetMemType(stagingBufferMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+  if (vkAllocateMemory(device, &stagingBufferAlloc, NULL, &stagingBufferMemory) != VK_SUCCESS) {
     printf("Failed to allocate staging buffer memory!");
   }
 
@@ -3208,15 +2878,12 @@ void luna_VK_StageBufferTransfer(VkBuffer dst, void *data, u64 size) {
   vkFreeMemory(device, stagingBufferMemory, NULL);
 }
 
-u32 luna_VK_GetMemType(const u32 memoryTypeBits,
-                       const VkMemoryPropertyFlags memoryProperties) {
+u32 luna_VK_GetMemType(const u32 memoryTypeBits, const VkMemoryPropertyFlags memoryProperties) {
   VkPhysicalDeviceMemoryProperties properties;
   vkGetPhysicalDeviceMemoryProperties(physDevice, &properties);
 
   for (u32 i = 0; i < properties.memoryTypeCount; i++) {
-    if ((memoryTypeBits & (1 << i)) &&
-        (properties.memoryTypes[i].propertyFlags & memoryProperties) ==
-            memoryProperties)
+    if ((memoryTypeBits & (1 << i)) && (properties.memoryTypes[i].propertyFlags & memoryProperties) == memoryProperties)
       return i;
   }
 
@@ -3225,8 +2892,8 @@ u32 luna_VK_GetMemType(const u32 memoryTypeBits,
 
 VkCommandBuffer luna_VK_BeginCommandBufferFrom(VkCommandBuffer src) {
   VkCommandBufferBeginInfo beginInfo = {};
-  beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-  beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+  beginInfo.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+  beginInfo.flags                    = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
   vkBeginCommandBuffer(src, &beginInfo);
 
@@ -3236,40 +2903,38 @@ VkCommandBuffer luna_VK_BeginCommandBufferFrom(VkCommandBuffer src) {
 VkCommandBuffer luna_VK_BeginCommandBuffer() {
   if (!pool) {
     VkCommandPoolCreateInfo cmdPoolCreateInfo = {};
-    cmdPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    cmdPoolCreateInfo.queueFamilyIndex = GraphicsFamilyIndex;
-    cmdPoolCreateInfo.flags = 0;
-    if (vkCreateCommandPool(device, &cmdPoolCreateInfo, NULL, &pool) !=
-        VK_SUCCESS) {
+    cmdPoolCreateInfo.sType                   = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    cmdPoolCreateInfo.queueFamilyIndex        = GraphicsFamilyIndex;
+    cmdPoolCreateInfo.flags                   = 0;
+    if (vkCreateCommandPool(device, &cmdPoolCreateInfo, NULL, &pool) != VK_SUCCESS) {
       LOG_ERROR("Failed to create command pool");
     }
   }
 
   VkCommandBufferAllocateInfo cmdAllocInfo = {};
-  cmdAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-  cmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-  cmdAllocInfo.commandBufferCount = 1;
-  cmdAllocInfo.commandPool = pool;
+  cmdAllocInfo.sType                       = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+  cmdAllocInfo.level                       = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+  cmdAllocInfo.commandBufferCount          = 1;
+  cmdAllocInfo.commandPool                 = pool;
   vkAllocateCommandBuffers(device, &cmdAllocInfo, &buffer);
 
   return luna_VK_BeginCommandBufferFrom(buffer);
 }
 
-VkResult luna_VK_EndCommandBuffer(VkCommandBuffer cmd, VkQueue queue,
-                                  bool waitForExecution) {
+VkResult luna_VK_EndCommandBuffer(VkCommandBuffer cmd, VkQueue queue, bool waitForExecution) {
   VkResult res = vkEndCommandBuffer(cmd);
   if (res != VK_SUCCESS)
     return res;
 
-  VkSubmitInfo submitInfo = {};
-  submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+  VkSubmitInfo submitInfo       = {};
+  submitInfo.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
   submitInfo.commandBufferCount = 1;
-  submitInfo.pCommandBuffers = &cmd;
+  submitInfo.pCommandBuffers    = &cmd;
 
-  VkFence fence = VK_NULL_HANDLE;
+  VkFence fence               = VK_NULL_HANDLE;
   VkFenceCreateInfo fenceInfo = {};
-  fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-  fenceInfo.flags = 0;
+  fenceInfo.sType             = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+  fenceInfo.flags             = 0;
 
   if (waitForExecution) {
     res = vkCreateFence(device, &fenceInfo, NULL, &fence);
@@ -3316,68 +2981,57 @@ void luna_VK_LoadBinaryFile(const char *path, u8 *dst, u32 *dstSize) {
   fclose(f);
 }
 
-void luna_VK_StageImageTransfer(VkImage dst, const void *data, int width,
-                                int height, int image_size) {
-  VkBuffer stagingBuffer = VK_NULL_HANDLE;
+void luna_VK_StageImageTransfer(VkImage dst, const void *data, int width, int height, int image_size) {
+  VkBuffer stagingBuffer             = VK_NULL_HANDLE;
   VkDeviceMemory stagingBufferMemory = VK_NULL_HANDLE;
 
   VkMemoryRequirements mem_req;
   vkGetImageMemoryRequirements(device, dst, &mem_req);
 
   const VkBufferCreateInfo stagingBufferInfo = {
-      .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-      .size = mem_req.size,
-      .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+      .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+      .size        = mem_req.size,
+      .usage       = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
       .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
   };
 
   vkCreateBuffer(device, &stagingBufferInfo, NULL, &stagingBuffer);
 
   VkMemoryRequirements stagingBufferRequirements;
-  vkGetBufferMemoryRequirements(device, stagingBuffer,
-                                &stagingBufferRequirements);
+  vkGetBufferMemoryRequirements(device, stagingBuffer, &stagingBufferRequirements);
 
   const VkMemoryAllocateInfo stagingBufferAllocInfo = {
-      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+      .sType          = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
       .allocationSize = stagingBufferRequirements.size,
       .memoryTypeIndex =
-          luna_VK_GetMemType(stagingBufferRequirements.memoryTypeBits,
-                             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)};
+          luna_VK_GetMemType(stagingBufferRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)};
 
   vkAllocateMemory(device, &stagingBufferAllocInfo, NULL, &stagingBufferMemory);
   vkBindBufferMemory(device, stagingBuffer, stagingBufferMemory, 0);
 
   void *stagingBufferMapped;
-  cassert(vkMapMemory(device, stagingBufferMemory, 0,
-                      stagingBufferRequirements.size, 0,
-                      &stagingBufferMapped) == VK_SUCCESS);
+  cassert(vkMapMemory(device, stagingBufferMemory, 0, stagingBufferRequirements.size, 0, &stagingBufferMapped) == VK_SUCCESS);
   luna_memcpy(stagingBufferMapped, SIZE_MAX, data, image_size);
   vkUnmapMemory(device, stagingBufferMemory);
 
   const VkCommandBuffer cmd = luna_VK_BeginCommandBuffer();
 
-  luna_VK_TransitionTextureLayout(
-      cmd, dst, 1, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0, VK_ACCESS_TRANSFER_WRITE_BIT,
-      VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+  luna_VK_TransitionTextureLayout(cmd, dst, 1, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0,
+                                  VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
-  VkBufferImageCopy region = {};
-  region.imageExtent = (VkExtent3D){width, height, 1};
-  region.imageOffset = (VkOffset3D){0, 0, 0};
-  region.bufferOffset = 0;
-  region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-  region.imageSubresource.layerCount = 1;
+  VkBufferImageCopy region               = {};
+  region.imageExtent                     = (VkExtent3D){width, height, 1};
+  region.imageOffset                     = (VkOffset3D){0, 0, 0};
+  region.bufferOffset                    = 0;
+  region.imageSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+  region.imageSubresource.layerCount     = 1;
   region.imageSubresource.baseArrayLayer = 0;
-  region.imageSubresource.mipLevel = 0;
-  vkCmdCopyBufferToImage(cmd, stagingBuffer, dst,
-                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+  region.imageSubresource.mipLevel       = 0;
+  vkCmdCopyBufferToImage(cmd, stagingBuffer, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-  luna_VK_TransitionTextureLayout(
-      cmd, dst, 1, VK_IMAGE_ASPECT_COLOR_BIT,
-      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 0, VK_ACCESS_TRANSFER_WRITE_BIT,
-      VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+  luna_VK_TransitionTextureLayout(cmd, dst, 1, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 0, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                  VK_PIPELINE_STAGE_TRANSFER_BIT);
 
   luna_VK_EndCommandBuffer(cmd, TransferQueue, true);
 
@@ -3385,60 +3039,49 @@ void luna_VK_StageImageTransfer(VkImage dst, const void *data, int width,
   vkFreeMemory(device, stagingBufferMemory, NULL);
 }
 
-void luna_VK_CreateTextureFromMemory(u8 *buffer, u32 width, u32 height,
-                                     lunaFormat format, VkImage *dst,
-                                     VkDeviceMemory *dstMem) {
-  luna_VK_CreateTextureEmpty(width, height, format, VK_SAMPLE_COUNT_1_BIT,
-                             VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                                 VK_IMAGE_USAGE_SAMPLED_BIT,
-                             NULL, dst, dstMem);
-  luna_VK_StageImageTransfer(*dst, buffer, width, height,
-                             width * height *
-                                 luna_FormatGetBytesPerPixel(format));
+void luna_VK_CreateTextureFromMemory(u8 *buffer, u32 width, u32 height, lunaFormat format, VkImage *dst, VkDeviceMemory *dstMem) {
+  luna_VK_CreateTextureEmpty(width, height, format, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, NULL, dst,
+                             dstMem);
+  luna_VK_StageImageTransfer(*dst, buffer, width, height, width * height * luna_FormatGetBytesPerPixel(format));
 }
 
 // If the format given is oki then it'll just return it
 // otherwise it gives you the next best optoin
 lunaFormat luna_VK_GetSupportedFormatForDraw(lunaFormat fmt) {
   VkFormatProperties formatProperties;
-  vkGetPhysicalDeviceFormatProperties(
-      physDevice, luna_lunaFormatToVKFormat(fmt), &formatProperties);
+  vkGetPhysicalDeviceFormatProperties(physDevice, luna_lunaFormatToVKFormat(fmt), &formatProperties);
 
-  if ((formatProperties.optimalTilingFeatures &
-       VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT) == 0) {
+  if ((formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT) == 0) {
     // format not supported
     const char *fmt_str;
     luna_FormatToString(fmt, &fmt_str);
-    LOG_WARNING("Format %i (%s) unsupported. Using LUNA_FORMAT_RGBA8", fmt,
-                fmt_str);
+    LOG_WARNING("Format %i (%s) unsupported. Using LUNA_FORMAT_RGBA8", fmt, fmt_str);
     return LUNA_FORMAT_RGBA8;
   }
 
   return fmt;
 }
 
-void luna_VK_CreateTextureEmpty(u32 width, u32 height, lunaFormat format,
-                                VkSampleCountFlagBits samples,
-                                VkImageUsageFlags usage, int *image_size,
+void luna_VK_CreateTextureEmpty(u32 width, u32 height, lunaFormat format, VkSampleCountFlagBits samples, VkImageUsageFlags usage, int *image_size,
                                 VkImage *dst, VkDeviceMemory *dstMem) {
   if (usage & VK_IMAGE_USAGE_SAMPLED_BIT) {
     format = luna_VK_GetSupportedFormatForDraw(format);
   }
 
   VkImageCreateInfo imageCreateInfo = {};
-  imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-  imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-  imageCreateInfo.extent.width = width;
-  imageCreateInfo.extent.height = height;
-  imageCreateInfo.extent.depth = 1;
-  imageCreateInfo.mipLevels = 1;
-  imageCreateInfo.arrayLayers = 1;
-  imageCreateInfo.format = luna_lunaFormatToVKFormat(format);
-  imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-  imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  imageCreateInfo.usage = usage;
-  imageCreateInfo.samples = samples;
-  imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  imageCreateInfo.sType             = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+  imageCreateInfo.imageType         = VK_IMAGE_TYPE_2D;
+  imageCreateInfo.extent.width      = width;
+  imageCreateInfo.extent.height     = height;
+  imageCreateInfo.extent.depth      = 1;
+  imageCreateInfo.mipLevels         = 1;
+  imageCreateInfo.arrayLayers       = 1;
+  imageCreateInfo.format            = luna_lunaFormatToVKFormat(format);
+  imageCreateInfo.tiling            = VK_IMAGE_TILING_OPTIMAL;
+  imageCreateInfo.initialLayout     = VK_IMAGE_LAYOUT_UNDEFINED;
+  imageCreateInfo.usage             = usage;
+  imageCreateInfo.samples           = samples;
+  imageCreateInfo.sharingMode       = VK_SHARING_MODE_EXCLUSIVE;
   if (vkCreateImage(device, &imageCreateInfo, NULL, dst) != VK_SUCCESS)
     LOG_ERROR("Failed to create image");
 
@@ -3452,63 +3095,52 @@ void luna_VK_CreateTextureEmpty(u32 width, u32 height, lunaFormat format,
   // allow for preallocated memory.
   if (dstMem != NULL) {
 
-    const u32 localDeviceMemoryIndex =
-        luna_VK_GetMemType(imageMemoryRequirements.memoryTypeBits,
-                           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    const u32 localDeviceMemoryIndex = luna_VK_GetMemType(imageMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     VkMemoryAllocateInfo allocInfo = {};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = imageMemoryRequirements.size;
-    allocInfo.memoryTypeIndex = localDeviceMemoryIndex;
+    allocInfo.sType                = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize       = imageMemoryRequirements.size;
+    allocInfo.memoryTypeIndex      = localDeviceMemoryIndex;
 
     vkAllocateMemory(device, &allocInfo, NULL, dstMem);
     vkBindImageMemory(device, *dst, *dstMem, 0);
   }
 }
 
-u8 *luna_VK_CreateTextureFromDisk(const char *path, u32 *width, u32 *height,
-                                  lunaFormat *channels, VkImage *dst,
-                                  VkDeviceMemory *dstMem) {
+u8 *luna_VK_CreateTextureFromDisk(const char *path, u32 *width, u32 *height, lunaFormat *channels, VkImage *dst, VkDeviceMemory *dstMem) {
   lunaImage tex = lunaImage_Load(path);
 
   cassert(tex.data != NULL);
 
-  *width = tex.w;
-  *height = tex.h;
+  *width    = tex.w;
+  *height   = tex.h;
   *channels = tex.fmt;
 
-  luna_VK_CreateTextureFromMemory(tex.data, tex.w, tex.h, *channels, dst,
-                                  dstMem);
+  luna_VK_CreateTextureFromMemory(tex.data, tex.w, tex.h, *channels, dst, dstMem);
   return tex.data;
 }
 
-void luna_VK_TransitionTextureLayout(
-    VkCommandBuffer cmd, VkImage image, u32 mipLevels,
-    VkImageAspectFlagBits aspect, VkImageLayout oldLayout,
-    VkImageLayout newLayout, VkAccessFlags srcAccessMask,
-    VkAccessFlags dstAccessMask, VkPipelineStageFlags sourceStage,
-    VkPipelineStageFlags destinationStage) {
-  VkImageMemoryBarrier barrier = {};
-  barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-  barrier.oldLayout = oldLayout;
-  barrier.newLayout = newLayout;
-  barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  barrier.image = image;
-  barrier.subresourceRange.aspectMask = aspect;
-  barrier.subresourceRange.baseMipLevel = 0;
-  barrier.subresourceRange.levelCount = mipLevels;
+void luna_VK_TransitionTextureLayout(VkCommandBuffer cmd, VkImage image, u32 mipLevels, VkImageAspectFlagBits aspect, VkImageLayout oldLayout,
+                                     VkImageLayout newLayout, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
+                                     VkPipelineStageFlags sourceStage, VkPipelineStageFlags destinationStage) {
+  VkImageMemoryBarrier barrier            = {};
+  barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  barrier.oldLayout                       = oldLayout;
+  barrier.newLayout                       = newLayout;
+  barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+  barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+  barrier.image                           = image;
+  barrier.subresourceRange.aspectMask     = aspect;
+  barrier.subresourceRange.baseMipLevel   = 0;
+  barrier.subresourceRange.levelCount     = mipLevels;
   barrier.subresourceRange.baseArrayLayer = 0;
-  barrier.subresourceRange.layerCount = 1;
-  barrier.srcAccessMask = srcAccessMask;
-  barrier.dstAccessMask = dstAccessMask;
-  vkCmdPipelineBarrier(cmd, sourceStage, destinationStage, 0, 0, NULL, 0, NULL,
-                       1, &barrier);
+  barrier.subresourceRange.layerCount     = 1;
+  barrier.srcAccessMask                   = srcAccessMask;
+  barrier.dstAccessMask                   = dstAccessMask;
+  vkCmdPipelineBarrier(cmd, sourceStage, destinationStage, 0, 0, NULL, 0, NULL, 1, &barrier);
 }
 
-bool luna_VK_GetSupportedFormat(VkPhysicalDevice physDevice,
-                                VkSurfaceKHR surface, lunaFormat *dstFormat,
-                                VkColorSpaceKHR *dstColorSpace) {
+bool luna_VK_GetSupportedFormat(VkPhysicalDevice physDevice, VkSurfaceKHR surface, lunaFormat *dstFormat, VkColorSpaceKHR *dstColorSpace) {
   CVK_REQUIRED_PTR(device);
   CVK_REQUIRED_PTR(physDevice);
   CVK_REQUIRED_PTR(surface);
@@ -3516,39 +3148,30 @@ bool luna_VK_GetSupportedFormat(VkPhysicalDevice physDevice,
   CVK_REQUIRED_PTR(dstColorSpace);
 
   u32 formatCount = 0;
-  vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount,
-                                       VK_NULL_HANDLE);
-  cg_vector_t /* VkSurfaceFormatKHR */ surfaceFormats =
-      cg_vector_init(sizeof(VkSurfaceFormatKHR), formatCount);
-  vkGetPhysicalDeviceSurfaceFormatsKHR(
-      physDevice, surface, &formatCount,
-      (VkSurfaceFormatKHR *)cg_vector_data(&surfaceFormats));
+  vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, VK_NULL_HANDLE);
+  cg_vector_t /* VkSurfaceFormatKHR */ surfaceFormats = cg_vector_init(sizeof(VkSurfaceFormatKHR), formatCount);
+  vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, (VkSurfaceFormatKHR *)cg_vector_data(&surfaceFormats));
 
-  VkSurfaceFormatKHR selectedFormat = {VK_FORMAT_MAX_ENUM,
-                                       VK_COLOR_SPACE_MAX_ENUM_KHR};
+  VkSurfaceFormatKHR selectedFormat = {VK_FORMAT_MAX_ENUM, VK_COLOR_SPACE_MAX_ENUM_KHR};
 
-  const VkSurfaceFormatKHR desired_formats[] = {
-      {VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
-      {VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR}};
+  const VkSurfaceFormatKHR desired_formats[] = {{VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
+                                                {VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR}};
 
   for (u32 i = 0; i < formatCount; i++) {
-    const VkSurfaceFormatKHR *surfaceFormat =
-        (VkSurfaceFormatKHR *)cg_vector_get(&surfaceFormats, i);
+    const VkSurfaceFormatKHR *surfaceFormat = (VkSurfaceFormatKHR *)cg_vector_get(&surfaceFormats, i);
     for (u32 j = 0; j < array_len(desired_formats); j++) {
-      if (surfaceFormat->format == desired_formats[j].format &&
-          surfaceFormat->colorSpace == desired_formats[j].colorSpace) {
-        selectedFormat.format = surfaceFormat->format;
+      if (surfaceFormat->format == desired_formats[j].format && surfaceFormat->colorSpace == desired_formats[j].colorSpace) {
+        selectedFormat.format     = surfaceFormat->format;
         selectedFormat.colorSpace = surfaceFormat->colorSpace;
       }
     }
   }
 
   cg_vector_destroy(&surfaceFormats);
-  if (selectedFormat.format == VK_FORMAT_MAX_ENUM ||
-      selectedFormat.colorSpace == VK_COLOR_SPACE_MAX_ENUM_KHR) {
+  if (selectedFormat.format == VK_FORMAT_MAX_ENUM || selectedFormat.colorSpace == VK_COLOR_SPACE_MAX_ENUM_KHR) {
     return VK_FALSE;
   } else {
-    *dstFormat = luna_VKFormatTolunaFormat(selectedFormat.format);
+    *dstFormat     = luna_VKFormatTolunaFormat(selectedFormat.format);
     *dstColorSpace = selectedFormat.colorSpace;
 
     return VK_TRUE;
@@ -3557,14 +3180,12 @@ bool luna_VK_GetSupportedFormat(VkPhysicalDevice physDevice,
   return VK_FALSE;
 }
 
-u32 luna_VK_GetSurfaceImageCount(VkPhysicalDevice physDevice,
-                                 VkSurfaceKHR surface) {
+u32 luna_VK_GetSurfaceImageCount(VkPhysicalDevice physDevice, VkSurfaceKHR surface) {
   CVK_REQUIRED_PTR(physDevice);
   CVK_REQUIRED_PTR(surface);
 
   VkSurfaceCapabilitiesKHR surfaceCapabilities;
-  vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physDevice, surface,
-                                            &surfaceCapabilities);
+  vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physDevice, surface, &surfaceCapabilities);
 
   u32 requestedImageCount = surfaceCapabilities.minImageCount + 1;
   if (requestedImageCount < surfaceCapabilities.maxImageCount)
@@ -3578,60 +3199,50 @@ u32 luna_VK_GetSurfaceImageCount(VkPhysicalDevice physDevice,
 // these parameters should be replaced
 // properties should be replaced by usage. Like LUNA_GPU_MEMORY_USAGE_GPU,
 // CPU_TO_GPU, GPU_TO_CPU, etc.
-void luna_GPU_AllocateMemory(VkDeviceSize size, luna_GPU_MemoryUsage usage,
-                             luna_GPU_Memory *dst) {
-  dst->size = size;
-  dst->usage = usage;
+void luna_GPU_AllocateMemory(VkDeviceSize size, luna_GPU_MemoryUsage usage, luna_GPU_Memory *dst) {
+  dst->size                              = size;
+  dst->usage                             = usage;
   const VkMemoryPropertyFlags properties = (VkMemoryPropertyFlags)usage;
 
   VkMemoryAllocateInfo alloc_info = {};
-  alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-  alloc_info.allocationSize = size;
+  alloc_info.sType                = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  alloc_info.allocationSize       = size;
 
   VkPhysicalDeviceMemoryProperties mem_properties;
   vkGetPhysicalDeviceMemoryProperties(physDevice, &mem_properties);
 
   for (u32 i = 0; i < mem_properties.memoryTypeCount; i++) {
-    if ((properties & mem_properties.memoryTypes[i].propertyFlags) ==
-        properties) {
+    if ((properties & mem_properties.memoryTypes[i].propertyFlags) == properties) {
       alloc_info.memoryTypeIndex = i;
       break;
     }
   }
 
-  if (vkAllocateMemory(device, &alloc_info, NULL, &dst->memory) != VK_SUCCESS ||
-      !dst->memory) {
+  if (vkAllocateMemory(device, &alloc_info, NULL, &dst->memory) != VK_SUCCESS || !dst->memory) {
     LOG_ERROR("An allocation has failed! What are we to do???");
   }
 }
 
-void luna_GPU_CreateBuffer(int size, int alignment, VkBufferUsageFlags usage,
-                           luna_GPU_Buffer *dst) {
-  dst->size = size;
+void luna_GPU_CreateBuffer(int size, int alignment, VkBufferUsageFlags usage, luna_GPU_Buffer *dst) {
+  dst->size      = size;
   dst->alignment = alignment;
-  dst->type = usage;
+  dst->type      = usage;
 
   const int aligned_sz = align_up(size, alignment);
 
   VkBufferCreateInfo buffer_info = {};
-  buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-  buffer_info.size = aligned_sz;
-  buffer_info.usage = usage;
-  cassert(vkCreateBuffer(device, &buffer_info, NULL, &dst->buffer) ==
-          VK_SUCCESS);
+  buffer_info.sType              = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+  buffer_info.size               = aligned_sz;
+  buffer_info.usage              = usage;
+  cassert(vkCreateBuffer(device, &buffer_info, NULL, &dst->buffer) == VK_SUCCESS);
 }
 
-void luna_GPU_WriteToLocalBuffer(luna_GPU_Buffer *buffer, int size, void *data,
-                                 int offset) {
+void luna_GPU_WriteToLocalBuffer(luna_GPU_Buffer *buffer, int size, void *data, int offset) {
   luna_GPU_Buffer staging_buffer;
-  luna_GPU_CreateBuffer(size, LUNA_GPU_ALIGNMENT_UNNECESSARY,
-                        VK_BUFFER_USAGE_TRANSFER_SRC_BIT, &staging_buffer);
+  luna_GPU_CreateBuffer(size, LUNA_GPU_ALIGNMENT_UNNECESSARY, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, &staging_buffer);
 
   luna_GPU_Memory staging_memory;
-  luna_GPU_AllocateMemory(size,
-                          LUNA_GPU_MEMORY_USAGE_CPU_VISIBLE |
-                              LUNA_GPU_MEMORY_USAGE_CPU_WRITEABLE,
-                          &staging_memory);
+  luna_GPU_AllocateMemory(size, LUNA_GPU_MEMORY_USAGE_CPU_VISIBLE | LUNA_GPU_MEMORY_USAGE_CPU_WRITEABLE, &staging_memory);
 
   luna_GPU_BindBufferToMemory(&staging_memory, 0, &staging_buffer);
 
@@ -3645,7 +3256,7 @@ void luna_GPU_WriteToLocalBuffer(luna_GPU_Buffer *buffer, int size, void *data,
   VkBufferCopy copy = {
       .srcOffset = 0,
       .dstOffset = offset,
-      .size = size,
+      .size      = size,
   };
   vkCmdCopyBuffer(cmd, staging_buffer.buffer, buffer->buffer, 1, &copy);
 
@@ -3654,16 +3265,14 @@ void luna_GPU_WriteToLocalBuffer(luna_GPU_Buffer *buffer, int size, void *data,
   }
 }
 
-void luna_GPU_WriteToUniformBuffer(luna_GPU_Buffer *buffer, int size,
-                                   void *data, int offset) {
+void luna_GPU_WriteToUniformBuffer(luna_GPU_Buffer *buffer, int size, void *data, int offset) {
   void *mapped;
   luna_GPU_MapMemory(buffer->memory, size, offset, &mapped);
   luna_memcpy(mapped, SIZE_MAX, data, size);
   luna_GPU_UnmapMemory(buffer->memory);
 }
 
-void luna_GPU_WriteToBuffer(luna_GPU_Buffer *buffer, int size, void *data,
-                            int offset) {
+void luna_GPU_WriteToBuffer(luna_GPU_Buffer *buffer, int size, void *data, int offset) {
   if (!(buffer->memory->usage & LUNA_GPU_MEMORY_USAGE_CPU_VISIBLE)) {
     luna_GPU_WriteToLocalBuffer(buffer, size, data, offset);
     return;
@@ -3674,22 +3283,20 @@ void luna_GPU_WriteToBuffer(luna_GPU_Buffer *buffer, int size, void *data,
   luna_GPU_UnmapMemory(buffer->memory);
 }
 
-void luna_GPU_MapMemory(luna_GPU_Memory *memory, int size, int offset,
-                        void **out) {
+void luna_GPU_MapMemory(luna_GPU_Memory *memory, int size, int offset, void **out) {
   if (!(memory->usage & LUNA_GPU_MEMORY_USAGE_CPU_VISIBLE)) {
     LOG_ERROR("Can not map memory which is not visible to the CPU. You may "
               "need to use a staging buffer");
     LOG_ERROR("A better option would be to use luna_GPU_WriteToBuffer()");
     return;
   }
-  if (vkMapMemory(device, memory->memory, offset, size, 0, &memory->mapped) !=
-      VK_SUCCESS) {
+  if (vkMapMemory(device, memory->memory, offset, size, 0, &memory->mapped) != VK_SUCCESS) {
     LOG_ERROR("Memory could not be mapped for write");
     return;
   }
-  memory->map_size = size;
+  memory->map_size   = size;
   memory->map_offset = offset;
-  *out = memory->mapped;
+  *out               = memory->mapped;
 }
 
 void luna_GPU_UnmapMemory(luna_GPU_Memory *memory) {
@@ -3703,7 +3310,7 @@ void luna_GPU_UnmapMemory(luna_GPU_Memory *memory) {
   //     vkFlushMappedMemoryRanges(device, 1, &range);
   // }
   memory->map_offset = 0;
-  memory->map_size = 0;
+  memory->map_size   = 0;
   vkUnmapMemory(device, memory->memory);
 }
 
@@ -3713,8 +3320,7 @@ void luna_GPU_FreeMemory(luna_GPU_Memory *mem) {
 
 // I think these given an error when, say offset is too big so maybe we can
 // check their return values?
-void luna_GPU_BindBufferToMemory(luna_GPU_Memory *mem, int offset,
-                                 luna_GPU_Buffer *buffer) {
+void luna_GPU_BindBufferToMemory(luna_GPU_Memory *mem, int offset, luna_GPU_Buffer *buffer) {
   buffer->memory = mem;
   buffer->offset = offset;
 
@@ -3725,8 +3331,7 @@ void luna_GPU_TextureAttachView(luna_GPU_Texture *tex, VkImageView view) {
   tex->view = view;
 }
 
-void luna_GPU_BindTextureToMemory(luna_GPU_Memory *mem, int offset,
-                                  luna_GPU_Texture *tex) {
+void luna_GPU_BindTextureToMemory(luna_GPU_Memory *mem, int offset, luna_GPU_Texture *tex) {
 
   tex->memory = mem;
   tex->offset = offset;
@@ -3744,34 +3349,28 @@ void luna_GPU_BindTextureToMemory(luna_GPU_Memory *mem, int offset,
   }
 
   VkImageSubresourceRange subresourceRange = {
-      .aspectMask = aspect,
-      .baseMipLevel = 0,
-      .levelCount = VK_REMAINING_MIP_LEVELS,
-      .baseArrayLayer = 0,
-      .layerCount = VK_REMAINING_ARRAY_LAYERS};
+      .aspectMask = aspect, .baseMipLevel = 0, .levelCount = VK_REMAINING_MIP_LEVELS, .baseArrayLayer = 0, .layerCount = VK_REMAINING_ARRAY_LAYERS};
 
   lunaFormat dst_format = tex->format;
-  dst_format = luna_VK_GetSupportedFormatForDraw(dst_format);
+  dst_format            = luna_VK_GetSupportedFormatForDraw(dst_format);
 
   VkImageViewCreateInfo view_info = {
-      .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-      .image = tex->image,
-      .viewType = (VkImageViewType)tex->type,
-      .format = luna_lunaFormatToVKFormat(dst_format),
+      .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+      .image            = tex->image,
+      .viewType         = (VkImageViewType)tex->type,
+      .format           = luna_lunaFormatToVKFormat(dst_format),
       .subresourceRange = subresourceRange,
-      .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-      .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
-      .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
-      .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
+      .components.r     = VK_COMPONENT_SWIZZLE_IDENTITY,
+      .components.g     = VK_COMPONENT_SWIZZLE_IDENTITY,
+      .components.b     = VK_COMPONENT_SWIZZLE_IDENTITY,
+      .components.a     = VK_COMPONENT_SWIZZLE_IDENTITY,
   };
-  cassert(vkCreateImageView(device, &view_info, NULL, &tex->view) ==
-          VK_SUCCESS);
+  cassert(vkCreateImageView(device, &view_info, NULL, &tex->view) == VK_SUCCESS);
 }
 
 void luna_GPU_DestroyBuffer(luna_GPU_Buffer *buffer) {
   if (!buffer->buffer) {
-    LOG_INFO("Attempt to destroy a buffer %u which has a NULL VkBuffer",
-             buffer);
+    LOG_INFO("Attempt to destroy a buffer %u which has a NULL VkBuffer", buffer);
     return;
   }
   vkDeviceWaitIdle(device);
@@ -3807,18 +3406,12 @@ void luna_GPU_GetTextureSize(const luna_GPU_Texture *tex, int *w, int *h) {
   }
 }
 
-void luna_GPU_CreateSampler(const luna_GPU_SamplerCreateInfo *pInfo,
-                            luna_GPU_Sampler **sampler) {
+void luna_GPU_CreateSampler(const luna_GPU_SamplerCreateInfo *pInfo, luna_GPU_Sampler **sampler) {
   for (int i = 0; i < g_Samplers.m_size; i++) {
-    luna_GPU_Sampler *cache =
-        &((luna_GPU_Sampler *)cg_vector_data(&g_Samplers))[i];
-    if (cache != NULL && cache->filter == pInfo->filter &&
-        cache->mipmap_mode == pInfo->mipmap_mode &&
-        cache->address_mode == pInfo->address_mode &&
-        cache->max_anisotropy == pInfo->max_anisotropy &&
-        cache->mip_lod_bias == pInfo->mip_lod_bias &&
-        cache->min_lod == pInfo->min_lod && cache->max_lod == pInfo->max_lod &&
-        cache->vksampler != NULL) {
+    luna_GPU_Sampler *cache = &((luna_GPU_Sampler *)cg_vector_data(&g_Samplers))[i];
+    if (cache != NULL && cache->filter == pInfo->filter && cache->mipmap_mode == pInfo->mipmap_mode && cache->address_mode == pInfo->address_mode &&
+        cache->max_anisotropy == pInfo->max_anisotropy && cache->mip_lod_bias == pInfo->mip_lod_bias && cache->min_lod == pInfo->min_lod &&
+        cache->max_lod == pInfo->max_lod && cache->vksampler != NULL) {
 
       *sampler = cache;
       return;
@@ -3826,28 +3419,27 @@ void luna_GPU_CreateSampler(const luna_GPU_SamplerCreateInfo *pInfo,
   }
 
   luna_GPU_Sampler smap = {
-      .filter = pInfo->filter,
-      .mipmap_mode = pInfo->mipmap_mode,
-      .address_mode = pInfo->address_mode,
+      .filter         = pInfo->filter,
+      .mipmap_mode    = pInfo->mipmap_mode,
+      .address_mode   = pInfo->address_mode,
       .max_anisotropy = pInfo->max_anisotropy,
-      .mip_lod_bias = pInfo->mip_lod_bias,
-      .min_lod = pInfo->min_lod,
-      .max_lod = pInfo->max_lod,
+      .mip_lod_bias   = pInfo->mip_lod_bias,
+      .min_lod        = pInfo->min_lod,
+      .max_lod        = pInfo->max_lod,
   };
 
   VkSamplerCreateInfo samplerInfo = {};
-  samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-  samplerInfo.magFilter = pInfo->filter;
-  samplerInfo.minFilter = pInfo->filter;
-  samplerInfo.mipmapMode = pInfo->mipmap_mode;
-  samplerInfo.addressModeU = pInfo->address_mode;
-  samplerInfo.addressModeV = pInfo->address_mode;
-  samplerInfo.addressModeW = pInfo->address_mode;
-  samplerInfo.anisotropyEnable = pInfo->max_anisotropy > 1.0f;
-  samplerInfo.maxLod = pInfo->max_lod;
-  samplerInfo.minLod = pInfo->min_lod;
-  cassert(vkCreateSampler(device, &samplerInfo, NULL, &smap.vksampler) ==
-          VK_SUCCESS);
+  samplerInfo.sType               = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+  samplerInfo.magFilter           = pInfo->filter;
+  samplerInfo.minFilter           = pInfo->filter;
+  samplerInfo.mipmapMode          = pInfo->mipmap_mode;
+  samplerInfo.addressModeU        = pInfo->address_mode;
+  samplerInfo.addressModeV        = pInfo->address_mode;
+  samplerInfo.addressModeW        = pInfo->address_mode;
+  samplerInfo.anisotropyEnable    = pInfo->max_anisotropy > 1.0f;
+  samplerInfo.maxLod              = pInfo->max_lod;
+  samplerInfo.minLod              = pInfo->min_lod;
+  cassert(vkCreateSampler(device, &samplerInfo, NULL, &smap.vksampler) == VK_SUCCESS);
 
   cg_vector_push_back(&g_Samplers, &smap);
   (*sampler) = &((luna_GPU_Sampler *)g_Samplers.m_data)[g_Samplers.m_size - 1];
@@ -3859,8 +3451,7 @@ void luna_GPU_WriteToTexture(luna_GPU_Texture *tex, const lunaImage *src) {
               "VK_IMAGE_USAGE_TRANSFER_DST_BIT");
   }
 
-  const int tex_size = tex->extent.width * tex->extent.height *
-                       luna_FormatGetBytesPerPixel(tex->format);
+  const int tex_size = tex->extent.width * tex->extent.height * luna_FormatGetBytesPerPixel(tex->format);
   // if (tex->memory->usage & LUNA_GPU_MEMORY_USAGE_CPU_VISIBLE) {
   //     void *mapped;
   //     luna_GPU_MapMemory(tex->memory, tex_size, tex->offset, &mapped);
@@ -3872,7 +3463,9 @@ void luna_GPU_WriteToTexture(luna_GPU_Texture *tex, const lunaImage *src) {
   luna_VK_StageImageTransfer(tex->image, src->data, src->w, src->h, tex_size);
 }
 
-VkImage luna_GPU_TextureGet(const luna_GPU_Texture *tex) { return tex->image; }
+VkImage luna_GPU_TextureGet(const luna_GPU_Texture *tex) {
+  return tex->image;
+}
 
 VkImageView luna_GPU_TextureGetView(const luna_GPU_Texture *tex) {
   return tex->view;
@@ -3882,8 +3475,7 @@ VkSampler luna_GPU_SamplerGet(const luna_GPU_Sampler *sampler) {
   return sampler->vksampler;
 }
 
-void luna_GPU_CreateTexture(const luna_GPU_TextureCreateInfo *pInfo,
-                            luna_GPU_Texture **tex) {
+void luna_GPU_CreateTexture(const luna_GPU_TextureCreateInfo *pInfo, luna_GPU_Texture **tex) {
   (*tex) = calloc(1, sizeof(luna_GPU_Texture));
 
   lunaFormat fmt = pInfo->format;
@@ -3891,7 +3483,7 @@ void luna_GPU_CreateTexture(const luna_GPU_TextureCreateInfo *pInfo,
     fmt = luna_VK_GetSupportedFormatForDraw(fmt);
   }
 
-  (*tex)->type = pInfo->type;
+  (*tex)->type   = pInfo->type;
   (*tex)->format = pInfo->format;
   (*tex)->extent = pInfo->extent;
 
@@ -3902,8 +3494,7 @@ void luna_GPU_CreateTexture(const luna_GPU_TextureCreateInfo *pInfo,
     usage |= VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     break;
   case LUNA_GPU_TEXTURE_USAGE_COLOR_TEXTURE:
-    usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-             VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     break;
   case LUNA_GPU_TEXTURE_USAGE_DEPTH_TEXTURE:
     usage |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
@@ -3918,12 +3509,10 @@ void luna_GPU_CreateTexture(const luna_GPU_TextureCreateInfo *pInfo,
     usage |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
     break;
   case LUNA_GPU_TEXTURE_USAGE_RESOLVE_TEXTURE:
-    usage |=
-        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    usage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     break;
   case LUNA_GPU_TEXTURE_USAGE_TRANSIENT_ATTACHMENT:
-    usage |= VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
-             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    usage |= VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     break;
   case LUNA_GPU_TEXTURE_USAGE_PRESENTATION:
     usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
@@ -3939,19 +3528,18 @@ void luna_GPU_CreateTexture(const luna_GPU_TextureCreateInfo *pInfo,
   }
 
   VkImageCreateInfo imageCreateInfo = {};
-  imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-  imageCreateInfo.imageType = pInfo->type;
-  imageCreateInfo.extent = pInfo->extent;
-  imageCreateInfo.mipLevels = pInfo->miplevels;
-  imageCreateInfo.arrayLayers = pInfo->arraylayers;
-  imageCreateInfo.format = luna_lunaFormatToVKFormat(fmt);
-  imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-  imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  imageCreateInfo.usage = usage;
-  imageCreateInfo.samples = (VkSampleCountFlagBits)pInfo->samples;
-  imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-  if (vkCreateImage(device, &imageCreateInfo, NULL, &(*tex)->image) !=
-      VK_SUCCESS) {
+  imageCreateInfo.sType             = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+  imageCreateInfo.imageType         = pInfo->type;
+  imageCreateInfo.extent            = pInfo->extent;
+  imageCreateInfo.mipLevels         = pInfo->miplevels;
+  imageCreateInfo.arrayLayers       = pInfo->arraylayers;
+  imageCreateInfo.format            = luna_lunaFormatToVKFormat(fmt);
+  imageCreateInfo.tiling            = VK_IMAGE_TILING_OPTIMAL;
+  imageCreateInfo.initialLayout     = VK_IMAGE_LAYOUT_UNDEFINED;
+  imageCreateInfo.usage             = usage;
+  imageCreateInfo.samples           = (VkSampleCountFlagBits)pInfo->samples;
+  imageCreateInfo.sharingMode       = VK_SHARING_MODE_EXCLUSIVE;
+  if (vkCreateImage(device, &imageCreateInfo, NULL, &(*tex)->image) != VK_SUCCESS) {
     LOG_ERROR("Failed to create image");
   }
 }
@@ -4131,69 +3719,66 @@ struct lunaSprite {
 
 lunaSprite *lunaSprite_Empty = NULL;
 
-lunaSprite *lunaSprite_LoadFromMemory(const unsigned char *data, int w, int h,
-                                      lunaFormat fmt) {
+lunaSprite *lunaSprite_LoadFromMemory(const unsigned char *data, int w, int h, lunaFormat fmt) {
   lunaSprite *spr = calloc(1, sizeof(struct lunaSprite));
 
   spr->rcount = 1;
 
-  fmt = luna_VK_GetSupportedFormatForDraw(fmt);
+  fmt      = luna_VK_GetSupportedFormatForDraw(fmt);
   spr->fmt = fmt;
 
   luna_GPU_TextureCreateInfo tex_info = {
-      .format = fmt,
-      .samples = LUNA_SAMPLE_COUNT_1_SAMPLES,
-      .type = VK_IMAGE_TYPE_2D,
-      .usage = LUNA_GPU_TEXTURE_USAGE_SAMPLED_TEXTURE,
-      .extent = (VkExtent3D){.width = w, .height = h, .depth = 1},
+      .format      = fmt,
+      .samples     = LUNA_SAMPLE_COUNT_1_SAMPLES,
+      .type        = VK_IMAGE_TYPE_2D,
+      .usage       = LUNA_GPU_TEXTURE_USAGE_SAMPLED_TEXTURE,
+      .extent      = (VkExtent3D){.width = w, .height = h, .depth = 1},
       .arraylayers = 1,
-      .miplevels = 1,
+      .miplevels   = 1,
   };
   luna_GPU_CreateTexture(&tex_info, &spr->tex);
 
   VkMemoryRequirements mem_req;
   vkGetImageMemoryRequirements(device, luna_GPU_TextureGet(spr->tex), &mem_req);
-  luna_GPU_AllocateMemory(mem_req.size, LUNA_GPU_MEMORY_USAGE_CPU_VISIBLE,
-                          &spr->mem);
+  luna_GPU_AllocateMemory(mem_req.size, LUNA_GPU_MEMORY_USAGE_CPU_VISIBLE, &spr->mem);
   luna_GPU_BindTextureToMemory(&spr->mem, 0, spr->tex);
 
-  const lunaImage img = (const lunaImage){
-      .w = w, .h = h, .fmt = fmt, .data = (unsigned char *)data};
+  const lunaImage img = (const lunaImage){.w = w, .h = h, .fmt = fmt, .data = (unsigned char *)data};
   luna_GPU_WriteToTexture(spr->tex, &img);
 
   luna_GPU_SamplerCreateInfo sampler_info = {
-      .filter = VK_FILTER_NEAREST,
-      .mipmap_mode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
-      .address_mode = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+      .filter         = VK_FILTER_NEAREST,
+      .mipmap_mode    = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+      .address_mode   = VK_SAMPLER_ADDRESS_MODE_REPEAT,
       .max_anisotropy = 1.0f,
-      .mip_lod_bias = 0.0f,
-      .min_lod = 0.0f,
-      .max_lod = VK_LOD_CLAMP_NONE,
+      .mip_lod_bias   = 0.0f,
+      .min_lod        = 0.0f,
+      .max_lod        = VK_LOD_CLAMP_NONE,
   };
   luna_GPU_CreateSampler(&sampler_info, &spr->sampler);
 
   VkDescriptorSetLayoutBinding binding = (VkDescriptorSetLayoutBinding){
-      .binding = 0,
-      .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+      .binding         = 0,
+      .descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
       .descriptorCount = 1,
-      .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+      .stageFlags      = VK_SHADER_STAGE_FRAGMENT_BIT,
   };
   luna_AllocateDescriptorSet(&g_pool, &binding, 1, &spr->set);
 
   VkDescriptorImageInfo desc_img = {
-      .sampler = luna_GPU_SamplerGet(spr->sampler),
-      .imageView = lunaSprite_GetVkImageView(spr),
+      .sampler     = luna_GPU_SamplerGet(spr->sampler),
+      .imageView   = lunaSprite_GetVkImageView(spr),
       .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
   };
 
   VkWriteDescriptorSet write = {
-      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-      .dstSet = spr->set->set,
-      .dstBinding = 0,
+      .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      .dstSet          = spr->set->set,
+      .dstBinding      = 0,
       .dstArrayElement = 0,
       .descriptorCount = 1,
-      .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-      .pImageInfo = &desc_img,
+      .descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+      .pImageInfo      = &desc_img,
   };
   luna_DescriptorSetSubmitWrite(spr->set, &write);
 
@@ -4201,9 +3786,9 @@ lunaSprite *lunaSprite_LoadFromMemory(const unsigned char *data, int w, int h,
 }
 
 lunaSprite *lunaSprite_LoadFromDisk(const char *path) {
-  lunaImage tex = lunaImage_Load(path);
+  lunaImage tex   = lunaImage_Load(path);
   lunaSprite *spr = lunaSprite_LoadFromMemory(tex.data, tex.w, tex.h, tex.fmt);
-  spr->rcount = 1;
+  spr->rcount     = 1;
   luna_free(tex.data);
   return spr;
 }
@@ -4213,7 +3798,9 @@ void lunaSprite_Destroy(lunaSprite *spr) {
   luna_GPU_FreeMemory(&spr->mem);
 }
 
-void lunaSprite_Lock(lunaSprite *spr) { spr->rcount++; }
+void lunaSprite_Lock(lunaSprite *spr) {
+  spr->rcount++;
+}
 
 void lunaSprite_Release(lunaSprite *spr) {
   spr->rcount--;
@@ -4247,5 +3834,7 @@ VkSampler lunaSprite_GetSampler(const lunaSprite *spr) {
   return luna_GPU_SamplerGet(spr->sampler);
 }
 
-lunaFormat lunaSprite_GetFormat(const lunaSprite *spr) { return spr->fmt; }
+lunaFormat lunaSprite_GetFormat(const lunaSprite *spr) {
+  return spr->fmt;
+}
 // SPRITE

@@ -1,11 +1,11 @@
 #ifndef __CBITSET_H
 #define __CBITSET_H
 
-#include "../common/stdafx.h"
+#include "../../../common/stdafx.h"
 
 typedef struct cg_bitset_t {
-    u8 *data;
-    int size;
+  u8 *data;
+  int size;
 } cg_bitset_t;
 typedef unsigned char cg_bitset_bit;
 
@@ -19,4 +19,4 @@ cg_bitset_bit cg_bitset_access_bit(cg_bitset_t *set, int bitindex);
 void cg_bitset_copy_from(cg_bitset_t *dst, const cg_bitset_t *src);
 void cg_bitset_destroy(cg_bitset_t *set);
 
-#endif//__CBITSET_H
+#endif //__CBITSET_H

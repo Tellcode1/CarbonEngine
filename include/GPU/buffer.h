@@ -7,22 +7,22 @@ typedef struct luna_GPU_Memory luna_GPU_Memory;
 
 // This is mainly here to bar the user from using unsupported buffer types
 typedef enum luna_GPU_BufferType {
-    LUNA_GPU_BUFFER_TYPE_VERTEX_BUFFER = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-    LUNA_GPU_BUFFER_TYPE_INDEX_BUFFER = VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-    LUNA_GPU_BUFFER_TYPE_UNIFORM_BUFFER = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-    LUNA_GPU_BUFFER_TYPE_STORAGE_BUFFER = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-    LUNA_GPU_BUFFER_TYPE_TRANSFER_SOURCE = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-    LUNA_GPU_BUFFER_TYPE_TRANSFER_DESTINATION = VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-    LUNA_GPU_BUFFER_TYPE_INDIRECT_BUFFER = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT,
+  LUNA_GPU_BUFFER_TYPE_VERTEX_BUFFER        = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+  LUNA_GPU_BUFFER_TYPE_INDEX_BUFFER         = VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+  LUNA_GPU_BUFFER_TYPE_UNIFORM_BUFFER       = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+  LUNA_GPU_BUFFER_TYPE_STORAGE_BUFFER       = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+  LUNA_GPU_BUFFER_TYPE_TRANSFER_SOURCE      = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+  LUNA_GPU_BUFFER_TYPE_TRANSFER_DESTINATION = VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+  LUNA_GPU_BUFFER_TYPE_INDIRECT_BUFFER      = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT,
 } luna_GPU_BufferType;
 
 typedef struct luna_GPU_Buffer {
-    VkBuffer buffer;
-    // The size of the buffer
-    // Even if there are multiple children, this gives only the size of ONE buffer
-    int size, alignment, offset;
-    luna_GPU_Memory *memory;
-    luna_GPU_BufferType type;
+  VkBuffer buffer;
+  // The size of the buffer
+  // Even if there are multiple children, this gives only the size of ONE buffer
+  int size, alignment, offset;
+  luna_GPU_Memory *memory;
+  luna_GPU_BufferType type;
 } luna_GPU_Buffer;
 
 // Note: 'nchilds' count of buffers of size 'size' will be created.
@@ -39,4 +39,4 @@ extern void luna_GPU_BindBufferToMemory(luna_GPU_Memory *mem, int offset, luna_G
 
 extern int luna_GPU_GetBufferSize(const luna_GPU_Buffer *buffer);
 
-#endif//__LUNA_BUFFER_H__
+#endif //__LUNA_BUFFER_H__

@@ -20,4 +20,4 @@ extern void lunaScene_AssignLoadFn(lunaScene *scene, lunaSceneLoadFn fn);
 extern void lunaScene_AssignUnloadFn(lunaScene *scene, lunaSceneUnloadFn fn);
 extern void lunaScene_ChangeToScene(lunaScene *scene);
 
-#endif//__LUNA_SCENE_H__
+#endif //__LUNA_SCENE_H__

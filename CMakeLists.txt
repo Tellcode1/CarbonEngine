@@ -50,19 +50,19 @@ target_compile_definitions(fontc PRIVATE FONTC=1 FONTC_EXECUTABLE=1)
 target_link_libraries(fontc freetype m core)
 target_compile_options(fontc PRIVATE -O3 -g)
 
+add_subdirectory(${CMAKE_SOURCE_DIR}/impact)
+
 set(LIBS
-    # core
+    core
     volk
     m
     SDL2
     freetype
     box2d
-    jpeg
-    png
-    z
+    impact
 )
 
-target_precompile_headers(${OUTPUT} PUBLIC ${CMAKE_SOURCE_DIR}/include/common/stdafx.h)
+target_precompile_headers(${OUTPUT} PUBLIC ${CMAKE_SOURCE_DIR}/common/stdafx.h)
 target_link_options(${OUTPUT} PRIVATE -g -Wall -Wextra)
 target_compile_options(${OUTPUT} PRIVATE -g -Wall -Wextra)
 target_compile_definitions(${OUTPUT} PRIVATE CSM FONTC FONTC_EXECUTABLE=0 CSM_EXECUTABLE=0) # avoid making multiple main's 

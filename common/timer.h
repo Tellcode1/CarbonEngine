@@ -27,7 +27,7 @@ static inline timer timer_begin(double duration) {
   }
   timer tm;
   tm.start = __timer_get_currtime();
-  tm.end = tm.start + duration;
+  tm.end   = tm.start + duration;
   return tm;
 }
 
@@ -36,14 +36,13 @@ static inline timer timer_begin(double duration) {
 // timer_begin()
 static inline void timer_reset(timer *tm) {
   tm->start = -1;
-  tm->end = -1;
+  tm->end   = -1;
 }
 
 static inline bool timer_is_done(const timer *tm) {
   if (tm->end == -1 || tm->start == -1) {
-    LOG_WARNING(
-        "Timer end is invalid (it has been reset or was not created "
-        "correctly). The timer needs to be restarted using timer_begin()");
+    LOG_WARNING("Timer end is invalid (it has been reset or was not created "
+                "correctly). The timer needs to be restarted using timer_begin()");
     return 0;
   }
 

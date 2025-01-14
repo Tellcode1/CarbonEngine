@@ -2,10 +2,10 @@
 #define __C_ENGINE_H__
 
 #ifdef __cplusplus
-    extern "C" {
+extern "C" {
 #endif
 
-#include "../common/stdafx.h"
+#include "../../common/stdafx.h"
 #include "lunaCamera.h"
 
 struct lunaRenderer_Config;
@@ -26,44 +26,44 @@ extern bool cg_framebuffer_resized;
 extern bool cg_application_running;
 
 static inline bool cg_running() {
-    return cg_application_running;
+  return cg_application_running;
 }
 
 static inline void cg__reset_frame_buffer_resized() {
-    cg_framebuffer_resized = false;
+  cg_framebuffer_resized = false;
 }
 
 static inline bool cg_get_frame_buffer_resized() {
-    return cg_framebuffer_resized;
+  return cg_framebuffer_resized;
 }
 
 static inline u8 cg_get_current_frame() {
-    return cg_current_frame;
+  return cg_current_frame;
 }
 
 static inline double cg_get_delta_time() {
-    return cg_delta_time;
+  return cg_delta_time;
 }
 
 static inline double cg_get_last_frame_time() {
-    return cg_last_frame_time;
+  return cg_last_frame_time;
 }
 
 static inline double cg_get_time() {
-    return cg_time;
+  return cg_time;
 }
 
 extern void cg_initialize_context(const char *window_title, int window_width, int window_height);
-extern void ctx_initialize(const char* window_title, u32 window_width, u32 window_height);
+extern void ctx_initialize(const char *window_title, u32 window_width, u32 window_height);
 
-static const u32 FIXED_FRAME_RATE = 60;
+static const u32 FIXED_FRAME_RATE   = 60;
 static const double FIXED_TICK_RATE = 1000.0 / (double)FIXED_FRAME_RATE; // 1000 milliseconds
 
 extern void cg_consume_event(const union SDL_Event *event);
 extern void cg_update();
 
 #ifdef __cplusplus
-    }
+}
 #endif
 
 #endif // __C_ENGINE_H__

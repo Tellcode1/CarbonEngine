@@ -2,7 +2,7 @@
 #define __CGFX_H
 
 #ifdef __cplusplus
-    extern "C" {
+extern "C" {
 #endif
 
 // just keeping this here for reference
@@ -13,9 +13,9 @@
 
 #include "../GPU/descriptors.h"
 
-#include "../math/vec2.h"
-#include "../math/vec3.h"
-#include "../math/vec4.h"
+#include "../../common/math/vec2.h"
+#include "../../common/math/vec3.h"
+#include "../../common/math/vec4.h"
 
 typedef struct luna_GPU_Texture luna_GPU_Texture;
 
@@ -24,83 +24,79 @@ extern struct lunaCamera camera;
 typedef struct lunaSprite lunaSprite;
 
 typedef enum lunaWindow_OptionBits {
-    LUNA_WINDOW_OPTION_VSYNC           = 1 << 0,
-    LUNA_WINDOW_OPTION_RESIZABLE       = 1 << 1,
-    LUNA_WINDOW_OPTION_BORDERLESS      = 1 << 2,
-    LUNA_WINDOW_OPTION_FULLSCREEN      = 1 << 3,
-    LUNA_WINDOW_OPTION_MAXIMIZED       = 1 << 4,
-    LUNA_WINDOW_OPTION_MINIMIZED       = 1 << 5,
-    LUNA_WINDOW_OPTION_HIDDEN          = 1 << 6,
-    LUNA_WINDOW_OPTION_HIGH_DPI        = 1 << 7,
-    LUNA_WINDOW_OPTION_ALWAYS_ON_TOP   = 1 << 8,
+  LUNA_WINDOW_OPTION_VSYNC         = 1 << 0,
+  LUNA_WINDOW_OPTION_RESIZABLE     = 1 << 1,
+  LUNA_WINDOW_OPTION_BORDERLESS    = 1 << 2,
+  LUNA_WINDOW_OPTION_FULLSCREEN    = 1 << 3,
+  LUNA_WINDOW_OPTION_MAXIMIZED     = 1 << 4,
+  LUNA_WINDOW_OPTION_MINIMIZED     = 1 << 5,
+  LUNA_WINDOW_OPTION_HIDDEN        = 1 << 6,
+  LUNA_WINDOW_OPTION_HIGH_DPI      = 1 << 7,
+  LUNA_WINDOW_OPTION_ALWAYS_ON_TOP = 1 << 8,
 } lunaWindow_OptionBits;
 
-typedef enum lunaWindow_VSyncBits {
-    LUNA_WINDOW_VSYNC_DISABLED = 0,
-    LUNA_WINDOW_VSYNC_ENABLED = 1
-} lunaWindow_VSyncBits;
+typedef enum lunaWindow_VSyncBits { LUNA_WINDOW_VSYNC_DISABLED = 0, LUNA_WINDOW_VSYNC_ENABLED = 1 } lunaWindow_VSyncBits;
 typedef bool luna_Window_VSync;
 
 typedef enum lunaWindow_BufferModeBits {
-    LUNA_BUFFER_MODE_SINGLE_BUFFERED = 0,
-    LUNA_BUFFER_MODE_DOUBLE_BUFFERED = 1,
-    LUNA_BUFFER_MODE_TRIPLE_BUFFERED = 2,
+  LUNA_BUFFER_MODE_SINGLE_BUFFERED = 0,
+  LUNA_BUFFER_MODE_DOUBLE_BUFFERED = 1,
+  LUNA_BUFFER_MODE_TRIPLE_BUFFERED = 2,
 } lunaWindow_BufferModeBits;
 typedef unsigned lunaBufferMode;
 
 typedef enum lunaRenderer_SampleCountBits {
-    LUNA_SAMPLE_COUNT_MAX_SUPPORTED = 0xFFFFFFFF,
-    LUNA_SAMPLE_COUNT_NO_EXTRA_SAMPLES = 1,
-    LUNA_SAMPLE_COUNT_1_SAMPLES = 1,
-    LUNA_SAMPLE_COUNT_2_SAMPLES = 2,
-    LUNA_SAMPLE_COUNT_4_SAMPLES = 4,
-    LUNA_SAMPLE_COUNT_8_SAMPLES = 8,
-    LUNA_SAMPLE_COUNT_16_SAMPLES = 16,
-    LUNA_SAMPLE_COUNT_32_SAMPLES = 32,
+  LUNA_SAMPLE_COUNT_MAX_SUPPORTED    = 0xFFFFFFFF,
+  LUNA_SAMPLE_COUNT_NO_EXTRA_SAMPLES = 1,
+  LUNA_SAMPLE_COUNT_1_SAMPLES        = 1,
+  LUNA_SAMPLE_COUNT_2_SAMPLES        = 2,
+  LUNA_SAMPLE_COUNT_4_SAMPLES        = 4,
+  LUNA_SAMPLE_COUNT_8_SAMPLES        = 8,
+  LUNA_SAMPLE_COUNT_16_SAMPLES       = 16,
+  LUNA_SAMPLE_COUNT_32_SAMPLES       = 32,
 } lunaRenderer_SampleCountBits;
 typedef unsigned lunaSampleCount;
 
 typedef struct lunaExtent2D {
-    int width, height;
+  int width, height;
 } lunaExtent2D;
 
 // Move ownership to camera VV
-typedef struct lunaFrameRenderData
-{
-    luna_GPU_Texture *sc_image; // sc -> swapchain owned
-    luna_GPU_Texture *depth_image;
-    VkFramebuffer    color_framebuffer;
-    VkSemaphore      image_available_semaphore;
-    VkSemaphore      render_finish_semaphore;
-    VkFence          in_flight_fence;
+typedef struct lunaFrameRenderData {
+  luna_GPU_Texture *sc_image; // sc -> swapchain owned
+  luna_GPU_Texture *depth_image;
+  VkFramebuffer color_framebuffer;
+  VkSemaphore image_available_semaphore;
+  VkSemaphore render_finish_semaphore;
+  VkFence in_flight_fence;
 } lunaFrameRenderData;
 
 typedef enum cg_renderer_flag_bits {
-    CG_RENDERER_MULTISAMPLING_ENABLE = 1 << 0,
-    CG_RENDERER_VSYNC_ENABLE = 1 << 1,
-    CG_RENDERER_WINDOW_RESIZABLE = 1 << 2,
+  CG_RENDERER_MULTISAMPLING_ENABLE = 1 << 0,
+  CG_RENDERER_VSYNC_ENABLE         = 1 << 1,
+  CG_RENDERER_WINDOW_RESIZABLE     = 1 << 2,
 } lunaRenderer_FlagsBits;
 
 typedef struct lunaRenderer_Config {
-    lunaSampleCount        samples;
-    lunaBufferMode         buffer_mode;
-    lunaExtent2D           initial_window_size;
-    int                    exit_key;
-    bool                   multisampling_enable;
-    bool                   window_resizable;
-    luna_Window_VSync      vsync_enabled;
+  lunaSampleCount samples;
+  lunaBufferMode buffer_mode;
+  lunaExtent2D initial_window_size;
+  int exit_key;
+  bool multisampling_enable;
+  bool window_resizable;
+  luna_Window_VSync vsync_enabled;
 } lunaRenderer_Config;
 
 static inline lunaRenderer_Config lunaRenderer_ConfigInit() {
-    return (lunaRenderer_Config) {
-        .samples = LUNA_SAMPLE_COUNT_NO_EXTRA_SAMPLES,
-        .buffer_mode = LUNA_BUFFER_MODE_DOUBLE_BUFFERED,
-        .initial_window_size = { 800, 600 },
-        .exit_key = 41, /* SDL_SCANCODE_ESCAPE */
-        .multisampling_enable = 0,
-        .window_resizable = 0,
-        .vsync_enabled = 1,
-    };
+  return (lunaRenderer_Config){
+      .samples              = LUNA_SAMPLE_COUNT_NO_EXTRA_SAMPLES,
+      .buffer_mode          = LUNA_BUFFER_MODE_DOUBLE_BUFFERED,
+      .initial_window_size  = {800, 600},
+      .exit_key             = 41, /* SDL_SCANCODE_ESCAPE */
+      .multisampling_enable = 0,
+      .window_resizable     = 0,
+      .vsync_enabled        = 1,
+  };
 }
 
 typedef struct luna_SpriteRenderer luna_SpriteRenderer;
@@ -121,21 +117,13 @@ extern struct lunaExtent2D lunaRenderer_GetRenderExtent(const lunaRenderer_t *rd
 extern int lunaRenderer_GetMaxFramesInFlight(const struct lunaRenderer_t *rd);
 
 extern void lunaRenderer_DrawTexturedQuad(lunaRenderer_t *rd, const luna_SpriteRenderer *sprite_renderer, vec3 position, vec3 size, int layer);
-extern void lunaRenderer_DrawQuad(
-    lunaRenderer_t *rd,
-    lunaSprite *spr,
-    vec2 tex_coord_multiplier,
-    vec3 position,
-    vec3 size,
-    vec4 color,
-    int layer
-);
+extern void lunaRenderer_DrawQuad(lunaRenderer_t *rd, lunaSprite *spr, vec2 tex_coord_multiplier, vec3 position, vec3 size, vec4 color, int layer);
 extern void lunaRenderer_DrawLine(lunaRenderer_t *rd, vec2 start, vec2 end, vec4 color, int layer);
 
 extern lunaExtent2D luna_GetWindowSize();
 
 #ifdef __cplusplus
-    }
+}
 #endif
 
-#endif//__CGFX_H
+#endif //__CGFX_H

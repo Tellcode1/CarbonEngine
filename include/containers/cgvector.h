@@ -2,14 +2,14 @@
 #define __CG_VECTOR_H
 
 #ifdef __cplusplus
-    extern "C" {
+extern "C" {
 #endif
 
 typedef struct cg_vector_t {
-    int m_size;
-    int m_capacity;
-    int m_typesize;
-    void *m_data;
+  int m_size;
+  int m_capacity;
+  int m_typesize;
+  void *m_data;
 } cg_vector_t;
 typedef int (*cg_vector_compare_fn)(const void *obj1, const void *obj2);
 
@@ -60,7 +60,7 @@ extern int cg_vector_find(const cg_vector_t *__restrict vec, const void *__restr
 extern void cg_vector_sort(cg_vector_t *vec, cg_vector_compare_fn compare);
 
 #ifdef __cplusplus
-    }
+}
 #endif
 
-#endif//__CG_VECTOR_H
+#endif //__CG_VECTOR_H

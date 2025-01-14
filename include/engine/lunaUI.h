@@ -5,9 +5,9 @@
 extern "C" {
 #endif
 
+#include "../../common/math/vec4.h"
 #include "lunaObject.h"
 #include "lunaSprite.h"
-#include "../math/vec4.h"
 
 typedef struct lunaUI_Button lunaUI_Button;
 typedef struct lunaUI_Slider lunaUI_Slider;

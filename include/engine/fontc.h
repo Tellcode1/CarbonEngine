@@ -1,8 +1,8 @@
 #ifndef __FONTC_H__
 #define __FONTC_H__
 
-#include <stdio.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 #define FONTC_MAGIC 2222022
 #define cmmax(a, b) ((a) > (b) ? (a) : (b))
@@ -15,7 +15,7 @@ typedef struct fontc_atlas_t {
 
 typedef struct fontc_header {
   int magic;
-  float line_height,space_width;
+  float line_height, space_width;
   int bmpwidth, bmpheight;
   int img_compressed_sz, glyphs_compressed_sz;
   int numglyphs;
@@ -24,8 +24,8 @@ typedef struct fontc_header {
 typedef struct fontc_glyph {
   unsigned codepoint;
   float advance;
-  float x0,x1,y0,y1;
-  float l,b,r,t;
+  float x0, x1, y0, y1;
+  float l, b, r, t;
 } fontc_glyph;
 
 typedef struct fontc_file {
@@ -35,8 +35,9 @@ typedef struct fontc_file {
 } fontc_file;
 
 extern fontc_atlas_t fontc_atlas_init(int init_w, int init_h);
-extern bool fontc_atlas_add_image(fontc_atlas_t *__restrict__ atlas, int w, int h, const unsigned char *__restrict__ data, int *__restrict__ x, int *__restrict__ y);
+extern bool fontc_atlas_add_image(fontc_atlas_t *__restrict__ atlas, int w, int h, const unsigned char *__restrict__ data, int *__restrict__ x,
+                                  int *__restrict__ y);
 extern void fontc_read_font(const char *path, fontc_file *file);
 extern void fontc_bake_font(const char *font_path, const char *out);
 
-#endif//__FONTC_H__
+#endif //__FONTC_H__

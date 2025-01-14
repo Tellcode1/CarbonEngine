@@ -2,16 +2,16 @@
 #define __CG_HASHMAP_H
 
 #ifdef __cplusplus
-    extern "C" {
+extern "C" {
 #endif
 
 #include <stdbool.h>
 #include <stdio.h>
 
 typedef struct ch_node_t {
-    void *key;
-    void *value;
-    bool is_occupied;
+  void *key;
+  void *value;
+  bool is_occupied;
 } ch_node_t;
 
 typedef struct cg_hashmap_t cg_hashmap_t;
@@ -54,7 +54,7 @@ extern void cg_hashmap_serialize(cg_hashmap_t *map, FILE *f);
 extern void cg_hashmap_read(cg_hashmap_t *map, FILE *f);
 
 #ifdef __cplusplus
-    }
+}
 #endif
 
-#endif//__CG_HASHMAP_H
+#endif //__CG_HASHMAP_H

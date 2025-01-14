@@ -1,8 +1,8 @@
 #ifndef __LUNA_INPUT_H__
 #define __LUNA_INPUT_H__
 
+#include "../../common/math/vec2.h"
 #include <SDL2/SDL.h>
-#include "../math/vec2.h"
 
 // Only one key OR mouse button may be bound to an action currently!
 
@@ -14,26 +14,21 @@ typedef enum lunaInput_MouseButton lunaInput_MouseButton;
 
 // A function that is called every time an action is signalled
 // This is better than polling the event every frame when the action is signalled multiple times per frame
-typedef void (*lunaInput_ActionResponseFn)( const char *action, const lunaInput_Action *ia);
+typedef void (*lunaInput_ActionResponseFn)(const char *action, const lunaInput_Action *ia);
 
-enum lunaInput_ActionType {
-  LUNA_INPUT_ACTION_TYPE_KEYBOARD = 1,
-  LUNA_INPUT_ACTION_TYPE_MOUSE = 2,
-  LUNA_INPUT_ACTION_TYPE_ALL = (1 | 2)
-};
+enum lunaInput_ActionType { LUNA_INPUT_ACTION_TYPE_KEYBOARD = 1, LUNA_INPUT_ACTION_TYPE_MOUSE = 2, LUNA_INPUT_ACTION_TYPE_ALL = (1 | 2) };
 
-enum lunaInput_KeyState
-{
-  LUNA_KEY_STATE_PRESSED = 0,
+enum lunaInput_KeyState {
+  LUNA_KEY_STATE_PRESSED  = 0,
   LUNA_KEY_STATE_RELEASED = 1,
-  LUNA_KEY_STATE_HELD = 2,
+  LUNA_KEY_STATE_HELD     = 2,
   LUNA_KEY_STATE_NOT_HELD = 3,
 };
 
 enum lunaInput_MouseButton {
-  LUNA_MOUSE_BUTTON_LEFT = 0,
+  LUNA_MOUSE_BUTTON_LEFT   = 0,
   LUNA_MOUSE_BUTTON_MIDDLE = 1,
-  LUNA_MOUSE_BUTTON_RIGHT = 2,
+  LUNA_MOUSE_BUTTON_RIGHT  = 2,
 };
 
 struct lunaInput_Action {
@@ -79,4 +74,4 @@ extern vec2 lunaInput_GetMouseDelta(void);
 extern bool lunaInput_IsMouseSignalled(lunaInput_MouseButton button);
 extern bool lunaInput_IsMouseJustSignalled(lunaInput_MouseButton button);
 
-#endif//__LUNA_INPUT_H__
+#endif //__LUNA_INPUT_H__

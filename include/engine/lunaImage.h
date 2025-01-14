@@ -2,16 +2,16 @@
 #define __CGFXTEXTURE_H
 
 #ifdef __cplusplus
-    extern "C" {
+extern "C" {
 #endif
 
 #include "../GPU/format.h"
 
 // CPU Image
 typedef struct lunaImage {
-    int w, h;
-    lunaFormat fmt;
-    unsigned char *data;
+  int w, h;
+  lunaFormat fmt;
+  unsigned char *data;
 } lunaImage;
 
 extern lunaImage lunaImage_Load(const char *path);
@@ -26,7 +26,7 @@ extern void lunaImage_WriteJPEG(const lunaImage *tex, const char *path);
 unsigned char *lunaImage_PadChannels(const lunaImage *src, int dst_channels);
 
 #ifdef __cplusplus
-    }
+}
 #endif
 
-#endif//__CGFXTEXTURE_H
+#endif //__CGFXTEXTURE_H

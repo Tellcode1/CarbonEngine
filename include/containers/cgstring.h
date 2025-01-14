@@ -2,13 +2,13 @@
 #define __cg_string_H
 
 #ifdef __cplusplus
-    extern "C" {
+extern "C" {
 #endif
 
 typedef struct cg_string_t {
-    char *data;
-    int length;
-    int capacity;
+  char *data;
+  int length;
+  int capacity;
 } cg_string_t;
 
 /*
@@ -39,7 +39,7 @@ extern void cg_string_copy_from(const cg_string_t *src, cg_string_t *dst);
 extern void cg_string_move_from(cg_string_t *src, cg_string_t *dst);
 
 #ifdef __cplusplus
-    }
+}
 #endif
 
 #endif // __cg_string_H

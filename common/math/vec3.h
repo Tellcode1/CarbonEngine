@@ -32,6 +32,10 @@ static inline vec3 v3divs(const vec3 v1, const float s) {
     return (vec3){v1.x / s, v1.y / s, v1.z / s};
 }
 
+static inline float v3magcheap(const vec3 v) {
+    return v.x * v.x + v.y * v.y + v.z * v.z;
+}
+
 static inline float v3mag(const vec3 v) {
     return sqrtf(v.x * v.x + v.y * v.y + v.z * v.z);
 }

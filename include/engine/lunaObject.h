@@ -5,8 +5,8 @@
 extern "C" {
 #endif
 
-#include "../math/vec2.h"
-#include "../math/vec4.h"
+#include "../../common/math/vec2.h"
+#include "../../common/math/vec4.h"
 #include "lunaCollider.h"
 #include "lunaSpriteRenderer.h"
 
@@ -25,8 +25,7 @@ typedef enum lunaObject_Flags {
   LUNA_OBJECT_NO_COLLISION = 1,
 } lunaObject_Flags;
 
-extern lunaObject *lunaObject_Create(lunaScene *scene, const char *name,
-                                     lunaCollider_Type col_type, uint64_t layer, uint64_t mask, vec2 position,
+extern lunaObject *lunaObject_Create(lunaScene *scene, const char *name, lunaCollider_Type col_type, uint64_t layer, uint64_t mask, vec2 position,
                                      vec2 size, unsigned flags);
 extern void lunaObject_Destroy(lunaObject *obj);
 

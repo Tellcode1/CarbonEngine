@@ -2,44 +2,41 @@
 #define __C_TEXT_H__
 
 #ifdef __cplusplus
-    extern "C" {
+extern "C" {
 #endif
 
 #include "lunaObject.h"
 #include "lunaScene.h"
 
-#include "../math/vec3.h"
-#include "../math/vec2.h"
-#include "../math/mat.h"
+#include "../../common/math/mat.h"
+#include "../../common/math/vec2.h"
+#include "../../common/math/vec3.h"
 
-
-#include "../containers/cgvector.h"
-#include "../containers/cgstring.h"
-#include "../containers/cghashmap.h"
 #include "../containers/catlas.h"
+#include "../containers/cghashmap.h"
+#include "../containers/cgstring.h"
+#include "../containers/cgvector.h"
 
-#include "../GPU/texture.h"
 #include "../GPU/buffer.h"
+#include "../GPU/texture.h"
 
-typedef enum ctext_hori_align
-{
-    CTEXT_HORI_ALIGN_LEFT = 0,
-    CTEXT_HORI_ALIGN_CENTER = 1,
-    CTEXT_HORI_ALIGN_RIGHT = 2,
+typedef enum ctext_hori_align {
+  CTEXT_HORI_ALIGN_LEFT   = 0,
+  CTEXT_HORI_ALIGN_CENTER = 1,
+  CTEXT_HORI_ALIGN_RIGHT  = 2,
 } ctext_hori_align;
 
-typedef enum ctext_vert_align
-{
-    CTEXT_VERT_ALIGN_TOP = 0,
-    CTEXT_VERT_ALIGN_CENTER = 1,
-    CTEXT_VERT_ALIGN_BOTTOM = 2,
+typedef enum ctext_vert_align {
+  CTEXT_VERT_ALIGN_TOP    = 0,
+  CTEXT_VERT_ALIGN_CENTER = 1,
+  CTEXT_VERT_ALIGN_BOTTOM = 2,
 } ctext_vert_align;
 
 // Since the hash is to be used for individual characters, we can expect
 // that there will only be one entry for each character.
 static inline unsigned ctext_hash(const void *key, int nbytes) {
-    (void)nbytes;
-    return *(char *)key;
+  (void)nbytes;
+  return *(char *)key;
 }
 
 // DEPRECATE THIS YOU FOOL
@@ -48,14 +45,14 @@ static const int CTEXT_MAX_FONT_COUNT = 8;
 typedef struct cfont_t cfont_t;
 
 typedef struct ctext_text_render_info {
-    mat4 model;
-    ctext_hori_align horizontal;
-    ctext_vert_align vertical;
-    vec4 color;
-    vec3 position;
-    float scale; // if scale_for_fit is 1, this is multiplied by the calculated scale.
-    vec2 bbox; // The bounding box that the scale will be determined for. Only when scale_for_fit is 1
-    bool scale_for_fit; // calculates the scale needed to fit the text into a box
+  mat4 model;
+  ctext_hori_align horizontal;
+  ctext_vert_align vertical;
+  vec4 color;
+  vec3 position;
+  float scale;        // if scale_for_fit is 1, this is multiplied by the calculated scale.
+  vec2 bbox;          // The bounding box that the scale will be determined for. Only when scale_for_fit is 1
+  bool scale_for_fit; // calculates the scale needed to fit the text into a box
 } ctext_text_render_info;
 
 typedef struct ctext_label ctext_label;
@@ -70,16 +67,14 @@ extern void ctext_label_set_vertical_align(ctext_label *label, ctext_vert_align 
 extern void ctext_label_set_text_scale(ctext_label *label, float scale);
 
 static inline ctext_text_render_info ctext_init_text_render_info() {
-    return (ctext_text_render_info) {
-        .model = m4init(1.0f),
-        .horizontal =  CTEXT_HORI_ALIGN_CENTER,
-        .vertical = CTEXT_VERT_ALIGN_CENTER,
-        .color = (vec4){ 1.0f, 1.0f, 1.0f, 1.0f },
-        .position = (vec3){ 0.0f, 0.0f, 0.0f },
-        .scale = 0.5f,
-        .bbox = (vec2){},
-        .scale_for_fit = 0
-    };
+  return (ctext_text_render_info){.model         = m4init(1.0f),
+                                  .horizontal    = CTEXT_HORI_ALIGN_CENTER,
+                                  .vertical      = CTEXT_VERT_ALIGN_CENTER,
+                                  .color         = (vec4){1.0f, 1.0f, 1.0f, 1.0f},
+                                  .position      = (vec3){0.0f, 0.0f, 0.0f},
+                                  .scale         = 0.5f,
+                                  .bbox          = (vec2){},
+                                  .scale_for_fit = 0};
 }
 
 // Initializes the text renderer for ONLY that renderer
@@ -99,51 +94,44 @@ extern void __ctext_flush_font(lunaRenderer_t *rd, cfont_t *fnt);
 // The scale is calculated as if both the string and the box were at (0,0)
 extern float ctext_get_scale_for_fit(const cfont_t *fnt, const cg_string_t *str, vec2 bbox);
 
-typedef struct ctext_glyph
-{
-    float x0,x1,y0,y1;
-    float l,r,b,t;
-    float advance;
+typedef struct ctext_glyph {
+  float x0, x1, y0, y1;
+  float l, r, b, t;
+  float advance;
 } ctext_glyph;
 
 typedef struct ctext_drawcall_t ctext_drawcall_t;
 
 /* Internal CFont struct. Do not modify yourselves! */
-struct cfont_t
-{
-    char path[ 128 ];
-    char family_name[ 128 ];
-    char style_name[ 128 ];
-    catlas_t atlas;
+struct cfont_t {
+  float line_height;
+  float space_width;
 
-    float line_height;
-    float space_width;
+  int font_index;
+  luna_GPU_Texture *texture;
+  luna_GPU_Memory texture_mem;
+  luna_GPU_Sampler *sampler;
 
-    int font_index;
-    luna_GPU_Texture *texture;
-    luna_GPU_Memory texture_mem;
-    luna_GPU_Sampler *sampler;
+  int allocated_size;
+  luna_GPU_Buffer buffer;
+  luna_GPU_Memory buffer_mem;
+  void *mapped;
 
-    int allocated_size;
-    luna_GPU_Buffer buffer;
-    luna_GPU_Memory buffer_mem;
-    void *mapped;
+  int index_buffer_offset;
+  int index_count;
+  bool to_render;
+  bool buffer_resized;
+  bool rendered_this_frame;
 
-    int index_buffer_offset;
-    int index_count;
-    bool to_render;
-    bool buffer_resized;
-    bool rendered_this_frame;
+  int chars_drawn;
+  cg_vector_t /* ctext_drawcall_t */ drawcalls;
+  cg_hashmap_t * /* unicode, ctext_glyph ctext_hasher<unicode>> */ glyph_map;
 
-    int chars_drawn;
-    cg_vector_t /* ctext_drawcall_t */  drawcalls;
-    cg_hashmap_t * /* unicode, ctext_glyph ctext_hasher<unicode>> */ glyph_map;
-
-    struct lunaRenderer_t *rd;
+  struct lunaRenderer_t *rd;
 };
 
 #ifdef __cplusplus
-    }
+}
 #endif
 
 #endif

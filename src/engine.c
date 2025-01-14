@@ -9,20 +9,19 @@
 #include "../include/engine/lunaScene.h"
 #include "../include/engine/lunaUI.h"
 
+#include "../common/string.h"
 #include <SDL2/SDL.h>
-#include "../include/common/string.h"
 
-u8 cg_current_frame = 0;
-u64 cg_last_frame_time =
-    0.0; // div by SDL_GetPerofrmanceCounterFrequency to get actual time.
-double cg_time = 0.0;
+u8 cg_current_frame    = 0;
+u64 cg_last_frame_time = 0.0; // div by SDL_GetPerofrmanceCounterFrequency to get actual time.
+double cg_time         = 0.0;
 
-double cg_delta_time = 0.0;
+double cg_delta_time              = 0.0;
 u64 cg_delta_time_last_frame_time = 0;
 
-u64 cg_frame_start = 0;
+u64 cg_frame_start       = 0;
 u64 cg_fixed_frame_start = 0;
-u64 cg_frame_time = 0;
+u64 cg_frame_time        = 0;
 
 bool cg_framebuffer_resized = 0;
 bool cg_application_running = 1;
@@ -37,8 +36,7 @@ cg_bitset_t cinput_last_frame_kb_state;
 unsigned cinput_mouse_state;
 unsigned cinput_last_frame_mouse_state;
 
-void cg_initialize_context(const char *window_title, int window_width,
-                           int window_height) {
+void cg_initialize_context(const char *window_title, int window_width, int window_height) {
   ctx_initialize(window_title, window_width, window_height);
 
   // This fixes really large values of delta time for the first frame.
@@ -46,16 +44,11 @@ void cg_initialize_context(const char *window_title, int window_width,
 }
 
 void cg_consume_event(const SDL_Event *event) {
-  if ((event->type == SDL_QUIT) ||
-      ((event->type == SDL_WINDOWEVENT) &&
-       (event->window.event == SDL_WINDOWEVENT_CLOSE)) ||
-      (event->type == SDL_KEYDOWN &&
-       event->key.keysym.scancode == SDL_SCANCODE_ESCAPE))
+  if ((event->type == SDL_QUIT) || ((event->type == SDL_WINDOWEVENT) && (event->window.event == SDL_WINDOWEVENT_CLOSE)) ||
+      (event->type == SDL_KEYDOWN && event->key.keysym.scancode == SDL_SCANCODE_ESCAPE))
     cg_application_running = false;
 
-  if (event->type == SDL_WINDOWEVENT &&
-      (event->window.event == SDL_WINDOWEVENT_RESIZED ||
-       event->window.event == SDL_WINDOWEVENT_SIZE_CHANGED))
+  if (event->type == SDL_WINDOWEVENT && (event->window.event == SDL_WINDOWEVENT_RESIZED || event->window.event == SDL_WINDOWEVENT_SIZE_CHANGED))
     cg_framebuffer_resized = true;
 }
 
@@ -63,16 +56,15 @@ void cg_update() {
   cg_time = (double)SDL_GetTicks64() * (1.0 / 1000.0);
 
   cg_last_frame_time = currtime;
-  currtime = SDL_GetPerformanceCounter();
-  cg_delta_time =
-      (currtime - cg_last_frame_time) / (double)SDL_GetPerformanceFrequency();
+  currtime           = SDL_GetPerformanceCounter();
+  cg_delta_time      = (currtime - cg_last_frame_time) / (double)SDL_GetPerformanceFrequency();
 }
 
 // luna
 #define LUNA_MAX_OBJECT_COUNT 512
 
-#define VEC2_TO_BVEC2(vec) ((b2Vec2){vec.x, vec.y})
-#define BVEC2_TO_VEC2(vec) ((vec2){vec.x, vec.y})
+#define VEC2_TO_BVEC2(vec)    ((b2Vec2){vec.x, vec.y})
+#define BVEC2_TO_VEC2(vec)    ((vec2){vec.x, vec.y})
 
 struct lunaCollider {
   b2BodyId body;
@@ -113,26 +105,24 @@ struct lunaScene {
 #define VEC2_TO_BVEC2(vec) ((b2Vec2){vec.x, vec.y})
 #define BVEC2_TO_VEC2(vec) ((vec2){vec.x, vec.y})
 
-lunaObject *lunaObject_Create(lunaScene *scene, const char *name,
-                              lunaCollider_Type col_type, uint64_t layer,
-                              uint64_t mask, vec2 position, vec2 size,
+lunaObject *lunaObject_Create(lunaScene *scene, const char *name, lunaCollider_Type col_type, uint64_t layer, uint64_t mask, vec2 position, vec2 size,
                               unsigned flags) {
   {
     lunaObject stack = {};
     cg_vector_push_back(&scene->objects, &stack);
   }
   lunaObject *obj = cg_vector_get(&scene->objects, scene->objects.m_size - 1);
-  obj->name = name;
-  obj->scene = scene;
+  obj->name       = name;
+  obj->scene      = scene;
 
   obj->transform.position = position;
-  obj->transform.size = size;
+  obj->transform.size     = size;
   obj->transform.rotation = (vec4){0.0f, 0.0f, 0.0f, 1.0f};
 
-  obj->spr_renderer = (luna_SpriteRenderer){};
-  obj->spr_renderer.spr = lunaSprite_Empty;
+  obj->spr_renderer                      = (luna_SpriteRenderer){};
+  obj->spr_renderer.spr                  = lunaSprite_Empty;
   obj->spr_renderer.tex_coord_multiplier = (vec2){1.0f, 1.0f};
-  obj->spr_renderer.color = (vec4){1.0f, 1.0f, 1.0f, 1.0f};
+  obj->spr_renderer.color                = (vec4){1.0f, 1.0f, 1.0f, 1.0f};
 
   obj->index = scene->objects.m_size;
 
@@ -140,9 +130,7 @@ lunaObject *lunaObject_Create(lunaScene *scene, const char *name,
   if (flags & LUNA_OBJECT_NO_COLLISION) {
     start_enabled = 0;
   }
-  obj->col =
-      lunaCollider_Init(scene, position, size, col_type,
-                        LUNA_COLLIDER_SHAPE_RECT, layer, mask, start_enabled);
+  obj->col = lunaCollider_Init(scene, position, size, col_type, LUNA_COLLIDER_SHAPE_RECT, layer, mask, start_enabled);
 
   return obj;
 }
@@ -173,10 +161,14 @@ vec2 lunaObject_GetPosition(const lunaObject *obj) {
 
 void lunaObject_SetPosition(lunaObject *obj, vec2 to) {
   obj->transform.position = to;
-  lunaCollider_SetPosition(obj->col, to);
+  if (obj->col && obj->col->enabled) {
+    lunaCollider_SetPosition(obj->col, to);
+  }
 }
 
-vec2 lunaObject_GetSize(const lunaObject *obj) { return obj->transform.size; }
+vec2 lunaObject_GetSize(const lunaObject *obj) {
+  return obj->transform.size;
+}
 
 void lunaObject_SetSize(lunaObject *obj, vec2 to) {
   obj->transform.size = to;
@@ -191,15 +183,19 @@ luna_SpriteRenderer *lunaObject_GetSpriteRenderer(lunaObject *obj) {
   return &obj->spr_renderer;
 }
 
-lunaCollider *lunaObject_GetCollider(lunaObject *obj) { return obj->col; }
+lunaCollider *lunaObject_GetCollider(lunaObject *obj) {
+  return obj->col;
+}
 
-const char *lunaObject_GetName(lunaObject *obj) { return obj->name; }
+const char *lunaObject_GetName(lunaObject *obj) {
+  return obj->name;
+}
 
-void lunaObject_SetName(lunaObject *obj, const char *name) { obj->name = name; }
+void lunaObject_SetName(lunaObject *obj, const char *name) {
+  obj->name = name;
+}
 
-b2BodyId _lunaCollider_BodyInit(lunaScene *scene, lunaCollider_Type type,
-                                lunaCollider_Shape shape, vec2 pos, vec2 siz,
-                                uint64_t layer, uint64_t mask,
+b2BodyId _lunaCollider_BodyInit(lunaScene *scene, lunaCollider_Type type, lunaCollider_Shape shape, vec2 pos, vec2 siz, uint64_t layer, uint64_t mask,
                                 bool start_enabled) {
   b2BodyDef body_def = b2DefaultBodyDef();
   if (type == LUNA_COLLIDER_TYPE_STATIC) {
@@ -215,14 +211,14 @@ b2BodyId _lunaCollider_BodyInit(lunaScene *scene, lunaCollider_Type type,
   }
 
   body_def.position = VEC2_TO_BVEC2(pos);
-  b2BodyId body_id = b2CreateBody(scene->world, &body_def);
+  b2BodyId body_id  = b2CreateBody(scene->world, &body_def);
 
-  b2ShapeDef shape_def = b2DefaultShapeDef();
-  shape_def.density = 5.0f;
-  shape_def.restitution = 0.0f;
+  b2ShapeDef shape_def          = b2DefaultShapeDef();
+  shape_def.density             = 5.0f;
+  shape_def.restitution         = 0.0f;
   shape_def.filter.categoryBits = layer;
-  shape_def.filter.maskBits = mask;
-  shape_def.filter.groupIndex = 0;
+  shape_def.filter.maskBits     = mask;
+  shape_def.filter.groupIndex   = 0;
 
   if (shape == LUNA_COLLIDER_SHAPE_RECT) {
     b2Polygon poly = b2MakeBox(siz.x * 0.5f, siz.y * 0.5f);
@@ -242,23 +238,20 @@ b2BodyId _lunaCollider_BodyInit(lunaScene *scene, lunaCollider_Type type,
   return body_id;
 }
 
-lunaCollider *lunaCollider_Init(lunaScene *scene, vec2 position, vec2 size,
-                                lunaCollider_Type type,
-                                lunaCollider_Shape shape, uint64_t layer,
+lunaCollider *lunaCollider_Init(lunaScene *scene, vec2 position, vec2 size, lunaCollider_Type type, lunaCollider_Shape shape, uint64_t layer,
                                 uint64_t mask, bool start_enabled) {
   lunaCollider *col = calloc(1, sizeof(lunaCollider));
 
-  col->body = _lunaCollider_BodyInit(scene, type, shape, position, size, layer,
-                                     mask, start_enabled);
-  col->position = position;
-  col->size = size;
-  col->scene = scene;
+  col->body       = _lunaCollider_BodyInit(scene, type, shape, position, size, layer, mask, start_enabled);
+  col->position   = position;
+  col->size       = size;
+  col->scene      = scene;
   col->shape_type = shape;
-  col->type = type;
-  col->world = scene->world;
-  col->enabled = start_enabled;
-  col->layer = layer;
-  col->mask = mask;
+  col->type       = type;
+  col->world      = scene->world;
+  col->enabled    = start_enabled;
+  col->layer      = layer;
+  col->mask       = mask;
 
   return col;
 }
@@ -286,16 +279,16 @@ void lunaCollider_SetPosition(lunaCollider *col, vec2 to) {
   }
 }
 
-vec2 lunaCollider_GetSize(const lunaCollider *col) { return col->size; }
+vec2 lunaCollider_GetSize(const lunaCollider *col) {
+  return col->size;
+}
 
 void lunaCollider_SetSize(lunaCollider *col, vec2 to) {
   col->size = to;
   if (col->enabled) {
     b2DestroyBody(col->body);
 
-    col->body = _lunaCollider_BodyInit(col->scene, col->type, col->shape_type,
-                                       col->position, col->size, col->layer,
-                                       col->mask, 1);
+    col->body = _lunaCollider_BodyInit(col->scene, col->type, col->shape_type, col->position, col->size, col->layer, col->mask, 1);
   }
 }
 
@@ -305,8 +298,7 @@ typedef struct ray_cast_context {
   bool has_hit;
 } ray_cast_context;
 
-float cast_result_fn(b2ShapeId shapeId, b2Vec2 point, b2Vec2 normal,
-                     float fraction, void *context) {
+float cast_result_fn(b2ShapeId shapeId, b2Vec2 point, b2Vec2 normal, float fraction, void *context) {
   (void)point;
   (void)normal;
   (void)fraction;
@@ -315,27 +307,24 @@ float cast_result_fn(b2ShapeId shapeId, b2Vec2 point, b2Vec2 normal,
   if (memcmp(&shapeId, &ctx->raycaster, sizeof(b2ShapeId)) == 0) {
     return -1.0f;
   }
-  ctx->hit->hit = 1;
+  ctx->hit->hit              = 1;
   ctx->hit->point_of_contact = BVEC2_TO_VEC2(point);
   return 0.0f;
 }
 
-lunaCollider_RayHit lunaCollider_RayCast(const lunaCollider *col, vec2 orig,
-                                         vec2 dir, uint32_t layer,
-                                         uint32_t mask) {
+lunaCollider_RayHit lunaCollider_RayCast(const lunaCollider *col, vec2 orig, vec2 dir, uint32_t layer, uint32_t mask) {
   lunaCollider_RayHit hit = {};
-  hit.host = col;
+  hit.host                = col;
 
   ray_cast_context ctx = {};
-  ctx.raycaster = col->shape;
-  ctx.hit = &hit;
+  ctx.raycaster        = col->shape;
+  ctx.hit              = &hit;
 
   b2QueryFilter filter = b2DefaultQueryFilter();
-  filter.categoryBits = layer;
-  filter.maskBits = mask;
+  filter.categoryBits  = layer;
+  filter.maskBits      = mask;
 
-  b2World_CastRay(col->scene->world, VEC2_TO_BVEC2(orig), VEC2_TO_BVEC2(dir),
-                  filter, cast_result_fn, &ctx);
+  b2World_CastRay(col->scene->world, VEC2_TO_BVEC2(orig), VEC2_TO_BVEC2(dir), filter, cast_result_fn, &ctx);
 
   return hit;
 }
@@ -346,9 +335,9 @@ lunaScene *lunaScene_Init() {
   lunaScene *scn = calloc(1, sizeof(lunaScene));
 
   b2WorldDef world_def = b2DefaultWorldDef();
-  world_def.gravity = (b2Vec2){0.0f, -9.8f};
-  scn->world = b2CreateWorld(&world_def);
-  scn->objects = cg_vector_init(sizeof(lunaObject), 4);
+  world_def.gravity    = (b2Vec2){0.0f, -9.8f};
+  scn->world           = b2CreateWorld(&world_def);
+  scn->objects         = cg_vector_init(sizeof(lunaObject), 4);
 
   if (!scene_main) {
     lunaScene_ChangeToScene(scn);
@@ -357,7 +346,7 @@ lunaScene *lunaScene_Init() {
 }
 
 void lunaScene_Update() {
-  const int substeps = 4;
+  const int substeps   = 4;
   const float timeStep = 1.0 / 60.0;
 
   b2World_Step(scene_main->world, timeStep, substeps);
@@ -370,9 +359,9 @@ void lunaScene_Update() {
       continue;
     }
 
-    b2Vec2 pos = b2Body_GetPosition(col->body);
+    b2Vec2 pos                    = b2Body_GetPosition(col->body);
     objects[i].transform.position = BVEC2_TO_VEC2(pos);
-    objects[i].col->position = BVEC2_TO_VEC2(pos);
+    objects[i].col->position      = BVEC2_TO_VEC2(pos);
   }
 
   const float dt = cg_get_delta_time();
@@ -387,17 +376,17 @@ void lunaScene_Render(lunaRenderer_t *rd) {
   const lunaObject *objects = scene_main->objects.m_data;
 
   for (int i = 0; i < scene_main->objects.m_size; i++) {
-    vec2 pos = lunaObject_GetPosition(&objects[i]);
-    vec2 siz = lunaObject_GetSize(&objects[i]);
+    vec2 pos                                = lunaObject_GetPosition(&objects[i]);
+    vec2 siz                                = lunaObject_GetSize(&objects[i]);
     const luna_SpriteRenderer *spr_renderer = &objects[i].spr_renderer;
-    vec2 texmul = spr_renderer->tex_coord_multiplier;
+    vec2 texmul                             = spr_renderer->tex_coord_multiplier;
     if (spr_renderer->flip_horizontal) {
       texmul.x *= -1.0f;
     }
     if (spr_renderer->flip_vertical) {
       texmul.y *= -1.0f;
     }
-    lunaRenderer_DrawTexturedQuad(rd, spr_renderer, (vec3){pos.x,pos.y,0.0f}, (vec3){siz.x,siz.y,0.0f}, 0);
+    lunaRenderer_DrawTexturedQuad(rd, spr_renderer, (vec3){pos.x, pos.y, 0.0f}, (vec3){siz.x, siz.y, 0.0f}, 0);
   }
   for (int i = 0; i < scene_main->objects.m_size; i++) {
     if (objects[i].render_fn) {
@@ -444,7 +433,7 @@ typedef struct lunaUI_Context {
 lunaUI_Context lunaUI_ctx;
 
 void lunaUI_Init() {
-  lunaUI_ctx.btons = cg_vector_init(sizeof(lunaUI_Button), 4);
+  lunaUI_ctx.btons   = cg_vector_init(sizeof(lunaUI_Button), 4);
   lunaUI_ctx.sliders = cg_vector_init(sizeof(lunaUI_Slider), 4);
 }
 
@@ -454,34 +443,34 @@ void lunaUI_Shutdown() {
 }
 
 lunaUI_Button *lunaUI_CreateButton(lunaSprite *spr) {
-  lunaUI_Button bton = (lunaUI_Button){};
+  lunaUI_Button bton      = (lunaUI_Button){};
   bton.transform.position = (vec2){};
-  bton.transform.size = (vec2){1.0f, 1.0f};
-  bton.color = (vec4){1.0f, 1.0f, 1.0f, 1.0f};
-  bton.spr = spr;
+  bton.transform.size     = (vec2){1.0f, 1.0f};
+  bton.color              = (vec4){1.0f, 1.0f, 1.0f, 1.0f};
+  bton.spr                = spr;
   cg_vector_push_back(&lunaUI_ctx.btons, &bton);
-  return &((lunaUI_Button *)cg_vector_data(
-      &lunaUI_ctx.btons))[cg_vector_size(&lunaUI_ctx.btons) - 1];
+  return &((lunaUI_Button *)cg_vector_data(&lunaUI_ctx.btons))[cg_vector_size(&lunaUI_ctx.btons) - 1];
 }
 
 lunaUI_Slider *lunaUI_CreateSlider() {
-  lunaUI_Slider slider = (lunaUI_Slider){};
+  lunaUI_Slider slider      = (lunaUI_Slider){};
   slider.transform.position = (vec2){};
-  slider.transform.size = (vec2){1.0f, 1.0f};
-  slider.min = 0.0f;
-  slider.max = 1.0f;
-  slider.value = 0.0f;
-  slider.bg_color = (vec4){1.0f, 1.0f, 1.0f, 1.0f};
-  slider.slider_color = (vec4){1.0f, 0.0f, 0.0f, 1.0f};
-  slider.bg_sprite = lunaSprite_Empty;
-  slider.slider_sprite = lunaSprite_Empty;
-  slider.interactable = 0;
+  slider.transform.size     = (vec2){1.0f, 1.0f};
+  slider.min                = 0.0f;
+  slider.max                = 1.0f;
+  slider.value              = 0.0f;
+  slider.bg_color           = (vec4){1.0f, 1.0f, 1.0f, 1.0f};
+  slider.slider_color       = (vec4){1.0f, 0.0f, 0.0f, 1.0f};
+  slider.bg_sprite          = lunaSprite_Empty;
+  slider.slider_sprite      = lunaSprite_Empty;
+  slider.interactable       = 0;
   cg_vector_push_back(&lunaUI_ctx.sliders, &slider);
-  return (lunaUI_Slider *)cg_vector_get(
-      &lunaUI_ctx.sliders, cg_vector_size(&lunaUI_ctx.sliders) - 1);
+  return (lunaUI_Slider *)cg_vector_get(&lunaUI_ctx.sliders, cg_vector_size(&lunaUI_ctx.sliders) - 1);
 }
 
-void lunaUI_DestroyButton(lunaUI_Button *obj) { lunaSprite_Release(obj->spr); }
+void lunaUI_DestroyButton(lunaUI_Button *obj) {
+  lunaSprite_Release(obj->spr);
+}
 
 void lunaUI_DestroySlider(lunaUI_Slider *obj) {
   lunaSprite_Release(obj->slider_sprite);
@@ -490,19 +479,16 @@ void lunaUI_DestroySlider(lunaUI_Slider *obj) {
 
 void lunaUI_Render(lunaRenderer_t *rd) {
   for (int i = 0; i < cg_vector_size(&lunaUI_ctx.btons); i++) {
-    const lunaUI_Button *bton =
-        (lunaUI_Button *)cg_vector_get(&lunaUI_ctx.btons, i);
+    const lunaUI_Button *bton = (lunaUI_Button *)cg_vector_get(&lunaUI_ctx.btons, i);
 
     const lunaTransform *t = &bton->transform;
 
-    lunaRenderer_DrawQuad(rd, bton->spr, (vec2){1.0f, 1.0f},
-                          (vec3){t->position.x, t->position.y, 0.0f},
-                          (vec3){t->size.x, t->size.y, 1.0f}, bton->color, 0);
+    lunaRenderer_DrawQuad(rd, bton->spr, (vec2){1.0f, 1.0f}, (vec3){t->position.x, t->position.y, 0.0f}, (vec3){t->size.x, t->size.y, 1.0f},
+                          bton->color, 0);
   }
 
   for (int i = 0; i < cg_vector_size(&lunaUI_ctx.sliders); i++) {
-    const lunaUI_Slider *slider =
-        (lunaUI_Slider *)cg_vector_get(&lunaUI_ctx.sliders, i);
+    const lunaUI_Slider *slider = (lunaUI_Slider *)cg_vector_get(&lunaUI_ctx.sliders, i);
 
     if (slider->max == slider->min) {
       LOG_ERROR("Slider %i has equal min and max", i);
@@ -511,32 +497,27 @@ void lunaUI_Render(lunaRenderer_t *rd) {
 
     const lunaTransform *t = &slider->transform;
 
-    lunaRenderer_DrawQuad(rd, slider->bg_sprite, (vec2){1.0f, 1.0f},
-                          (vec3){t->position.x, t->position.y, 0.0f},
-                          (vec3){t->size.x, t->size.y, 1.0f}, slider->bg_color,
-                          0);
+    lunaRenderer_DrawQuad(rd, slider->bg_sprite, (vec2){1.0f, 1.0f}, (vec3){t->position.x, t->position.y, 0.0f}, (vec3){t->size.x, t->size.y, 1.0f},
+                          slider->bg_color, 0);
 
     float pcent = ((slider->value - slider->min) / (slider->max - slider->min));
-    pcent = cmclamp(pcent, 0.0f, 1.0f);
+    pcent       = cmclamp(pcent, 0.0f, 1.0f);
 
-    lunaRenderer_DrawQuad(
-        rd, slider->slider_sprite, (vec2){1.0f, 1.0f},
-        (vec3){t->position.x + 0.5f * t->size.x * (pcent - 1.0f), t->position.y,
-               0.0f},
-        (vec3){t->size.x * pcent, t->size.y, 1.0f}, slider->slider_color, 1);
+    lunaRenderer_DrawQuad(rd, slider->slider_sprite, (vec2){1.0f, 1.0f},
+                          (vec3){t->position.x + 0.5f * t->size.x * (pcent - 1.0f), t->position.y, 0.0f}, (vec3){t->size.x * pcent, t->size.y, 1.0f},
+                          slider->slider_color, 1);
   }
 }
 
 void lunaUI_Update() {
-  const bool mouse_pressed = lunaInput_IsMouseJustSignalled(SDL_BUTTON_LEFT);
+  const bool mouse_pressed  = lunaInput_IsMouseJustSignalled(SDL_BUTTON_LEFT);
   const vec2 mouse_position = lunaCamera_GetMouseGlobalPosition(&camera);
 
   for (int i = 0; i < cg_vector_size(&lunaUI_ctx.btons); i++) {
-    lunaUI_Button *bton = (lunaUI_Button *)cg_vector_get(&lunaUI_ctx.btons, i);
+    lunaUI_Button *bton    = (lunaUI_Button *)cg_vector_get(&lunaUI_ctx.btons, i);
     const lunaTransform *t = &bton->transform;
 
-    const cmrect2d bton_rect =
-        (cmrect2d){.position = t->position, .size = t->size};
+    const cmrect2d bton_rect = (cmrect2d){.position = t->position, .size = t->size};
     if (cmPointInsideRect(&mouse_position, &bton_rect)) {
       bton->was_hovered = 1;
       if (mouse_pressed && bton->on_click) {
@@ -553,21 +534,17 @@ void lunaUI_Update() {
   }
 
   for (int i = 0; i < cg_vector_size(&lunaUI_ctx.sliders); i++) {
-    lunaUI_Slider *slider =
-        (lunaUI_Slider *)cg_vector_get(&lunaUI_ctx.sliders, i);
+    lunaUI_Slider *slider  = (lunaUI_Slider *)cg_vector_get(&lunaUI_ctx.sliders, i);
     const lunaTransform *t = &slider->transform;
 
-    const cmrect2d slider_rect =
-        (cmrect2d){.position = t->position, .size = t->size};
-    if (slider->interactable &&
-        cmPointInsideRect(&mouse_position, &slider_rect)) {
+    const cmrect2d slider_rect = (cmrect2d){.position = t->position, .size = t->size};
+    if (slider->interactable && cmPointInsideRect(&mouse_position, &slider_rect)) {
       if (lunaInput_IsMouseSignalled(LUNA_MOUSE_BUTTON_LEFT)) {
-        float rel_mx = mouse_position.x - (t->position.x - t->size.x * 0.5f);
+        float rel_mx     = mouse_position.x - (t->position.x - t->size.x * 0.5f);
         float clamped_mx = cmclamp(rel_mx, 0.0f, t->size.x);
         float percentage = clamped_mx / t->size.x;
-        slider->value =
-            slider->min + (percentage * (slider->max - slider->min));
-        slider->moved = 1;
+        slider->value    = slider->min + (percentage * (slider->max - slider->min));
+        slider->moved    = 1;
       } else {
         slider->moved = 0;
       }
@@ -605,10 +582,8 @@ int lunaInput_SignalAction(const char *action) {
 
 lunaInput_KeyState lunaInput_GetKeyState(const SDL_Scancode sc) {
 
-  const lunaInput_KeyState this_frame_key_state =
-      cg_bitset_access_bit(&cinput_kb_state, sc);
-  const lunaInput_KeyState last_frame_key_state =
-      cg_bitset_access_bit(&cinput_last_frame_kb_state, sc);
+  const lunaInput_KeyState this_frame_key_state = cg_bitset_access_bit(&cinput_kb_state, sc);
+  const lunaInput_KeyState last_frame_key_state = cg_bitset_access_bit(&cinput_last_frame_kb_state, sc);
 
   // curly braces are beautiful, aren't they?
   if (this_frame_key_state && last_frame_key_state) {
@@ -640,21 +615,21 @@ bool lunaInput_IsKeyJustUnsignalled(const SDL_Scancode sc) {
   return lunaInput_GetKeyState(sc) == LUNA_KEY_STATE_RELEASED;
 }
 
-vec2 lunaInput_GetMousePosition(void) { return cinput_mouse_position; }
+vec2 lunaInput_GetMousePosition(void) {
+  return cinput_mouse_position;
+}
 
 vec2 lunaInput_GetLastFrameMousePosition(void) {
   return cinput_last_frame_mouse_position;
 }
 
 vec2 lunaInput_GetMouseDelta(void) {
-  return v2sub(lunaInput_GetLastFrameMousePosition(),
-               lunaInput_GetMousePosition());
+  return v2sub(lunaInput_GetLastFrameMousePosition(), lunaInput_GetMousePosition());
 }
 
 // button is 1 for left mouse, 2 for middle, 3 for right
 bool lunaInput_IsMouseJustSignalled(lunaInput_MouseButton button) {
-  return cinput_mouse_state & SDL_BUTTON(button) &&
-         !(cinput_last_frame_mouse_state & SDL_BUTTON(button));
+  return cinput_mouse_state & SDL_BUTTON(button) && !(cinput_last_frame_mouse_state & SDL_BUTTON(button));
 }
 
 bool lunaInput_IsMouseSignalled(lunaInput_MouseButton button) {
@@ -669,12 +644,11 @@ bool str_equal(const void *key1, const void *key2, unsigned long keysize) {
 }
 
 void lunaInput_Init() {
-  lunaInput_action_mapping = cg_hashmap_init(
-      16, sizeof(const char *), sizeof(lunaInput_Action), NULL, str_equal);
+  lunaInput_action_mapping = cg_hashmap_init(16, sizeof(const char *), sizeof(lunaInput_Action), NULL, str_equal);
 
-  cinput_kb_state = cg_bitset_init(SDL_NUM_SCANCODES);
-  cinput_last_frame_kb_state = cg_bitset_init(SDL_NUM_SCANCODES);
-  cinput_mouse_position = (vec2){};
+  cinput_kb_state                  = cg_bitset_init(SDL_NUM_SCANCODES);
+  cinput_last_frame_kb_state       = cg_bitset_init(SDL_NUM_SCANCODES);
+  cinput_mouse_position            = (vec2){};
   cinput_last_frame_mouse_position = (vec2){};
 }
 
@@ -687,14 +661,14 @@ void lunaInput_Shutdown() {
 void lunaInput_Update() {
   int mx, my;
   cinput_last_frame_mouse_state = cinput_mouse_state;
-  cinput_mouse_state = SDL_GetMouseState(&mx, &my);
+  cinput_mouse_state            = SDL_GetMouseState(&mx, &my);
 
-  const float width = luna_GetWindowSize().width;
+  const float width  = luna_GetWindowSize().width;
   const float height = luna_GetWindowSize().height;
 
   cinput_last_frame_mouse_position = cinput_mouse_position;
-  cinput_mouse_position.x = ((float)mx / width) * 2.0f - 1.0f;
-  cinput_mouse_position.y = ((float)my / height) * 2.0f - 1.0f;
+  cinput_mouse_position.x          = ((float)mx / width) * 2.0f - 1.0f;
+  cinput_mouse_position.y          = ((float)my / height) * 2.0f - 1.0f;
   cinput_mouse_position.y *= -1.0f;
 
   const u8 *const sdl_kb_state = SDL_GetKeyboardState(NULL);
@@ -727,8 +701,7 @@ void lunaInput_Update() {
   }
 }
 
-void lunaInput_BindFunctionToAction(const char *action,
-                                    lunaInput_ActionResponseFn response) {
+void lunaInput_BindFunctionToAction(const char *action, lunaInput_ActionResponseFn response) {
   lunaInput_Action *ia = cg_hashmap_find(lunaInput_action_mapping, action);
   if (ia == NULL)
     return;
@@ -737,13 +710,13 @@ void lunaInput_BindFunctionToAction(const char *action,
 
 void lunaInput_BindKeyToAction(SDL_Scancode key, const char *action) {
   lunaInput_Action ia = {};
-  ia.key = key;
+  ia.key              = key;
   cg_hashmap_insert(lunaInput_action_mapping, action, &ia);
 }
 
 void lunaInput_BindMouseToAction(int bton, const char *action) {
   lunaInput_Action ia = {};
-  ia.mouse = bton;
+  ia.mouse            = bton;
   cg_hashmap_insert(lunaInput_action_mapping, action, &ia);
 }
 
@@ -751,8 +724,8 @@ void lunaInput_UnbindAction(const char *action) {
   lunaInput_Action *ia = cg_hashmap_find(lunaInput_action_mapping, action);
   if (ia == NULL)
     return;
-  ia->key = 0;
-  ia->mouse = 255;
+  ia->key      = 0;
+  ia->mouse    = 255;
   ia->response = NULL;
 }
 

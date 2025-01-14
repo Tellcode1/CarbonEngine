@@ -2,11 +2,8 @@ BasedOnStyle: LLVM
 IndentWidth: 2
 TabWidth: 2
 UseTab: Never
-ColumnLimit: 200
-AlignConsecutiveAssignments:
-  Enabled: true
-  AcrossEmptyLines: true
-  AcrossComments: false
+ColumnLimit: 150
+AlignConsecutiveAssignments: Consecutive
 AlignConsecutiveMacros: AcrossEmptyLines
 # AlignTrailingComments: Always
 AllowShortFunctionsOnASingleLine: Inline

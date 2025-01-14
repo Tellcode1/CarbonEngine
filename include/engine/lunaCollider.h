@@ -1,33 +1,30 @@
 #ifndef __LUNA_COLLIDER_H__
 #define __LUNA_COLLIDER_H__
 
-#include "../math/vec2.h"
+#include "../../common/math/vec2.h"
 
 typedef struct lunaCollider lunaCollider;
 typedef struct lunaScene lunaScene;
 
-typedef enum lunaCollider_Type {
-    LUNA_COLLIDER_TYPE_STATIC = 0,
-    LUNA_COLLIDER_TYPE_DYNAMIC = 1,
-    LUNA_COLLIDER_TYPE_KINEMATIC = 2
-} lunaCollider_Type;
+typedef enum lunaCollider_Type { LUNA_COLLIDER_TYPE_STATIC = 0, LUNA_COLLIDER_TYPE_DYNAMIC = 1, LUNA_COLLIDER_TYPE_KINEMATIC = 2 } lunaCollider_Type;
 
 typedef enum lunaCollider_Shape {
-    LUNA_COLLIDER_SHAPE_RECT = 0,
-    LUNA_COLLIDER_SHAPE_CIRCLE = 1, // only x of size is used
-    LUNA_COLLIDER_SHAPE_CAPSULE = 2, // x of size is radius and y is height.
+  LUNA_COLLIDER_SHAPE_RECT    = 0,
+  LUNA_COLLIDER_SHAPE_CIRCLE  = 1, // only x of size is used
+  LUNA_COLLIDER_SHAPE_CAPSULE = 2, // x of size is radius and y is height.
 } lunaCollider_Shape;
 
 typedef struct lunaCollider_RayHit {
-    const lunaCollider *host;
-    lunaCollider *other;
-    vec2 point_of_contact;
-    bool hit;
+  const lunaCollider *host;
+  lunaCollider *other;
+  vec2 point_of_contact;
+  bool hit;
 } lunaCollider_RayHit;
 
 // mask defines the layers that the collider can collide with
 // both layer and mask must be bitmasks
-extern lunaCollider *lunaCollider_Init(lunaScene *scene, vec2 position, vec2 size, lunaCollider_Type type, lunaCollider_Shape shape, uint64_t layer, uint64_t mask, bool start_enabled);
+extern lunaCollider *lunaCollider_Init(lunaScene *scene, vec2 position, vec2 size, lunaCollider_Type type, lunaCollider_Shape shape, uint64_t layer,
+                                       uint64_t mask, bool start_enabled);
 extern void lunaCollider_Destroy(lunaCollider *col);
 
 extern vec2 lunaCollider_GetPosition(const lunaCollider *col);
@@ -40,4 +37,4 @@ extern lunaCollider_RayHit lunaCollider_RayCast(const lunaCollider *col, vec2 or
 
 // You need to update the colliders through luneScene_Update();
 
-#endif//__LUNA_COLLIDER_H__
+#endif //__LUNA_COLLIDER_H__

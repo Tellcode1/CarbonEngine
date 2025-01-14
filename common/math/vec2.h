@@ -32,6 +32,12 @@ static inline vec2 v2divs(const vec2 v1, const float s) {
     return (vec2){v1.x / s, v1.y / s};
 }
 
+// Circumvents the square root function
+// this is useful when comparing the magnitude of a vector to be zero or 1
+static inline float v2magcheap(const vec2 v) {
+    return v.x * v.x + v.y * v.y;
+}
+
 static inline float v2mag(const vec2 v) {
     return sqrtf(v.x * v.x + v.y * v.y);
 }

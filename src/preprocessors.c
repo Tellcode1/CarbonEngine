@@ -1,6 +1,6 @@
 
-#include "../include/common/printf.h"
-#include "../include/common/string.h"
+#include "../common/printf.h"
+#include "../common/string.h"
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <time.h>
@@ -16,33 +16,32 @@
 #if !(CSM_EXECUTABLE)
 
 struct csm_shader_t *shader_map = NULL;
-int nshaders = 0;
-
+int nshaders                    = 0;
 
 #endif
 
-#include "../include/common/cshadermanagerdev.h"
-#include "../include/common/stdafx.h"
+#include "../common/stdafx.h"
+#include "../include/engine/cshadermanagerdev.h"
 
-const char *shader_compiler = "glslangValidator";
+const char *shader_compiler      = "glslangValidator";
 const char *shader_compiler_args = " -V ";
-const char *list = "../compilelist.txt";
+const char *list                 = "../compilelist.txt";
 
 #ifdef _WIN32
 #include <direct.h>
 #define MKDIR(path) _mkdir(path)
-#define PATH_SEP '\\'
+#define PATH_SEP    '\\'
 #else
 #include <sys/stat.h>
 #include <sys/types.h>
 #define MKDIR(path) (mkdir(path, 0777))
-#define PATH_SEP '/'
+#define PATH_SEP    '/'
 #endif
 
 #define CSM_HAS_FLAG(flag) (strcmp(argv[i], flag) == 0)
 
 static inline void __CSM_LOG_ERROR(const char *fn, const char *fmt, ...) {
-  const char *preceder = "csm error: ";
+  const char *preceder  = "csm error: ";
   const char *succeeder = "\n";
   va_list args;
   va_start(args, fmt);
@@ -50,16 +49,15 @@ static inline void __CSM_LOG_ERROR(const char *fn, const char *fmt, ...) {
   va_end(args);
 }
 
-#define CSM_LOG_ERROR(err, ...)                                                \
-  __CSM_LOG_ERROR(__PRETTY_FUNCTION__, err, ##__VA_ARGS__)
+#define CSM_LOG_ERROR(err, ...) __CSM_LOG_ERROR(__PRETTY_FUNCTION__, err, ##__VA_ARGS__)
 
 #if defined(CSM)
 
 #if CSM_EXECUTABLE
 
-#include "../include/common/cshadermanager.h"
+#include "../include/engine/cshadermanager.h"
 
-#define CMD_HELP_MSG                                                           \
+#define CMD_HELP_MSG                                                                                                                                 \
   "cmd can be any of:\n\
 <default> compile: compile only those that have been changed since last ran,\n\
 compile-force: forcefully compile all shaders in list file,\n\
@@ -67,8 +65,7 @@ compile-force: forcefully compile all shaders in list file,\n\
 
 int main(int argc, char *argv[]) {
   for (int i = 0; i < argc; i++) {
-    if (CSM_HAS_FLAG("help") || CSM_HAS_FLAG("--h") || CSM_HAS_FLAG("-h") ||
-        CSM_HAS_FLAG("--help") || CSM_HAS_FLAG("-help")) {
+    if (CSM_HAS_FLAG("help") || CSM_HAS_FLAG("--h") || CSM_HAS_FLAG("-h") || CSM_HAS_FLAG("--help") || CSM_HAS_FLAG("-help")) {
       luna_printf("usage: %s <compile list path = \"../compilelist.txt\"> <cmd "
                   "= compile>\n",
                   argv[0]);
@@ -102,14 +99,11 @@ int compare_shader_t(const void *a, const void *b) {
   return strncmp(shader1->name, shader2->name, 128);
 }
 
-void csm_add_shader_to_map(struct csm_shader_cache_entry entry,
-                           csm_shader_t **dst) {
+void csm_add_shader_to_map(struct csm_shader_cache_entry entry, csm_shader_t **dst) {
 
-  struct csm_shader_t *new_map =
-      luna_malloc((nshaders + 1) * sizeof(struct csm_shader_t));
+  struct csm_shader_t *new_map = luna_malloc((nshaders + 1) * sizeof(struct csm_shader_t));
   if (nshaders > 0) {
-    luna_memcpy(new_map, nshaders * sizeof(struct csm_shader_t), shader_map,
-                nshaders * sizeof(struct csm_shader_t));
+    luna_memcpy(new_map, nshaders * sizeof(struct csm_shader_t), shader_map, nshaders * sizeof(struct csm_shader_t));
   }
   if (shader_map != NULL)
     luna_free(shader_map);
@@ -133,12 +127,12 @@ struct csm_shader_t *find_shader(const char *name) {
   strncpy(shader.name, name, sizeof(shader.name) - 1);
   shader.name[sizeof(shader.name) - 1] = '\0';
 
-  return (struct csm_shader_t *)bsearch(&shader, shader_map, nshaders,
-                                        sizeof(struct csm_shader_t),
-                                        compare_shader_t);
+  return (struct csm_shader_t *)bsearch(&shader, shader_map, nshaders, sizeof(struct csm_shader_t), compare_shader_t);
 }
 
-bool does_shader_exist(const char *name) { return find_shader(name) != NULL; }
+bool does_shader_exist(const char *name) {
+  return find_shader(name) != NULL;
+}
 
 int csm_load_shader(const char *name, struct csm_shader_t **out) {
   if (name == NULL || strlen(name) == 0) {
@@ -150,9 +144,7 @@ int csm_load_shader(const char *name, struct csm_shader_t **out) {
   strncpy(shader.name, name, sizeof(shader.name) - 1);
   shader.name[sizeof(shader.name) - 1] = '\0';
 
-  struct csm_shader_t *shaderptr = (struct csm_shader_t *)bsearch(
-      &shader, shader_map, nshaders, sizeof(struct csm_shader_t),
-      compare_shader_t);
+  struct csm_shader_t *shaderptr = (struct csm_shader_t *)bsearch(&shader, shader_map, nshaders, sizeof(struct csm_shader_t), compare_shader_t);
 
   if (shaderptr) {
     *out = shaderptr;
@@ -210,7 +202,7 @@ int read_shader_spirv(const char *output, unsigned **spirv, int *spirvsize) {
 
   fclose(f);
 
-  *spirv = buffer;
+  *spirv     = buffer;
   *spirvsize = fsize;
   return 0;
 
@@ -218,17 +210,15 @@ err:
   CSM_LOG_ERROR("Could not read in spirv for output path \"%s\"", output);
   if (f) {
     fclose(f);
-    *spirv = NULL;
+    *spirv     = NULL;
     *spirvsize = 0;
   }
   return -1;
 }
 
-
 #include "../include/GPU/vkstdafx.h"
 
-void __csm_create_shader(VkDevice vkdevice, const unsigned *bytes, int nbytes,
-                         struct csm_shader_t *out) {
+void __csm_create_shader(VkDevice vkdevice, const unsigned *bytes, int nbytes, struct csm_shader_t *out) {
   // SpvReflectShaderModule reflect_module;
   // spvReflectCreateShaderModule(nbytes, bytes, &reflect_module);
 
@@ -237,21 +227,17 @@ void __csm_create_shader(VkDevice vkdevice, const unsigned *bytes, int nbytes,
   // spvReflectDestroyShaderModule(&reflect_module);
 
   const VkShaderModuleCreateInfo info = {
-      .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+      .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
       .codeSize = nbytes,
-      .pCode = bytes,
+      .pCode    = bytes,
   };
-  vkCreateShaderModule(vkdevice, &info, NULL,
-                       (VkShaderModule *)&out->shader_module);
+  vkCreateShaderModule(vkdevice, &info, NULL, (VkShaderModule *)&out->shader_module);
 }
 
-void csm_register_all_shaders(VkDevice vkdevice,
-                              struct csm_shader_entry *entries, int nentries) {
-  struct csm_shader_t *new_shader_map =
-      luna_malloc((nshaders + nentries) * sizeof(struct csm_shader_t));
+void csm_register_all_shaders(VkDevice vkdevice, struct csm_shader_entry *entries, int nentries) {
+  struct csm_shader_t *new_shader_map = luna_malloc((nshaders + nentries) * sizeof(struct csm_shader_t));
   if (shader_map) {
-    luna_memcpy(new_shader_map, nshaders * sizeof(struct csm_shader_t),
-                shader_map, nshaders * sizeof(struct csm_shader_t));
+    luna_memcpy(new_shader_map, nshaders * sizeof(struct csm_shader_t), shader_map, nshaders * sizeof(struct csm_shader_t));
     luna_free(shader_map);
   }
   shader_map = new_shader_map;
@@ -263,18 +249,15 @@ void csm_register_all_shaders(VkDevice vkdevice,
     } else if (strncmp(entries[i].stage, "frag", 4) == 0) {
       shader_map[nshaders + index].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
     } else if (strncmp(entries[i].stage, "tese", 4) == 0) {
-      shader_map[nshaders + index].stage =
-          VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
+      shader_map[nshaders + index].stage = VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
     } else if (strncmp(entries[i].stage, "tesc", 4) == 0) {
-      shader_map[nshaders + index].stage =
-          VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
+      shader_map[nshaders + index].stage = VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
     } else if (strncmp(entries[i].stage, "geom", 4) == 0) {
       shader_map[nshaders + index].stage = VK_SHADER_STAGE_GEOMETRY_BIT;
     } else if (strncmp(entries[i].stage, "comp", 4) == 0) {
       shader_map[nshaders + index].stage = VK_SHADER_STAGE_COMPUTE_BIT;
     } else {
-      CSM_LOG_ERROR("Invalid stage for shader \"%s\". It will not be added.",
-                    entries[i].name);
+      CSM_LOG_ERROR("Invalid stage for shader \"%s\". It will not be added.", entries[i].name);
       continue;
     }
     strncpy(shader_map[nshaders + index].name, entries[i].name, 127);
@@ -282,12 +265,10 @@ void csm_register_all_shaders(VkDevice vkdevice,
 
     unsigned *spirv;
     int spirvsize = 0;
-    if (read_shader_spirv((const char *)entries[i].output_path, &spirv,
-                          &spirvsize) != 0) {
+    if (read_shader_spirv((const char *)entries[i].output_path, &spirv, &spirvsize) != 0) {
       continue;
     }
-    __csm_create_shader(vkdevice, spirv, spirvsize,
-                        &shader_map[nshaders + index]);
+    __csm_create_shader(vkdevice, spirv, spirvsize, &shader_map[nshaders + index]);
 
     nshaders++;
   }
@@ -296,15 +277,21 @@ void csm_register_all_shaders(VkDevice vkdevice,
 
 #endif // CSM_EXECUTABLE != 1
 
-void csm_set_list_file(const char *path) { list = path; }
+void csm_set_list_file(const char *path) {
+  list = path;
+}
 
-void csm_set_shader_compiler(const char *exec) { shader_compiler = exec; }
+void csm_set_shader_compiler(const char *exec) {
+  shader_compiler = exec;
+}
 
 void csm_set_shader_compiler_args(const char *args) {
   shader_compiler_args = args;
 }
 
-char const *csm_get_shader_compiler_args(void) { return shader_compiler_args; }
+char const *csm_get_shader_compiler_args(void) {
+  return shader_compiler_args;
+}
 
 csm_shader_cache_entry *load_cache(int *count) {
   FILE *f = fopen("shaders.cache", "rb");
@@ -314,12 +301,10 @@ csm_shader_cache_entry *load_cache(int *count) {
   }
 
   cassert(fread(count, sizeof(int), 1, f) == 1);
-  csm_shader_disk *write =
-      (csm_shader_disk *)calloc(*count, sizeof(csm_shader_disk));
+  csm_shader_disk *write = (csm_shader_disk *)calloc(*count, sizeof(csm_shader_disk));
   cassert(fread(write, sizeof(csm_shader_disk), *count, f) == (size_t)(*count));
 
-  csm_shader_cache_entry *entries =
-      calloc(*count, sizeof(csm_shader_cache_entry));
+  csm_shader_cache_entry *entries = calloc(*count, sizeof(csm_shader_cache_entry));
   for (int i = 0; i < (*count); i++) {
     strncpy(entries[i].name, write[i].name, 128);
     strncpy(entries[i].path, write[i].path, 128);
@@ -408,17 +393,15 @@ time_t get_mtime(const char *fpath) {
   return -1;
 }
 
-csm_shader_entry *load_all_entries(const char *shader_list_file_path,
-                                   int *count) {
+csm_shader_entry *load_all_entries(const char *shader_list_file_path, int *count) {
   FILE *f = fopen(shader_list_file_path, "r");
   if (f == NULL) {
     CSM_LOG_ERROR("Could not open list file for reading. Is the path correct?");
     return NULL;
   }
 
-  int currallocsize = 16;
-  csm_shader_entry *entries =
-      luna_malloc(currallocsize * sizeof(csm_shader_entry));
+  int currallocsize         = 16;
+  csm_shader_entry *entries = luna_malloc(currallocsize * sizeof(csm_shader_entry));
   cassert(entries != NULL);
 
   char line[256];
@@ -435,7 +418,7 @@ csm_shader_entry *load_all_entries(const char *shader_list_file_path,
       cassert(entries != NULL);
     }
 
-    entries[*count] = (csm_shader_entry){};
+    entries[*count]         = (csm_shader_entry){};
     csm_shader_entry *entry = &entries[*count];
 
     strncpy(entry->path, line, 256);
@@ -443,17 +426,14 @@ csm_shader_entry *load_all_entries(const char *shader_list_file_path,
     // to get stage + verify that it exists
     FILE *shader_file = fopen(entry->path, "r");
     if (shader_file == NULL) {
-      CSM_LOG_ERROR(
-          "Could not open shader file \"%s\". Are you sure that it exists?",
-          entry->path);
+      CSM_LOG_ERROR("Could not open shader file \"%s\". Are you sure that it exists?", entry->path);
       continue;
     }
 
     cassert(fgets(line, 256, shader_file) != NULL);
 
     if (strncmp(line, "//", 2) == 0) {
-      sscanf(line, "// output: %s stage: %s name: %s", entry->output_path,
-             entry->stage, entry->name);
+      sscanf(line, "// output: %s stage: %s name: %s", entry->output_path, entry->stage, entry->name);
     } else {
       strcpy(entry->stage, "000");
       strcpy(entry->output_path, "");
@@ -491,10 +471,8 @@ int compile_shader(const struct csm_shader_entry *entry) {
   strncpy(copy, entry->output_path, 255);
   create_parent_dirs(copy);
 
-  luna_snprintf(g_Buffer, 1024, "%s %s %s -o %s -S %s", shader_compiler,
-                shader_compiler_args, entry->path,
-                strcmp(entry->output_path, "") != 0 ? entry->output_path : "",
-                entry->stage);
+  luna_snprintf(g_Buffer, 1024, "%s %s %s -o %s -S %s", shader_compiler, shader_compiler_args, entry->path,
+                strcmp(entry->output_path, "") != 0 ? entry->output_path : "", entry->stage);
 
   if (system(g_Buffer) != 0) {
     return -1;
@@ -504,16 +482,13 @@ int compile_shader(const struct csm_shader_entry *entry) {
   return 0;
 }
 
-void csm_compile_from_cache(csm_shader_entry *entries, int nentries,
-                            csm_shader_cache_entry *cacheentries,
-                            int cachecount) {
+void csm_compile_from_cache(csm_shader_entry *entries, int nentries, csm_shader_cache_entry *cacheentries, int cachecount) {
   for (int i = 0; i < nentries; i++) {
     for (int j = 0; j < cachecount; j++) {
       if (strcmp(cacheentries[j].path, entries[i].path) == 0) {
         if (cacheentries[j].last_modified != entries[i].last_modified) {
           if (compile_shader(&entries[i]) != 0) {
-            CSM_LOG_ERROR("Error while compiling shader \"%s\".",
-                          entries[i].path);
+            CSM_LOG_ERROR("Error while compiling shader \"%s\".", entries[i].path);
           }
           cacheentries[j].last_modified = entries[i].last_modified;
         }
@@ -533,10 +508,10 @@ void csm_compile_without_cache(csm_shader_entry *entries, int nentries) {
 }
 
 void csm_compile_updated() {
-  int nentries = 0;
+  int nentries              = 0;
   csm_shader_entry *entries = load_all_entries(list, &nentries);
 
-  int cachecount = 0;
+  int cachecount                       = 0;
   csm_shader_cache_entry *cacheentries = load_cache(&cachecount);
 
   if (cacheentries == NULL) {
@@ -562,7 +537,7 @@ void csm_compile_updated() {
 }
 
 void csm_compile_all() {
-  int count = 0;
+  int count                 = 0;
   csm_shader_entry *entries = load_all_entries(list, &count);
 
 #if CSM_EXECUTABLE != 1
@@ -594,10 +569,10 @@ void csm_shutdown() {
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "../include/common/fontc.h"
+#include "../include/engine/fontc.h"
 
 #if (FONTC_EXECUTABLE)
-#include "../include/common/timer.h"
+#include "../common/timer.h"
 
 static const char *FONTC_HELP_MSG = "usage:\n./fontc < Font file path to bake "
                                     "> (optionally, ) -o < output file >";
@@ -629,19 +604,18 @@ int main(int argc, char *argv[]) {
 fontc_atlas_t fontc_atlas_init(int init_w, int init_h) {
   fontc_atlas_t atlas = {};
 
-  atlas.width = init_w;
-  atlas.height = init_h;
-  atlas.next_x = 0;
-  atlas.next_y = 0;
+  atlas.width              = init_w;
+  atlas.height             = init_h;
+  atlas.next_x             = 0;
+  atlas.next_y             = 0;
   atlas.current_row_height = 0;
-  atlas.data = calloc(init_w, init_h);
+  atlas.data               = calloc(init_w, init_h);
 
   return atlas;
 }
 
-bool fontc_atlas_add_image(fontc_atlas_t *__restrict__ atlas, int w, int h,
-                           const unsigned char *__restrict__ data,
-                           int *__restrict__ x, int *__restrict__ y) {
+bool fontc_atlas_add_image(fontc_atlas_t *__restrict__ atlas, int w, int h, const unsigned char *__restrict__ data, int *__restrict__ x,
+                           int *__restrict__ y) {
   const int padding = 4;
   const int prev_h = atlas->height, prev_w = atlas->width;
   bool realloc_needed = 0;
@@ -650,7 +624,7 @@ bool fontc_atlas_add_image(fontc_atlas_t *__restrict__ atlas, int w, int h,
     // realloc ! It'll be fixed by copying over the data row by row probably
     // doesn't need fixing right now, will delay it for another eon
     // TODO: FIXME
-    atlas->width = w;
+    atlas->width   = w;
     realloc_needed = 1;
   }
 
@@ -661,20 +635,17 @@ bool fontc_atlas_add_image(fontc_atlas_t *__restrict__ atlas, int w, int h,
   }
 
   if (atlas->next_y + h + padding > atlas->height) {
-    atlas->height = cmmax(atlas->height * 2, atlas->next_y + h + padding);
+    atlas->height  = cmmax(atlas->height * 2, atlas->next_y + h + padding);
     realloc_needed = 1;
   }
 
   if (realloc_needed) {
     atlas->data = realloc(atlas->data, atlas->width * atlas->height);
-    luna_memset(atlas->data + prev_w * prev_h, 0,
-                (atlas->width - prev_w) * (atlas->height - prev_h));
+    luna_memset(atlas->data + prev_w * prev_h, 0, (atlas->width - prev_w) * (atlas->height - prev_h));
   }
 
   for (int y = 0; y < h; y++) {
-    luna_memcpy(atlas->data +
-                    (atlas->next_x + (atlas->next_y + y) * atlas->width),
-                SIZE_MAX, data + (y * w), w);
+    luna_memcpy(atlas->data + (atlas->next_x + (atlas->next_y + y) * atlas->width), SIZE_MAX, data + (y * w), w);
   }
 
   *x = atlas->next_x;
@@ -701,21 +672,16 @@ void fontc_read_font(const char *path, fontc_file *file) {
 
   size_t total_glyph_size = file->header.numglyphs * sizeof(fontc_glyph);
 
-  file->glyphs = luna_malloc(total_glyph_size);
-  file->bitmap = luna_malloc(file->header.bmpwidth * file->header.bmpheight);
-  fontc_glyph *compressed_glyphs =
-      luna_malloc(file->header.glyphs_compressed_sz);
+  file->glyphs                    = luna_malloc(total_glyph_size);
+  file->bitmap                    = luna_malloc(file->header.bmpwidth * file->header.bmpheight);
+  fontc_glyph *compressed_glyphs  = luna_malloc(file->header.glyphs_compressed_sz);
   unsigned char *compressed_image = luna_malloc(file->header.img_compressed_sz);
 
   fread(compressed_glyphs, file->header.glyphs_compressed_sz, 1, f);
   fread(compressed_image, file->header.img_compressed_sz, 1, f);
 
-  cassert(luna_bufdecompress(compressed_glyphs,
-                               file->header.glyphs_compressed_sz, file->glyphs,
-                               total_glyph_size) != -1);
-  cassert(luna_bufdecompress(
-              compressed_image, file->header.img_compressed_sz, file->bitmap,
-              file->header.bmpwidth * file->header.bmpheight) != -1);
+  cassert(luna_bufdecompress(compressed_glyphs, file->header.glyphs_compressed_sz, file->glyphs, total_glyph_size) != -1);
+  cassert(luna_bufdecompress(compressed_image, file->header.img_compressed_sz, file->bitmap, file->header.bmpwidth * file->header.bmpheight) != -1);
 
   fclose(f);
 }
@@ -738,17 +704,15 @@ void fontc_bake_font(const char *font_path, const char *out) {
   }
   FT_Set_Pixel_Sizes(face, 0, 256);
 
-  fontc_file file = {};
+  fontc_file file     = {};
   fontc_atlas_t atlas = fontc_atlas_init(4096, 4096);
 
   file.header.magic = FONTC_MAGIC;
 
   if (face->size->metrics.height) {
-    file.header.line_height =
-        -face->size->metrics.height / (float)face->units_per_EM;
+    file.header.line_height = -face->size->metrics.height / (float)face->units_per_EM;
   } else {
-    file.header.line_height = -(float)(face->ascender - face->descender) /
-                              face->size->metrics.y_scale;
+    file.header.line_height = -(float)(face->ascender - face->descender) / face->size->metrics.y_scale;
   }
 
   fontc_glyph *glyphs = luna_malloc(sizeof(fontc_glyph) * 256);
@@ -768,16 +732,15 @@ void fontc_bake_font(const char *font_path, const char *out) {
       continue;
 
     if (i == ' ') {
-      file.header.space_width =
-          (float)face->glyph->metrics.horiAdvance / (float)face->units_per_EM;
+      file.header.space_width = (float)face->glyph->metrics.horiAdvance / (float)face->units_per_EM;
       continue;
     }
 
     FT_Render_Glyph(face->glyph, FT_RENDER_MODE_SDF);
     FT_GlyphSlot g = face->glyph;
 
-    const int w = g->bitmap.width;
-    const int h = g->bitmap.rows;
+    const int w                 = g->bitmap.width;
+    const int h                 = g->bitmap.rows;
     const unsigned char *buffer = g->bitmap.buffer;
 
     int x, y;
@@ -795,16 +758,15 @@ void fontc_bake_font(const char *font_path, const char *out) {
     FT_Done_Glyph(gl);
 
     fontc_glyph glyph = {.codepoint = i,
-                         .x0 = box.xMin,
-                         .x1 = box.xMax,
-                         .y0 = box.yMin,
-                         .y1 = box.yMax,
-                         .l = (float)(x) / atlas.width,
-                         .r = (float)(x + w) / atlas.width,
-                         .b = (float)(y + h) / atlas.height,
-                         .t = (float)(y) / atlas.height,
-                         .advance = (float)face->glyph->metrics.horiAdvance /
-                                    (float)face->units_per_EM};
+                         .x0        = box.xMin,
+                         .x1        = box.xMax,
+                         .y0        = box.yMin,
+                         .y1        = box.yMax,
+                         .l         = (float)(x) / atlas.width,
+                         .r         = (float)(x + w) / atlas.width,
+                         .b         = (float)(y + h) / atlas.height,
+                         .t         = (float)(y) / atlas.height,
+                         .advance   = (float)face->glyph->metrics.horiAdvance / (float)face->units_per_EM};
 
     glyphs[glyph_count] = glyph;
     glyph_count++;
@@ -813,7 +775,7 @@ void fontc_bake_font(const char *font_path, const char *out) {
   FT_Done_Face(face);
   FT_Done_FreeType(lib);
 
-  file.header.bmpwidth = atlas.width;
+  file.header.bmpwidth  = atlas.width;
   file.header.bmpheight = atlas.height;
   file.header.numglyphs = glyph_count;
 
@@ -821,7 +783,7 @@ void fontc_bake_font(const char *font_path, const char *out) {
   size_t glyph_o_size = file.header.numglyphs * sizeof(fontc_glyph);
 
   unsigned char *compressed_image = luna_malloc(image_o_size);
-  fontc_glyph *compressed_glyphs = luna_malloc(glyph_o_size);
+  fontc_glyph *compressed_glyphs  = luna_malloc(glyph_o_size);
 
   luna_bufcompress(atlas.data, image_o_size, compressed_image, &image_o_size);
   luna_bufcompress(glyphs, glyph_o_size, compressed_glyphs, &glyph_o_size);
@@ -831,7 +793,7 @@ void fontc_bake_font(const char *font_path, const char *out) {
 
   file.glyphs = compressed_glyphs;
 
-  file.header.img_compressed_sz = image_o_size;
+  file.header.img_compressed_sz    = image_o_size;
   file.header.glyphs_compressed_sz = glyph_o_size;
 
   FILE *f = fopen(out, "wb");

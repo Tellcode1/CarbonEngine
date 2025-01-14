@@ -6,7 +6,7 @@ extern "C" {
 #endif
 
 #ifndef CSM_EXECUTABLE
-    #define CSM_EXECUTABLE 0
+#define CSM_EXECUTABLE 0
 #endif
 
 typedef struct csm_pipeline csm_pipeline;
@@ -37,4 +37,4 @@ extern int csm_load_shader_from_disk(const char *path, struct csm_shader_t **out
 }
 #endif
 
-#endif//__C_SHADERMANAGER_H
+#endif //__C_SHADERMANAGER_H
