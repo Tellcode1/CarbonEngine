@@ -9,7 +9,7 @@
 typedef struct luna_DescriptorPoolSize {
   VkDescriptorType type;
   int capacity;
-  int using; // how many are being used
+  int numchilds; // how many are being used
 } luna_DescriptorPoolSize;
 
 typedef struct luna_DescriptorSet luna_DescriptorSet;

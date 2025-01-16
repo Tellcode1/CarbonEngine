@@ -38,7 +38,7 @@ const char *list                 = "../compilelist.txt";
 #define PATH_SEP    '/'
 #endif
 
-#define CSM_HAS_FLAG(flag) (strcmp(argv[i], flag) == 0)
+#define CSM_HAS_FLAG(flag) (luna_strcmp(argv[i], flag) == 0)
 
 static inline void __CSM_LOG_ERROR(const char *fn, const char *fmt, ...) {
   const char *preceder  = "csm error: ";
@@ -76,9 +76,9 @@ int main(int argc, char *argv[]) {
 
   const char *cmd = (argc < 3) ? "compile" : argv[2];
 
-  if (strcmp(cmd, "compile-force") == 0) {
+  if (luna_strcmp(cmd, "compile-force") == 0) {
     csm_compile_all();
-  } else if (strcmp(cmd, "compile") == 0) {
+  } else if (luna_strcmp(cmd, "compile") == 0) {
     csm_compile_updated();
   } else {
     luna_printf("usage: %s <compile list path = \"../compilelist.txt\"> <cmd = "
@@ -96,21 +96,21 @@ int main(int argc, char *argv[]) {
 int compare_shader_t(const void *a, const void *b) {
   const struct csm_shader_t *shader1 = (const struct csm_shader_t *)a;
   const struct csm_shader_t *shader2 = (const struct csm_shader_t *)b;
-  return strncmp(shader1->name, shader2->name, 128);
+  return luna_strncmp(shader1->name, shader2->name, 128);
 }
 
 void csm_add_shader_to_map(struct csm_shader_cache_entry entry, csm_shader_t **dst) {
 
   struct csm_shader_t *new_map = luna_malloc((nshaders + 1) * sizeof(struct csm_shader_t));
   if (nshaders > 0) {
-    luna_memcpy(new_map, nshaders * sizeof(struct csm_shader_t), shader_map, nshaders * sizeof(struct csm_shader_t));
+    luna_memcpy(new_map, shader_map, nshaders * sizeof(struct csm_shader_t));
   }
   if (shader_map != NULL)
     luna_free(shader_map);
   shader_map = new_map;
 
   struct csm_shader_t add;
-  strcpy(add.name, entry.name);
+  luna_strcpy(add.name, entry.name);
   shader_map[nshaders] = add;
 
   *dst = &shader_map[nshaders];
@@ -124,7 +124,7 @@ void csm_add_shader_to_map(struct csm_shader_cache_entry entry, csm_shader_t **d
 struct csm_shader_t *find_shader(const char *name) {
   struct csm_shader_t shader = {};
 
-  strncpy(shader.name, name, sizeof(shader.name) - 1);
+  luna_strncpy(shader.name, name, sizeof(shader.name) - 1);
   shader.name[sizeof(shader.name) - 1] = '\0';
 
   return (struct csm_shader_t *)bsearch(&shader, shader_map, nshaders, sizeof(struct csm_shader_t), compare_shader_t);
@@ -135,13 +135,13 @@ bool does_shader_exist(const char *name) {
 }
 
 int csm_load_shader(const char *name, struct csm_shader_t **out) {
-  if (name == NULL || strlen(name) == 0) {
+  if (name == NULL || luna_strlen(name) == 0) {
     return -1;
   }
 
   struct csm_shader_t shader = {};
 
-  strncpy(shader.name, name, sizeof(shader.name) - 1);
+  luna_strncpy(shader.name, name, sizeof(shader.name) - 1);
   shader.name[sizeof(shader.name) - 1] = '\0';
 
   struct csm_shader_t *shaderptr = (struct csm_shader_t *)bsearch(&shader, shader_map, nshaders, sizeof(struct csm_shader_t), compare_shader_t);
@@ -237,30 +237,30 @@ void __csm_create_shader(VkDevice vkdevice, const unsigned *bytes, int nbytes, s
 void csm_register_all_shaders(VkDevice vkdevice, struct csm_shader_entry *entries, int nentries) {
   struct csm_shader_t *new_shader_map = luna_malloc((nshaders + nentries) * sizeof(struct csm_shader_t));
   if (shader_map) {
-    luna_memcpy(new_shader_map, nshaders * sizeof(struct csm_shader_t), shader_map, nshaders * sizeof(struct csm_shader_t));
+    luna_memcpy(new_shader_map, shader_map, nshaders * sizeof(struct csm_shader_t));
     luna_free(shader_map);
   }
   shader_map = new_shader_map;
 
   int index = 0;
   for (int i = 0; i < nentries; i++) {
-    if (strncmp(entries[i].stage, "vert", 4) == 0) {
+    if (luna_strncmp(entries[i].stage, "vert", 4) == 0) {
       shader_map[nshaders + index].stage = VK_SHADER_STAGE_VERTEX_BIT;
-    } else if (strncmp(entries[i].stage, "frag", 4) == 0) {
+    } else if (luna_strncmp(entries[i].stage, "frag", 4) == 0) {
       shader_map[nshaders + index].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    } else if (strncmp(entries[i].stage, "tese", 4) == 0) {
+    } else if (luna_strncmp(entries[i].stage, "tese", 4) == 0) {
       shader_map[nshaders + index].stage = VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
-    } else if (strncmp(entries[i].stage, "tesc", 4) == 0) {
+    } else if (luna_strncmp(entries[i].stage, "tesc", 4) == 0) {
       shader_map[nshaders + index].stage = VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
-    } else if (strncmp(entries[i].stage, "geom", 4) == 0) {
+    } else if (luna_strncmp(entries[i].stage, "geom", 4) == 0) {
       shader_map[nshaders + index].stage = VK_SHADER_STAGE_GEOMETRY_BIT;
-    } else if (strncmp(entries[i].stage, "comp", 4) == 0) {
+    } else if (luna_strncmp(entries[i].stage, "comp", 4) == 0) {
       shader_map[nshaders + index].stage = VK_SHADER_STAGE_COMPUTE_BIT;
     } else {
       CSM_LOG_ERROR("Invalid stage for shader \"%s\". It will not be added.", entries[i].name);
       continue;
     }
-    strncpy(shader_map[nshaders + index].name, entries[i].name, 127);
+    luna_strncpy(shader_map[nshaders + index].name, entries[i].name, 127);
     shader_map[nshaders + index].name[127] = '\0';
 
     unsigned *spirv;
@@ -306,8 +306,8 @@ csm_shader_cache_entry *load_cache(int *count) {
 
   csm_shader_cache_entry *entries = calloc(*count, sizeof(csm_shader_cache_entry));
   for (int i = 0; i < (*count); i++) {
-    strncpy(entries[i].name, write[i].name, 128);
-    strncpy(entries[i].path, write[i].path, 128);
+    luna_strncpy(entries[i].name, write[i].name, 128);
+    luna_strncpy(entries[i].path, write[i].path, 128);
     entries[i].last_modified = write[i].last_modified;
   }
 
@@ -325,8 +325,8 @@ void update_cache(const csm_shader_cache_entry *restrict entries, int count) {
   csm_shader_disk *write = luna_malloc(sizeof(csm_shader_disk) * count);
 
   for (int i = 0; i < count; i++) {
-    strncpy(write[i].name, entries[i].name, 128);
-    strncpy(write[i].path, entries[i].path, 128);
+    luna_strncpy(write[i].name, entries[i].name, 128);
+    luna_strncpy(write[i].path, entries[i].path, 128);
     write[i].last_modified = entries[i].last_modified;
   }
 
@@ -343,8 +343,8 @@ void write_new_cache(const csm_shader_entry *restrict entries, int count) {
   csm_shader_disk *write = luna_malloc(sizeof(csm_shader_disk) * count);
 
   for (int i = 0; i < count; i++) {
-    strncpy(write[i].name, entries[i].name, 128);
-    strncpy(write[i].path, entries[i].path, 128);
+    luna_strncpy(write[i].name, entries[i].name, 128);
+    luna_strncpy(write[i].path, entries[i].path, 128);
     write[i].last_modified = entries[i].last_modified;
   }
 
@@ -357,14 +357,14 @@ void write_new_cache(const csm_shader_entry *restrict entries, int count) {
 }
 
 void create_parent_dirs(const char path[256]) {
-  char *last_separator = strrchr(path, PATH_SEP);
+  char *last_separator = luna_strrchr(path, PATH_SEP);
   if (last_separator != NULL) {
     *last_separator = '\0';
 
     char buffer[256];
 
-    strcpy(buffer, path);
-    int len = strlen(buffer);
+    luna_strcpy(buffer, path);
+    int len = luna_strlen(buffer);
 
     if (buffer[len - 1] == PATH_SEP) {
       buffer[len - 1] = 0;
@@ -408,9 +408,9 @@ csm_shader_entry *load_all_entries(const char *shader_list_file_path, int *count
   for (int i = 0;; i++) {
     if (!fgets(line, 256, f)) {
       break;
-    } else if (strlen(line) == 1)
+    } else if (luna_strlen(line) == 1)
       continue; // line only contains \n
-    line[strcspn(line, "\n")] = 0;
+    line[luna_strcspn(line, "\n")] = 0;
 
     if (i >= currallocsize) {
       currallocsize *= 2;
@@ -421,7 +421,7 @@ csm_shader_entry *load_all_entries(const char *shader_list_file_path, int *count
     entries[*count]         = (csm_shader_entry){};
     csm_shader_entry *entry = &entries[*count];
 
-    strncpy(entry->path, line, 256);
+    luna_strncpy(entry->path, line, 256);
 
     // to get stage + verify that it exists
     FILE *shader_file = fopen(entry->path, "r");
@@ -432,11 +432,15 @@ csm_shader_entry *load_all_entries(const char *shader_list_file_path, int *count
 
     cassert(fgets(line, 256, shader_file) != NULL);
 
-    if (strncmp(line, "//", 2) == 0) {
-      sscanf(line, "// output: %s stage: %s name: %s", entry->output_path, entry->stage, entry->name);
+    const char *li = line;
+    while (*li == ' ') {
+      li++;
+    }
+    if (luna_strncmp(li, "//", 2) == 0) {
+      sscanf(li, "// output: %s stage: %s name: %s", entry->output_path, entry->stage, entry->name);
     } else {
-      strcpy(entry->stage, "000");
-      strcpy(entry->output_path, "");
+      luna_strcpy(entry->stage, "000");
+      luna_strcpy(entry->output_path, "");
       CSM_LOG_ERROR("Shader \"%s\": has invalid or no header.\nHeader Format "
                     "-> // output: "
                     "{output} stage: {stage} name: {name}",
@@ -468,11 +472,11 @@ int compile_shader(const struct csm_shader_entry *entry) {
   }
   char copy[256];
   copy[255] = '\0';
-  strncpy(copy, entry->output_path, 255);
+  luna_strncpy(copy, entry->output_path, 255);
   create_parent_dirs(copy);
 
   luna_snprintf(g_Buffer, 1024, "%s %s %s -o %s -S %s", shader_compiler, shader_compiler_args, entry->path,
-                strcmp(entry->output_path, "") != 0 ? entry->output_path : "", entry->stage);
+                luna_strcmp(entry->output_path, "") != 0 ? entry->output_path : "", entry->stage);
 
   if (system(g_Buffer) != 0) {
     return -1;
@@ -485,7 +489,7 @@ int compile_shader(const struct csm_shader_entry *entry) {
 void csm_compile_from_cache(csm_shader_entry *entries, int nentries, csm_shader_cache_entry *cacheentries, int cachecount) {
   for (int i = 0; i < nentries; i++) {
     for (int j = 0; j < cachecount; j++) {
-      if (strcmp(cacheentries[j].path, entries[i].path) == 0) {
+      if (luna_strcmp(cacheentries[j].path, entries[i].path) == 0) {
         if (cacheentries[j].last_modified != entries[i].last_modified) {
           if (compile_shader(&entries[i]) != 0) {
             CSM_LOG_ERROR("Error while compiling shader \"%s\".", entries[i].path);
@@ -645,7 +649,7 @@ bool fontc_atlas_add_image(fontc_atlas_t *__restrict__ atlas, int w, int h, cons
   }
 
   for (int y = 0; y < h; y++) {
-    luna_memcpy(atlas->data + (atlas->next_x + (atlas->next_y + y) * atlas->width), SIZE_MAX, data + (y * w), w);
+    luna_memcpy(atlas->data + (atlas->next_x + (atlas->next_y + y) * atlas->width), data + (y * w), w);
   }
 
   *x = atlas->next_x;

@@ -6,8 +6,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <time.h>
+
+#include "string.h"
 
 #define LOG_ERROR(err, ...)            __LOG_ERROR(__PRETTY_FUNCTION__, err, ##__VA_ARGS__)
 #define LOG_AND_ABORT(err, ...)        __LOG_AND_ABORT(__PRETTY_FUNCTION__, err, ##__VA_ARGS__)
@@ -63,8 +64,9 @@ extern void __CG_LOG(va_list args, const char *fn, const char *succeeder, const 
 #ifndef NDEBUG
 // we don't use libgen's basename because ISO C/C++ doesn't allow conversion of
 // const char * to a char *.
+// so basename("balling.pdf") would give you a warning
 static inline const char *__basename(const char *path) {
-  const char *ret = strrchr(path, '/');
+  const char *ret = luna_strrchr(path, '/');
   if (ret) {
     return ret + 1;
   } else {
@@ -73,12 +75,12 @@ static inline const char *__basename(const char *path) {
 }
 #define cassert_and_ret(expr)                                                                                                                        \
   if (!((bool)(expr))) {                                                                                                                             \
-    LOG_ERROR("[%s:%u:%s] Assertion failed -> %s", __basename(__FILE__), __LINE__, __PRETTY_FUNCTION__, #expr);                                      \
+    LOG_ERROR("Assertion failed -> %s", __basename(__FILE__), __LINE__, __PRETTY_FUNCTION__, #expr);                                                 \
     return;                                                                                                                                          \
   }
 #define cassert(expr)                                                                                                                                \
   if (!((bool)(expr))) {                                                                                                                             \
-    LOG_ERROR("[%s:%u:%s] Assertion failed -> %s", __basename(__FILE__), __LINE__, __PRETTY_FUNCTION__, #expr);                                      \
+    LOG_ERROR("Assertion failed -> %s", __basename(__FILE__), __LINE__, __PRETTY_FUNCTION__, #expr);                                                 \
   }
 #else
 static inline const char *__basename(const char *path) {

@@ -10,6 +10,9 @@
 // this was a test, don't forget to remove this
 // oh you'll absolutely not remove this will you?
 
+// oh correction, cvar's are absolutely doable in C
+// but I am unsure of their usefulness...
+
 typedef struct cvar cvar;
 
 typedef void (*cvar_voidfn)(cvar *var);

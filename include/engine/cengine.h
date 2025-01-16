@@ -6,51 +6,55 @@ extern "C" {
 #endif
 
 #include "../../common/stdafx.h"
-#include "lunaCamera.h"
 
 struct lunaRenderer_Config;
 union SDL_Event;
 
-extern u8 cg_current_frame;
-extern u64 cg_last_frame_time; // div by SDL_GetPerofrmanceCounterFrequency to get actual time.
-extern double cg_time;
+typedef struct lunaTime {
+  f64 time;
+  u64 last_frame_time;
 
-extern double cg_delta_time;
-extern u64 cg_delta_time_last_frame_time;
+} lunaTime;
 
-extern u64 cg_frame_start;
-extern u64 cg_fixed_frame_start;
-extern u64 cg_frame_time;
+extern u8 luna_CurrentFrame;
+extern u64 luna_LastFrameTime; // div by SDL_GetPerofrmanceCounterFrequency to get actual time.
+extern double luna_Time;
 
-extern bool cg_framebuffer_resized;
-extern bool cg_application_running;
+extern double luna_DeltaTime;
+
+extern u64 luna_FrameStartTime;
+extern u64 luna_FixedFrameStartTime;
+extern u64 luna_FrameTime;
+
+extern bool luna_WindowFramebufferResized;
+extern bool luna_ApplicationRunning;
 
 static inline bool cg_running() {
-  return cg_application_running;
+  return luna_ApplicationRunning;
 }
 
 static inline void cg__reset_frame_buffer_resized() {
-  cg_framebuffer_resized = false;
+  luna_WindowFramebufferResized = false;
 }
 
 static inline bool cg_get_frame_buffer_resized() {
-  return cg_framebuffer_resized;
+  return luna_WindowFramebufferResized;
 }
 
 static inline u8 cg_get_current_frame() {
-  return cg_current_frame;
+  return luna_CurrentFrame;
 }
 
 static inline double cg_get_delta_time() {
-  return cg_delta_time;
+  return luna_DeltaTime;
 }
 
 static inline double cg_get_last_frame_time() {
-  return cg_last_frame_time;
+  return luna_LastFrameTime;
 }
 
 static inline double cg_get_time() {
-  return cg_time;
+  return luna_Time;
 }
 
 extern void cg_initialize_context(const char *window_title, int window_width, int window_height);

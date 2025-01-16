@@ -109,12 +109,12 @@ struct cfont_t {
 
   int font_index;
   luna_GPU_Texture *texture;
-  luna_GPU_Memory texture_mem;
+  luna_GPU_Memory *texture_mem;
   luna_GPU_Sampler *sampler;
 
   int allocated_size;
   luna_GPU_Buffer buffer;
-  luna_GPU_Memory buffer_mem;
+  luna_GPU_Memory *buffer_mem;
   void *mapped;
 
   int index_buffer_offset;

@@ -22,7 +22,7 @@ int g_nvars  = 0;
 
 void leave_game(lunaUI_Button *self) {
   (void)self;
-  cg_application_running = 0;
+  luna_ApplicationRunning = 0;
 }
 
 void hoover(lunaUI_Button *self) {
@@ -36,7 +36,9 @@ int main(int argc, char *argv[]) {
   (void)argv;
   SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);
 
-  const lunaExtent2D window_size = (lunaExtent2D){800, 600};
+  const lunaExtent2D window_size = (lunaExtent2D){1600 / 400, 1200 / 400};
+
+  luna_printf("%i", *luna_strpbrk("Hello", "Baller"));
 
   cg_initialize_context("luna", window_size.width, window_size.height);
 
@@ -48,6 +50,12 @@ int main(int argc, char *argv[]) {
   rdconf.multisampling_enable = 0;
   rdconf.samples              = LUNA_SAMPLE_COUNT_1_SAMPLES;
   lunaRenderer_t *rd          = lunaRenderer_Init(&rdconf);
+
+  // If you're wondering why every Action has a +,
+  // I want to create a resource system with info about everything like bindings
+  // It'll be used to serialize a save, for example
+  // and etc. and every event will have a preceding +, booleans will have a 0 and integers will have an i
+  // I'll drop the + (the user won't have to add it) when i get to it
 
   lunaInput_Init();
   lunaInput_BindKeyToAction(SDL_SCANCODE_SPACE, "+jump");
@@ -92,11 +100,14 @@ int main(int argc, char *argv[]) {
   lunaObject_GetSpriteRenderer(r2)->color = (vec4){0.0f, 0.0f, 1.0f, 1.0f};
 
   IWorld world              = {.gravity = (vec3){0.0f, -10.0f, 0.0f}};
+
   IBodyCreateInfo ibodyinfo = {};
   ibodyinfo.type            = IMPACT_BODY_DYNAMIC;
   ibodyinfo.position        = (vec3){r1pos.x, r1pos.y, 0.0f};
   ibodyinfo.half_size       = (vec3){r1siz.x, r1siz.y, 1.0f};
+  ibodyinfo.restitution = 0.3f;
   IBody *r1b                = IBodyCreate(&world, &ibodyinfo);
+
   ibodyinfo.position        = (vec3){r2pos.x, r2pos.y, 0.0f};
   ibodyinfo.half_size       = (vec3){r2siz.x, r2siz.y, 1.0f};
   ibodyinfo.start_disabled  = 1;

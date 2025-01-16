@@ -4,6 +4,7 @@
 #include "../include/engine/lunaImage.h"
 
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_error.h>
 #include <ctype.h>
 #include <math.h>
 #include <stdbool.h>
@@ -11,7 +12,7 @@
 #include <stdio.h>
 #include <string.h>
 
-void __CG_LOG(va_list args, const char *fn, const char *succeeder, const char *preceder, const char *str, unsigned char err) {
+void __CG_LOG(va_list args, const char *fn, const char *succeeder, const char *preceder, const char *s, unsigned char err) {
   FILE *out = (err) ? stderr : stdout;
 
   struct tm *time = __CG_GET_TIME();
@@ -21,7 +22,7 @@ void __CG_LOG(va_list args, const char *fn, const char *succeeder, const char *p
   luna_fprintf(out, "[%s] ", fn);
 
   luna_vfprintf(out, preceder, args);
-  luna_vfprintf(out, str, args);
+  luna_vfprintf(out, s, args);
   luna_vfprintf(out, succeeder, args);
 }
 
@@ -165,8 +166,8 @@ size_t luna_ftoa2(double n, char s[], int precision, size_t max) {
 }
 
 // Returns __INT32_MAX__ on error.
-int luna_atoi(const char str[]) {
-  const char *i = str;
+int luna_atoi(const char s[]) {
+  const char *i = s;
   while (isspace(*i))
     i++;
 
@@ -199,11 +200,11 @@ int luna_atoi(const char str[]) {
   return ret;
 }
 
-double luna_atof(const char str[]) {
+double luna_atof(const char s[]) {
   double result = 0.0, fraction = 0.0;
   int divisor   = 1;
   bool neg      = 0;
-  const char *i = str;
+  const char *i = s;
 
   while (isspace(*i))
     i++;
@@ -230,7 +231,7 @@ double luna_atof(const char str[]) {
     result += fraction / divisor;
   }
 
-  if (*str == 'e' || *i == 'E') {
+  if (*s == 'e' || *i == 'E') {
     i++;
     int exp_sign = 1;
     int exponent = 0;
@@ -238,7 +239,7 @@ double luna_atof(const char str[]) {
     if (*i == '-') {
       exp_sign = -1;
       i++;
-    } else if (*str == '+') {
+    } else if (*s == '+') {
       i++;
     }
 
@@ -598,8 +599,7 @@ const char *get_file_extension(const char *path) {
 }
 
 int luna_bufcompress(const void *input, size_t input_size, void *output, size_t *output_size) {
-  z_stream stream;
-  luna_memset(&stream, 0, sizeof(stream));
+  z_stream stream = (z_stream){};
 
   if (deflateInit(&stream, Z_BEST_COMPRESSION) != Z_OK) {
     return -1;
@@ -645,9 +645,9 @@ int luna_bufdecompress(const void *compressed_data, size_t compressed_size, void
 
 lunaImage lunaImage_Load(const char *path) {
   const char *ext = get_file_extension(path);
-  if (strcmp(ext, "jpeg") == 0 || strcmp(ext, "jpg") == 0) {
+  if (luna_strcmp(ext, "jpeg") == 0 || luna_strcmp(ext, "jpg") == 0) {
     return lunaImage_LoadJPEG(path);
-  } else if (strcmp(ext, "png") == 0) {
+  } else if (luna_strcmp(ext, "png") == 0) {
     return lunaImage_LoadPNG(path);
   }
   cassert(0);
@@ -1134,10 +1134,9 @@ int luna_FormatGetNumChannels(lunaFormat fmt) {
   }
 }
 
-void *luna_memcpy(void *dst, size_t dstsz, const void *src, size_t sz) {
+void *luna_memcpy(void *dst, const void *src, size_t sz) {
   cassert(dst != NULL);
   cassert(src != NULL);
-  cassert(dstsz != 0);
   cassert(sz != 0);
 
   // I saw this optimization trick a long time ago in some big codebase
@@ -1201,8 +1200,11 @@ void *luna_memset(void *dst, char to, size_t sz) {
   return dst;
 }
 
-void *luna_memmove(void *dst, size_t dstsz, const void *src, size_t sz) {
-  void *ret = luna_memcpy(dst, dstsz, src, sz);
+void *luna_memmove(void *dst, const void *src, size_t sz) {
+  if (!dst || !src || sz == 0) {
+    return NULL;
+  }
+  void *ret = luna_memcpy(dst, src, sz);
   if (!ret) {
     return NULL;
   }
@@ -1233,13 +1235,64 @@ void *luna_memchr(const void *p, int chr, size_t psize) {
   return NULL;
 }
 
-size_t luna_strncpy(char *dest, const char *src, size_t max) {
-  if (max == 0 || !dest || !src) {
+int __luna_memcmp_aligned(const u32 *p1, const u32 *p2, size_t max) {
+  size_t i = 0;
+  while (i < max && *p1 == *p2) {
+    p1++;
+    p2++;
+    i++;
+  }
+  return (i == max) ? 0 : (*p1 - *p2);
+}
+
+int luna_memcmp(const void *_p1, const void *_p2, size_t max) {
+  if (!_p1 || !_p2 || max == 0) {
+    return -1;
+  }
+
+  const uchar *p1 = _p1;
+  const uchar *p2 = _p2;
+
+  if (((uintptr_t)p1 & 0x3) == 0 && ((uintptr_t)p2 & 0x3) == 0) {
+    size_t word_count = max / 4;
+    int result = __luna_memcmp_aligned((u32 *)p1, (u32 *)p2, word_count);
+    
+    if (result != 0) {
+      return result;
+    }
+    
+    size_t remaining_bytes = max % 4;
+    if (remaining_bytes > 0) {
+      p1 += word_count * 4;
+      p2 += word_count * 4;
+      for (size_t i = 0; i < remaining_bytes; i++) {
+        if (*p1 != *p2) {
+          return *p1 - *p2;
+        }
+        p1++;
+        p2++;
+      }
+    }
     return 0;
   }
+
+  size_t i = 0;
+  while (i < max && *p1 == *p2) {
+    p1++;
+    p2++;
+    i++;
+  }
+  return (i == max) ? 0 : (*p1 - *p2);
+}
+
+size_t luna_strncpy(char *dest, const char *src, size_t max) {
+  if (max == 0 || !dest || !src) {
+    return -1;
+  }
+  max--; // -1 so we can fit the NULL terminator
   size_t i = 0;
   // clang-format off
-  while (i < max - 1 && src[i]) // max - 1 so we can fit the NULL terminator
+  while (i < max && src[i])
   {
     dest[i] = src[i]; i++;
   }
@@ -1249,33 +1302,35 @@ size_t luna_strncpy(char *dest, const char *src, size_t max) {
   return i;
 }
 
-char *luna_strchr(char *str, int chr) {
-  if (!str) {
+char *luna_strchr(const char *s, int chr) {
+  if (!s) {
     return NULL;
   }
-  while (*str) {
-    if (*str == chr)
-      return str;
-    str++;
+  while (*s) {
+    if (*s == chr)
+      return (char *)s;
+    s++;
   }
   return NULL;
 }
 
-char *luna_strrchr(char *str, int chr) {
-  const char *beg = str;
-  str += luna_strlen(str) - 1;
-  while (str >= beg) {
-    if (*str == chr) {
-      return (char *)str;
+char *luna_strrchr(const char *s, int chr) {
+  if (!s) return NULL;
+
+  const char *beg = s;
+  s += luna_strlen(s) - 1;
+  while (s >= beg) {
+    if (*s == chr) {
+      return (char *)s;
     }
-    str--;
+    s--;
   }
   return NULL;
 }
 
 int luna_strncmp(const char *s1, const char *s2, size_t max) {
   if (!s1 || !s2 || max == 0) {
-    return __INT32_MAX__;
+    return -1;
   }
   size_t i = 0;
   while (*s1 && *s2 && (*s1 == *s2) && i < max) {
@@ -1283,15 +1338,103 @@ int luna_strncmp(const char *s1, const char *s2, size_t max) {
     s2++;
     i++;
   }
-  return *(const unsigned char *)s1 - *(const unsigned char *)s2;
+  return (i == max) ? 0 : (*(const unsigned char *)s1 - *(const unsigned char *)s2);
 }
 
 size_t luna_strlen(const char *s) {
-  const char *b = s;
+  if (!s) return 0;
 
+  const char *b = s;
   while (*s) {
     s++;
   }
-
   return s - b;
+}
+
+char *luna_strstr(const char *s, const char *sub) {
+  if (!s || !sub) return NULL;
+
+  for (; *s; s++) {
+    const char *s = s;
+    const char *p = sub;
+
+    while (*s && *p && *s == *p) {
+      s++;
+      p++;
+    }
+
+    if (!*p) {
+      return (char *)s;
+    }
+  }
+
+  return NULL;
+}
+
+size_t luna_strspn(const char *s, const char *accept) {
+  if (!s || !accept) { return 0; }
+  size_t i = 0;
+  while (*s && *accept && *s == *accept) {
+    i++;
+  }
+  return i;
+}
+
+size_t luna_strcspn(const char *s, const char *reject) {
+  if (!s || !reject) { return 0; }
+
+  const char *base = reject;
+  size_t i = 0;
+
+  while (*s) {
+    const char *j = base;
+    while (*j && *j != *s) {
+      j++;
+    }
+    if (*j) {
+      break;
+    }
+    i++;
+    s++;
+  }
+  return i;
+}
+
+char *luna_strpbrk(const char *s1, const char *s2) {
+  if (!s1 || !s2) return NULL;
+
+  while (*s1) {
+    const char *j = s2;
+    while (*j) {
+      if (*j == *s1) {
+        return (char *)s1;
+      }
+      j++;
+    }
+    s1++;
+  }
+  return NULL;
+}
+
+char *strtoks = NULL;
+char *luna_strtok(char *s, const char *delim) {
+  if (!s) s = strtoks;
+  char *p;
+
+  s += luna_strspn(s, delim);
+  if (!s || *s == 0) {
+    strtoks = s;
+    return NULL;
+  }
+
+  p = s;
+  s = luna_strpbrk(s, delim);
+  
+  if (!s) {
+    strtoks = luna_strchr(s, 0); // get pointer to last char
+    return p;
+  }
+  *s = 0;
+  strtoks = s + 1;
+  return p;
 }

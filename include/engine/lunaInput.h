@@ -32,7 +32,7 @@ enum lunaInput_MouseButton {
 };
 
 struct lunaInput_Action {
-  SDL_Scancode key;
+  SDL_Scancode key; SDL_Scancode key2;
   uint8_t mouse;
   lunaInput_ActionResponseFn response;
   bool this_frame, last_frame;
@@ -51,9 +51,16 @@ extern void lunaInput_BindMouseToAction(int bton, const char *action);
 // essentially, clear it.
 extern void lunaInput_UnbindAction(const char *action);
 
+// Action held
 extern bool lunaInput_IsActionSignalled(const char *action);
+
+// Action pressed
 extern bool lunaInput_IsActionJustSignalled(const char *action);
+
+// Action not held
 extern bool lunaInput_IsActionUnsignalled(const char *action);
+
+// Action released
 extern bool lunaInput_IsActionJustUnsignalled(const char *action);
 
 /// @brief Signals the action for a frame

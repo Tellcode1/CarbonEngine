@@ -37,9 +37,9 @@ extern size_t luna_ptoa2(void *p, char *buf, size_t max);
 // Supports up to 1 Petabyte, you can EASILY add more levels by just adding them to the stages array
 extern size_t luna_btoa2(size_t x, bool upgrade, char *buf, size_t max);
 
-extern int luna_atoi(const char str[]);
+extern int luna_atoi(const char s[]);
 
-extern double luna_atof(const char str[]);
+extern double luna_atof(const char s[]);
 
 static inline char *luna_itoa(long long x, char out[], int base, size_t max) {
   luna_itoa2(x, out, base, max);

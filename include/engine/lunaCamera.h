@@ -10,6 +10,7 @@
 #include "../GPU/memory.h"
 #include "../engine/lunaInput.h"
 #include "lunaGFX.h"
+#include <vulkan/vulkan_core.h>
 
 typedef struct lunaCamera lunaCamera;
 
@@ -54,7 +55,7 @@ struct lunaCamera {
   float far_clip;
 
   luna_GPU_Buffer ub;
-  luna_GPU_Memory mem;
+  luna_GPU_Memory *mem;
   luna_DescriptorSet *sets;
   camera_uniform_buffer *mem_mapped;
 
@@ -66,7 +67,7 @@ struct lunaCamera {
 static inline void lunaCamera_Destroy(lunaCamera *cam) {
   // luna_DescriptorSetDestroy(cam->sets);
   luna_GPU_DestroyBuffer(&cam->ub);
-  luna_GPU_FreeMemory(&cam->mem);
+  luna_GPU_FreeMemory(cam->mem);
 }
 
 static inline lunaCamera lunaCamera_Init() {
@@ -99,12 +100,12 @@ static inline lunaCamera lunaCamera_Init() {
   luna_GPU_CreateBuffer(ub_size * CAMERA_FAKE_BUFFER_COUNT, ub_align, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, &camera.ub);
   luna_GPU_AllocateMemory(ub_size * CAMERA_FAKE_BUFFER_COUNT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                           &camera.mem);
-  luna_GPU_BindBufferToMemory(&camera.mem, 0, &camera.ub);
+  luna_GPU_BindBufferToMemory(camera.mem, 0, &camera.ub);
 
   VkDescriptorSetLayoutBinding bindings[] = {{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1, VK_SHADER_STAGE_VERTEX_BIT, NULL}};
   luna_AllocateDescriptorSet(&g_pool, bindings, 1, &camera.sets);
 
-  VkDescriptorBufferInfo bufferinfo = {.buffer = camera.ub.buffer, .offset = 0, .range = ub_size};
+  VkDescriptorBufferInfo bufferinfo = {.buffer = camera.ub.buffer, .offset = 0, .range = (VkDeviceSize)ub_size};
   VkWriteDescriptorSet write        = {
              .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
              .dstSet          = camera.sets->set,
@@ -114,7 +115,7 @@ static inline lunaCamera lunaCamera_Init() {
              .pBufferInfo     = &bufferinfo,
   };
   luna_DescriptorSetSubmitWrite(camera.sets, &write);
-  vkMapMemory(device, camera.mem.memory, 0, VK_WHOLE_SIZE, 0, (void **)&camera.mem_mapped);
+  luna_GPU_MapMemory(camera.mem, VK_WHOLE_SIZE, 0, (void **)&camera.mem_mapped);
   return camera;
 }
 

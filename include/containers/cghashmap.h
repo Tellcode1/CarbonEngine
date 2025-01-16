@@ -26,16 +26,24 @@ extern unsigned cg_hashmap_std_hash(const void *bytes, int nbytes);
     equal_fn may also be NULL for standard memcmp == 0
 */
 extern cg_hashmap_t *cg_hashmap_init(int init_size, int keysize, int valuesize, cg_hashmap_hash_fn hash_fn, cg_hashmap_key_equal_fn equal_fn);
+
 extern void cg_hashmap_destroy(cg_hashmap_t *map);
 
 extern void cg_hashmap_resize(cg_hashmap_t *map, int new_size);
+
 extern void cg_hashmap_clear(cg_hashmap_t *map);
 
 extern int cg_hashmap_size(const cg_hashmap_t *map);
+
 extern int cg_hashmap_capacity(const cg_hashmap_t *map);
+
 extern int cg_hashmap_keysize(const cg_hashmap_t *map);
+
 extern int cg_hashmap_valuesize(const cg_hashmap_t *map);
+
+// __i needs to point to an integer initialized to 0
 extern ch_node_t *cg_hashmap_iterate(const cg_hashmap_t *map, int *__i);
+
 extern ch_node_t **cg_hashmap_root_node(const cg_hashmap_t *map);
 
 /*
@@ -51,7 +59,8 @@ extern void cg_hashmap_insert_or_replace(cg_hashmap_t *map, const void *key, voi
 extern void *cg_hashmap_find(const cg_hashmap_t *map, const void *key);
 
 extern void cg_hashmap_serialize(cg_hashmap_t *map, FILE *f);
-extern void cg_hashmap_read(cg_hashmap_t *map, FILE *f);
+
+extern void cg_hashmap_deserialize(cg_hashmap_t *map, FILE *f);
 
 #ifdef __cplusplus
 }

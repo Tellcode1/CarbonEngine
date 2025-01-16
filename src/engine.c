@@ -4,6 +4,7 @@
 #include "../include/containers/cgvector.h"
 #include "../include/engine/cengine.h"
 #include "../include/engine/lunaCollider.h"
+#include "../include/engine/lunaCamera.h"
 #include "../include/engine/lunaInput.h"
 #include "../include/engine/lunaObject.h"
 #include "../include/engine/lunaScene.h"
@@ -11,53 +12,53 @@
 
 #include "../common/string.h"
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_scancode.h>
 
-u8 cg_current_frame    = 0;
-u64 cg_last_frame_time = 0.0; // div by SDL_GetPerofrmanceCounterFrequency to get actual time.
-double cg_time         = 0.0;
+u8 luna_CurrentFrame   = 0;
+u64 luna_LastFrameTime = 0; // div by SDL_GetPerofrmanceCounterFrequency to get actual time.
+double luna_Time       = 0.0;
 
-double cg_delta_time              = 0.0;
-u64 cg_delta_time_last_frame_time = 0;
+double luna_DeltaTime       = 0.0;
 
-u64 cg_frame_start       = 0;
-u64 cg_fixed_frame_start = 0;
-u64 cg_frame_time        = 0;
+u64 luna_FrameStartTime      = 0;
+u64 luna_FixedFrameStartTime = 0;
+u64 luna_FrameTime           = 0;
 
-bool cg_framebuffer_resized = 0;
-bool cg_application_running = 1;
+bool luna_WindowFramebufferResized = 0;
+bool luna_ApplicationRunning       = 1;
 
-static u64 currtime;
+static u64 SDLTime;
 
 // CINPUT VARS
-vec2 cinput_mouse_position;
-vec2 cinput_last_frame_mouse_position;
-cg_bitset_t cinput_kb_state;
-cg_bitset_t cinput_last_frame_kb_state;
-unsigned cinput_mouse_state;
-unsigned cinput_last_frame_mouse_state;
+vec2 g_lunaInput_MousePosition;
+vec2 g_lunaInput_LastFrameMousePosition;
+cg_bitset_t g_lunaInput_KBState;
+cg_bitset_t g_lunaInput_LastFrameKBState;
+unsigned g_lunaInput_MouseState;
+unsigned g_lunaInput_LastFrameMouseState;
 
 void cg_initialize_context(const char *window_title, int window_width, int window_height) {
   ctx_initialize(window_title, window_width, window_height);
 
   // This fixes really large values of delta time for the first frame.
-  currtime = SDL_GetPerformanceCounter();
+  SDLTime = SDL_GetPerformanceCounter();
 }
 
 void cg_consume_event(const SDL_Event *event) {
   if ((event->type == SDL_QUIT) || ((event->type == SDL_WINDOWEVENT) && (event->window.event == SDL_WINDOWEVENT_CLOSE)) ||
       (event->type == SDL_KEYDOWN && event->key.keysym.scancode == SDL_SCANCODE_ESCAPE))
-    cg_application_running = false;
+    luna_ApplicationRunning = false;
 
   if (event->type == SDL_WINDOWEVENT && (event->window.event == SDL_WINDOWEVENT_RESIZED || event->window.event == SDL_WINDOWEVENT_SIZE_CHANGED))
-    cg_framebuffer_resized = true;
+    luna_WindowFramebufferResized = true;
 }
 
 void cg_update() {
-  cg_time = (double)SDL_GetTicks64() * (1.0 / 1000.0);
+  luna_Time = (double)SDL_GetTicks64() * (1.0 / 1000.0);
 
-  cg_last_frame_time = currtime;
-  currtime           = SDL_GetPerformanceCounter();
-  cg_delta_time      = (currtime - cg_last_frame_time) / (double)SDL_GetPerformanceFrequency();
+  luna_LastFrameTime = SDLTime;
+  SDLTime            = SDL_GetPerformanceCounter();
+  luna_DeltaTime     = (SDLTime - luna_LastFrameTime) / (double)SDL_GetPerformanceFrequency();
 }
 
 // luna
@@ -304,7 +305,7 @@ float cast_result_fn(b2ShapeId shapeId, b2Vec2 point, b2Vec2 normal, float fract
   (void)fraction;
 
   ray_cast_context *ctx = context;
-  if (memcmp(&shapeId, &ctx->raycaster, sizeof(b2ShapeId)) == 0) {
+  if (luna_memcmp(&shapeId, &ctx->raycaster, sizeof(b2ShapeId)) == 0) {
     return -1.0f;
   }
   ctx->hit->hit              = 1;
@@ -560,17 +561,17 @@ void LunaEditor_Render(lunaRenderer_t *rd) {
   // (vec4){1.0f,1.0f,1.0f,1.0f}, 5);
 }
 
-vec2 cinput_mouse_position;
-vec2 cinput_last_frame_mouse_position;
-cg_bitset_t cinput_kb_state;
-cg_bitset_t cinput_last_frame_kb_state;
-unsigned cinput_mouse_state;
-unsigned cinput_last_frame_mouse_state;
+vec2 g_lunaInput_MousePosition;
+vec2 g_lunaInput_LastFrameMousePosition;
+cg_bitset_t g_lunaInput_KBState;
+cg_bitset_t g_lunaInput_LastFrameKBState;
+unsigned g_lunaInput_MouseState;
+unsigned g_lunaInput_LastFrameMouseState;
 
-static cg_hashmap_t *lunaInput_action_mapping;
+static cg_hashmap_t *g_lunaInput_ActionMapping;
 
 int lunaInput_SignalAction(const char *action) {
-  lunaInput_Action *ia = cg_hashmap_find(lunaInput_action_mapping, action);
+  lunaInput_Action *ia = cg_hashmap_find(g_lunaInput_ActionMapping, action);
   if (!ia) {
     return -1;
   }
@@ -582,8 +583,8 @@ int lunaInput_SignalAction(const char *action) {
 
 lunaInput_KeyState lunaInput_GetKeyState(const SDL_Scancode sc) {
 
-  const lunaInput_KeyState this_frame_key_state = cg_bitset_access_bit(&cinput_kb_state, sc);
-  const lunaInput_KeyState last_frame_key_state = cg_bitset_access_bit(&cinput_last_frame_kb_state, sc);
+  const lunaInput_KeyState this_frame_key_state = cg_bitset_access_bit(&g_lunaInput_KBState, sc);
+  const lunaInput_KeyState last_frame_key_state = cg_bitset_access_bit(&g_lunaInput_LastFrameKBState, sc);
 
   // curly braces are beautiful, aren't they?
   if (this_frame_key_state && last_frame_key_state) {
@@ -616,11 +617,11 @@ bool lunaInput_IsKeyJustUnsignalled(const SDL_Scancode sc) {
 }
 
 vec2 lunaInput_GetMousePosition(void) {
-  return cinput_mouse_position;
+  return g_lunaInput_MousePosition;
 }
 
 vec2 lunaInput_GetLastFrameMousePosition(void) {
-  return cinput_last_frame_mouse_position;
+  return g_lunaInput_LastFrameMousePosition;
 }
 
 vec2 lunaInput_GetMouseDelta(void) {
@@ -629,52 +630,52 @@ vec2 lunaInput_GetMouseDelta(void) {
 
 // button is 1 for left mouse, 2 for middle, 3 for right
 bool lunaInput_IsMouseJustSignalled(lunaInput_MouseButton button) {
-  return cinput_mouse_state & SDL_BUTTON(button) && !(cinput_last_frame_mouse_state & SDL_BUTTON(button));
+  return g_lunaInput_MouseState & SDL_BUTTON(button) && !(g_lunaInput_LastFrameMouseState & SDL_BUTTON(button));
 }
 
 bool lunaInput_IsMouseSignalled(lunaInput_MouseButton button) {
-  return cinput_mouse_state & SDL_BUTTON((int)button);
+  return g_lunaInput_MouseState & SDL_BUTTON((int)button);
 }
 
 bool str_equal(const void *key1, const void *key2, unsigned long keysize) {
   (void)keysize;
   const char *str1 = key1;
   const char *str2 = key2;
-  return strcmp(str1, str2) == 0;
+  return luna_strcmp(str1, str2) == 0;
 }
 
 void lunaInput_Init() {
-  lunaInput_action_mapping = cg_hashmap_init(16, sizeof(const char *), sizeof(lunaInput_Action), NULL, str_equal);
+  g_lunaInput_ActionMapping = cg_hashmap_init(16, sizeof(const char *), sizeof(lunaInput_Action), NULL, str_equal);
 
-  cinput_kb_state                  = cg_bitset_init(SDL_NUM_SCANCODES);
-  cinput_last_frame_kb_state       = cg_bitset_init(SDL_NUM_SCANCODES);
-  cinput_mouse_position            = (vec2){};
-  cinput_last_frame_mouse_position = (vec2){};
+  g_lunaInput_KBState                = cg_bitset_init(SDL_NUM_SCANCODES);
+  g_lunaInput_LastFrameKBState       = cg_bitset_init(SDL_NUM_SCANCODES);
+  g_lunaInput_MousePosition          = (vec2){};
+  g_lunaInput_LastFrameMousePosition = (vec2){};
 }
 
 void lunaInput_Shutdown() {
-  cg_hashmap_destroy(lunaInput_action_mapping);
-  cg_bitset_destroy(&cinput_kb_state);
-  cg_bitset_destroy(&cinput_last_frame_kb_state);
+  cg_hashmap_destroy(g_lunaInput_ActionMapping);
+  cg_bitset_destroy(&g_lunaInput_KBState);
+  cg_bitset_destroy(&g_lunaInput_LastFrameKBState);
 }
 
 void lunaInput_Update() {
   int mx, my;
-  cinput_last_frame_mouse_state = cinput_mouse_state;
-  cinput_mouse_state            = SDL_GetMouseState(&mx, &my);
+  g_lunaInput_LastFrameMouseState = g_lunaInput_MouseState;
+  g_lunaInput_MouseState          = SDL_GetMouseState(&mx, &my);
 
   const float width  = luna_GetWindowSize().width;
   const float height = luna_GetWindowSize().height;
 
-  cinput_last_frame_mouse_position = cinput_mouse_position;
-  cinput_mouse_position.x          = ((float)mx / width) * 2.0f - 1.0f;
-  cinput_mouse_position.y          = ((float)my / height) * 2.0f - 1.0f;
-  cinput_mouse_position.y *= -1.0f;
+  g_lunaInput_LastFrameMousePosition = g_lunaInput_MousePosition;
+  g_lunaInput_MousePosition.x        = ((float)mx / width) * 2.0f - 1.0f;
+  g_lunaInput_MousePosition.y        = ((float)my / height) * 2.0f - 1.0f;
+  g_lunaInput_MousePosition.y *= -1.0f;
 
   const u8 *const sdl_kb_state = SDL_GetKeyboardState(NULL);
-  cg_bitset_copy_from(&cinput_last_frame_kb_state, &cinput_kb_state);
+  cg_bitset_copy_from(&g_lunaInput_LastFrameKBState, &g_lunaInput_KBState);
   for (u32 i = 0; i < SDL_NUM_SCANCODES; i++) {
-    cg_bitset_set_bit_to(&cinput_kb_state, i, sdl_kb_state[i]);
+    cg_bitset_set_bit_to(&g_lunaInput_KBState, i, sdl_kb_state[i]);
   }
 
   int __i = 0;
@@ -682,17 +683,20 @@ void lunaInput_Update() {
 
   int mouse_state = SDL_GetMouseState(NULL, NULL);
 
-  while ((node = cg_hashmap_iterate(lunaInput_action_mapping, &__i)) != NULL) {
+  while ((node = cg_hashmap_iterate(g_lunaInput_ActionMapping, &__i)) != NULL) {
     lunaInput_Action *ia = (lunaInput_Action *)node->value;
 
     ia->last_frame = ia->this_frame;
 
-    if (ia->key != 0) {
-      ia->this_frame = sdl_kb_state[ia->key];
+    if (ia->key != 0) { // key2 is not checked, most ia's won't have one
+      ia->this_frame = sdl_kb_state[ia->key] || sdl_kb_state[ia->key2];
       if (ia->response)
         ia->response((const char *)node->key, ia);
-    } else if (ia->mouse != 255) {
-      ia->this_frame = (mouse_state & SDL_BUTTON(ia->mouse)) != 0;
+    }
+    // ia->mouse is checked independently
+    if (ia->mouse != 255) {
+      // it's OR'd with ia->this_frame so that we can call the response multiple times, as expected.
+      ia->this_frame = ia->this_frame || (mouse_state & SDL_BUTTON(ia->mouse)) != 0;
       if (ia->response)
         ia->response((const char *)node->key, ia);
     } else {
@@ -702,56 +706,65 @@ void lunaInput_Update() {
 }
 
 void lunaInput_BindFunctionToAction(const char *action, lunaInput_ActionResponseFn response) {
-  lunaInput_Action *ia = cg_hashmap_find(lunaInput_action_mapping, action);
+  lunaInput_Action *ia = cg_hashmap_find(g_lunaInput_ActionMapping, action);
   if (ia == NULL)
     return;
   ia->response = response;
 }
 
 void lunaInput_BindKeyToAction(SDL_Scancode key, const char *action) {
-  lunaInput_Action ia = {};
-  ia.key              = key;
-  cg_hashmap_insert(lunaInput_action_mapping, action, &ia);
+  lunaInput_Action *ia = cg_hashmap_find(g_lunaInput_ActionMapping, action);
+  if (!ia) {
+    lunaInput_Action w = {.key = key};
+    cg_hashmap_insert(g_lunaInput_ActionMapping, action, &w);
+  } else {
+    if (ia->key != SDL_SCANCODE_UNKNOWN)
+      ia->key2 = key;
+    else {
+      ia->key = key;
+    }
+  }
 }
 
 void lunaInput_BindMouseToAction(int bton, const char *action) {
   lunaInput_Action ia = {};
   ia.mouse            = bton;
-  cg_hashmap_insert(lunaInput_action_mapping, action, &ia);
+  cg_hashmap_insert(g_lunaInput_ActionMapping, action, &ia);
 }
 
 void lunaInput_UnbindAction(const char *action) {
-  lunaInput_Action *ia = cg_hashmap_find(lunaInput_action_mapping, action);
+  lunaInput_Action *ia = cg_hashmap_find(g_lunaInput_ActionMapping, action);
   if (ia == NULL)
     return;
-  ia->key      = 0;
+  ia->key      = SDL_SCANCODE_UNKNOWN;
+  ia->key2     = SDL_SCANCODE_UNKNOWN;
   ia->mouse    = 255;
   ia->response = NULL;
 }
 
 bool lunaInput_IsActionSignalled(const char *action) {
-  lunaInput_Action *ia = cg_hashmap_find(lunaInput_action_mapping, action);
+  lunaInput_Action *ia = cg_hashmap_find(g_lunaInput_ActionMapping, action);
   if (ia == NULL)
     return false;
   return ia->this_frame && ia->last_frame;
 }
 
 bool lunaInput_IsActionJustSignalled(const char *action) {
-  lunaInput_Action *ia = cg_hashmap_find(lunaInput_action_mapping, action);
+  lunaInput_Action *ia = cg_hashmap_find(g_lunaInput_ActionMapping, action);
   if (ia == NULL)
     return false;
   return ia->this_frame && !ia->last_frame;
 }
 
 bool lunaInput_IsActionUnsignalled(const char *action) {
-  lunaInput_Action *ia = cg_hashmap_find(lunaInput_action_mapping, action);
+  lunaInput_Action *ia = cg_hashmap_find(g_lunaInput_ActionMapping, action);
   if (ia == NULL)
     return false;
   return !ia->this_frame && !ia->last_frame;
 }
 
 bool lunaInput_IsActionJustUnsignalled(const char *action) {
-  lunaInput_Action *ia = cg_hashmap_find(lunaInput_action_mapping, action);
+  lunaInput_Action *ia = cg_hashmap_find(g_lunaInput_ActionMapping, action);
   if (ia == NULL)
     return false;
   return !ia->this_frame && ia->last_frame;

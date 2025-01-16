@@ -83,7 +83,7 @@ void *cg_vector_get(const cg_vector_t *vec, int i) {
 }
 
 void cg_vector_set(cg_vector_t *vec, int i, void *elem) {
-  memcpy(cg_vector_get(vec, i), elem, vec->m_typesize);
+  luna_memcpy(cg_vector_get(vec, i), elem, vec->m_typesize);
 }
 
 void cg_vector_copy_from(const cg_vector_t *__restrict src, cg_vector_t *__restrict dst) {
@@ -92,7 +92,7 @@ void cg_vector_copy_from(const cg_vector_t *__restrict src, cg_vector_t *__restr
     cg_vector_resize(dst, src->m_size);
   }
   dst->m_size = src->m_size;
-  memcpy(dst->m_data, src->m_data, src->m_size * src->m_typesize);
+  luna_memcpy(dst->m_data, src->m_data, src->m_size * src->m_typesize);
 }
 
 void cg_vector_move_from(cg_vector_t *__restrict src, cg_vector_t *__restrict dst) {
@@ -111,7 +111,7 @@ cg_vector_bool cg_vector_empty(const cg_vector_t *vec) {
 
 cg_vector_bool cg_vector_equal(const cg_vector_t *vec1, const cg_vector_t *vec2) {
   if (vec1->m_size != vec2->m_size || vec1->m_typesize != vec2->m_typesize)
-    return (memcmp(vec1->m_data, vec2->m_data, vec1->m_size * vec1->m_typesize) == 0);
+    return (luna_memcmp(vec1->m_data, vec2->m_data, vec1->m_size * vec1->m_typesize) == 0);
   return 0;
 }
 
@@ -132,7 +132,7 @@ void cg_vector_push_back(cg_vector_t *__restrict vec, const void *__restrict ele
   if ((vec->m_size + 1) >= vec->m_capacity) {
     cg_vector_resize(vec, cmmax(1, vec->m_capacity * 2));
   }
-  memcpy((uchar *)vec->m_data + (vec->m_size * vec->m_typesize), elem, vec->m_typesize);
+  luna_memcpy((uchar *)vec->m_data + (vec->m_size * vec->m_typesize), elem, vec->m_typesize);
   vec->m_size++;
 }
 
@@ -140,7 +140,7 @@ void cg_vector_push_set(cg_vector_t *__restrict vec, const void *__restrict arr,
   int required_capacity = vec->m_size + count;
   if (required_capacity >= vec->m_capacity)
     cg_vector_resize(vec, required_capacity);
-  memcpy((uchar *)vec->m_data + (vec->m_size * vec->m_typesize), arr, count * vec->m_typesize);
+  luna_memcpy((uchar *)vec->m_data + (vec->m_size * vec->m_typesize), arr, count * vec->m_typesize);
   vec->m_size += count;
 }
 
@@ -153,7 +153,7 @@ void cg_vector_pop_back(cg_vector_t *vec) {
 void cg_vector_pop_front(cg_vector_t *vec) {
   if (vec->m_size > 0) {
     vec->m_size--;
-    memcpy(vec->m_data, (uchar *)vec->m_data + vec->m_typesize, vec->m_size * vec->m_typesize);
+    luna_memcpy(vec->m_data, (uchar *)vec->m_data + vec->m_typesize, vec->m_size * vec->m_typesize);
   }
 }
 
@@ -165,7 +165,7 @@ void cg_vector_insert(cg_vector_t *__restrict vec, int index, const void *__rest
   if (index >= vec->m_size) {
     vec->m_size = index + 1;
   }
-  memcpy((uchar *)vec->m_data + (vec->m_typesize * index), elem, vec->m_typesize);
+  luna_memcpy((uchar *)vec->m_data + (vec->m_typesize * index), elem, vec->m_typesize);
 }
 
 void cg_vector_remove(cg_vector_t *vec, int index) {
@@ -173,7 +173,7 @@ void cg_vector_remove(cg_vector_t *vec, int index) {
     return;
   else if (vec->m_size - index - 1) {
     // please don't ask me what this is
-    memcpy((uchar *)vec->m_data + (index * vec->m_typesize), (uchar *)vec->m_data + ((index + 1) * vec->m_typesize),
+    luna_memcpy((uchar *)vec->m_data + (index * vec->m_typesize), (uchar *)vec->m_data + ((index + 1) * vec->m_typesize),
            (vec->m_size - index - 1) * vec->m_typesize);
   }
   vec->m_size--;
@@ -181,7 +181,7 @@ void cg_vector_remove(cg_vector_t *vec, int index) {
 
 int cg_vector_find(const cg_vector_t *__restrict vec, const void *__restrict elem) {
   for (int i = 0; i < vec->m_size; i++) {
-    if (memcmp(vec->m_data + (i * vec->m_typesize), elem, vec->m_typesize)) {
+    if (luna_memcmp(vec->m_data + (i * vec->m_typesize), elem, vec->m_typesize)) {
       return i;
     }
   }
@@ -217,16 +217,16 @@ cg_string_t *cg_string_init(int initial_size) {
 }
 
 cg_string_t *cg_string_init_str(const char *init) {
-  cassert(init != NULL && strlen(init) > 0);
+  cassert(init != NULL && luna_strlen(init) > 0);
   cg_string_t *str = cg_cont_alloc(sizeof(cg_string_t));
   cassert(str != NULL);
 
-  int len       = strlen(init);
+  int len       = luna_strlen(init);
   str->capacity = len + 1;
   str->data     = cg_cont_alloc(str->capacity);
   cassert(str->data != NULL);
 
-  strcpy(str->data, init);
+  luna_strcpy(str->data, init);
   str->length = len;
 
   return str;
@@ -239,7 +239,7 @@ cg_string_t *cg_string_substring(const cg_string_t *str, int start, int length) 
   cg_string_t *substr = cg_string_init(length + 1);
   cassert(substr != NULL);
 
-  strncpy(substr->data, str->data + start, length);
+  luna_strncpy(substr->data, str->data + start, length);
   substr->data[length] = '\0';
   substr->length       = length;
   return substr;
@@ -278,12 +278,12 @@ void cg_string_append(cg_string_t *str, const char *suffix) {
   cassert(str != NULL);
   cassert(suffix != NULL);
 
-  int suffix_length = strlen(suffix);
+  int suffix_length = luna_strlen(suffix);
   if (str->length + suffix_length + 1 > str->capacity) {
     cg_string_resize(str, str->length + suffix_length + 1);
   }
 
-  strcpy(str->data + str->length, suffix);
+  luna_strcpy(str->data + str->length, suffix);
   str->length += suffix_length;
 }
 
@@ -303,13 +303,13 @@ void cg_string_prepend(cg_string_t *str, const char *prefix) {
   cassert(str != NULL);
   cassert(prefix != NULL);
 
-  int prefix_length = strlen(prefix);
+  int prefix_length = luna_strlen(prefix);
   if (str->length + prefix_length + 1 > str->capacity) {
     cg_string_resize(str, str->length + prefix_length + 1);
   }
 
-  luna_memmove(str->data + prefix_length, str->length + 1, str->data, str->length + 1);
-  luna_memcpy(str->data, prefix_length, prefix, prefix_length);
+  luna_memmove(str->data + prefix_length, str->data, str->length + 1);
+  luna_memcpy(str->data, prefix, prefix_length);
   str->length += prefix_length;
 }
 
@@ -317,12 +317,12 @@ void cg_string_set(cg_string_t *str, const char *new_str) {
   cassert(str != NULL);
   cassert(new_str != NULL);
 
-  int new_length = strlen(new_str);
+  int new_length = luna_strlen(new_str);
   if (new_length + 1 > str->capacity) {
     cg_string_resize(str, new_length + 1);
   }
 
-  strcpy(str->data, new_str);
+  luna_strcpy(str->data, new_str);
   str->length = new_length;
 }
 
@@ -330,7 +330,7 @@ int cg_string_find(const cg_string_t *str, const char *substr) {
   cassert(str != NULL);
   cassert(substr != NULL);
 
-  char *pos = strstr(str->data, substr);
+  char *pos = luna_strstr(str->data, substr);
   return pos ? (int)(pos - str->data) : -1;
 }
 
@@ -342,7 +342,7 @@ void cg_string_remove(cg_string_t *str, int index, int length) {
     length = str->length - index;
   }
 
-  luna_memmove(str->data + index, str->length - index - length + 1, str->data + index + length, str->length - index - length + 1);
+  luna_memmove(str->data + index, str->data + index + length, str->length - index - length + 1);
   str->length -= length;
 }
 
@@ -406,7 +406,7 @@ bool cg_hashmap_std_key_eq(const void *key1, const void *key2, unsigned long nby
   if (key1 == key2) {
     return 1;
   } else {
-    return memcmp(key1, key2, nbytes) == 0;
+    return luna_memcmp(key1, key2, nbytes) == 0;
   }
 }
 
@@ -568,8 +568,8 @@ void cg_hashmap_insert(cg_hashmap_t *map, const void *key, const void *value) {
     map->nodes[i]->value = alloc + sizeof(ch_node_t) + map->keysize;
   }
 
-  memcpy(map->nodes[i]->key, key, map->keysize);
-  memcpy(map->nodes[i]->value, value, map->valuesize);
+  luna_memcpy(map->nodes[i]->key, key, map->keysize);
+  luna_memcpy(map->nodes[i]->value, value, map->valuesize);
   map->nodes[i]->is_occupied = 1;
   map->size++;
 }
@@ -586,7 +586,7 @@ void cg_hashmap_insert_or_replace(cg_hashmap_t *map, const void *key, void *valu
   while (map->nodes[i] && map->nodes[i]->is_occupied) {
     i = power_of_two_mod((i + 1), map->entries);
     if (map->equal_fn(map->nodes[i]->key, key, map->keysize)) {
-      memcpy(map->nodes[i]->value, value, map->valuesize);
+      luna_memcpy(map->nodes[i]->value, value, map->valuesize);
     } else if (i == begin) {
       break;
     }
@@ -600,8 +600,8 @@ void cg_hashmap_insert_or_replace(cg_hashmap_t *map, const void *key, void *valu
     map->nodes[i]->value = alloc + sizeof(ch_node_t) + map->keysize;
   }
 
-  memcpy(map->nodes[i]->key, key, map->keysize);
-  memcpy(map->nodes[i]->value, value, map->valuesize);
+  luna_memcpy(map->nodes[i]->key, key, map->keysize);
+  luna_memcpy(map->nodes[i]->value, value, map->valuesize);
   map->nodes[i]->is_occupied = 1;
   map->size++;
 }
@@ -621,7 +621,7 @@ void cg_hashmap_serialize(cg_hashmap_t *map, FILE *f) {
   }
 }
 
-void cg_hashmap_read(cg_hashmap_t *map, FILE *f) {
+void cg_hashmap_deserialize(cg_hashmap_t *map, FILE *f) {
   void *key   = luna_malloc(map->keysize);
   void *value = luna_malloc(map->valuesize);
 
@@ -680,7 +680,7 @@ bool catlas_add_image(catlas_t *__restrict__ atlas, int w, int h, const unsigned
   }
 
   for (int y = 0; y < h; y++) {
-    memcpy(atlas->data + (atlas->next_x + (atlas->next_y + y) * atlas->width), data + (y * w), w);
+    luna_memcpy(atlas->data + (atlas->next_x + (atlas->next_y + y) * atlas->width), data + (y * w), w);
   }
 
   *x = atlas->next_x;
@@ -734,7 +734,7 @@ void cg_bitset_copy_from(cg_bitset_t *dst, const cg_bitset_t *src) {
     dst->data = luna_malloc(src->size);
     dst->size = src->size;
   }
-  memcpy(dst->data, src->data, src->size);
+  luna_memcpy(dst->data, src->data, src->size);
 }
 
 void cg_bitset_destroy(cg_bitset_t *set) {

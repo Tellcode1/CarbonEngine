@@ -50,6 +50,7 @@ struct IBody {
   vec3 velocity;
 
   impact_float mass;
+  impact_float friction;
   impact_float restitution;
 
   IBodyType type;
@@ -72,6 +73,7 @@ struct IBodyCreateInfo {
   vec3 position;
   vec3 half_size;
   IBodyType type;
+  impact_float restitution;
   bool start_disabled;
 };
 
