@@ -1,16 +1,16 @@
+#include "../common/mem.h"
 #include "../common/printf.h"
 #include "../common/stdafx.h"
 #include "../common/string.h"
 #include "../include/engine/lunaImage.h"
 
 #include <SDL2/SDL.h>
-#include <SDL2/SDL_error.h>
 #include <ctype.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <string.h>
+#include <stdlib.h>
 
 void __CG_LOG(va_list args, const char *fn, const char *succeeder, const char *preceder, const char *s, unsigned char err) {
   FILE *out = (err) ? stderr : stdout;
@@ -19,7 +19,7 @@ void __CG_LOG(va_list args, const char *fn, const char *succeeder, const char *p
 
   luna_fprintf(out, "[%d:%d:%d] ", time->tm_hour % 12, time->tm_min, time->tm_sec);
 
-  luna_fprintf(out, "[%s] ", fn);
+  luna_fprintf(out, "%s(): ", fn);
 
   luna_vfprintf(out, preceder, args);
   luna_vfprintf(out, s, args);
@@ -29,7 +29,7 @@ void __CG_LOG(va_list args, const char *fn, const char *succeeder, const char *p
 // printf
 
 bool luna_is_format_specifier(char c) {
-  // c == 'l' isn't technically a format specifier
+  // c == 'l' isn't technically a format specifier, it's generally followd by one.
   return (c == 'f') || (c == 'i') || (c == 'd') || (c == 'u') || (c == 'l') || (c == 'p') || (c == 's') || (c == 'L');
 }
 
@@ -56,7 +56,7 @@ size_t luna_itoa2(long long x, char out[], int base, size_t max) {
   // now, max should atleast be 1
 
   if (x == 0) {
-    return luna_strncpy(out, "0", max);
+    return luna_strncpy2(out, "0", max);
   }
 
   long long pwr = get_highest_pwr(x, base), i = 0;
@@ -85,7 +85,17 @@ size_t luna_itoa2(long long x, char out[], int base, size_t max) {
   return i - 1;
 }
 
-size_t luna_ftoa2(double n, char s[], int precision, size_t max) {
+#define LUNA_FTOA_HANDLE_CASE(fn, n, str)                                                                                                            \
+  if (fn(n)) {                                                                                                                                       \
+    if (signbit(n) == 0)                                                                                                                             \
+      return luna_strncpy2(s, str, max);                                                                                                             \
+    else                                                                                                                                             \
+      return luna_strncpy2(s, "-" str, max);                                                                                                         \
+  }
+
+// WARNING::: I didn't write most of this, stole it from stack overflow.
+// if it explodes your computer its your fault!!!
+size_t luna_ftoa2(double n, char s[], int precision, size_t max, bool remove_zeros) {
   if (max == 0) {
     return 0;
   } else if (max == 1) {
@@ -93,25 +103,23 @@ size_t luna_ftoa2(double n, char s[], int precision, size_t max) {
     return 0;
   }
 
-  // handle special cases
-  if (isnan(n)) {
-    return luna_strncpy(s, "nan", max);
-  } else if (isinf(n)) {
-    return luna_strncpy(s, "inf", max);
-  } else if (n == 0.0) {
-    return luna_strcpy(s, "0");
-  }
+  LUNA_FTOA_HANDLE_CASE(isnan, n, "nan");
+  LUNA_FTOA_HANDLE_CASE(isinf, n, "inf");
+  LUNA_FTOA_HANDLE_CASE(0.0 ==, n, "0.0");
+
   int digit, m, m1;
   char *c = s;
   int neg = (n < 0);
-  if (neg)
+  if (neg) {
     n = -n;
-  // calculate magnitude
+  }
+
   m          = log10(n);
   int useExp = (m >= 14 || (neg && m >= 9) || m <= -9);
-  if (neg)
+  if (neg) {
     *(c++) = '-';
-  // set up for scientific notation
+  }
+
   if (useExp) {
     if (m < 0)
       m -= 1.0;
@@ -119,12 +127,14 @@ size_t luna_ftoa2(double n, char s[], int precision, size_t max) {
     m1 = m;
     m  = 0;
   }
+
   if (m < 1.0) {
     m = 0;
   }
-  // convert the number
-  // why did I name this proc it makes no sense
-  const double proc = 1.0 / pow(10.0, precision);
+
+  const double proc       = 1.0 / pow(10.0, precision);
+  bool decimal_point_seen = false;
+
   while (n > proc || m >= 0) {
     double weight = pow(10.0, m);
     if (weight > 0 && !isinf(weight)) {
@@ -132,12 +142,28 @@ size_t luna_ftoa2(double n, char s[], int precision, size_t max) {
       n -= (digit * weight);
       *(c++) = '0' + digit;
     }
-    if (m == 0 && n > 0)
-      *(c++) = '.';
+
+    if (m == 0 && n > 0 && !decimal_point_seen) {
+      *(c++)             = '.';
+      decimal_point_seen = true;
+    }
+
     m--;
   }
+
+  // remove useless zeros if user asked for it.
+  if (remove_zeros && decimal_point_seen) {
+    while (*(c - 1) == '0') {
+      c--;
+    }
+    // if theres no digit after the decimal, remove the decimal as well
+    if (*(c - 1) == '.') {
+      c--;
+    }
+  }
+
+  // scientific notation
   if (useExp) {
-    // convert the exponent
     int i, j;
     *(c++) = 'e';
     if (m1 > 0) {
@@ -146,6 +172,7 @@ size_t luna_ftoa2(double n, char s[], int precision, size_t max) {
       *(c++) = '-';
       m1     = -m1;
     }
+
     m = 0;
     while (m1 > 0) {
       *(c++) = '0' + m1 % 10;
@@ -153,26 +180,28 @@ size_t luna_ftoa2(double n, char s[], int precision, size_t max) {
       m++;
     }
     c -= m;
+
     for (i = 0, j = m - 1; i < j; i++, j--) {
       // swap without temporary
       c[i] ^= c[j];
       c[j] ^= c[i];
       c[i] ^= c[j];
     }
+
     c += m;
   }
-  *c = '\0';
+
+  *c = 0;
   return c - s;
 }
 
-// Returns __INT32_MAX__ on error.
 int luna_atoi(const char s[]) {
   const char *i = s;
-  while (isspace(*i))
-    i++;
+  int ret       = 0;
 
-  const char *end = i + luna_strlen(i) - 1;
-  int ret = 0, power = 1;
+  while (isspace(*i)) {
+    i++;
+  }
 
   bool neg = 0;
   if (*i == '-') {
@@ -182,15 +211,15 @@ int luna_atoi(const char s[]) {
     i++;
   }
 
-  while (end >= i) {
-    int digit = *end - '0';
-    if (digit < 0 || digit > 9) {
-      return __INT32_MAX__;
+  while (*i) {
+    if (!isdigit(*i)) {
+      break;
     }
 
-    ret += digit * power;
-    power *= 10;
-    end--;
+    int digit = *i - '0';
+    ret       = ret * 10 + digit;
+
+    i++;
   }
 
   if (neg) {
@@ -268,7 +297,7 @@ size_t luna_ptoa2(void *p, char *buf, size_t max) {
 
   size_t w = 0;
 
-  w += luna_strncpy(buf, "0x", max);
+  w += luna_strncpy2(buf, "0x", max);
 
   for (int i = (sizeof(addr) * 2) - 1; i >= 0 && w < max - 1; i--) {
     int dig = (addr >> (i * 4)) & 0xF;
@@ -289,10 +318,14 @@ size_t luna_btoa2(size_t x, bool upgrade, char *buf, size_t max) {
       stagei++;
       b /= 1000.0;
     }
-    written = luna_ftoa2(b, buf, 3, max);
+    if (stagei >= 5) {
+      LOG_ERROR("btoa: x is too big. x cannot be greater than 1000 petabytes. No bytes have been written");
+      return 0;
+    }
+    written = luna_ftoa2(b, buf, 3, max, 1);
     buf += written;
     max -= written;
-    written += luna_strncpy(buf, stages[stagei], max);
+    written += luna_strncpy2(buf, stages[stagei], max);
   } else {
     written = luna_itoa2(x, buf, 10, max);
   }
@@ -442,13 +475,13 @@ size_t luna_vsnprintf(char *dest, size_t max_chars, const char *fmt, va_list src
         }
 
         f       = va_arg(args, double);
-        written = luna_ftoa2(f, write_buffer, precision, max_chars - chars_written);
+        written = luna_ftoa2(f, write_buffer, precision, max_chars - chars_written, 0);
         luna_printf_write_to_buf(&writep, &chars_written, max_chars, write_buffer, written);
         break;
       }
       case 'f': {
         f       = va_arg(args, double);
-        written = luna_ftoa2(f, write_buffer, 6, max_chars - chars_written);
+        written = luna_ftoa2(f, write_buffer, 6, max_chars - chars_written, 0);
         luna_printf_write_to_buf(&writep, &chars_written, max_chars, write_buffer, written);
         break;
       }
@@ -480,7 +513,7 @@ size_t luna_vsnprintf(char *dest, size_t max_chars, const char *fmt, va_list src
         if (s == NULL) {
           s = "(null string)";
         }
-        written = luna_strncpy(writep, s, max_chars - chars_written);
+        written = luna_strncpy2(writep, s, max_chars - chars_written);
         chars_written += written;
         if (writep) {
           writep += written;
@@ -500,6 +533,7 @@ size_t luna_vsnprintf(char *dest, size_t max_chars, const char *fmt, va_list src
         // could be bad though...
         // Oh okay I thought about thsi and this should be how chars should be parsed
         // \n would be passed as \n
+        // dumbass %n is not \n
         if (writep) {
           *writep = *iter;
           writep++;
@@ -1135,6 +1169,10 @@ int luna_FormatGetNumChannels(lunaFormat fmt) {
 }
 
 void *luna_memcpy(void *dst, const void *src, size_t sz) {
+#if defined(__GNUC__) && (__LUNA_STR_USE_BUILTIN)
+  return __builtin_memcpy(dst, src, sz);
+#endif
+
   cassert(dst != NULL);
   cassert(src != NULL);
   cassert(sz != 0);
@@ -1171,6 +1209,10 @@ void *luna_memcpy(void *dst, const void *src, size_t sz) {
 
 // rewritten memcpy
 void *luna_memset(void *dst, char to, size_t sz) {
+#if defined(__GNUC__) && (__LUNA_STR_USE_BUILTIN)
+  return __builtin_memset(dst, to, sz);
+#endif
+
   cassert(dst != NULL);
   cassert(sz != 0);
 
@@ -1201,6 +1243,10 @@ void *luna_memset(void *dst, char to, size_t sz) {
 }
 
 void *luna_memmove(void *dst, const void *src, size_t sz) {
+#if defined(__GNUC__) && (__LUNA_STR_USE_BUILTIN)
+  return __builtin_memmove(dst, src, sz);
+#endif
+
   if (!dst || !src || sz == 0) {
     return NULL;
   }
@@ -1223,6 +1269,10 @@ void luna_free(void *block) {
 }
 
 void *luna_memchr(const void *p, int chr, size_t psize) {
+#if defined(__GNUC__) && (__LUNA_STR_USE_BUILTIN)
+  return __builtin_memchr(p, chr, psize);
+#endif
+
   if (!p || !psize) {
     return NULL;
   }
@@ -1246,6 +1296,10 @@ int __luna_memcmp_aligned(const u32 *p1, const u32 *p2, size_t max) {
 }
 
 int luna_memcmp(const void *_p1, const void *_p2, size_t max) {
+#if defined(__GNUC__) && (__LUNA_STR_USE_BUILTIN)
+  return __builtin_memcmp(_p1, _p2, max);
+#endif
+
   if (!_p1 || !_p2 || max == 0) {
     return -1;
   }
@@ -1255,12 +1309,12 @@ int luna_memcmp(const void *_p1, const void *_p2, size_t max) {
 
   if (((uintptr_t)p1 & 0x3) == 0 && ((uintptr_t)p2 & 0x3) == 0) {
     size_t word_count = max / 4;
-    int result = __luna_memcmp_aligned((u32 *)p1, (u32 *)p2, word_count);
-    
+    int result        = __luna_memcmp_aligned((u32 *)p1, (u32 *)p2, word_count);
+
     if (result != 0) {
       return result;
     }
-    
+
     size_t remaining_bytes = max % 4;
     if (remaining_bytes > 0) {
       p1 += word_count * 4;
@@ -1285,7 +1339,11 @@ int luna_memcmp(const void *_p1, const void *_p2, size_t max) {
   return (i == max) ? 0 : (*p1 - *p2);
 }
 
-size_t luna_strncpy(char *dest, const char *src, size_t max) {
+size_t luna_strncpy2(char *dest, const char *src, size_t max) {
+#if defined(__GNUC__) && (__LUNA_STR_USE_BUILTIN)
+  return __builtin_strlen(__builtin_strncpy(dest, src, max));
+#endif
+
   if (max == 0 || !dest || !src) {
     return -1;
   }
@@ -1302,7 +1360,60 @@ size_t luna_strncpy(char *dest, const char *src, size_t max) {
   return i;
 }
 
+char *luna_strcpy(char *dest, const char *src) {
+#if defined(__GNUC__) && (__LUNA_STR_USE_BUILTIN)
+  return __builtin_strcpy(dest, src);
+#endif
+
+  if (!dest || !src) {
+    return NULL;
+  }
+  size_t i = 0;
+  // clang-format off
+  while (src[i])
+  {
+    dest[i] = src[i]; i++;
+  }
+  // clang-format on
+  dest[i] = 0;
+}
+
+char *luna_strncpy(char *dest, const char *src, size_t max) {
+#if defined(__GNUC__) && (__LUNA_STR_USE_BUILTIN)
+  return __builtin_strncpy(dest, src, max);
+#endif
+
+  if (max == 0 || !dest || !src) {
+    return NULL;
+  }
+  max--; // -1 so we can fit the NULL terminator
+  size_t i = 0;
+  // clang-format off
+  while (i < max && src[i])
+  {
+    dest[i] = src[i]; i++;
+  }
+  // clang-format on
+  dest[i] = 0;
+}
+
+int luna_strcmp(const char *s1, const char *s2) {
+#if defined(__GNUC__) && (__LUNA_STR_USE_BUILTIN)
+  return __builtin_strcmp(s1, s2);
+#endif
+
+  while (*s1 && *s2 && (*s1 == *s2)) {
+    s1++;
+    s2++;
+  }
+  return *s2 - *s1;
+}
+
 char *luna_strchr(const char *s, int chr) {
+#if defined(__GNUC__) && (__LUNA_STR_USE_BUILTIN)
+  return __builtin_strchr(s, chr);
+#endif
+
   if (!s) {
     return NULL;
   }
@@ -1315,7 +1426,12 @@ char *luna_strchr(const char *s, int chr) {
 }
 
 char *luna_strrchr(const char *s, int chr) {
-  if (!s) return NULL;
+#if defined(__GNUC__) && (__LUNA_STR_USE_BUILTIN)
+  return __builtin_strrchr(s, chr);
+#endif
+
+  if (!s)
+    return NULL;
 
   const char *beg = s;
   s += luna_strlen(s) - 1;
@@ -1329,6 +1445,10 @@ char *luna_strrchr(const char *s, int chr) {
 }
 
 int luna_strncmp(const char *s1, const char *s2, size_t max) {
+#if defined(__GNUC__) && (__LUNA_STR_USE_BUILTIN)
+  return __builtin_strncmp(s1, s2, max);
+#endif
+
   if (!s1 || !s2 || max == 0) {
     return -1;
   }
@@ -1342,7 +1462,12 @@ int luna_strncmp(const char *s1, const char *s2, size_t max) {
 }
 
 size_t luna_strlen(const char *s) {
-  if (!s) return 0;
+#if defined(__GNUC__) && (__LUNA_STR_USE_BUILTIN)
+  return __builtin_strlen(s);
+#endif
+
+  if (!s)
+    return 0;
 
   const char *b = s;
   while (*s) {
@@ -1352,7 +1477,12 @@ size_t luna_strlen(const char *s) {
 }
 
 char *luna_strstr(const char *s, const char *sub) {
-  if (!s || !sub) return NULL;
+#if defined(__GNUC__) && (__LUNA_STR_USE_BUILTIN)
+  return __builtin_strstr(s, sub);
+#endif
+
+  if (!s || !sub)
+    return NULL;
 
   for (; *s; s++) {
     const char *s = s;
@@ -1372,7 +1502,13 @@ char *luna_strstr(const char *s, const char *sub) {
 }
 
 size_t luna_strspn(const char *s, const char *accept) {
-  if (!s || !accept) { return 0; }
+#if defined(__GNUC__) && (__LUNA_STR_USE_BUILTIN)
+  return __builtin_strspn(s, accept);
+#endif
+
+  if (!s || !accept) {
+    return 0;
+  }
   size_t i = 0;
   while (*s && *accept && *s == *accept) {
     i++;
@@ -1381,10 +1517,16 @@ size_t luna_strspn(const char *s, const char *accept) {
 }
 
 size_t luna_strcspn(const char *s, const char *reject) {
-  if (!s || !reject) { return 0; }
+#if defined(__GNUC__) && (__LUNA_STR_USE_BUILTIN)
+  return __builtin_strcspn(s, reject);
+#endif
+
+  if (!s || !reject) {
+    return 0;
+  }
 
   const char *base = reject;
-  size_t i = 0;
+  size_t i         = 0;
 
   while (*s) {
     const char *j = base;
@@ -1401,7 +1543,12 @@ size_t luna_strcspn(const char *s, const char *reject) {
 }
 
 char *luna_strpbrk(const char *s1, const char *s2) {
-  if (!s1 || !s2) return NULL;
+#if defined(__GNUC__) && (__LUNA_STR_USE_BUILTIN)
+  return __builtin_strpbrk(s1, s2);
+#endif
+
+  if (!s1 || !s2)
+    return NULL;
 
   while (*s1) {
     const char *j = s2;
@@ -1418,7 +1565,8 @@ char *luna_strpbrk(const char *s1, const char *s2) {
 
 char *strtoks = NULL;
 char *luna_strtok(char *s, const char *delim) {
-  if (!s) s = strtoks;
+  if (!s)
+    s = strtoks;
   char *p;
 
   s += luna_strspn(s, delim);
@@ -1429,12 +1577,102 @@ char *luna_strtok(char *s, const char *delim) {
 
   p = s;
   s = luna_strpbrk(s, delim);
-  
+
   if (!s) {
     strtoks = luna_strchr(s, 0); // get pointer to last char
     return p;
   }
-  *s = 0;
+  *s      = 0;
   strtoks = s + 1;
   return p;
+}
+
+// header of memory block
+typedef struct sablock {
+  size_t size;
+  unsigned canary;
+} sablock;
+
+void sainit(lunaStackAllocator *allocator, unsigned char *buf, size_t available) {
+  allocator->buf       = buf;
+  allocator->bufsiz    = available;
+  allocator->bufoffset = 0;
+}
+
+void *sarealloc(lunaAllocator *parent, void *prevblock, size_t size) {
+  if (!prevblock) {
+    LOG_AND_ABORT("invalid pointer");
+  }
+  sablock *prevblockp = (sablock *)prevblock - 1;
+  if (prevblockp->size >= size) {
+    return prevblock;
+  }
+  if (prevblockp->canary != SABLOCKCANARY) {
+    LOG_AND_ABORT("stack smashed");
+  }
+
+  void *new_data = saalloc(parent, size);
+  cassert(new_data != NULL);
+  luna_memset(new_data, 0, size);
+  luna_memcpy(new_data, prevblock, prevblockp->size);
+  safree(parent, prevblock);
+
+  return new_data;
+}
+
+void *saalloc(lunaAllocator *parent, size_t size) {
+  lunaStackAllocator *allocator = (lunaStackAllocator *)parent->context;
+  if ((allocator->bufoffset + size + sizeof(sablock)) > allocator->bufsiz) {
+    LOG_ERROR("oom"); // OUT OF MEMORY
+    return NULL;
+  }
+
+  sablock *block = (sablock *)(allocator->buf + allocator->bufoffset);
+  block->size    = size;
+  block->canary  = SABLOCKCANARY;
+  block++; // move past the header, so return is the memory after header
+  allocator->bufoffset += size + sizeof(sablock);
+  return (void *)block;
+}
+
+void *sacalloc(lunaAllocator *parent, size_t size) {
+  void *allocation = saalloc(parent, size);
+  luna_memset(allocation, 0, size);
+  return allocation;
+}
+
+void safree(lunaAllocator *parent, void *block) {
+  lunaStackAllocator *allocator = (lunaStackAllocator *)parent->context;
+  sablock *p                    = (sablock *)block;
+  p--;
+  cassert(p->canary == SABLOCKCANARY);
+  void *allocator_last_block = (allocator->buf + allocator->bufoffset - p->size - sizeof(sablock));
+  if (block != allocator_last_block) {
+    return;
+  }
+  allocator->bufoffset -= p->size + sizeof(sablock);
+  return;
+}
+
+lunaAllocator lunaAllocatorDefault =
+    (lunaAllocator){.alloc = heapalloc, .calloc = heapcalloc, .realloc = heaprealloc, .free = heapfree, .context = NULL};
+
+void *heapalloc(lunaAllocator *parent, size_t size) {
+  (void)parent;
+  return malloc(size);
+}
+
+void *heapcalloc(lunaAllocator *parent, size_t size) {
+  (void)parent;
+  return calloc(1, size);
+}
+
+void *heaprealloc(lunaAllocator *parent, void *prevblock, size_t size) {
+  (void)parent;
+  return realloc(prevblock, size);
+}
+
+void heapfree(lunaAllocator *parent, void *block) {
+  (void)parent;
+  free(block);
 }

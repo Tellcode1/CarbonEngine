@@ -20,16 +20,21 @@
 // puts but with formatting and with the preceder "error". does not stop
 // execution of program if you want that, use LOG_AND_ABORT instead.
 void __LOG_ERROR(const char *func, const char *fmt, ...);
+
 // formats the string, puts() it with the preceder "fatal error" and then aborts
 // the program
 void __LOG_AND_ABORT(const char *func, const char *fmt, ...);
+
 // puts but with formatting and with the preceder "warning"
 void __LOG_WARNING(const char *func, const char *fmt, ...);
+
 // puts but with formatting and with the preceder "info"
 void __LOG_INFO(const char *func, const char *fmt, ...);
+
 // puts but with formatting and with the preceder "debug"
 void __LOG_DEBUG(const char *func, const char *fmt, ...);
 
+// puts but with formatting and with a custom preceder
 void __LOG_CUSTOM(const char *func, const char *preceder, const char *fmt, ...);
 
 #define __WRAPPER1(x, y) CB_CONCAT(x, y)
@@ -65,6 +70,8 @@ extern void __CG_LOG(va_list args, const char *fn, const char *succeeder, const 
 // we don't use libgen's basename because ISO C/C++ doesn't allow conversion of
 // const char * to a char *.
 // so basename("balling.pdf") would give you a warning
+// I think string.h provides a const char * basename but.. meh.
+// should I include this in stdlib?
 static inline const char *__basename(const char *path) {
   const char *ret = luna_strrchr(path, '/');
   if (ret) {
@@ -73,14 +80,14 @@ static inline const char *__basename(const char *path) {
     return path;
   }
 }
-#define cassert_and_ret(expr)                                                                                                                        \
+#define cassert_and_ret(expr, retval)                                                                                                                \
   if (!((bool)(expr))) {                                                                                                                             \
-    LOG_ERROR("Assertion failed -> %s", __basename(__FILE__), __LINE__, __PRETTY_FUNCTION__, #expr);                                                 \
-    return;                                                                                                                                          \
+    LOG_ERROR("Assertion failed -> %s", #expr);                                                                                                      \
+    return retval;                                                                                                                                   \
   }
 #define cassert(expr)                                                                                                                                \
   if (!((bool)(expr))) {                                                                                                                             \
-    LOG_ERROR("Assertion failed -> %s", __basename(__FILE__), __LINE__, __PRETTY_FUNCTION__, #expr);                                                 \
+    LOG_ERROR("Assertion failed -> %s", #expr);                                                                                                      \
   }
 #else
 static inline const char *__basename(const char *path) {
@@ -88,8 +95,8 @@ static inline const char *__basename(const char *path) {
 }
 // These are typecasted to void because they give warnings because result (its
 // like expr != NULL) is not used
-#define cassert_and_ret(expr) (void)(expr)
-#define cassert(expr)         (void)(expr)
+#define cassert_and_ret(expr, retval) (void)(expr)
+#define cassert(expr)                 (void)(expr)
 #pragma message "Assertions disabled"
 #endif
 

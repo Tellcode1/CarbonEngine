@@ -1,10 +1,14 @@
 #ifndef __LUNA_STR_H__
 #define __LUNA_STR_H__
 
+// Whether to use the __builtin functions provided by GCC
+// They are generally faster, so no reason not to?
+#ifndef __LUNA_STR_USE_BUILTIN
+#define __LUNA_STR_USE_BUILTIN 1
+#endif
+
 #include <stddef.h>
 #include <stdint.h>
-
-// This is literally using the 'n' types of the string functions
 
 /// @param sz The number of bytes to copy
 /// @return Returns NULL on error and dst on success
@@ -36,7 +40,11 @@ extern int luna_bufdecompress(const void *compressed_data, size_t compressed_siz
 
 extern size_t luna_strlen(const char *s);
 
-extern size_t luna_strncpy(char *dest, const char *src, size_t max);
+extern char *luna_strcpy(char *dest, const char *src);
+
+extern char *luna_strncpy(char *dest, const char *src, size_t max);
+
+extern size_t luna_strncpy2(char *dest, const char *src, size_t max);
 
 extern int luna_strncmp(const char *s1, const char *s2, size_t max);
 
@@ -53,19 +61,17 @@ extern char *luna_strrchr(const char *s, int chr);
 extern char *luna_strstr(const char *s, const char *sub);
 
 // Copy two strings, ensuring NULL termination
-static inline size_t luna_strcpy(char *dest, const char *src) {
-  return luna_strncpy(dest, src, SIZE_MAX);
+static inline size_t luna_strcpy2(char *dest, const char *src) {
+  return luna_strncpy2(dest, src, luna_strlen(dest));
 }
 
 // @return returns 0 when they are equal,
 // positive number if the lc (last character) of s1 is greater than lc of s2
 // negative number if the lc (last character) of s1 is less than lc of s2
-static inline int luna_strcmp(const char *s1, const char *s2) {
-  return luna_strncmp(s1, s2, luna_strlen(s1));
-}
+extern int luna_strcmp(const char *s1, const char *s2);
 
 // Return the number of characters after which 's' contains a character in 'reject'
-// For example, 
+// For example,
 // s is Balling, reject is Hello
 // so, strcspn will return 2 because after B and a,
 // l is in both s and reject.
@@ -94,5 +100,9 @@ extern char *luna_strpbrk(const char *s1, const char *s2);
   }
 */
 extern char *luna_strtok(char *s, const char *delim);
+
+// Returns the NAME of the file
+// basically, ../../pdf/nuclearlaunchcodes.pdf would give you nuclearlaunchcodes.pdf in return.
+extern char *luna_basename(const char *path);
 
 #endif //__LUNA_STR_H__

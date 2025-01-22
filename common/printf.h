@@ -22,13 +22,16 @@
 #define LUNA_PRINTF_STREAM stdout
 #endif
 
+// @brief Set the write buffer for the print functions
+extern void luna_setprintbuf(unsigned char *buf, size_t size);
+
 extern bool luna_is_format_specifier(char c);
 
 // @return The number of characters written excluding the NULL terminator
 extern size_t luna_itoa2(long long x, char out[], int base, size_t max);
 
 // @return The number of characters written excluding the NULL terminator
-extern size_t luna_ftoa2(double x, char out[], int precision, size_t max);
+extern size_t luna_ftoa2(double x, char out[], int precision, size_t max, bool remove_zeroes);
 
 extern size_t luna_ptoa2(void *p, char *buf, size_t max);
 
@@ -46,8 +49,8 @@ static inline char *luna_itoa(long long x, char out[], int base, size_t max) {
   return out;
 }
 
-static inline char *luna_ftoa(double x, char out[], int precision, size_t max) {
-  luna_ftoa2(x, out, precision, max);
+static inline char *luna_ftoa(double x, char out[], int precision, size_t max, bool remove_zeroes) {
+  luna_ftoa2(x, out, precision, max, remove_zeroes);
   return out;
 }
 
@@ -61,7 +64,7 @@ static inline char *luna_btoa(size_t x, bool upgrade, char *buf, size_t max) {
   return buf;
 }
 
-// returns the numbers of characters written
+// @return the numbers of characters written
 extern size_t luna_printf(const char *fmt, ...);
 extern size_t luna_fprintf(FILE *f, const char *fmt, ...);
 extern size_t luna_nprintf(size_t max_chars, const char *fmt, ...);

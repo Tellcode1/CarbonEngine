@@ -20,8 +20,8 @@ static inline double __timer_get_currtime() {
 // the timer will finish after 's' seconds
 // pass __FLT_MAX__ for duration for it to just not end
 static inline timer timer_begin(double duration) {
-  if (duration < 0.0f) {
-    LOG_ERROR("Timer duration passed as negative. What do you even want the "
+  if (duration <= 0.0f) {
+    LOG_ERROR("Timer duration passed as negative or zero. What do you even want the "
               "timer to do????");
     return (timer){-1, -1};
   }
@@ -31,7 +31,7 @@ static inline timer timer_begin(double duration) {
   return tm;
 }
 
-// sets the end of the timer to INT32_MAX
+// sets the end of the timer to -1
 // resetting a timer is not required if it is going to be started again by
 // timer_begin()
 static inline void timer_reset(timer *tm) {

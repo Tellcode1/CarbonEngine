@@ -16,6 +16,7 @@
 
 #include <SDL2/SDL_vulkan.h>
 #include <stdlib.h>
+#include <vulkan/vulkan_core.h>
 
 #define HAS_FLAG(flag) ((luna_GPU_vk_flag_register & flag) || (flags & flag))
 #define STR(s)         #s
@@ -151,7 +152,7 @@ struct luna_GPU_Sampler {
 
 struct luna_GPU_Texture {
   luna_GPU_Memory *memory;
-  int size, offset;
+  size_t size, offset;
 
   VkImageLayout layout;
   VkImageAspectFlags aspect;
@@ -211,7 +212,7 @@ struct ctext_label {
   ctext_vert_align v_align;
   float scale;
   int index;
-  cg_string_t *text;
+  cg_string_t text;
   cfont_t *fnt;
   lunaObject *obj;
 };
@@ -256,8 +257,10 @@ int lunaRenderer_GetMaxFramesInFlight(const lunaRenderer_t *rd) {
 bool luna_Quad_Visible(const vec3 *pos, const vec3 *siz) {
   const float half_width  = siz->x * 0.5f;
   const float half_height = siz->y * 0.5f;
-  const float dx          = fabsf(pos->x - camera.position.x); // delta x & y
-  const float dy          = fabsf(pos->y - camera.position.y); //
+  const float deltax      = pos->x - camera.position.x;
+  const float deltay      = pos->y - camera.position.y;
+  const float dx          = ABSF(deltax); // delta x & y
+  const float dy          = ABSF(deltay); //
 
   return (dx <= (half_width + CAMERA_ORTHO_W) && dy <= (half_height + CAMERA_ORTHO_H));
 }
@@ -429,8 +432,9 @@ void lunaRenderer_Destroy(lunaRenderer_t *rd) {
   luna_VK_DestroyGlobalPipelines();
   luna_DescriptorPoolDestroy(&g_pool);
 
-  cg_vector_destroy(&rd->renderData);
+  cg_vector_destroy(&g_Samplers);
   cg_vector_destroy(&rd->drawcalls);
+  cg_vector_destroy(&rd->renderData);
 
   luna_GPU_FreeMemory(rd->depth_image_memory);
 
@@ -937,7 +941,7 @@ void lunaRenderer_EndRender(lunaRenderer_t *rd) {
     r_info.color                  = spr_rd->color;
     r_info.horizontal             = label->h_align;
     r_info.vertical               = label->v_align;
-    ctext_render(label->fnt, &r_info, "%s", cg_string_data(label->text));
+    ctext_render(label->fnt, &r_info, "%s", cg_string_data(&label->text));
   }
   ctext_flush_renders(rd);
   lunaUI_Render(rd);
@@ -1039,11 +1043,6 @@ static SDL_UNUSED VKAPI_ATTR VkBool32 VKAPI_CALL VKDebugMessengerCallback(VkDebu
   (void)messageSeverity;
   (void)messageType;
   (void)pUserData;
-
-  return VK_FALSE;
-  if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) {
-    return VK_FALSE;
-  }
 
   __VK_DEBUG_LOG("%s", pCallbackData->pMessage);
 
@@ -1634,7 +1633,7 @@ void ctext__render_drawcalls(lunaRenderer_t *rd, cfont_t *fnt) {
 
 static cg_vector_t split_string(const cg_string_t *str) {
   cg_vector_t result;
-  cg_string_t *substr  = NULL;
+  cg_string_t substr;
   const char *str_data = cg_string_data(str);
   const int str_len    = cg_string_length(str);
   int i_start          = 0;
@@ -1831,7 +1830,7 @@ int gen_vertices(cfont_t *fnt, ctext_drawcall_t *drawcall, const ctext_text_rend
 }
 
 void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo, const char *fmt, ...) {
-  cg_string_t *str;
+  cg_string_t str;
   size_t num, effective_length;
   char *buffer;
 
@@ -1871,9 +1870,9 @@ void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo, const char 
 
   // can we not have a bounds check before making the vertices?
   // probably not..
-  if (gen_vertices(fnt, &drawcall, pInfo, str, pInfo->scale) != 0) {
+  if (gen_vertices(fnt, &drawcall, pInfo, &str, pInfo->scale) != 0) {
     luna_free(allocation);
-    cg_string_destroy(str);
+    cg_string_destroy(&str);
     return;
   }
 
@@ -1882,7 +1881,7 @@ void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo, const char 
 
   cg_vector_push_back(&fnt->drawcalls, &drawcall);
 
-  cg_string_destroy(str);
+  cg_string_destroy(&str);
 
   fnt->rendered_this_frame = 1;
 }
@@ -1965,8 +1964,7 @@ ctext_label *ctext_create_label(lunaScene *scene, cfont_t *fnt) {
 }
 
 void ctext_destroy_label(ctext_label *label) {
-  cg_string_destroy(label->text);
-  lunaObject_Destroy(label->obj);
+  cg_string_destroy(&label->text);
   cg_vector_remove(&label->fnt->rd->ctext->labels, label->index);
 }
 
@@ -1974,7 +1972,7 @@ lunaObject *ctext_label_get_object(const ctext_label *label) {
   return label->obj;
 }
 void ctext_label_set_text(ctext_label *label, const char *text) {
-  cg_string_set(label->text, text);
+  cg_string_set(&label->text, text);
 }
 void ctext_label_set_horizontal_align(ctext_label *label, ctext_hori_align h_align) {
   label->h_align = h_align;
@@ -2021,9 +2019,8 @@ void ctext_init(struct lunaRenderer_t *rd) {
 }
 
 void ctext_shutdown(struct lunaRenderer_t *rd) {
-  struct cg_ctext_module *ctext = rd->ctext;
-
-  luna_DescriptorSetDestroy(ctext->desc_set);
+  cg_vector_destroy(&rd->ctext->fonts);
+  cg_vector_destroy(&rd->ctext->labels);
 }
 
 float ctext_get_scale_for_fit(const cfont_t *fnt, const cg_string_t *str, vec2 bbox) {
@@ -2672,6 +2669,8 @@ void luna_GPU_CreateRenderPass(luna_GPU_RenderPassCreateInfo const *pCreateInfo,
   renderPassInfo.pDependencies          = NULL;
 
   CVK_ResultCheck(vkCreateRenderPass(device, &renderPassInfo, VK_NULL_HANDLE, dstRenderPass));
+
+  cg_vector_destroy(&attachments);
 }
 
 void luna_GPU_CreatePipelineLayout(luna_GPU_PipelineCreateInfo const *pCreateInfo, VkPipelineLayout *dstLayout) {
@@ -2795,7 +2794,7 @@ luna_GPU_PipelineBlendState luna_GPU_InitPipelineBlendState(luna_GPU_PipelineBle
   return ret;
 }
 
-void luna_VK_CreateBuffer(u64 size, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags, VkBuffer *dstBuffer, VkDeviceMemory *retMem,
+void luna_VK_CreateBuffer(size_t size, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags, VkBuffer *dstBuffer, VkDeviceMemory *retMem,
                           bool externallyAllocated) {
   if (size == 0) {
     return;
@@ -2832,7 +2831,7 @@ void luna_VK_CreateBuffer(u64 size, VkBufferUsageFlags usageFlags, VkMemoryPrope
   *dstBuffer = newBuffer;
 }
 
-void luna_VK_StageBufferTransfer(VkBuffer dst, void *data, u64 size) {
+void luna_VK_StageBufferTransfer(VkBuffer dst, void *data, size_t size) {
   VkBuffer stagingBuffer;
   VkDeviceMemory stagingBufferMemory;
 
@@ -3195,9 +3194,9 @@ u32 luna_VK_GetSurfaceImageCount(VkPhysicalDevice physDevice, VkSurfaceKHR surfa
 typedef struct luna_GPU_Memory {
   VkDeviceMemory memory;
   void *mapped;
-  u64 map_size, map_offset;
+  size_t map_size, map_offset; // if mapped, the mapping size and offset
   luna_GPU_MemoryUsage usage;
-  u64 size;
+  size_t size;
 } luna_GPU_Memory;
 
 // these parameters should be replaced
@@ -3229,7 +3228,7 @@ void luna_GPU_AllocateMemory(VkDeviceSize size, luna_GPU_MemoryUsage usage, luna
   }
 }
 
-void luna_GPU_CreateBuffer(int size, int alignment, VkBufferUsageFlags usage, luna_GPU_Buffer *dst) {
+void luna_GPU_CreateBuffer(size_t size, int alignment, VkBufferUsageFlags usage, luna_GPU_Buffer *dst) {
   dst->size      = size;
   dst->alignment = alignment;
   dst->type      = usage;
@@ -3243,7 +3242,7 @@ void luna_GPU_CreateBuffer(int size, int alignment, VkBufferUsageFlags usage, lu
   cassert(vkCreateBuffer(device, &buffer_info, NULL, &dst->buffer) == VK_SUCCESS);
 }
 
-void luna_GPU_WriteToLocalBuffer(luna_GPU_Buffer *buffer, int size, void *data, int offset) {
+void luna_GPU_WriteToLocalBuffer(luna_GPU_Buffer *buffer, size_t size, void *data, size_t offset) {
   luna_GPU_Buffer staging_buffer;
   luna_GPU_CreateBuffer(size, LUNA_GPU_ALIGNMENT_UNNECESSARY, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, &staging_buffer);
 
@@ -3271,14 +3270,14 @@ void luna_GPU_WriteToLocalBuffer(luna_GPU_Buffer *buffer, int size, void *data, 
   }
 }
 
-void luna_GPU_WriteToUniformBuffer(luna_GPU_Buffer *buffer, int size, void *data, int offset) {
+void luna_GPU_WriteToUniformBuffer(luna_GPU_Buffer *buffer, size_t size, void *data, size_t offset) {
   void *mapped;
   luna_GPU_MapMemory(buffer->memory, size, offset, &mapped);
   luna_memcpy(mapped, data, size);
   luna_GPU_UnmapMemory(buffer->memory);
 }
 
-void luna_GPU_WriteToBuffer(luna_GPU_Buffer *buffer, int size, void *data, int offset) {
+void luna_GPU_WriteToBuffer(luna_GPU_Buffer *buffer, size_t size, void *data, size_t offset) {
   if (!(buffer->memory->usage & LUNA_GPU_MEMORY_USAGE_CPU_VISIBLE)) {
     luna_GPU_WriteToLocalBuffer(buffer, size, data, offset);
     return;
@@ -3289,7 +3288,7 @@ void luna_GPU_WriteToBuffer(luna_GPU_Buffer *buffer, int size, void *data, int o
   luna_GPU_UnmapMemory(buffer->memory);
 }
 
-void luna_GPU_MapMemory(luna_GPU_Memory *memory, u64 size, u64 offset, void **out) {
+void luna_GPU_MapMemory(luna_GPU_Memory *memory, size_t size, size_t offset, void **out) {
   if (!(memory->usage & LUNA_GPU_MEMORY_USAGE_CPU_VISIBLE)) {
     LOG_ERROR("Can not map memory which is not visible to the CPU. You may "
               "need to use a staging buffer");
@@ -3328,7 +3327,7 @@ void luna_GPU_FreeMemory(luna_GPU_Memory *mem) {
 
 // I think these given an error when, say offset is too big so maybe we can
 // check their return values?
-void luna_GPU_BindBufferToMemory(luna_GPU_Memory *mem, int offset, luna_GPU_Buffer *buffer) {
+void luna_GPU_BindBufferToMemory(luna_GPU_Memory *mem, size_t offset, luna_GPU_Buffer *buffer) {
   buffer->memory = mem;
   buffer->offset = offset;
 
@@ -3339,7 +3338,7 @@ void luna_GPU_TextureAttachView(luna_GPU_Texture *tex, VkImageView view) {
   tex->view = view;
 }
 
-void luna_GPU_BindTextureToMemory(luna_GPU_Memory *mem, int offset, luna_GPU_Texture *tex) {
+void luna_GPU_BindTextureToMemory(luna_GPU_Memory *mem, size_t offset, luna_GPU_Texture *tex) {
 
   tex->memory = mem;
   tex->offset = offset;
@@ -3403,6 +3402,34 @@ void luna_GPU_DestroyTexture(luna_GPU_Texture *tex) {
 
 int luna_GPU_GetBufferSize(const luna_GPU_Buffer *buffer) {
   return buffer->size;
+}
+
+void luna_GPU_BufferReadback(const luna_GPU_Buffer *buffer, void *dest) {
+  if (!(buffer->memory->usage & LUNA_GPU_BUFFER_TYPE_TRANSFER_SOURCE)) {
+    LOG_ERROR("Cannot readback from buffer that is not transfer source");
+    return;
+  }
+
+  luna_GPU_Buffer staging;
+  luna_GPU_Memory *staging_mem;
+  luna_GPU_CreateBuffer(buffer->size, LUNA_GPU_ALIGNMENT_UNNECESSARY, LUNA_GPU_BUFFER_TYPE_TRANSFER_DESTINATION, &staging);
+  luna_GPU_AllocateMemory(buffer->size, LUNA_GPU_MEMORY_USAGE_CPU_VISIBLE, &staging_mem);
+  luna_GPU_BindBufferToMemory(staging_mem, 0, &staging);
+
+  VkCommandBuffer cmd = luna_VK_BeginCommandBuffer();
+
+  VkBufferCopy copy = {.srcOffset = 0, .dstOffset = 0, .size = buffer->size};
+  vkCmdCopyBuffer(cmd, buffer->buffer, staging.buffer, 1, &copy);
+
+  luna_VK_EndCommandBuffer(cmd, TransferQueue, 1);
+
+  void *mapped;
+  luna_GPU_MapMemory(staging_mem, buffer->size, 0, &mapped);
+  memcpy(dest, mapped, buffer->size);
+  luna_GPU_UnmapMemory(staging_mem);
+
+  luna_GPU_DestroyBuffer(&staging);
+  luna_GPU_FreeMemory(staging_mem);
 }
 
 void luna_GPU_GetTextureSize(const luna_GPU_Texture *tex, int *w, int *h) {

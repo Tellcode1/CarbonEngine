@@ -6,10 +6,12 @@
 #endif
 
 #include "../../common/stdafx.h"
+#include "../../common/mem.h"
 
 typedef struct catlas_t {
     int width, height, next_x, next_y, current_row_height;
     unsigned char *data;
+    lunaAllocator *allocator;
 } catlas_t;
 
 extern catlas_t catlas_init(int init_w, int init_h);

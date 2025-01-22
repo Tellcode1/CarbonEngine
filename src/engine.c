@@ -3,8 +3,8 @@
 #include "../include/containers/cghashmap.h"
 #include "../include/containers/cgvector.h"
 #include "../include/engine/cengine.h"
-#include "../include/engine/lunaCollider.h"
 #include "../include/engine/lunaCamera.h"
+#include "../include/engine/lunaCollider.h"
 #include "../include/engine/lunaInput.h"
 #include "../include/engine/lunaObject.h"
 #include "../include/engine/lunaScene.h"
@@ -18,7 +18,7 @@ u8 luna_CurrentFrame   = 0;
 u64 luna_LastFrameTime = 0; // div by SDL_GetPerofrmanceCounterFrequency to get actual time.
 double luna_Time       = 0.0;
 
-double luna_DeltaTime       = 0.0;
+double luna_DeltaTime = 0.0;
 
 u64 luna_FrameStartTime      = 0;
 u64 luna_FixedFrameStartTime = 0;
@@ -137,6 +137,9 @@ lunaObject *lunaObject_Create(lunaScene *scene, const char *name, lunaCollider_T
 }
 
 void lunaObject_Destroy(lunaObject *obj) {
+  if (!obj)
+    return;
+
   if (obj->col) {
     b2DestroyBody(obj->col->body);
     b2DestroyShape(obj->col->shape, 0);
@@ -399,6 +402,7 @@ void lunaScene_Render(lunaRenderer_t *rd) {
 
 void lunaScene_Destroy(lunaScene *scene) {
   b2DestroyWorld(scene->world);
+  cg_vector_destroy(&scene->objects);
   luna_free(scene);
 }
 

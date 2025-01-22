@@ -5,8 +5,13 @@
 extern "C" {
 #endif
 
+#include "../../common/mem.h"
 #include <stdbool.h>
 #include <stdio.h>
+
+typedef struct cg_hashmap_t cg_hashmap_t;
+typedef unsigned (*cg_hashmap_hash_fn)(const void *bytes, int nbytes);
+typedef bool (*cg_hashmap_key_equal_fn)(const void *key1, const void *key2, unsigned long keysize);
 
 typedef struct ch_node_t {
   void *key;
@@ -14,9 +19,15 @@ typedef struct ch_node_t {
   bool is_occupied;
 } ch_node_t;
 
-typedef struct cg_hashmap_t cg_hashmap_t;
-typedef unsigned (*cg_hashmap_hash_fn)(const void *bytes, int nbytes);
-typedef bool (*cg_hashmap_key_equal_fn)(const void *key1, const void *key2, unsigned long keysize);
+struct cg_hashmap_t {
+  ch_node_t **nodes;
+  cg_hashmap_hash_fn hash_fn;
+  cg_hashmap_key_equal_fn equal_fn;
+  int entries, size;
+  int keysize, valuesize;
+  lunaAllocator *allocator;
+};
+
 
 extern bool cg_hashmap_std_key_eq(const void *key1, const void *key2, unsigned long nbytes);
 extern unsigned cg_hashmap_std_hash(const void *bytes, int nbytes);

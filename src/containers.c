@@ -7,23 +7,8 @@
 #include "../include/containers/cgstring.h"
 #include "../include/containers/cgvector.h"
 
+#include <stdio.h>
 #include <stdlib.h>
-
-#ifndef cg_cont_alloc
-#define cg_cont_alloc luna_malloc
-#endif
-
-#ifndef cg_cont_calloc
-#define cg_cont_calloc calloc
-#endif
-
-#ifndef cg_cont_realloc
-#define cg_cont_realloc realloc
-#endif
-
-#ifndef cg_cont_free
-#define cg_cont_free luna_free
-#endif
 
 // ==============================
 // VECTOR
@@ -34,10 +19,12 @@ cg_vector_t cg_vector_init(int typesize, int init_size) {
   vec.m_size      = 0;
   vec.m_typesize  = typesize;
   vec.m_capacity  = init_size;
+  vec.allocator   = lunaAllocatorDefault;
 
   if (init_size > 0) {
-    vec.m_data = calloc(init_size, typesize);
+    vec.m_data = vec.allocator.alloc(&vec.allocator, init_size * typesize);
     cassert(vec.m_data != NULL);
+    luna_memset(vec.m_data, 0, init_size * typesize);
   } else {
     vec.m_data = NULL;
   }
@@ -48,7 +35,7 @@ cg_vector_t cg_vector_init(int typesize, int init_size) {
 void cg_vector_destroy(cg_vector_t *vec) {
   if (vec) {
     if (vec->m_data) {
-      luna_free(vec->m_data);
+      vec->allocator.free(&vec->allocator, vec->m_data);
     }
   }
 }
@@ -116,11 +103,13 @@ cg_vector_bool cg_vector_equal(const cg_vector_t *vec1, const cg_vector_t *vec2)
 }
 
 void cg_vector_resize(cg_vector_t *vec, int new_size) {
-  // realloc crashes if m_data is NULL.
+  // cg_cont_realloc crashes if m_data is NULL.
   if (vec->m_data) {
-    vec->m_data = realloc(vec->m_data, vec->m_typesize * new_size);
+    vec->m_data = vec->allocator.realloc(&vec->allocator, vec->m_data, vec->m_typesize * new_size);
   } else {
-    vec->m_data = calloc(vec->m_typesize, new_size);
+    vec->m_data = vec->allocator.alloc(&vec->allocator, vec->m_typesize * new_size);
+    cassert(vec->m_data != NULL);
+    luna_memset(vec->m_data, 0, vec->m_typesize * new_size);
     /* vec->m_data is NULL so we don't really have anything to copy */
   }
   cassert(vec->m_data != NULL);
@@ -174,7 +163,7 @@ void cg_vector_remove(cg_vector_t *vec, int index) {
   else if (vec->m_size - index - 1) {
     // please don't ask me what this is
     luna_memcpy((uchar *)vec->m_data + (index * vec->m_typesize), (uchar *)vec->m_data + ((index + 1) * vec->m_typesize),
-           (vec->m_size - index - 1) * vec->m_typesize);
+                (vec->m_size - index - 1) * vec->m_typesize);
   }
   vec->m_size--;
 }
@@ -196,59 +185,60 @@ void cg_vector_sort(cg_vector_t *vec, cg_vector_compare_fn compare) {
 // STRING
 // ==============================
 
+#define __cg_string_alloc(size)              str->allocator->alloc(str->allocator, size)
+#define __cg_string_calloc(size)             str->allocator->calloc(str->allocator, size)
+#define __cg_string_realloc(prevblock, size) str->allocator->realloc(str->allocator, prevblock, size)
+#define __cg_string_free(size)               str->allocator->free(str->allocator, size)
+
 static void cg_string_resize(cg_string_t *str, int new_capacity) {
-  char *new_data = cg_cont_realloc(str->data, new_capacity);
+  char *new_data = __cg_string_realloc(str->data, new_capacity);
   cassert(new_data != NULL);
   str->data     = new_data;
   str->capacity = new_capacity;
 }
 
-cg_string_t *cg_string_init(int initial_size) {
-  cg_string_t *str = cg_cont_alloc(sizeof(cg_string_t));
-  cassert(str != NULL);
+cg_string_t cg_string_init(int initial_size) {
+  cg_string_t str;
+  str.allocator = &lunaAllocatorDefault;
+  str.capacity  = (initial_size > 0) ? initial_size : 1;
+  str.data      = str.allocator->alloc(str.allocator, str.capacity);
+  cassert(str.data != NULL);
 
-  str->capacity = (initial_size > 0) ? initial_size : 1;
-  str->data     = cg_cont_alloc(str->capacity);
-  cassert(str->data != NULL);
-
-  str->data[0] = '\0';
-  str->length  = 0;
+  str.data[0] = '\0';
+  str.length  = 0;
   return str;
 }
 
-cg_string_t *cg_string_init_str(const char *init) {
+cg_string_t cg_string_init_str(const char *init) {
   cassert(init != NULL && luna_strlen(init) > 0);
-  cg_string_t *str = cg_cont_alloc(sizeof(cg_string_t));
-  cassert(str != NULL);
+  cg_string_t str = (cg_string_t){};
+  str.allocator   = &lunaAllocatorDefault;
+  int len         = luna_strlen(init);
+  str.capacity    = len + 1;
+  str.data        = str.allocator->alloc(str.allocator, str.capacity);
+  cassert(str.data != NULL);
 
-  int len       = luna_strlen(init);
-  str->capacity = len + 1;
-  str->data     = cg_cont_alloc(str->capacity);
-  cassert(str->data != NULL);
-
-  luna_strcpy(str->data, init);
-  str->length = len;
+  luna_strcpy(str.data, init);
+  str.length = len;
 
   return str;
 }
 
-cg_string_t *cg_string_substring(const cg_string_t *str, int start, int length) {
+cg_string_t cg_string_substring(const cg_string_t *str, int start, int length) {
   cassert(str != NULL);
   cassert(start >= 0 && start + length <= str->length);
 
-  cg_string_t *substr = cg_string_init(length + 1);
-  cassert(substr != NULL);
+  cg_string_t substr = cg_string_init(length + 1);
 
-  luna_strncpy(substr->data, str->data + start, length);
-  substr->data[length] = '\0';
-  substr->length       = length;
+  luna_strncpy(substr.data, str->data + start, length);
+  substr.data[length] = '\0';
+  substr.length       = length;
   return substr;
 }
 
 void cg_string_destroy(cg_string_t *str) {
   if (str) {
-    cg_cont_free(str->data);
-    cg_cont_free(str);
+    __cg_string_free(str->data);
   }
 }
 
@@ -364,14 +354,6 @@ void cg_string_move_from(cg_string_t *src, cg_string_t *dst) {
 // HASHMAP
 // ==============================
 
-struct cg_hashmap_t {
-  ch_node_t **nodes;
-  cg_hashmap_hash_fn hash_fn;
-  cg_hashmap_key_equal_fn equal_fn;
-  int entries, size;
-  int keysize, valuesize;
-};
-
 unsigned closest_power_of_two(unsigned i) {
   if (i == 0) {
     return 1;
@@ -410,12 +392,15 @@ bool cg_hashmap_std_key_eq(const void *key1, const void *key2, unsigned long nby
   }
 }
 
+#define __cg_hashmap_alloc(size)  map->allocator->alloc(map->allocator, size)
+#define __cg_hashmap_calloc(size) map->allocator->calloc(map->allocator, size)
+#define __cg_hashmap_free(block)  map->allocator->free(map->allocator, block)
+
 cg_hashmap_t *cg_hashmap_init(int init_size, int keysize, int valuesize, cg_hashmap_hash_fn hash_fn, cg_hashmap_key_equal_fn equal_fn) {
   cassert(keysize > 0 && valuesize > 0);
 
-  cg_hashmap_t *map = luna_malloc(sizeof(struct cg_hashmap_t));
+  cg_hashmap_t *map = calloc(1, sizeof(struct cg_hashmap_t));
   cassert(map != NULL);
-  (*map) = (cg_hashmap_t){};
 
   if (init_size < 0) {
     init_size = 1;
@@ -427,7 +412,8 @@ cg_hashmap_t *cg_hashmap_init(int init_size, int keysize, int valuesize, cg_hash
     equal_fn = cg_hashmap_std_key_eq;
   }
 
-  map->nodes = (ch_node_t **)calloc(init_size, sizeof(ch_node_t));
+  map->allocator = &lunaAllocatorDefault;
+  map->nodes     = (ch_node_t **)__cg_hashmap_calloc(init_size * sizeof(ch_node_t));
   cassert(map->nodes != NULL);
 
   map->hash_fn   = hash_fn;
@@ -446,10 +432,11 @@ void cg_hashmap_destroy(cg_hashmap_t *map) {
   }
   for (int i = 0; i < map->entries; i++) {
     if (map->nodes[i]) {
-      luna_free(map->nodes[i]);
+      __cg_hashmap_free(map->nodes[i]);
     }
   }
-  luna_free(map->nodes);
+  __cg_hashmap_free(map->nodes);
+  luna_free(map);
 }
 
 void cg_hashmap_resize(cg_hashmap_t *map, int new_size) {
@@ -463,7 +450,7 @@ void cg_hashmap_resize(cg_hashmap_t *map, int new_size) {
   map->entries = closest_power_of_two(new_size);
   map->size    = 0;
 
-  map->nodes = calloc(new_size, sizeof(ch_node_t));
+  map->nodes = __cg_hashmap_calloc(new_size * sizeof(ch_node_t));
   cassert(map->nodes != NULL);
 
   if (old_nodes) {
@@ -471,10 +458,10 @@ void cg_hashmap_resize(cg_hashmap_t *map, int new_size) {
       ch_node_t *node = old_nodes[i];
       if (node && node->is_occupied) {
         cg_hashmap_insert(map, node->key, node->value);
-        luna_free(node);
+        __cg_hashmap_free(node);
       }
     }
-    luna_free(old_nodes);
+    __cg_hashmap_free(old_nodes);
   }
 }
 
@@ -484,10 +471,10 @@ void cg_hashmap_clear(cg_hashmap_t *map) {
   }
   for (int i = 0; i < map->entries; i++) {
     if (map->nodes[i]) {
-      luna_free(map->nodes[i]);
+      __cg_hashmap_free(map->nodes[i]);
     }
   }
-  luna_free(map->nodes);
+  __cg_hashmap_free(map->nodes);
   map->nodes   = NULL;
   map->size    = 0;
   map->entries = 0;
@@ -562,7 +549,7 @@ void cg_hashmap_insert(cg_hashmap_t *map, const void *key, const void *value) {
 
   if (!map->nodes[i]) {
     // Batch allocation for the entire node at once.
-    void *alloc          = luna_malloc(sizeof(ch_node_t) + map->keysize + map->valuesize);
+    void *alloc          = __cg_hashmap_alloc(sizeof(ch_node_t) + map->keysize + map->valuesize);
     map->nodes[i]        = alloc;
     map->nodes[i]->key   = alloc + sizeof(ch_node_t);
     map->nodes[i]->value = alloc + sizeof(ch_node_t) + map->keysize;
@@ -594,7 +581,7 @@ void cg_hashmap_insert_or_replace(cg_hashmap_t *map, const void *key, void *valu
 
   if (!map->nodes[i]) {
     // Batch allocation for the entire node at once.
-    void *alloc          = luna_malloc(sizeof(ch_node_t) + map->keysize + map->valuesize);
+    void *alloc          = __cg_hashmap_alloc(sizeof(ch_node_t) + map->keysize + map->valuesize);
     map->nodes[i]        = alloc;
     map->nodes[i]->key   = alloc + sizeof(ch_node_t);
     map->nodes[i]->value = alloc + sizeof(ch_node_t) + map->keysize;
@@ -645,7 +632,8 @@ catlas_t catlas_init(int init_w, int init_h) {
   atlas.next_x             = 0;
   atlas.next_y             = 0;
   atlas.current_row_height = 0;
-  atlas.data               = calloc(init_w, init_h);
+  atlas.allocator          = &lunaAllocatorDefault;
+  atlas.data               = atlas.allocator->calloc(atlas.allocator, init_w * init_h);
 
   return atlas;
 }
@@ -653,14 +641,14 @@ catlas_t catlas_init(int init_w, int init_h) {
 bool catlas_add_image(catlas_t *__restrict__ atlas, int w, int h, const unsigned char *__restrict__ data, int *__restrict__ x, int *__restrict__ y) {
   const int padding = 4;
   const int prev_h = atlas->height, prev_w = atlas->width;
-  bool realloc_needed = 0;
+  bool cg_cont_realloc_needed = 0;
   if (w > atlas->width) {
     // ! This doesn't work because the old image is not correctly copied by
-    // realloc ! It'll be fixed by copying over the data row by row probably
+    // cg_cont_realloc ! It'll be fixed by copying over the data row by row probably
     // doesn't need fixing right now, will delay it for another eon
     // TODO: FIXME
-    atlas->width   = w;
-    realloc_needed = 1;
+    atlas->width           = w;
+    cg_cont_realloc_needed = 1;
   }
 
   if (atlas->next_x + w + padding > atlas->width) {
@@ -670,12 +658,12 @@ bool catlas_add_image(catlas_t *__restrict__ atlas, int w, int h, const unsigned
   }
 
   if (atlas->next_y + h + padding > atlas->height) {
-    atlas->height  = cmmax(atlas->height * 2, atlas->next_y + h + padding);
-    realloc_needed = 1;
+    atlas->height          = cmmax(atlas->height * 2, atlas->next_y + h + padding);
+    cg_cont_realloc_needed = 1;
   }
 
-  if (realloc_needed) {
-    atlas->data = realloc(atlas->data, atlas->width * atlas->height);
+  if (cg_cont_realloc_needed) {
+    atlas->data = atlas->allocator->realloc(atlas->allocator, atlas->data, atlas->width * atlas->height);
     luna_memset(atlas->data + prev_w * prev_h, 0, (atlas->width - prev_w) * (atlas->height - prev_h));
   }
 
@@ -701,7 +689,8 @@ cg_bitset_t cg_bitset_init(int init_capacity) {
   if (init_capacity > 0) {
     init_capacity = (init_capacity + 7) / 8;
     ret.size      = init_capacity;
-    ret.data      = calloc(init_capacity, sizeof(uint8_t));
+    ret.allocator = &lunaAllocatorDefault;
+    ret.data      = ret.allocator->calloc(ret.allocator, init_capacity * sizeof(uint8_t));
   } else {
     ret.size = 0;
   }
@@ -730,13 +719,13 @@ cg_bitset_bit cg_bitset_access_bit(cg_bitset_t *set, int bitindex) {
 
 void cg_bitset_copy_from(cg_bitset_t *dst, const cg_bitset_t *src) {
   if (src->size != dst->size && dst->data) {
-    luna_free(dst->data);
-    dst->data = luna_malloc(src->size);
+    dst->allocator->free(dst->allocator, dst->data);
+    dst->data = src->allocator->alloc(src->allocator, src->size);
     dst->size = src->size;
   }
   luna_memcpy(dst->data, src->data, src->size);
 }
 
 void cg_bitset_destroy(cg_bitset_t *set) {
-  luna_free(set->data);
+  set->allocator->free(set->allocator, set->data);
 }

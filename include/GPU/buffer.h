@@ -20,23 +20,29 @@ typedef struct luna_GPU_Buffer {
   VkBuffer buffer;
   // The size of the buffer
   // Even if there are multiple children, this gives only the size of ONE buffer
-  int size, alignment, offset;
+  size_t size, offset;
+  int alignment;
   luna_GPU_Memory *memory;
   luna_GPU_BufferType type;
 } luna_GPU_Buffer;
 
 // Note: 'nchilds' count of buffers of size 'size' will be created.
 // The size will NOT be divided among the children.
-extern void luna_GPU_CreateBuffer(int size, int alignment, VkBufferUsageFlags usage, luna_GPU_Buffer *dst);
+extern void luna_GPU_CreateBuffer(size_t size, int alignment, VkBufferUsageFlags usage, luna_GPU_Buffer *dst);
 extern void luna_GPU_DestroyBuffer(luna_GPU_Buffer *buffer);
 
-extern void luna_GPU_WriteToBuffer(luna_GPU_Buffer *buffer, int size, void *data, int offset);
+extern void luna_GPU_WriteToBuffer(luna_GPU_Buffer *buffer, size_t size, void *data, size_t offset);
 
 // Note: Memory must be able to hold all the buffers!
 // You can get the size of the memory by just looking up the size of one buffer
 // and then multiplying it with the count.
-extern void luna_GPU_BindBufferToMemory(luna_GPU_Memory *mem, int offset, luna_GPU_Buffer *buffer);
+extern void luna_GPU_BindBufferToMemory(luna_GPU_Memory *mem, size_t offset, luna_GPU_Buffer *buffer);
 
 extern int luna_GPU_GetBufferSize(const luna_GPU_Buffer *buffer);
+
+// dest must be atleast the size of the buffer
+extern void luna_GPU_BufferReadback(const luna_GPU_Buffer *buffer, void *dest);
+
+// extern lunAsync_Context luna_GPU_BufferReadbackAsync(const luna_GPU_Buffer *buffer, void *dest);
 
 #endif //__LUNA_BUFFER_H__

@@ -3,12 +3,13 @@
 
 #include <stdbool.h>
 #include <stdlib.h>
+#include "../../common/mem.h"
 
 typedef struct cg_node_t {
   struct cg_node_t *next;
   struct cg_node_t *prev;
   void *alloc;
-  int size;
+  size_t size;
   bool in_use;
 } cg_node_t;
 
@@ -21,8 +22,8 @@ typedef struct cg_freelist_t {
   cg_freelist_free_fn free_fn;
 } cg_freelist_t;
 
-cg_node_t *cg_freelist_mknode(const cg_freelist_t *list, int size, cg_node_t *next, cg_node_t *prev) {
-  cg_node_t *node = luna_malloc(sizeof(cg_node_t));
+static inline cg_node_t *cg_freelist_mknode(const cg_freelist_t *list, size_t size, cg_node_t *next, cg_node_t *prev) {
+  cg_node_t *node = (cg_node_t *)luna_malloc(sizeof(cg_node_t));
   node->next      = next;
   node->prev      = prev;
   node->alloc     = list->alloc_fn(size);
@@ -31,13 +32,13 @@ cg_node_t *cg_freelist_mknode(const cg_freelist_t *list, int size, cg_node_t *ne
   return node;
 }
 
-void cg_freelist_init(int init_size, cg_freelist_alloc_fn alloc_fn, cg_freelist_free_fn free_fn, cg_freelist_t *list) {
+static inline void cg_freelist_init(int init_size, cg_freelist_alloc_fn alloc_fn, cg_freelist_free_fn free_fn, cg_freelist_t *list) {
   list->alloc_fn = alloc_fn;
   list->free_fn  = free_fn;
   list->root     = cg_freelist_mknode(list, init_size, NULL, NULL);
 }
 
-void *cg_freelist_alloc(cg_freelist_t *list, int size) {
+static inline void *cg_freelist_alloc(cg_freelist_t *list, size_t size) {
   cg_node_t *node = list->root;
 
   while (node) {
@@ -75,7 +76,7 @@ void *cg_freelist_alloc(cg_freelist_t *list, int size) {
   return NULL;
 }
 
-cg_node_t *cg_freelist_expand(cg_freelist_t *list, int expand_by) {
+static inline cg_node_t *cg_freelist_expand(cg_freelist_t *list, int expand_by) {
   cg_node_t *node = list->root;
   while (node->next) {
     node = node->next;

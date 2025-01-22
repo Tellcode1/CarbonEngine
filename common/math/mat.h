@@ -40,12 +40,11 @@ static inline mat4 m4sub(const mat4 m1, const mat4 m2) {
 }
 
 static inline mat4 m4mul(const mat4 m1, const mat4 m2) {
-    return (mat4){{
-        v4add(v4add(v4muls(m1.data[0], m2.data[0].x), v4muls(m1.data[1], m2.data[0].y)), v4add(v4muls(m1.data[2], m2.data[0].z), v4muls(m1.data[3], m2.data[0].w))),
-        v4add(v4add(v4muls(m1.data[0], m2.data[1].x), v4muls(m1.data[1], m2.data[1].y)), v4add(v4muls(m1.data[2], m2.data[1].z), v4muls(m1.data[3], m2.data[1].w))),
-        v4add(v4add(v4muls(m1.data[0], m2.data[2].x), v4muls(m1.data[1], m2.data[2].y)), v4add(v4muls(m1.data[2], m2.data[2].z), v4muls(m1.data[3], m2.data[2].w))),
-        v4add(v4add(v4muls(m1.data[0], m2.data[3].x), v4muls(m1.data[1], m2.data[3].y)), v4add(v4muls(m1.data[2], m2.data[3].z), v4muls(m1.data[3], m2.data[3].w)))
-    }};
+    mat4 result;
+    for (int i = 0; i < 4; i++) {
+        result.data[i] = v4add(v4add(v4muls(m1.data[0], m2.data[i].x), v4muls(m1.data[1], m2.data[i].y)), v4add(v4muls(m1.data[2], m2.data[i].z), v4muls(m1.data[3], m2.data[i].w)));
+    }
+    return result;
 }
 
 static inline vec4 m4mulv4(const mat4 m, const vec4 v) {

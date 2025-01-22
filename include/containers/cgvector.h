@@ -5,7 +5,10 @@
 extern "C" {
 #endif
 
+#include "../../common/mem.h"
+
 typedef struct cg_vector_t {
+  lunaAllocator allocator;
   int m_size;
   int m_capacity;
   int m_typesize;

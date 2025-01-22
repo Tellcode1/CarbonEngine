@@ -11,7 +11,6 @@
 
 #define LUNA_GPU_MAX_CHILDREN_PER_OBJECT 8
 #define LUNA_GPU_ALIGNMENT_UNNECESSARY   (1)
-#define LUNA_GPU_ALL_CHILDREN            (__INT32_MAX__)
 
 typedef struct luna_GPU_Memory luna_GPU_Memory;
 
@@ -27,7 +26,7 @@ typedef unsigned luna_GPU_MemoryUsage;
 extern void luna_GPU_AllocateMemory(VkDeviceSize size, luna_GPU_MemoryUsage usage, luna_GPU_Memory **dst);
 extern void luna_GPU_FreeMemory(luna_GPU_Memory *mem);
 
-extern void luna_GPU_MapMemory(luna_GPU_Memory *memory, u64 size, u64 offset, void **out);
+extern void luna_GPU_MapMemory(luna_GPU_Memory *memory, size_t size, size_t offset, void **out);
 extern void luna_GPU_UnmapMemory(luna_GPU_Memory *memory);
 
 #endif //__LUNA_MEMORY_H__

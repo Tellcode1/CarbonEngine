@@ -44,7 +44,7 @@ extern void luna_GPU_CreateTexture(const luna_GPU_TextureCreateInfo *pInfo, luna
 
 extern void luna_GPU_TextureAttachView(luna_GPU_Texture *tex, VkImageView view);
 
-extern void luna_GPU_BindTextureToMemory(luna_GPU_Memory *mem, int offset, luna_GPU_Texture *tex);
+extern void luna_GPU_BindTextureToMemory(luna_GPU_Memory *mem, size_t offset, luna_GPU_Texture *tex);
 extern void luna_GPU_DestroyTexture(luna_GPU_Texture *tex);
 
 extern void luna_GPU_CreateSampler(const luna_GPU_SamplerCreateInfo *pInfo, luna_GPU_Sampler **sampler);

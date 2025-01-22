@@ -5,19 +5,22 @@
 extern "C" {
 #endif
 
+#include "../../common/mem.h"
+
 typedef struct cg_string_t {
   char *data;
   int length;
   int capacity;
+  lunaAllocator *allocator;
 } cg_string_t;
 
 /*
     initial_size may be 0
 */
-extern cg_string_t *cg_string_init(int initial_size);
-extern cg_string_t *cg_string_init_str(const char *init);
-extern cg_string_t *cg_string_init_ptr(const char *begin, const char *end);
-extern cg_string_t *cg_string_substring(const cg_string_t *str, int start, int length);
+extern cg_string_t cg_string_init(int initial_size);
+extern cg_string_t cg_string_init_str(const char *init);
+extern cg_string_t cg_string_init_ptr(const char *begin, const char *end);
+extern cg_string_t cg_string_substring(const cg_string_t *str, int start, int length);
 extern void cg_string_destroy(cg_string_t *str);
 
 extern void cg_string_clear(cg_string_t *str);

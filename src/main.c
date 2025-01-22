@@ -16,6 +16,7 @@
 #include "../impact/include/impact.h"
 
 #include "../common/cvar.h"
+#include "../common/mem.h"
 
 cvar *g_vars = NULL;
 int g_nvars  = 0;
@@ -29,7 +30,45 @@ void hoover(lunaUI_Button *self) {
   self->color = (vec4){0.6f, 0.6f, 0.6f, 1.0f};
 }
 
+void test_allocator() {
+  int buffer[BUFSIZ];
+
+  lunaStackAllocator stack;
+  sainit(&stack, (unsigned char *)buffer, sizeof(buffer));
+
+  lunaAllocator ac;
+  lunaAllocatorBindStackAllocator(&ac, &stack);
+
+  int *allocations[256];
+
+  for (int i = 0; i < array_len(allocations); i++) {
+    int *allocation = saalloc(&ac, sizeof(int));
+    *allocation     = i;
+    allocations[i]  = allocation;
+  }
+
+  bool pass = 1;
+  for (int i = 0; i < array_len(allocations); i++) {
+    if (i != *(allocations[i]))
+      pass = 0;
+  }
+
+  if (!pass) {
+    LOG_AND_ABORT("Test Failed");
+  } else {
+    LOG_INFO("Test passed");
+  }
+
+  for (int i = 0; i < array_len(allocations); i++) {
+    safree(&ac, (void *)allocations[i]);
+  }
+
+  return;
+}
+
 int main(int argc, char *argv[]) {
+  test_allocator();
+
   timer start_timer = timer_begin(0.1);
 
   (void)argc;
@@ -37,8 +76,6 @@ int main(int argc, char *argv[]) {
   SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);
 
   const lunaExtent2D window_size = (lunaExtent2D){1600 / 400, 1200 / 400};
-
-  luna_printf("%i", *luna_strpbrk("Hello", "Baller"));
 
   cg_initialize_context("luna", window_size.width, window_size.height);
 
@@ -63,7 +100,7 @@ int main(int argc, char *argv[]) {
   lunaInput_BindKeyToAction(SDL_SCANCODE_LEFT, "+left");
   lunaInput_BindKeyToAction(SDL_SCANCODE_RETURN, "+Enter");
 
-  const float updateTime = 5.0f; // seconds. 1.5f = 1.5 seconds
+  const float updateTime = 15.0f; // seconds. 1.5f = 1.5 seconds
   float totalTime        = 0.0f;
   u32 numFrames          = 0;
 
@@ -99,20 +136,20 @@ int main(int argc, char *argv[]) {
   lunaObject_GetSpriteRenderer(r1)->color = (vec4){1.0f, 0.0f, 0.0f, 1.0f};
   lunaObject_GetSpriteRenderer(r2)->color = (vec4){0.0f, 0.0f, 1.0f, 1.0f};
 
-  IWorld world              = {.gravity = (vec3){0.0f, -10.0f, 0.0f}};
+  IWorld world = {.gravity = (vec3){0.0f, -10.0f, 0.0f}};
 
   IBodyCreateInfo ibodyinfo = {};
   ibodyinfo.type            = IMPACT_BODY_DYNAMIC;
   ibodyinfo.position        = (vec3){r1pos.x, r1pos.y, 0.0f};
   ibodyinfo.half_size       = (vec3){r1siz.x, r1siz.y, 1.0f};
-  ibodyinfo.restitution = 0.3f;
+  ibodyinfo.restitution     = 0.3f;
   IBody *r1b                = IBodyCreate(&world, &ibodyinfo);
 
-  ibodyinfo.position        = (vec3){r2pos.x, r2pos.y, 0.0f};
-  ibodyinfo.half_size       = (vec3){r2siz.x, r2siz.y, 1.0f};
-  ibodyinfo.start_disabled  = 1;
-  ibodyinfo.type            = IMPACT_BODY_STATIC;
-  IBody *r2b                = IBodyCreate(&world, &ibodyinfo);
+  ibodyinfo.position       = (vec3){r2pos.x, r2pos.y, 0.0f};
+  ibodyinfo.half_size      = (vec3){r2siz.x, r2siz.y, 1.0f};
+  ibodyinfo.start_disabled = 1;
+  ibodyinfo.type           = IMPACT_BODY_STATIC;
+  IBody *r2b               = IBodyCreate(&world, &ibodyinfo);
 
   // What in the unholy f%$ where you doing
   LOG_DEBUG("Initialized in %li ms (%.3f s)", (long)(timer_time_since_start(&start_timer) * 1000.0), timer_time_since_start(&start_timer));
@@ -158,7 +195,7 @@ int main(int argc, char *argv[]) {
     numFrames++;
     if (totalTime >= updateTime) {
       curr_showing_fps = ceilf(numFrames / totalTime);
-      LOG_INFO("%dfps : %d frames / %.2fs = ~%fms/frame", curr_showing_fps, numFrames, updateTime, (totalTime / (float)(numFrames)));
+      LOG_INFO("%i FPS %f MS/Frame", curr_showing_fps, (totalTime / (float)(numFrames)));
       numFrames = 0;
       totalTime = 0.0;
     }
@@ -183,15 +220,21 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  // Destroying everything isn't that performance intensive...
+  // oh wait I was using a global stack allocator...
+  timer finish_timer = timer_begin(0.1);
+
   lunaScene_Destroy(scn);
 
   lunaUI_DestroyButton(bton);
 
   vkDeviceWaitIdle(device);
-  // lunaSprite_Release(lunaObject_GetSpriteRenderer(player)->spr);
   ctext_destroy_font(amongus);
+  lunaUI_Shutdown();
+  ctext_shutdown(rd);
   lunaRenderer_Destroy(rd);
   lunaInput_Shutdown();
-  LOG_INFO("done.");
+  LOG_INFO("done");
+  LOG_INFO("Took %f seconds to clean up", timer_time_since_start(&finish_timer));
   return 0;
 }

@@ -1,4 +1,6 @@
 #include "../include/impact.h"
+#include "../../common/math/math.h"
+#include "../../common/printf.h"
 #include "../../common/stdafx.h"
 #include <tgmath.h>
 
@@ -38,7 +40,6 @@ static inline bool IRectsIntersect(const IRect *RESTRICT r1, const IRect *RESTRI
   return overlaps_x && overlaps_y && overlaps_z;
 }
 
-#include "../../common/math/math.h"
 static inline vec3 IRectsGetOverlap(const IRect *RESTRICT r1, const IRect *RESTRICT r2) {
   const vec3 r1_min = v3sub(r1->position, r1->half_size);
   const vec3 r1_max = v3add(r1->position, r1->half_size);
@@ -51,8 +52,6 @@ static inline vec3 IRectsGetOverlap(const IRect *RESTRICT r1, const IRect *RESTR
 
   return (vec3){cmmax(0, overlap.x), cmmax(0, overlap.y), cmmax(0, overlap.z)};
 }
-#include <string.h>
-#include "../../common/printf.h"
 
 vec3 IRectsGetMTV(const IRect *RESTRICT r1, const IRect *RESTRICT r2) {
   vec3 overlap = IRectsGetOverlap(r1, r2);
@@ -108,7 +107,8 @@ void IWorldStep(IWorld *world, impact_float dt) {
     IBody *b1 = &world->bodies[i];
 
     for (int j = 0; j < world->nbodies; j++) {
-      if (i == j) continue;
+      if (i == j)
+        continue;
       IBody *b2 = &world->bodies[j];
       IRect *r1 = &b1->rect;
       IRect *r2 = &b2->rect;
@@ -130,7 +130,6 @@ void IWorldStep(IWorld *world, impact_float dt) {
     if (body->type == IMPACT_BODY_DYNAMIC) {
       body->velocity = v3add(body->velocity, gravity);
     }
-    luna_printf("%f %f\n", body->velocity.x, body->velocity.y);
   }
 }
 

@@ -11,11 +11,11 @@ extern "C" {
 extern u32 luna_VK_GetMemType(const u32 memoryTypeBits, const VkMemoryPropertyFlags memoryProperties);
 
 /* externallyAllocated = true asserts *dstMemory will not be written to by this function */
-extern void luna_VK_CreateBuffer(u64 size, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags, VkBuffer *dstBuffer,
+extern void luna_VK_CreateBuffer(size_t size, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags, VkBuffer *dstBuffer,
                                  VkDeviceMemory *dstMemory, bool externallyAllocated);
 
 /*  */
-extern void luna_VK_StageBufferTransfer(VkBuffer dst, void *data, u64 size);
+extern void luna_VK_StageBufferTransfer(VkBuffer dst, void *data, size_t size);
 
 /* src Must be a valid VkCommandBuffer */
 extern VkCommandBuffer luna_VK_BeginCommandBufferFrom(VkCommandBuffer src);
