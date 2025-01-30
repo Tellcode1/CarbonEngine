@@ -1,0 +1,11 @@
+# VSCode generated directories
+/.vscode/
+/.cache/
+
+# Cmake/build files
+*/build/*
+/build/
+*/CMakeFiles/*
+
+external
+external/**
