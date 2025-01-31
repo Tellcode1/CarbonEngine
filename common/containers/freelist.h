@@ -7,31 +7,44 @@
 #include "../stdafx.h"
 #include "../string.h"
 
-typedef struct NV_node_t
+typedef struct NV_chunk_t    NV_chunk_t;
+typedef struct NV_node_t     NV_node_t;
+typedef struct NV_freelist_t NV_freelist_t;
+
+typedef NV_node_t* (*NV_freelist_alloc_fn)(size_t alignment, size_t size); // allocate the payload and set the size
+typedef void (*NV_freelist_free_fn)(NV_node_t* node);                      // you need to free the node's data and the node!!!
+
+struct NV_chunk_t
+{
+  void* mapping;
+  // available is here for easy querying by the freelist
+  size_t     mapping_size, mapping_offset, available;
+  NV_node_t* root;
+};
+
+struct NV_node_t
 {
   struct NV_node_t* next;
-  struct NV_node_t* prev;
+  NV_chunk_t*       chunk;
   void*             payload;
   void*             mapping;
   size_t            mapping_size;
   size_t            size; // allocated size
   unsigned          canary;
   bool              in_use;
-} NV_node_t;
+};
 
-typedef NV_node_t* (*NV_freelist_alloc_fn)(size_t alignment, size_t size); // allocate the payload and set the size
-typedef void (*NV_freelist_free_fn)(NV_node_t* node);                      // you need to free the node's data and the node!!!
-
-typedef struct NV_freelist_t
+struct NV_freelist_t
 {
   unsigned             m_canary;
   NV_node_t*           m_root;
   NV_freelist_alloc_fn m_alloc_fn;
   NV_freelist_free_fn  m_free_fn;
   pthread_rwlock_t     m_rwlock;
-} NV_freelist_t;
+};
 
-extern NV_node_t* NV_freelist_mknode(const NV_freelist_t* list, size_t alignment, size_t size, NV_node_t* next, NV_node_t* prev);
+extern NV_chunk_t* NV_freelist_make_chunk(const NV_freelist_t* list, size_t alignment, size_t size);
+extern NV_node_t*  NV_freelist_mknode(const NV_freelist_t* list, size_t alignment, size_t size);
 
 // Initialize a freelist
 extern void NV_freelist_init(size_t init_size, NV_freelist_alloc_fn alloc_fn, NV_freelist_free_fn free_fn, NV_freelist_t* list);

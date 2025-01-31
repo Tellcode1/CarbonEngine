@@ -13,26 +13,26 @@ NVVK_FORWARD_DECLARE(VkImageView);
 NVVK_FORWARD_DECLARE(VkDescriptorSet);
 NVVK_FORWARD_DECLARE(VkSampler);
 
-typedef struct NVSprite NVSprite;
+typedef struct NV_sprite NV_sprite;
 
-extern NVSprite *NVSprite_Empty;
+extern NV_sprite *NV_sprite_empty;
 
-extern NVSprite *NVSprite_LoadFromMemory(const unsigned char *data, int w, int h, NVFormat fmt);
-extern NVSprite *NVSprite_LoadFromDisk(const char *path);
+extern NV_sprite *NV_sprite_load_from_memory(const unsigned char *data, int w, int h, NVFormat fmt);
+extern NV_sprite *NV_sprite_load_from_disk(const char *path);
 
 // force destroy
-extern void NVSprite_Destroy(NVSprite *spr);
+extern void NV_sprite_destroy(NV_sprite *spr);
 
 // references
-extern void NVSprite_Lock(NVSprite *spr);
-extern void NVSprite_Release(NVSprite *spr);
+extern void NV_sprite_lock(NV_sprite *spr);
+extern void NV_sprite_release(NV_sprite *spr);
 
-extern void NVSprite_GetDimensions(const NVSprite *spr, int *w, int *h);
-extern VkImage NVSprite_GetVkImage(const NVSprite *spr);
-extern VkImageView NVSprite_GetVkImageView(const NVSprite *spr);
-extern VkDescriptorSet NVSprite_GetDescriptorSet(const NVSprite *spr);
-extern VkSampler NVSprite_GetSampler(const NVSprite *spr);
-extern NVFormat NVSprite_GetFormat(const NVSprite *spr);
+extern void NV_sprite_get_dimensions(const NV_sprite *spr, int *w, int *h);
+extern VkImage NV_sprite_get_vk_image(const NV_sprite *spr);
+extern VkImageView NV_sprite_get_vk_image_view(const NV_sprite *spr);
+extern VkDescriptorSet NV_sprite_get_descriptor_set(const NV_sprite *spr);
+extern VkSampler NV_sprite_get_sampler(const NV_sprite *spr);
+extern NVFormat NV_sprite_get_format(const NV_sprite *spr);
 
 NOVA_HEADER_END;
 

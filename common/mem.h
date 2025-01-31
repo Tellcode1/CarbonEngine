@@ -2,6 +2,7 @@
 #define __NOVA_MEM_H__
 
 #include "../common/containers/freelist.h"
+#include "../common/containers/heap.h"
 #include "stdafx.h"
 #include "string.h"
 #include <stddef.h>
@@ -87,13 +88,13 @@ NVAllocatorBindStackAllocator(NVAllocator* allocator, NVAllocatorStack* stack)
 }
 
 static inline void
-NVAllocatorBindHeapAllocator(NVAllocator* allocator, NVAllocatorHeap* pool)
+NVAllocatorBindHeapAllocator(NVAllocator* allocator, NV_heap* heap)
 {
   allocator->alloc   = poolmalloc;
   allocator->calloc  = poolcalloc;
   allocator->realloc = poolrealloc;
   allocator->free    = poolfree;
-  allocator->context = pool;
+  allocator->context = heap;
 }
 
 NOVA_HEADER_END;

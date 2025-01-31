@@ -5,7 +5,7 @@
 
 NOVA_HEADER_START;
 
-struct NVRenderer_Config;
+struct NV_renderer_config;
 union SDL_Event;
 
 typedef struct NVTime {
@@ -56,7 +56,7 @@ static inline double NV_get_time() {
 }
 
 extern void NV_initialize_context(const char *window_title, int window_width, int window_height);
-extern void _NV_initialize_context_internal(const char *window_title, u32 window_width, u32 window_height);
+extern void _NVVK_initialize_context(const char *window_title, u32 window_width, u32 window_height);
 
 static const u32 NV_FIXED_FRAME_RATE   = 60;
 static const double NV_FIXED_TICK_RATE = 1000.0 / (double)NV_FIXED_FRAME_RATE; // 1000 milliseconds

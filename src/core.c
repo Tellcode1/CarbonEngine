@@ -12,9 +12,9 @@
 
 #include "../common/containers/atlas.h"
 #include "../common/containers/bitset.h"
+#include "../common/containers/dynarray.h"
 #include "../common/containers/hashmap.h"
 #include "../common/containers/string.h"
-#include "../common/containers/vector.h"
 #include "../common/mem.h"
 #include "../common/printf.h"
 #include "../common/stdafx.h"
@@ -24,7 +24,6 @@
 #define WRITING_MAX_FOR_THE_23RD_TIME(a, b) ((a) > (b) ? (a) : (b))
 #define _min(a, b) ((a) < (b) ? (a) : (b))
 
-#define ALIGN_UP(ptr, alignment) ((void*)(((uintptr_t)(ptr) + ((alignment) - 1)) & ~((alignment) - 1)))
 #define ALIGN_UP_SIZE(size, align) (((size) + (align) - 1) & ~((align) - 1))
 
 static FILE*  g_stdstream   = NULL;
@@ -38,7 +37,7 @@ _NV_LOG(va_list args, const char* fn, const char* succeeder, const char* precede
 
   struct tm* time = _NV_GET_TIME();
 
-  NV_fprintf(out, "[%d:%d:%d] %s(): %s", time->tm_hour % 12, time->tm_min, time->tm_sec, fn, preceder);
+  NV_fprintf(out, "[%d:%d:%d] %s %s(): ", time->tm_hour % 12, time->tm_min, time->tm_sec, preceder, fn);
 
   NV_vfprintf(out, s, args);
   NV_fprintf(out, "%s", succeeder);
@@ -147,9 +146,9 @@ NV_itoa2(long long x, char out[], int base, size_t max)
   if (fn(n))                                                                                                                                                                  \
   {                                                                                                                                                                           \
     if (signbit(n) == 0)                                                                                                                                                      \
-      return NV_strncpy2(s, str, max);                                                                                                                                      \
+      return NV_strncpy2(s, str, max);                                                                                                                                        \
     else                                                                                                                                                                      \
-      return NV_strncpy2(s, "-" str, max);                                                                                                                                  \
+      return NV_strncpy2(s, "-" str, max);                                                                                                                                    \
   }
 
 // WARNING::: I didn't write most of this, stole it from stack overflow.
@@ -432,7 +431,7 @@ NV_btoa2(size_t x, bool upgrade, char* buf, size_t max)
     if (stagei >= 5)
     {
       NV_LOG_ERROR("btoa: x is too big. x cannot be greater than 1000 petabytes. No "
-                "bytes have been written");
+                   "bytes have been written");
       return 0;
     }
     written = NV_ftoa2(b, buf, 3, max, 1);
@@ -596,6 +595,7 @@ NV_vsnprintf(char* dest, size_t max_chars, const char* fmt, va_list src)
   double            f;
   const char*       iter = fmt;
   void*             p;
+  size_t            bytes;
 
   va_list           args;
   va_copy(args, src);
@@ -644,13 +644,13 @@ NV_vsnprintf(char* dest, size_t max_chars, const char* fmt, va_list src)
           break;
         }
         case 'l':
-          if ((iter + 1) != dest_end && (*(iter + 1) == 'd' || *(iter + 1) == 'i'))
+          if ((iter + 1) != dest_end && (*(iter + 1) == 'd' || *(iter + 1) == 'i' || *(iter + 1) == 'u'))
           {
             iter++;
           }
           else
           {
-            NV_LOG_ERROR("Expected D\\d\\i after l");
+            NV_LOG_ERROR("Expected D\\d\\i\\u after l");
             break;
           }
           __attribute__((__fallthrough__));
@@ -667,6 +667,11 @@ NV_vsnprintf(char* dest, size_t max_chars, const char* fmt, va_list src)
         case 'p':
           p       = va_arg(args, void*);
           written = NV_ptoa2(p, g_writebuf, max_chars - chars_written);
+          NV_printf_write_to_buf(&writep, &chars_written, max_chars, g_writebuf, written);
+          break;
+        case 'b': // bytes
+          bytes   = va_arg(args, size_t);
+          written = NV_btoa2(bytes, 1, g_writebuf, max_chars - chars_written);
           NV_printf_write_to_buf(&writep, &chars_written, max_chars, g_writebuf, written);
           break;
         case 's':
@@ -738,10 +743,10 @@ NV_vsnprintf(char* dest, size_t max_chars, const char* fmt, va_list src)
 // printf
 
 void
-__NV_LOG_ERROR(const char* func, const char* fmt, ...)
+_NV_LOG_ERROR(const char* func, const char* fmt, ...)
 {
-  // this is my project I can do whatever the F@#!@# I want
-  const char* preceder  = "oh baby an error! ";
+  // it was funny while it lasted.
+  const char* preceder  = "err:";
   const char* succeeder = "\n";
   va_list     args;
   va_start(args, fmt);
@@ -750,9 +755,9 @@ __NV_LOG_ERROR(const char* func, const char* fmt, ...)
 }
 
 void
-__NV_LOG_AND_ABORT(const char* func, const char* fmt, ...)
+_NV_LOG_AND_ABORT(const char* func, const char* fmt, ...)
 {
-  const char* preceder  = "fatal error: ";
+  const char* preceder  = "fatal error:";
   const char* succeeder = "\nabort.\n";
   va_list     args;
   va_start(args, fmt);
@@ -762,9 +767,9 @@ __NV_LOG_AND_ABORT(const char* func, const char* fmt, ...)
 }
 
 void
-__NV_LOG_WARNING(const char* func, const char* fmt, ...)
+_NV_LOG_WARNING(const char* func, const char* fmt, ...)
 {
-  const char* preceder  = "warning: ";
+  const char* preceder  = "warning:";
   const char* succeeder = "\n";
   va_list     args;
   va_start(args, fmt);
@@ -773,9 +778,9 @@ __NV_LOG_WARNING(const char* func, const char* fmt, ...)
 }
 
 void
-__NV_LOG_INFO(const char* func, const char* fmt, ...)
+_NV_LOG_INFO(const char* func, const char* fmt, ...)
 {
-  const char* preceder  = "info: ";
+  const char* preceder  = "info:";
   const char* succeeder = "\n";
   va_list     args;
   va_start(args, fmt);
@@ -784,9 +789,9 @@ __NV_LOG_INFO(const char* func, const char* fmt, ...)
 }
 
 void
-__NV_LOG_DEBUG(const char* func, const char* fmt, ...)
+_NV_LOG_DEBUG(const char* func, const char* fmt, ...)
 {
-  const char* preceder  = "debug: ";
+  const char* preceder  = "debug:";
   const char* succeeder = "\n";
   va_list     args;
   va_start(args, fmt);
@@ -795,7 +800,7 @@ __NV_LOG_DEBUG(const char* func, const char* fmt, ...)
 }
 
 void
-__NV_LOG_CUSTOM(const char* func, const char* preceder, const char* fmt, ...)
+_NV_LOG_CUSTOM(const char* func, const char* preceder, const char* fmt, ...)
 {
   const char* succeeder = "\n";
   va_list     args;
@@ -874,23 +879,23 @@ NV_bufdecompress(const void* compressed_data, size_t compressed_size, void* o_bu
 }
 
 NVImage
-NVImage_Load(const char* path)
+NV_img_load(const char* path)
 {
   const char* ext = get_file_extension(path);
   if (NV_strcmp(ext, "jpeg") == 0 || NV_strcmp(ext, "jpg") == 0)
   {
-    return NVImage_LoadJPEG(path);
+    return NV_img_load_jpeg(path);
   }
   else if (NV_strcmp(ext, "png") == 0)
   {
-    return NVImage_LoadPNG(path);
+    return NV_img_load_png(path);
   }
   NV_assert(0);
   return (NVImage){};
 }
 
 unsigned char*
-NVImage_PadChannels(const NVImage* src, int dst_channels)
+NV_img_pad_channels(const NVImage* src, int dst_channels)
 {
   const int src_channels = NV_FormatGetNumChannels(src->fmt);
   NV_assert(src_channels < dst_channels);
@@ -926,11 +931,11 @@ NVImage_PadChannels(const NVImage* src, int dst_channels)
 }
 
 NVImage
-NVImage_LoadPNG(const char* path)
+NV_img_load_png(const char* path)
 {
   NVImage texture = {};
 
-  FILE*     f       = fopen(path, "rb");
+  FILE*   f       = fopen(path, "rb");
   NV_assert(f != NULL);
 
   png_struct* png = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
@@ -1013,12 +1018,12 @@ NVImage_LoadPNG(const char* path)
 }
 
 NVImage
-NVImage_LoadJPEG(const char* path)
+NV_img_load_jpeg(const char* path)
 {
   struct jpeg_decompress_struct cinfo;
   struct jpeg_error_mgr         jerr;
   FILE*                         f;
-  NVImage                     img = {};
+  NVImage                       img = {};
 
   if ((f = fopen(path, "rb")) == NULL)
   {
@@ -1072,7 +1077,7 @@ NVImage_LoadJPEG(const char* path)
 }
 
 void
-NVImage_WritePNG(const NVImage* tex, const char* path)
+NV_img_write_png(const NVImage* tex, const char* path)
 {
   FILE* f = fopen(path, "wb");
   NV_assert(f != NULL);
@@ -1427,9 +1432,9 @@ NV_memcpy(void* dst, const void* src, size_t sz)
   NV_assert(src != NULL);
   NV_assert(sz != 0);
 
-  #if defined(__GNUC__) && (__NOVA_STR_USE_BUILTIN)
-    return __builtin_memcpy(dst, src, sz);
-  #endif
+#if defined(__GNUC__) && (__NOVA_STR_USE_BUILTIN)
+  return __builtin_memcpy(dst, src, sz);
+#endif
 
   // I saw this optimization trick a long time ago in some big codebase
   // and it has sticken to me
@@ -1570,7 +1575,7 @@ NV_memchr(const void* p, int chr, size_t psize)
 }
 
 int
-__NV_memcmp_aligned(const u32* p1, const u32* p2, size_t max)
+_NV_memcmp_aligned(const u32* p1, const u32* p2, size_t max)
 {
   size_t i = 0;
   while (i < max && *p1 == *p2)
@@ -1600,7 +1605,7 @@ NV_memcmp(const void* _p1, const void* _p2, size_t max)
   if (((uintptr_t)p1 & 0x3) == 0 && ((uintptr_t)p2 & 0x3) == 0)
   {
     size_t word_count = max / 4;
-    int    result     = __NV_memcmp_aligned((u32*)p1, (u32*)p2, word_count);
+    int    result     = _NV_memcmp_aligned((u32*)p1, (u32*)p2, word_count);
 
     if (result != 0)
     {
@@ -1638,8 +1643,10 @@ NV_memcmp(const void* _p1, const void* _p2, size_t max)
 size_t
 NV_strncpy2(char* dest, const char* src, size_t max)
 {
-  if (!dest) {
-    return _min(NV_strlen(src), max);
+  if (!dest)
+  {
+    size_t slen = NV_strlen(src);
+    return _min(slen, max);
   }
 
   if (max == 0 || !src)
@@ -1647,9 +1654,9 @@ NV_strncpy2(char* dest, const char* src, size_t max)
     return -1;
   }
 
-  #if defined(__GNUC__) && (__NOVA_STR_USE_BUILTIN)
-    return __builtin_strlen(__builtin_strncpy(dest, src, max));
-  #endif
+#if defined(__GNUC__) && (__NOVA_STR_USE_BUILTIN)
+  return __builtin_strlen(__builtin_strncpy(dest, src, max));
+#endif
 
   max--; // -1 so we can fit the NULL terminator
   size_t i = 0;
@@ -1943,7 +1950,7 @@ char*
 NV_basename(const char* path)
 {
   char* p         = (char*)path; // shut up C compiler
-  char* backslash = NV_strrchr(path, '\\');
+  char* backslash = NV_strrchr(path, '/');
   if (backslash != NULL)
   {
     return backslash + 1;
@@ -1996,7 +2003,7 @@ void*
 saalloc(NVAllocator* parent, size_t alignment, size_t size)
 {
   NVAllocatorStack* allocator = (NVAllocatorStack*)parent->context;
-  size                          = ALIGN_UP_SIZE(size, alignment);
+  size                        = ALIGN_UP_SIZE(size, alignment);
   if ((allocator->bufoffset + size + sizeof(sablock)) > allocator->bufsiz)
   {
     NV_LOG_ERROR("oom"); // OUT OF MEMORY
@@ -2023,7 +2030,7 @@ void
 safree(NVAllocator* parent, void* block)
 {
   NVAllocatorStack* allocator = (NVAllocatorStack*)parent->context;
-  sablock*            p         = (sablock*)block;
+  sablock*          p         = (sablock*)block;
   p--;
   NV_assert(p->canary == NOVA_ALLOCATION_CANARY);
   void* allocator_last_block = (allocator->buf + allocator->bufoffset - p->size - sizeof(sablock));
@@ -2074,11 +2081,9 @@ heapfree(NVAllocator* parent, void* block)
   free(block);
 }
 
-static pthread_mutex_t malloc_mutex = PTHREAD_MUTEX_INITIALIZER;
-
 // A pool is moade of many chunks
 NV_node_t*
-pool_alloc_internal(size_t alignment, size_t size)
+heap_alloc_internal(size_t alignment, size_t size)
 {
   NV_assert((alignment & (alignment - 1)) == 0 && alignment > 0);
   NV_assert(size < SIZE_MAX - alignment - sizeof(NV_node_t) - sizeof(unsigned));
@@ -2093,7 +2098,6 @@ pool_alloc_internal(size_t alignment, size_t size)
     return NULL;
   }
 
-  // void *mapping = mmap(NULL, total_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
   void* mapping = mmap(NULL, total_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
   if (mapping == MAP_FAILED || !mapping)
   {
@@ -2101,20 +2105,25 @@ pool_alloc_internal(size_t alignment, size_t size)
     return NULL;
   }
 
-  NV_node_t* p = (NV_node_t*)mapping;
-  *p           = (NV_node_t){
-              .payload      = ALIGN_UP(p + 1, alignment),
-              .mapping      = mapping,
-              .mapping_size = total_size,
-              .canary       = NOVA_ALLOCATION_CANARY,
-              .in_use       = 1,
+  NV_chunk_t* chk   = (NV_chunk_t*)mapping;
+  chk->mapping      = mapping;
+  chk->mapping_size = total_size;
+  chk->available    = total_size;
+
+  NV_node_t* p      = (NV_node_t*)((NV_chunk_t*)mapping + 1);
+  *p                = (NV_node_t){
+                   .payload      = ALIGN_UP(p + 1, alignment),
+                   .mapping      = mapping,
+                   .mapping_size = total_size,
+                   .canary       = NOVA_ALLOCATION_CANARY,
+                   .in_use       = 1,
   };
-  NV_assert(((uintptr_t)p->payload % alignment) == 0);
+  chk->root = p;
   return p;
 }
 
 void
-pool_free_node_internal(NV_node_t* node)
+heap_free_node_internal(NV_node_t* node)
 {
   if (!node)
   {
@@ -2142,94 +2151,113 @@ pool_free_node_internal(NV_node_t* node)
 void
 NVAllocatorHeapInit(NVAllocatorHeap* pool)
 {
-  pthread_mutex_lock(&malloc_mutex);
-  NV_freelist_init(0, pool_alloc_internal, pool_free_node_internal, &pool->freelist);
-  pthread_mutex_unlock(&malloc_mutex);
+  NV_freelist_init(0, heap_alloc_internal, heap_free_node_internal, &pool->freelist);
 }
+
+#include "../common/containers/heap.h"
 
 void*
 poolmalloc(NVAllocator* allocator, size_t alignment, size_t size)
 {
-  pthread_mutex_lock(&malloc_mutex);
-  NVAllocatorHeap* pool = (NVAllocatorHeap*)allocator->context;
-  NV_freelist_check_circle(&pool->freelist);
-  void* p = NV_freelist_alloc(&pool->freelist, alignment, size);
+  // Lock the allocator for thread safety
+
+  NV_heap* pool = (NV_heap*)allocator->context;
+  NV_assert(pool->canary == POOTIS);
+
+  // Allocate memory from the pool
+  void* p = NV_heap_alloc(pool, alignment, size);
   if (!p)
   {
-    NV_LOG_ERROR("alloc (size=%i) failed", (int)size);
+    NV_LOG_ERROR("alloc (size=%b) failed", size);
   }
-  pthread_mutex_unlock(&malloc_mutex);
+
+  // Unlock after allocation
+
   return p;
 }
 
-// This does not need a mutex as memset is not thread unsafe
 void*
 poolcalloc(NVAllocator* allocator, size_t alignment, size_t size)
 {
+  // Lock the allocator for thread safety
+
+  // Allocate memory using poolmalloc
   void* p = poolmalloc(allocator, alignment, size);
+
   if (p)
   {
+    // Initialize memory to zero
     NV_memset(p, 0, size);
   }
+
+  // Unlock after initialization
+
   return p;
 }
 
 void*
 poolrealloc(NVAllocator* allocator, void* prevblock, size_t alignment, size_t size)
 {
-  NVAllocatorHeap* pool = (NVAllocatorHeap*)allocator->context;
-  NV_freelist_check_circle(&pool->freelist);
+  NV_heap* pool = (NV_heap*)allocator->context;
+  NV_assert(pool->canary == POOTIS);
 
-  if (prevblock == NULL)
+  if (!prevblock)
   {
-    return poolmalloc(allocator, alignment, size);
+    void* new_block = poolmalloc(allocator, alignment, size);
+    return new_block;
   }
 
-  pthread_mutex_lock(&malloc_mutex);
+  // Search for the node that contains the previous block
+  NV_heap_chunk* chunk     = pool->root;
+  NV_heap_node*  prev_node = NULL;
+  bool           found     = false;
 
-  NV_node_t* prev_node = pool->freelist.m_root;
-  bool       found     = false;
-
-  while (prev_node)
+  while (chunk && !found)
   {
-    if (prev_node->payload == prevblock)
+    prev_node = chunk->root;
+    while (prev_node)
     {
-      found = true;
-      break;
+      if (prev_node->payload == prevblock)
+      {
+        found = true;
+        break;
+      }
+      prev_node = prev_node->next;
     }
-    prev_node = prev_node->next;
+    if (!found)
+    {
+      chunk = chunk->next;
+    }
   }
 
+  // If the block was not found, log an error and return NULL
   if (!found)
   {
-    NV_LOG_ERROR("Invalid prevblock");
-    pthread_mutex_unlock(&malloc_mutex);
-    return poolmalloc(allocator, alignment, size);
+    NV_LOG_ERROR("Invalid prevblock: block not found in allocator");
+    return NULL;
   }
 
-  if (prev_node->canary != NOVA_ALLOCATION_CANARY)
-  {
-    NV_LOG_AND_ABORT("Double linked list corrupted");
-  }
-
-  if (prev_node->size == 0)
-  {
-    NV_freelist_free(&pool->freelist, prev_node->payload);
-    pthread_mutex_unlock(&malloc_mutex);
-    return poolmalloc(allocator, alignment, size);
-  }
-
+  // Check if reallocation is needed
   if (prev_node->size >= size)
   {
+    // No need to reallocate if the current block is already large enough
+    return prevblock;
   }
 
-  void* new_mem = NV_freelist_alloc(&pool->freelist, alignment, size);
+  // Allocate a new block with the desired size and alignment
+  void* new_mem = poolmalloc(allocator, alignment, size);
+  if (!new_mem)
+  {
+    return NULL; // Allocation failed
+  }
 
-  NV_memcpy(new_mem, prevblock, prev_node->size < size ? prev_node->size : size);
+  size_t copy_size = (prev_node->size < size) ? prev_node->size : size;
+  NV_memcpy(new_mem, prevblock, copy_size);
 
-  NV_freelist_free(&pool->freelist, prev_node->payload);
+  // Free the old block
+  NV_heap_free(pool, prevblock);
 
-  pthread_mutex_unlock(&malloc_mutex);
+  // Unlock after reallocation
 
   return new_mem;
 }
@@ -2237,10 +2265,15 @@ poolrealloc(NVAllocator* allocator, void* prevblock, size_t alignment, size_t si
 void
 poolfree(NVAllocator* allocator, void* block)
 {
-  pthread_mutex_lock(&malloc_mutex);
-  NVAllocatorHeap* pool = (NVAllocatorHeap*)allocator->context;
-  NV_freelist_free(&pool->freelist, block);
-  pthread_mutex_unlock(&malloc_mutex);
+  // Lock the allocator for thread safety
+
+  NV_heap* pool = (NV_heap*)allocator->context;
+  NV_assert(pool->canary == POOTIS);
+
+  // Free the block using the heap free function
+  NV_heap_free(pool, block);
+
+  // Unlock after freeing
 }
 
 // I was having an existential crisis
@@ -2262,30 +2295,31 @@ poolfree(NVAllocator* allocator, void* block)
 // VECTOR
 // ==============================
 
-NV_vector_t
-NV_vector_init(int typesize, size_t init_size)
+NV_dynarray_t
+NV_dynarray_init(int typesize, size_t init_size)
 {
   NV_assert(typesize > 0);
 
-  NV_vector_t vec = {};
-  vec.m_size      = 0;
-  vec.m_typesize  = typesize;
-  vec.m_capacity  = init_size;
-  vec.m_canary    = CONT_CANARY;
-  vec.m_rwlock    = (pthread_rwlock_t)PTHREAD_RWLOCK_INITIALIZER;
+  NV_dynarray_t vec = {};
+  vec.m_size        = 0;
+  vec.m_typesize    = typesize;
+  vec.m_capacity    = init_size;
+  vec.m_canary      = CONT_CANARY;
+  vec.m_rwlock      = (pthread_rwlock_t)PTHREAD_RWLOCK_INITIALIZER;
 
   if (init == 0)
   {
-    NVAllocatorHeapInit(&pool);
-    init = 1;
+    heap        = (NV_heap){};
+    heap.canary = POOTIS;
+    init        = 1;
   }
 
-  NVAllocatorBindHeapAllocator(&vec.allocator, &pool);
+  NVAllocatorBindHeapAllocator(&vec.allocator, &heap);
 
   if (init_size > 0)
   {
     pthread_rwlock_wrlock(&vec.m_rwlock);
-    NV_vector_resize(&vec, init_size);
+    NV_dynarray_resize(&vec, init_size);
     pthread_rwlock_unlock(&vec.m_rwlock);
   }
   else
@@ -2297,7 +2331,7 @@ NV_vector_init(int typesize, size_t init_size)
 }
 
 void
-NV_vector_destroy(NV_vector_t* vec)
+NV_dynarray_destroy(NV_dynarray_t* vec)
 {
   if (vec)
   {
@@ -2313,7 +2347,7 @@ NV_vector_destroy(NV_vector_t* vec)
 }
 
 void
-NV_vector_clear(NV_vector_t* vec)
+NV_dynarray_clear(NV_dynarray_t* vec)
 {
   pthread_rwlock_wrlock(&vec->m_rwlock);
   NV_assert(CONT_IS_VALID(vec));
@@ -2322,7 +2356,7 @@ NV_vector_clear(NV_vector_t* vec)
 }
 
 size_t
-NV_vector_size(const NV_vector_t* vec)
+NV_dynarray_size(const NV_dynarray_t* vec)
 {
   pthread_rwlock_rdlock((pthread_rwlock_t*)&vec->m_rwlock);
   NV_assert(CONT_IS_VALID(vec));
@@ -2332,7 +2366,7 @@ NV_vector_size(const NV_vector_t* vec)
 }
 
 size_t
-NV_vector_capacity(const NV_vector_t* vec)
+NV_dynarray_capacity(const NV_dynarray_t* vec)
 {
   pthread_rwlock_rdlock((pthread_rwlock_t*)&vec->m_rwlock);
   NV_assert(CONT_IS_VALID(vec));
@@ -2342,7 +2376,7 @@ NV_vector_capacity(const NV_vector_t* vec)
 }
 
 int
-NV_vector_typesize(const NV_vector_t* vec)
+NV_dynarray_typesize(const NV_dynarray_t* vec)
 {
   pthread_rwlock_rdlock((pthread_rwlock_t*)&vec->m_rwlock);
   NV_assert(CONT_IS_VALID(vec));
@@ -2352,7 +2386,7 @@ NV_vector_typesize(const NV_vector_t* vec)
 }
 
 void*
-NV_vector_data(const NV_vector_t* vec)
+NV_dynarray_data(const NV_dynarray_t* vec)
 {
   pthread_rwlock_rdlock((pthread_rwlock_t*)&vec->m_rwlock);
   NV_assert(CONT_IS_VALID(vec));
@@ -2362,28 +2396,28 @@ NV_vector_data(const NV_vector_t* vec)
 }
 
 void*
-NV_vector_back(NV_vector_t* vec)
+NV_dynarray_back(NV_dynarray_t* vec)
 {
   pthread_rwlock_wrlock((pthread_rwlock_t*)&vec->m_rwlock);
   NV_assert(CONT_IS_VALID(vec));
-  void* p = NV_vector_get(vec, WRITING_MAX_FOR_THE_23RD_TIME(1ULL, vec->m_size) - 1); // stupid but works
+  void* p = NV_dynarray_get(vec, WRITING_MAX_FOR_THE_23RD_TIME(1ULL, vec->m_size) - 1); // stupid but works
   pthread_rwlock_unlock((pthread_rwlock_t*)&vec->m_rwlock);
   return p;
 }
 
 void*
-NV_vector_get(const NV_vector_t* vec, size_t i)
+NV_dynarray_get(const NV_dynarray_t* vec, size_t i)
 {
   pthread_rwlock_wrlock((pthread_rwlock_t*)&vec->m_rwlock);
   NV_assert(CONT_IS_VALID(vec));
-  uchar *data = vec->m_data;
+  uchar* data     = vec->m_data;
   size_t typesize = vec->m_typesize;
   pthread_rwlock_unlock((pthread_rwlock_t*)&vec->m_rwlock);
   return data + (typesize * i);
 }
 
 void
-NV_vector_set(NV_vector_t* vec, size_t i, void* elem)
+NV_dynarray_set(NV_dynarray_t* vec, size_t i, void* elem)
 {
   pthread_rwlock_wrlock((pthread_rwlock_t*)&vec->m_rwlock);
   NV_assert(CONT_IS_VALID(vec));
@@ -2392,7 +2426,7 @@ NV_vector_set(NV_vector_t* vec, size_t i, void* elem)
 }
 
 void
-NV_vector_copy_from(const NV_vector_t* RESTRICT src, NV_vector_t* RESTRICT dst)
+NV_dynarray_copy_from(const NV_dynarray_t* RESTRICT src, NV_dynarray_t* RESTRICT dst)
 {
   pthread_rwlock_rdlock((pthread_rwlock_t*)&src->m_rwlock);
   pthread_rwlock_wrlock((pthread_rwlock_t*)&dst->m_rwlock);
@@ -2403,7 +2437,7 @@ NV_vector_copy_from(const NV_vector_t* RESTRICT src, NV_vector_t* RESTRICT dst)
   NV_assert(src->m_typesize == dst->m_typesize);
   if (src->m_size >= dst->m_capacity)
   {
-    NV_vector_resize(dst, src->m_size);
+    NV_dynarray_resize(dst, src->m_size);
   }
   dst->m_size = src->m_size;
   NV_memcpy(dst->m_data, src->m_data, src->m_size * src->m_typesize);
@@ -2413,7 +2447,7 @@ NV_vector_copy_from(const NV_vector_t* RESTRICT src, NV_vector_t* RESTRICT dst)
 }
 
 void
-NV_vector_move_from(NV_vector_t* RESTRICT src, NV_vector_t* RESTRICT dst)
+NV_dynarray_move_from(NV_dynarray_t* RESTRICT src, NV_dynarray_t* RESTRICT dst)
 {
   pthread_rwlock_wrlock((pthread_rwlock_t*)&src->m_rwlock);
   pthread_rwlock_wrlock((pthread_rwlock_t*)&dst->m_rwlock);
@@ -2434,14 +2468,14 @@ NV_vector_move_from(NV_vector_t* RESTRICT src, NV_vector_t* RESTRICT dst)
 }
 
 bool
-NV_vector_empty(const NV_vector_t* vec)
+NV_dynarray_empty(const NV_dynarray_t* vec)
 {
   NV_assert(CONT_IS_VALID(vec));
   return (vec->m_size == 0);
 }
 
 bool
-NV_vector_equal(const NV_vector_t* vec1, const NV_vector_t* vec2)
+NV_dynarray_equal(const NV_dynarray_t* vec1, const NV_dynarray_t* vec2)
 {
   NV_assert(CONT_IS_VALID(vec1));
   NV_assert(CONT_IS_VALID(vec2));
@@ -2467,7 +2501,7 @@ NV_vector_equal(const NV_vector_t* vec1, const NV_vector_t* vec2)
 }
 
 void
-NV_vector_resize(NV_vector_t* vec, size_t new_size)
+NV_dynarray_resize(NV_dynarray_t* vec, size_t new_size)
 {
   NV_assert(CONT_IS_VALID(vec));
 
@@ -2485,7 +2519,7 @@ NV_vector_resize(NV_vector_t* vec, size_t new_size)
 }
 
 void
-NV_vector_push_back(NV_vector_t* RESTRICT vec, const void* RESTRICT elem)
+NV_dynarray_push_back(NV_dynarray_t* RESTRICT vec, const void* RESTRICT elem)
 {
   NV_assert(CONT_IS_VALID(vec));
 
@@ -2493,7 +2527,7 @@ NV_vector_push_back(NV_vector_t* RESTRICT vec, const void* RESTRICT elem)
 
   if (vec->m_size >= vec->m_capacity)
   {
-    NV_vector_resize(vec, WRITING_MAX_FOR_THE_23RD_TIME(1, vec->m_capacity * 2));
+    NV_dynarray_resize(vec, WRITING_MAX_FOR_THE_23RD_TIME(1, vec->m_capacity * 2));
   }
 
   NV_assert(vec->m_data != NULL);
@@ -2505,7 +2539,7 @@ NV_vector_push_back(NV_vector_t* RESTRICT vec, const void* RESTRICT elem)
 }
 
 void
-NV_vector_push_set(NV_vector_t* RESTRICT vec, const void* RESTRICT arr, size_t count)
+NV_dynarray_push_set(NV_dynarray_t* RESTRICT vec, const void* RESTRICT arr, size_t count)
 {
   NV_assert(CONT_IS_VALID(vec));
 
@@ -2513,7 +2547,7 @@ NV_vector_push_set(NV_vector_t* RESTRICT vec, const void* RESTRICT arr, size_t c
 
   size_t required_capacity = vec->m_size + count;
   if (required_capacity >= vec->m_capacity)
-    NV_vector_resize(vec, required_capacity);
+    NV_dynarray_resize(vec, required_capacity);
   NV_memcpy((uchar*)vec->m_data + (vec->m_size * vec->m_typesize), arr, count * vec->m_typesize);
   vec->m_size += count;
 
@@ -2521,7 +2555,7 @@ NV_vector_push_set(NV_vector_t* RESTRICT vec, const void* RESTRICT arr, size_t c
 }
 
 void
-NV_vector_pop_back(NV_vector_t* vec)
+NV_dynarray_pop_back(NV_dynarray_t* vec)
 {
   NV_assert(CONT_IS_VALID(vec));
 
@@ -2536,7 +2570,7 @@ NV_vector_pop_back(NV_vector_t* vec)
 }
 
 void
-NV_vector_pop_front(NV_vector_t* vec)
+NV_dynarray_pop_front(NV_dynarray_t* vec)
 {
   NV_assert(CONT_IS_VALID(vec));
 
@@ -2552,7 +2586,7 @@ NV_vector_pop_front(NV_vector_t* vec)
 }
 
 void
-NV_vector_insert(NV_vector_t* RESTRICT vec, size_t index, const void* RESTRICT elem)
+NV_dynarray_insert(NV_dynarray_t* RESTRICT vec, size_t index, const void* RESTRICT elem)
 {
   NV_assert(CONT_IS_VALID(vec));
 
@@ -2560,7 +2594,7 @@ NV_vector_insert(NV_vector_t* RESTRICT vec, size_t index, const void* RESTRICT e
 
   if (index >= vec->m_capacity)
   {
-    NV_vector_resize(vec, WRITING_MAX_FOR_THE_23RD_TIME(1, index * 2));
+    NV_dynarray_resize(vec, WRITING_MAX_FOR_THE_23RD_TIME(1, index * 2));
   }
   if (index >= vec->m_size)
   {
@@ -2572,7 +2606,7 @@ NV_vector_insert(NV_vector_t* RESTRICT vec, size_t index, const void* RESTRICT e
 }
 
 void
-NV_vector_remove(NV_vector_t* vec, size_t index)
+NV_dynarray_remove(NV_dynarray_t* vec, size_t index)
 {
   NV_assert(CONT_IS_VALID(vec));
 
@@ -2591,7 +2625,7 @@ NV_vector_remove(NV_vector_t* vec, size_t index)
 }
 
 int
-NV_vector_find(const NV_vector_t* RESTRICT vec, const void* RESTRICT elem)
+NV_dynarray_find(const NV_dynarray_t* RESTRICT vec, const void* RESTRICT elem)
 {
   NV_assert(CONT_IS_VALID(vec));
 
@@ -2611,7 +2645,7 @@ NV_vector_find(const NV_vector_t* RESTRICT vec, const void* RESTRICT elem)
 }
 
 void
-NV_vector_sort(NV_vector_t* vec, NV_vector_compare_fn compare)
+NV_dynarray_sort(NV_dynarray_t* vec, NV_dynarray_compare_fn compare)
 {
   NV_assert(CONT_IS_VALID(vec));
 
@@ -2626,15 +2660,15 @@ NV_vector_sort(NV_vector_t* vec, NV_vector_compare_fn compare)
 // STRING
 // ==============================
 
-#define __NV_string_alloc(size) str->allocator->alloc(str->allocator, 1, size)
-#define __NV_string_calloc(size) str->allocator->calloc(str->allocator, 1, size)
-#define __NV_string_realloc(prevblock, size) str->allocator->realloc(str->allocator, prevblock, 1, size)
-#define __NV_string_free(size) str->allocator->free(str->allocator, size)
+#define _NV_string_alloc(size) str->allocator->alloc(str->allocator, 1, size)
+#define _NV_string_calloc(size) str->allocator->calloc(str->allocator, 1, size)
+#define _NV_string_realloc(prevblock, size) str->allocator->realloc(str->allocator, prevblock, 1, size)
+#define _NV_string_free(size) str->allocator->free(str->allocator, size)
 
 static void
 NV_string_resize(NV_string_t* str, int new_capacity)
 {
-  char* new_data = __NV_string_realloc(str->m_data, new_capacity);
+  char* new_data = _NV_string_realloc(str->m_data, new_capacity);
   NV_assert(new_data != NULL);
   str->m_data     = new_data;
   str->m_capacity = new_capacity;
@@ -2693,7 +2727,7 @@ NV_string_destroy(NV_string_t* str)
   NV_assert(CONT_IS_VALID(str));
   if (str)
   {
-    __NV_string_free(str->m_data);
+    _NV_string_free(str->m_data);
   }
 }
 
@@ -2896,9 +2930,9 @@ NV_hashmap_std_key_eq(const void* key1, const void* key2, unsigned long nbytes)
   }
 }
 
-#define __NV_hashmap_alloc(size) map->allocator->alloc(map->allocator, 1, size)
-#define __NV_hashmap_calloc(size) map->allocator->calloc(map->allocator, 1, size)
-#define __NV_hashmap_free(block) map->allocator->free(map->allocator, block)
+#define _NV_hashmap_alloc(size) map->allocator->alloc(map->allocator, 1, size)
+#define _NV_hashmap_calloc(size) map->allocator->calloc(map->allocator, 1, size)
+#define _NV_hashmap_free(block) map->allocator->free(map->allocator, block)
 
 NV_hashmap_t*
 NV_hashmap_init(int init_size, int keysize, int valuesize, NV_hashmap_hash_fn hash_fn, NV_hashmap_key_equal_fn equal_fn)
@@ -2922,7 +2956,7 @@ NV_hashmap_init(int init_size, int keysize, int valuesize, NV_hashmap_hash_fn ha
   }
 
   map->allocator = &NVAllocatorDefault;
-  map->m_nodes   = (ch_node_t**)__NV_hashmap_calloc(init_size * sizeof(ch_node_t));
+  map->m_nodes   = (ch_node_t**)_NV_hashmap_calloc(init_size * sizeof(ch_node_t));
   NV_assert(map->m_nodes != NULL);
 
   map->m_hash_fn    = hash_fn;
@@ -2947,10 +2981,10 @@ NV_hashmap_destroy(NV_hashmap_t* map)
   {
     if (map->m_nodes[i])
     {
-      __NV_hashmap_free(map->m_nodes[i]);
+      _NV_hashmap_free(map->m_nodes[i]);
     }
   }
-  __NV_hashmap_free(map->m_nodes);
+  _NV_hashmap_free(map->m_nodes);
   NV_free(map);
 }
 
@@ -2969,7 +3003,7 @@ NV_hashmap_resize(NV_hashmap_t* map, int new_size)
   map->m_entries = closest_power_of_two(new_size);
   map->m_size    = 0;
 
-  map->m_nodes   = __NV_hashmap_calloc(new_size * sizeof(ch_node_t));
+  map->m_nodes   = _NV_hashmap_calloc(new_size * sizeof(ch_node_t));
   NV_assert(map->m_nodes != NULL);
 
   if (old_nodes)
@@ -2980,10 +3014,10 @@ NV_hashmap_resize(NV_hashmap_t* map, int new_size)
       if (node && node->is_occupied)
       {
         NV_hashmap_insert(map, node->key, node->value);
-        __NV_hashmap_free(node);
+        _NV_hashmap_free(node);
       }
     }
-    __NV_hashmap_free(old_nodes);
+    _NV_hashmap_free(old_nodes);
   }
 }
 
@@ -2999,10 +3033,10 @@ NV_hashmap_clear(NV_hashmap_t* map)
   {
     if (map->m_nodes[i])
     {
-      __NV_hashmap_free(map->m_nodes[i]);
+      _NV_hashmap_free(map->m_nodes[i]);
     }
   }
-  __NV_hashmap_free(map->m_nodes);
+  _NV_hashmap_free(map->m_nodes);
   map->m_nodes   = NULL;
   map->m_size    = 0;
   map->m_entries = 0;
@@ -3111,7 +3145,7 @@ NV_hashmap_insert(NV_hashmap_t* map, const void* key, const void* value)
   if (!map->m_nodes[i])
   {
     // Batch allocation for the entire node at once.
-    void* alloc            = __NV_hashmap_alloc(sizeof(ch_node_t) + map->m_key_size + map->m_value_size);
+    void* alloc            = _NV_hashmap_alloc(sizeof(ch_node_t) + map->m_key_size + map->m_value_size);
     map->m_nodes[i]        = alloc;
     map->m_nodes[i]->key   = alloc + sizeof(ch_node_t);
     map->m_nodes[i]->value = alloc + sizeof(ch_node_t) + map->m_key_size;
@@ -3152,7 +3186,7 @@ NV_hashmap_insert_or_replace(NV_hashmap_t* map, const void* key, void* value)
   if (!map->m_nodes[i])
   {
     // Batch allocation for the entire node at once.
-    void* alloc            = __NV_hashmap_alloc(sizeof(ch_node_t) + map->m_key_size + map->m_value_size);
+    void* alloc            = _NV_hashmap_alloc(sizeof(ch_node_t) + map->m_key_size + map->m_value_size);
     map->m_nodes[i]        = alloc;
     map->m_nodes[i]->key   = alloc + sizeof(ch_node_t);
     map->m_nodes[i]->value = alloc + sizeof(ch_node_t) + map->m_key_size;
@@ -3207,7 +3241,7 @@ NV_hashmap_deserialize(NV_hashmap_t* map, FILE* f)
 NV_atlas_t
 NV_atlas_init(int init_w, int init_h)
 {
-  NV_atlas_t atlas           = {};
+  NV_atlas_t atlas         = {};
 
   atlas.width              = init_w;
   atlas.height             = init_h;
@@ -3339,8 +3373,8 @@ NV_bitset_destroy(NV_bitset_t* set)
   set->allocator->free(set->allocator, set->data);
 }
 
-NVAllocatorHeap pool;
-bool              init = 0;
+NV_heap heap;
+bool    init = 0;
 
 void
 NV_freelist_check_circle(const NV_freelist_t* list)
@@ -3368,14 +3402,13 @@ NV_freelist_check_circle(const NV_freelist_t* list)
 }
 
 NV_node_t*
-NV_freelist_mknode(const NV_freelist_t* list, size_t alignment, size_t size, NV_node_t* next, NV_node_t* prev)
+NV_freelist_mknode(const NV_freelist_t* list, size_t alignment, size_t size)
 {
   NV_assert(CONT_IS_VALID(list));
   NV_freelist_check_circle(list);
 
   NV_node_t* node = list->m_alloc_fn(alignment, size);
-  node->next      = next;
-  node->prev      = prev;
+  NV_assert(node != NULL);
   return node;
 }
 
@@ -3386,7 +3419,7 @@ NV_freelist_init(size_t init_size, NV_freelist_alloc_fn alloc_fn, NV_freelist_fr
   list->m_free_fn  = free_fn;
   if (init_size > 0)
   {
-    list->m_root       = NV_freelist_mknode(list, 1, init_size, NULL, NULL);
+    list->m_root       = NV_freelist_mknode(list, 1, init_size);
     list->m_root->size = init_size;
   }
   else
@@ -3407,20 +3440,14 @@ NV_freelist_destroy(NV_freelist_t* list)
     return;
 
   NV_node_t* node = list->m_root;
-
-  while (node->next)
-  {
-    node = node->next;
-  }
-
   while (node)
   {
-    NV_node_t* prev_node = node->prev;
+    NV_node_t* next = node->next;
     if (node->in_use)
     {
       NV_freelist_free(list, node->payload);
     }
-    node = prev_node;
+    node = next;
   }
   NV_freelist_check_circle(list);
 }
@@ -3462,7 +3489,7 @@ NV_freelist_expand(NV_freelist_t* list, size_t alignment, size_t expand_by)
 
   if (!list->m_root)
   {
-    list->m_root       = NV_freelist_mknode(list, alignment, expand_by, NULL, NULL);
+    list->m_root       = NV_freelist_mknode(list, alignment, expand_by);
     list->m_root->size = expand_by;
     return list->m_root;
   }
@@ -3474,13 +3501,13 @@ NV_freelist_expand(NV_freelist_t* list, size_t alignment, size_t expand_by)
   }
   // now we have last_node
 
-  NV_node_t* new_node = NV_freelist_mknode(list, alignment, expand_by, NULL, NULL);
+  NV_node_t* new_node = NV_freelist_mknode(list, alignment, expand_by);
   last_node->next     = new_node;
-  new_node->prev      = last_node;
   new_node->size      = expand_by;
   NV_freelist_check_circle(list);
   return new_node;
 }
+
 void
 NV_freelist_free(NV_freelist_t* list, void* block)
 {
@@ -3495,6 +3522,7 @@ NV_freelist_free(NV_freelist_t* list, void* block)
 
   bool       found = 0;
   NV_node_t* node  = list->m_root;
+  NV_node_t* prev  = NULL;
 
   while (node)
   {
@@ -3503,6 +3531,7 @@ NV_freelist_free(NV_freelist_t* list, void* block)
       found = 1;
       break;
     }
+    prev = node;
     node = node->next;
   }
 
@@ -3518,23 +3547,15 @@ NV_freelist_free(NV_freelist_t* list, void* block)
     return;
   }
 
-  node->in_use    = 0;
-
-  NV_node_t* prev = node->prev;
-  NV_node_t* next = node->next;
+  node->in_use = 0;
 
   if (prev)
   {
-    prev->next = next;
+    prev->next = node->next;
   }
   else
   {
-    list->m_root = next;
-  }
-
-  if (next)
-  {
-    next->prev = prev;
+    list->m_root = node->next;
   }
 
   list->m_free_fn(node);

@@ -1,14 +1,14 @@
-#include "../common/containers/bitset.h"
-#include "../common/containers/hashmap.h"
-#include "../common/containers/vector.h"
-#include "../external/box2d/include/box2d/box2d.h"
 #include "../include/engine/engine.h"
+#include "../common/containers/bitset.h"
+#include "../common/containers/dynarray.h"
+#include "../common/containers/hashmap.h"
+#include "../external/box2d/include/box2d/box2d.h"
+#include "../include/engine/UI.h"
 #include "../include/engine/camera.h"
 #include "../include/engine/collider.h"
 #include "../include/engine/input.h"
 #include "../include/engine/object.h"
 #include "../include/engine/scene.h"
-#include "../include/engine/UI.h"
 
 #include "../common/string.h"
 #include <SDL2/SDL.h>
@@ -29,17 +29,20 @@ bool       NV_ApplicationRunning       = 1;
 static u64 SDLTime;
 
 // CINPUT VARS
-vec2        g_NVInput_MousePosition;
-vec2        g_NVInput_LastFrameMousePosition;
-NV_bitset_t g_NVInput_KBState;
-NV_bitset_t g_NVInput_LastFrameKBState;
-unsigned    g_NVInput_MouseState;
-unsigned    g_NVInput_LastFrameMouseState;
+vec2        g_NV_input_MousePosition;
+vec2        g_NV_input_LastFrameMousePosition;
+NV_bitset_t g_NV_input_KBState;
+NV_bitset_t g_NV_input_LastFrameKBState;
+unsigned    g_NV_input_MouseState;
+unsigned    g_NV_input_LastFrameMouseState;
 
 void
 NV_initialize_context(const char* window_title, int window_width, int window_height)
 {
-  _NV_initialize_context_internal(window_title, window_width, window_height);
+  window = SDL_CreateWindow(window_title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, window_width, window_height, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
+  NV_assert(window != NULL);
+
+  _NVVK_initialize_context(window_title, window_width, window_height);
 
   // This fixes really large values of delta time for the first frame.
   SDLTime = SDL_GetPerformanceCounter();
@@ -62,7 +65,7 @@ NV_update()
   NV_Time          = (double)SDL_GetTicks64() * (1.0 / 1000.0);
 
   NV_LastFrameTime = SDLTime;
-  SDLTime            = SDL_GetPerformanceCounter();
+  SDLTime          = SDL_GetPerformanceCounter();
   NV_DeltaTime     = (SDLTime - NV_LastFrameTime) / (double)SDL_GetPerformanceFrequency();
 }
 
@@ -72,56 +75,56 @@ NV_update()
 #define VEC2_TO_BVEC2(vec) ((b2Vec2){ vec.x, vec.y })
 #define BVEC2_TO_VEC2(vec) ((vec2){ vec.x, vec.y })
 
-struct NVCollider
+struct NV_collider_t
 {
-  b2BodyId           body;
-  vec2               position;
-  vec2               size;
-  b2WorldId          world;
-  b2ShapeId          shape;
-  NVScene*         scene;
-  NVCollider_Shape shape_type;
-  NVCollider_Type  type;
-  bool               enabled;
-  uint32_t           layer, mask;
+  b2BodyId         body;
+  vec2             position;
+  vec2             size;
+  b2WorldId        world;
+  b2ShapeId        shape;
+  NV_scene_t*         scene;
+  NV_collider_shape shape_type;
+  NV_collider_type  type;
+  bool             enabled;
+  uint32_t         layer, mask;
 };
 
 struct NVObject
 {
   NVTransform       transform;
-  NVScene*          scene;
-  const char*         name;
-  NVCollider*       col;
-  int                 index;
+  NV_scene_t*          scene;
+  const char*       name;
+  NV_collider_t*       col;
+  int               index;
   NVObjectUpdateFn  update_fn;
   NVObjectRenderFn  render_fn;
   NV_SpriteRenderer spr_renderer;
 };
 
-struct NVScene
+struct NV_scene_t
 {
-  NV_vector_t       objects; // the child objects
+  NV_dynarray_t   objects; // the child objects
 
-  const char*       scene_name;
-  bool              active; // whether the scene is active or not
+  const char*     scene_name;
+  bool            active; // whether the scene is active or not
 
-  b2WorldId         world;
+  b2WorldId       world;
 
-  NVSceneLoadFn   load;
-  NVSceneUnloadFn unload;
+  NV_scene_load_fn   load;
+  NV_scene_unload_fn unload;
 };
 
 #define VEC2_TO_BVEC2(vec) ((b2Vec2){ vec.x, vec.y })
 #define BVEC2_TO_VEC2(vec) ((vec2){ vec.x, vec.y })
 
 NVObject*
-NVObject_Create(NVScene* scene, const char* name, NVCollider_Type col_type, uint64_t layer, uint64_t mask, vec2 position, vec2 size, unsigned flags)
+NVObject_Create(NV_scene_t* scene, const char* name, NV_collider_type col_type, uint64_t layer, uint64_t mask, vec2 position, vec2 size, unsigned flags)
 {
   {
     NVObject stack = {};
-    NV_vector_push_back(&scene->objects, &stack);
+    NV_dynarray_push_back(&scene->objects, &stack);
   }
-  NVObject* obj                        = NV_vector_get(&scene->objects, scene->objects.m_size - 1);
+  NVObject* obj                          = NV_dynarray_get(&scene->objects, scene->objects.m_size - 1);
   obj->name                              = name;
   obj->scene                             = scene;
 
@@ -130,7 +133,7 @@ NVObject_Create(NVScene* scene, const char* name, NVCollider_Type col_type, uint
   obj->transform.rotation                = (vec4){ 0.0f, 0.0f, 0.0f, 1.0f };
 
   obj->spr_renderer                      = (NV_SpriteRenderer){};
-  obj->spr_renderer.spr                  = NVSprite_Empty;
+  obj->spr_renderer.spr                  = NV_sprite_empty;
   obj->spr_renderer.tex_coord_multiplier = (vec2){ 1.0f, 1.0f };
   obj->spr_renderer.color                = (vec4){ 1.0f, 1.0f, 1.0f, 1.0f };
 
@@ -141,7 +144,7 @@ NVObject_Create(NVScene* scene, const char* name, NVCollider_Type col_type, uint
   {
     start_enabled = 0;
   }
-  obj->col = NVCollider_Init(scene, position, size, col_type, NOVA_COLLIDER_SHAPE_RECT, layer, mask, start_enabled);
+  obj->col = NV_collider_Init(scene, position, size, col_type, NOVA_COLLIDER_SHAPE_RECT, layer, mask, start_enabled);
 
   return obj;
 }
@@ -157,7 +160,7 @@ NVObject_Destroy(NVObject* obj)
     b2DestroyBody(obj->col->body);
     b2DestroyShape(obj->col->shape, 0);
   }
-  NV_vector_remove(&obj->scene->objects, obj->index);
+  NV_dynarray_remove(&obj->scene->objects, obj->index);
 }
 
 void
@@ -190,7 +193,7 @@ NVObject_SetPosition(NVObject* obj, vec2 to)
   obj->transform.position = to;
   if (obj->col && obj->col->enabled)
   {
-    NVCollider_SetPosition(obj->col, to);
+    NV_collider_SetPosition(obj->col, to);
   }
 }
 
@@ -204,7 +207,7 @@ void
 NVObject_SetSize(NVObject* obj, vec2 to)
 {
   obj->transform.size = to;
-  NVCollider_SetSize(obj->col, to);
+  NV_collider_SetSize(obj->col, to);
 }
 
 NVTransform*
@@ -219,7 +222,7 @@ NVObject_GetSpriteRenderer(NVObject* obj)
   return &obj->spr_renderer;
 }
 
-NVCollider*
+NV_collider_t*
 NVObject_GetCollider(NVObject* obj)
 {
   return obj->col;
@@ -238,7 +241,7 @@ NVObject_SetName(NVObject* obj, const char* name)
 }
 
 b2BodyId
-_NVCollider_BodyInit(NVScene* scene, NVCollider_Type type, NVCollider_Shape shape, vec2 pos, vec2 siz, uint64_t layer, uint64_t mask, bool start_enabled)
+_NV_collider_BodyInit(NV_scene_t* scene, NV_collider_type type, NV_collider_shape shape, vec2 pos, vec2 siz, uint64_t layer, uint64_t mask, bool start_enabled)
 {
   b2BodyDef body_def = b2DefaultBodyDef();
   if (type == NOVA_COLLIDER_TYPE_STATIC)
@@ -292,27 +295,27 @@ _NVCollider_BodyInit(NVScene* scene, NVCollider_Type type, NVCollider_Shape shap
   return body_id;
 }
 
-NVCollider*
-NVCollider_Init(NVScene* scene, vec2 position, vec2 size, NVCollider_Type type, NVCollider_Shape shape, uint64_t layer, uint64_t mask, bool start_enabled)
+NV_collider_t*
+NV_collider_Init(NV_scene_t* scene, vec2 position, vec2 size, NV_collider_type type, NV_collider_shape shape, uint64_t layer, uint64_t mask, bool start_enabled)
 {
-  NVCollider* col = calloc(1, sizeof(NVCollider));
+  NV_collider_t* col = calloc(1, sizeof(NV_collider_t));
 
-  col->body         = _NVCollider_BodyInit(scene, type, shape, position, size, layer, mask, start_enabled);
-  col->position     = position;
-  col->size         = size;
-  col->scene        = scene;
-  col->shape_type   = shape;
-  col->type         = type;
-  col->world        = scene->world;
-  col->enabled      = start_enabled;
-  col->layer        = layer;
-  col->mask         = mask;
+  col->body       = _NV_collider_BodyInit(scene, type, shape, position, size, layer, mask, start_enabled);
+  col->position   = position;
+  col->size       = size;
+  col->scene      = scene;
+  col->shape_type = shape;
+  col->type       = type;
+  col->world      = scene->world;
+  col->enabled    = start_enabled;
+  col->layer      = layer;
+  col->mask       = mask;
 
   return col;
 }
 
 void
-NVCollider_Destroy(NVCollider* col)
+NV_collider_Destroy(NV_collider_t* col)
 {
   if (col && col->enabled)
   {
@@ -322,7 +325,7 @@ NVCollider_Destroy(NVCollider* col)
 }
 
 vec2
-NVCollider_GetPosition(const NVCollider* col)
+NV_collider_GetPosition(const NV_collider_t* col)
 {
   if (col)
     return col->position;
@@ -333,7 +336,7 @@ NVCollider_GetPosition(const NVCollider* col)
 }
 
 void
-NVCollider_SetPosition(NVCollider* col, vec2 to)
+NV_collider_SetPosition(NV_collider_t* col, vec2 to)
 {
   col->position = to;
   if (col->enabled)
@@ -344,28 +347,28 @@ NVCollider_SetPosition(NVCollider* col, vec2 to)
 }
 
 vec2
-NVCollider_GetSize(const NVCollider* col)
+NV_collider_GetSize(const NV_collider_t* col)
 {
   return col->size;
 }
 
 void
-NVCollider_SetSize(NVCollider* col, vec2 to)
+NV_collider_SetSize(NV_collider_t* col, vec2 to)
 {
   col->size = to;
   if (col->enabled)
   {
     b2DestroyBody(col->body);
 
-    col->body = _NVCollider_BodyInit(col->scene, col->type, col->shape_type, col->position, col->size, col->layer, col->mask, 1);
+    col->body = _NV_collider_BodyInit(col->scene, col->type, col->shape_type, col->position, col->size, col->layer, col->mask, 1);
   }
 }
 
 typedef struct ray_cast_context
 {
-  b2ShapeId            raycaster;
-  NVCollider_RayHit* hit;
-  bool                 has_hit;
+  b2ShapeId          raycaster;
+  NV_collider_ray_hit* hit;
+  bool               has_hit;
 } ray_cast_context;
 
 float
@@ -385,46 +388,46 @@ cast_result_fn(b2ShapeId shapeId, b2Vec2 point, b2Vec2 normal, float fraction, v
   return 0.0f;
 }
 
-NVCollider_RayHit
-NVCollider_RayCast(const NVCollider* col, vec2 orig, vec2 dir, uint32_t layer, uint32_t mask)
+NV_collider_ray_hit
+NV_collider_cast_ray(const NV_collider_t* col, vec2 orig, vec2 dir, uint32_t layer, uint32_t mask)
 {
-  NVCollider_RayHit hit = {};
-  hit.host                = col;
+  NV_collider_ray_hit hit = {};
+  hit.host              = col;
 
-  ray_cast_context ctx    = {};
-  ctx.raycaster           = col->shape;
-  ctx.hit                 = &hit;
+  ray_cast_context ctx  = {};
+  ctx.raycaster         = col->shape;
+  ctx.hit               = &hit;
 
-  b2QueryFilter filter    = b2DefaultQueryFilter();
-  filter.categoryBits     = layer;
-  filter.maskBits         = mask;
+  b2QueryFilter filter  = b2DefaultQueryFilter();
+  filter.categoryBits   = layer;
+  filter.maskBits       = mask;
 
   b2World_CastRay(col->scene->world, VEC2_TO_BVEC2(orig), VEC2_TO_BVEC2(dir), filter, cast_result_fn, &ctx);
 
   return hit;
 }
 
-NVScene* scene_main = NULL;
+NV_scene_t* scene_main = NULL;
 
-NVScene*
-NVScene_Init()
+NV_scene_t*
+NV_scene_Init()
 {
-  NVScene* scn       = calloc(1, sizeof(NVScene));
+  NV_scene_t*   scn       = calloc(1, sizeof(NV_scene_t));
 
   b2WorldDef world_def = b2DefaultWorldDef();
   world_def.gravity    = (b2Vec2){ 0.0f, -9.8f };
   scn->world           = b2CreateWorld(&world_def);
-  scn->objects         = NV_vector_init(sizeof(NVObject), 4);
+  scn->objects         = NV_dynarray_init(sizeof(NVObject), 4);
 
   if (!scene_main)
   {
-    NVScene_ChangeToScene(scn);
+    NV_scene_change_to_scene(scn);
   }
   return scn;
 }
 
 void
-NVScene_Update()
+NV_scene_update()
 {
   const int   substeps = 4;
   const float timeStep = 1.0 / 60.0;
@@ -435,7 +438,7 @@ NVScene_Update()
 
   for (int i = 0; i < (int)scene_main->objects.m_size; i++)
   {
-    NVCollider* col = objects[i].col;
+    NV_collider_t* col = objects[i].col;
     if (!col->enabled)
     {
       continue;
@@ -457,16 +460,16 @@ NVScene_Update()
 }
 
 void
-NVScene_Render(NVRenderer_t* rd)
+NV_scene_render(NV_renderer_t* rd)
 {
   const NVObject* objects = scene_main->objects.m_data;
 
   for (int i = 0; i < (int)scene_main->objects.m_size; i++)
   {
-    vec2                       pos          = NVObject_GetPosition(&objects[i]);
-    vec2                       siz          = NVObject_GetSize(&objects[i]);
+    vec2                     pos          = NVObject_GetPosition(&objects[i]);
+    vec2                     siz          = NVObject_GetSize(&objects[i]);
     const NV_SpriteRenderer* spr_renderer = &objects[i].spr_renderer;
-    vec2                       texmul       = spr_renderer->tex_coord_multiplier;
+    vec2                     texmul       = spr_renderer->tex_coord_multiplier;
     if (spr_renderer->flip_horizontal)
     {
       texmul.x *= -1.0f;
@@ -475,7 +478,7 @@ NVScene_Render(NVRenderer_t* rd)
     {
       texmul.y *= -1.0f;
     }
-    NVRenderer_DrawTexturedQuad(rd, spr_renderer, (vec3){ pos.x, pos.y, 0.0f }, (vec3){ siz.x, siz.y, 0.0f }, 0);
+    NV_renderer_render_textured_quad(rd, spr_renderer, (vec3){ pos.x, pos.y, 0.0f }, (vec3){ siz.x, siz.y, 0.0f }, 0);
   }
   for (int i = 0; i < (int)scene_main->objects.m_size; i++)
   {
@@ -488,27 +491,27 @@ NVScene_Render(NVRenderer_t* rd)
 // NV
 
 void
-NVScene_Destroy(NVScene* scene)
+NV_scene_destroy(NV_scene_t* scene)
 {
   b2DestroyWorld(scene->world);
-  NV_vector_destroy(&scene->objects);
+  NV_dynarray_destroy(&scene->objects);
   NV_free(scene);
 }
 
 void
-NVScene_AssignLoadFn(NVScene* scene, NVSceneLoadFn fn)
+NV_scene_assign_load_fn(NV_scene_t* scene, NV_scene_load_fn fn)
 {
   scene->load = fn;
 }
 
 void
-NVScene_AssignUnloadFn(NVScene* scene, NVSceneUnloadFn fn)
+NV_scene_assign_unload_fn(NV_scene_t* scene, NV_scene_unload_fn fn)
 {
   scene->unload = fn;
 }
 
 void
-NVScene_ChangeToScene(NVScene* scene)
+NV_scene_change_to_scene(NV_scene_t* scene)
 {
   if (scene_main == scene)
   {
@@ -517,7 +520,7 @@ NVScene_ChangeToScene(NVScene* scene)
   if (scene_main && scene_main->unload)
   {
     scene_main->unload(scene);
-    NVScene_Destroy(scene_main);
+    NV_scene_destroy(scene_main);
   }
   if (scene->load)
   {
@@ -529,10 +532,10 @@ NVScene_ChangeToScene(NVScene* scene)
 // NVUI
 typedef struct NVUI_Context
 {
-  NV_vector_t btons;
-  NV_vector_t sliders;
-  void*       ubmapped;
-  bool        active;
+  NV_dynarray_t btons;
+  NV_dynarray_t sliders;
+  void*         ubmapped;
+  bool          active;
 } NVUI_Context;
 
 NVUI_Context NVUI_ctx;
@@ -540,46 +543,49 @@ NVUI_Context NVUI_ctx;
 void
 NVUI_Init()
 {
-  NVUI_ctx.active = 1;
-  NVUI_ctx.btons   = NV_vector_init(sizeof(NVUI_Button), 4);
-  NVUI_ctx.sliders = NV_vector_init(sizeof(NVUI_Slider), 4);
+  NVUI_ctx.active  = 1;
+  NVUI_ctx.btons   = NV_dynarray_init(sizeof(NVUI_Button), 4);
+  NVUI_ctx.sliders = NV_dynarray_init(sizeof(NVUI_Slider), 4);
 }
 
 void
 NVUI_Shutdown()
 {
-  if (!NVUI_ctx.active) {
+  if (!NVUI_ctx.active)
+  {
     return;
   }
-  NV_vector_destroy(&NVUI_ctx.btons);
-  NV_vector_destroy(&NVUI_ctx.sliders);
+  NV_dynarray_destroy(&NVUI_ctx.btons);
+  NV_dynarray_destroy(&NVUI_ctx.sliders);
   NVUI_ctx.active = 0;
 }
 
 NVUI_Button*
-NVUI_CreateButton(NVSprite* spr)
+NVUI_CreateButton(NV_sprite* spr)
 {
-  if (!NVUI_ctx.active) {
+  if (!NVUI_ctx.active)
+  {
     NV_LOG_ERROR("NVUI not initialized");
     return NULL;
   }
-  NVUI_Button bton      = (NVUI_Button){};
+  NVUI_Button bton        = (NVUI_Button){};
   bton.transform.position = (vec2){};
   bton.transform.size     = (vec2){ 0.5f, 0.5f };
   bton.color              = (vec4){ 1.0f, 1.0f, 1.0f, 1.0f };
   bton.spr                = spr;
-  NV_vector_push_back(&NVUI_ctx.btons, &bton);
-  return &((NVUI_Button*)NV_vector_data(&NVUI_ctx.btons))[NV_vector_size(&NVUI_ctx.btons) - 1];
+  NV_dynarray_push_back(&NVUI_ctx.btons, &bton);
+  return &((NVUI_Button*)NV_dynarray_data(&NVUI_ctx.btons))[NV_dynarray_size(&NVUI_ctx.btons) - 1];
 }
 
 NVUI_Slider*
 NVUI_CreateSlider()
 {
-  if (!NVUI_ctx.active) {
+  if (!NVUI_ctx.active)
+  {
     NV_LOG_ERROR("NVUI not initialized");
     return NULL;
   }
-  NVUI_Slider slider      = (NVUI_Slider){};
+  NVUI_Slider slider        = (NVUI_Slider){};
   slider.transform.position = (vec2){};
   slider.transform.size     = (vec2){ 0.5f, 1.5f };
   slider.min                = 0.0f;
@@ -587,44 +593,45 @@ NVUI_CreateSlider()
   slider.value              = 0.0f;
   slider.bg_color           = (vec4){ 1.0f, 1.0f, 1.0f, 1.0f };
   slider.slider_color       = (vec4){ 1.0f, 0.0f, 0.0f, 1.0f };
-  slider.bg_sprite          = NVSprite_Empty;
-  slider.slider_sprite      = NVSprite_Empty;
+  slider.bg_sprite          = NV_sprite_empty;
+  slider.slider_sprite      = NV_sprite_empty;
   slider.interactable       = 0;
-  NV_vector_push_back(&NVUI_ctx.sliders, &slider);
-  return (NVUI_Slider*)NV_vector_get(&NVUI_ctx.sliders, NV_vector_size(&NVUI_ctx.sliders) - 1);
+  NV_dynarray_push_back(&NVUI_ctx.sliders, &slider);
+  return (NVUI_Slider*)NV_dynarray_get(&NVUI_ctx.sliders, NV_dynarray_size(&NVUI_ctx.sliders) - 1);
 }
 
 void
 NVUI_DestroyButton(NVUI_Button* obj)
 {
-  NVSprite_Release(obj->spr);
+  NV_sprite_release(obj->spr);
 }
 
 void
 NVUI_DestroySlider(NVUI_Slider* obj)
 {
-  NVSprite_Release(obj->slider_sprite);
-  NVSprite_Release(obj->bg_sprite);
+  NV_sprite_release(obj->slider_sprite);
+  NV_sprite_release(obj->bg_sprite);
 }
 
 void
-NVUI_Render(NVRenderer_t* rd)
+NVUI_Render(NV_renderer_t* rd)
 {
-  if (!NVUI_ctx.active) {
+  if (!NVUI_ctx.active)
+  {
     return;
   }
-  for (int i = 0; i < (int)NV_vector_size(&NVUI_ctx.btons); i++)
+  for (int i = 0; i < (int)NV_dynarray_size(&NVUI_ctx.btons); i++)
   {
-    const NVUI_Button* bton = (NVUI_Button*)NV_vector_get(&NVUI_ctx.btons, i);
+    const NVUI_Button* bton = (NVUI_Button*)NV_dynarray_get(&NVUI_ctx.btons, i);
 
     const NVTransform* t    = &bton->transform;
 
-    NVRenderer_DrawQuad(rd, bton->spr, (vec2){ 1.0f, 1.0f }, (vec3){ t->position.x, t->position.y, 0.0f }, (vec3){ t->size.x, t->size.y, 1.0f }, bton->color, 0);
+    NV_renderer_render_quad(rd, bton->spr, (vec2){ 1.0f, 1.0f }, (vec3){ t->position.x, t->position.y, 0.0f }, (vec3){ t->size.x, t->size.y, 1.0f }, bton->color, 0);
   }
 
-  for (int i = 0; i < (int)NV_vector_size(&NVUI_ctx.sliders); i++)
+  for (int i = 0; i < (int)NV_dynarray_size(&NVUI_ctx.sliders); i++)
   {
-    const NVUI_Slider* slider = (NVUI_Slider*)NV_vector_get(&NVUI_ctx.sliders, i);
+    const NVUI_Slider* slider = (NVUI_Slider*)NV_dynarray_get(&NVUI_ctx.sliders, i);
 
     if (slider->max == slider->min)
     {
@@ -634,13 +641,13 @@ NVUI_Render(NVRenderer_t* rd)
 
     const NVTransform* t = &slider->transform;
 
-    NVRenderer_DrawQuad(
+    NV_renderer_render_quad(
         rd, slider->bg_sprite, (vec2){ 1.0f, 1.0f }, (vec3){ t->position.x, t->position.y, 0.0f }, (vec3){ t->size.x, t->size.y, 1.0f }, slider->bg_color, 0);
 
     float pcent = ((slider->value - slider->min) / (slider->max - slider->min));
-    pcent       = cmclamp(pcent, 0.0f, 1.0f);
+    pcent       = NVM_CLAMP(pcent, 0.0f, 1.0f);
 
-    NVRenderer_DrawQuad(rd, slider->slider_sprite, (vec2){ 1.0f, 1.0f }, (vec3){ t->position.x + 0.5f * t->size.x * (pcent - 1.0f), t->position.y, 0.0f },
+    NV_renderer_render_quad(rd, slider->slider_sprite, (vec2){ 1.0f, 1.0f }, (vec3){ t->position.x + 0.5f * t->size.x * (pcent - 1.0f), t->position.y, 0.0f },
         (vec3){ t->size.x * pcent, t->size.y, 1.0f }, slider->slider_color, 1);
   }
 }
@@ -648,16 +655,16 @@ NVUI_Render(NVRenderer_t* rd)
 void
 NVUI_Update()
 {
-  const bool mouse_pressed  = NVInput_IsMouseJustSignalled(SDL_BUTTON_LEFT);
-  const vec2 mouse_position = NVCamera_GetMouseGlobalPosition(&camera);
+  const bool mouse_pressed  = NV_input_is_mouse_just_signalled(SDL_BUTTON_LEFT);
+  const vec2 mouse_position = NV_camera_get_global_mouse_position(&camera);
 
-  for (int i = 0; i < (int)NV_vector_size(&NVUI_ctx.btons); i++)
+  for (int i = 0; i < (int)NV_dynarray_size(&NVUI_ctx.btons); i++)
   {
-    NVUI_Button*       bton      = (NVUI_Button*)NV_vector_get(&NVUI_ctx.btons, i);
+    NVUI_Button*       bton      = (NVUI_Button*)NV_dynarray_get(&NVUI_ctx.btons, i);
     const NVTransform* t         = &bton->transform;
 
-    const cmrect2d       bton_rect = (cmrect2d){ .position = t->position, .size = v2muls(t->size, 2.0f) };
-    if (cmPointInsideRect(&mouse_position, &bton_rect))
+    const NVM_rect2d     bton_rect = (NVM_rect2d){ .position = t->position, .size = v2muls(t->size, 2.0f) };
+    if (NVM_is_point_inside_rect(&mouse_position, &bton_rect))
     {
       bton->was_hovered = 1;
       if (mouse_pressed && bton->on_click)
@@ -678,18 +685,18 @@ NVUI_Update()
     }
   }
 
-  for (int i = 0; i < (int)NV_vector_size(&NVUI_ctx.sliders); i++)
+  for (int i = 0; i < (int)NV_dynarray_size(&NVUI_ctx.sliders); i++)
   {
-    NVUI_Slider*       slider      = (NVUI_Slider*)NV_vector_get(&NVUI_ctx.sliders, i);
+    NVUI_Slider*       slider      = (NVUI_Slider*)NV_dynarray_get(&NVUI_ctx.sliders, i);
     const NVTransform* t           = &slider->transform;
 
-    const cmrect2d       slider_rect = (cmrect2d){ .position = t->position, .size = v2muls(t->size, 2.0f) };
-    if (slider->interactable && cmPointInsideRect(&mouse_position, &slider_rect))
+    const NVM_rect2d     slider_rect = (NVM_rect2d){ .position = t->position, .size = v2muls(t->size, 2.0f) };
+    if (slider->interactable && NVM_is_point_inside_rect(&mouse_position, &slider_rect))
     {
-      if (NVInput_IsMouseSignalled(NOVA_MOUSE_BUTTON_LEFT))
+      if (NV_input_is_mouse_signalled(NOVA_MOUSE_BUTTON_LEFT))
       {
         float rel_mx     = mouse_position.x - (t->position.x - t->size.x * 0.5f);
-        float clamped_mx = cmclamp(rel_mx, 0.0f, t->size.x);
+        float clamped_mx = NVM_CLAMP(rel_mx, 0.0f, t->size.x);
         float percentage = clamped_mx / t->size.x;
         slider->value    = slider->min + (percentage * (slider->max - slider->min));
         slider->moved    = 1;
@@ -704,27 +711,27 @@ NVUI_Update()
 // NVUI
 
 void
-LunaEditor_Render(NVRenderer_t* rd)
+LunaEditor_Render(NV_renderer_t* rd)
 {
   (void)rd;
-  // NVRenderer_DrawQuad(rd, sprite_empty, (vec2){1.0f,1.0f},
+  // NV_renderer_render_quad(rd, sprite_empty, (vec2){1.0f,1.0f},
   // (vec3){-8.0f,0.0f,0.0f}, (vec3){4.0f,20.0f,0.0f},
   // (vec4){1.0f,1.0f,1.0f,1.0f}, 5);
 }
 
-vec2                 g_NVInput_MousePosition;
-vec2                 g_NVInput_LastFrameMousePosition;
-NV_bitset_t          g_NVInput_KBState;
-NV_bitset_t          g_NVInput_LastFrameKBState;
-unsigned             g_NVInput_MouseState;
-unsigned             g_NVInput_LastFrameMouseState;
+vec2                 g_NV_input_mouse_position;
+vec2                 g_NV_input_last_frame_mouse_position;
+NV_bitset_t          g_NV_input_kb_state;
+NV_bitset_t          g_NV_input_last_frame_kb_state;
+unsigned             g_NV_input_mouse_state;
+unsigned             g_NV_input_last_frame_mouse_state;
 
-static NV_hashmap_t* g_NVInput_ActionMapping;
+static NV_hashmap_t* g_NV_input_action_mapping;
 
 int
-NVInput_SignalAction(const char* action)
+NV_input_SignalAction(const char* action)
 {
-  NVInput_Action* ia = NV_hashmap_find(g_NVInput_ActionMapping, action);
+  NV_input_action* ia = NV_hashmap_find(g_NV_input_action_mapping, action);
   if (!ia)
   {
     return -1;
@@ -735,11 +742,11 @@ NVInput_SignalAction(const char* action)
   return 0;
 }
 
-NVInput_KeyState
-NVInput_GetKeyState(const SDL_Scancode sc)
+NV_input_key_state
+NV_input_get_key_state(const SDL_Scancode sc)
 {
-  const NVInput_KeyState this_frame_key_state = NV_bitset_access_bit(&g_NVInput_KBState, sc);
-  const NVInput_KeyState last_frame_key_state = NV_bitset_access_bit(&g_NVInput_LastFrameKBState, sc);
+  const NV_input_key_state this_frame_key_state = NV_bitset_access_bit(&g_NV_input_KBState, sc);
+  const NV_input_key_state last_frame_key_state = NV_bitset_access_bit(&g_NV_input_LastFrameKBState, sc);
 
   // curly braces are beautiful, aren't they?
   if (this_frame_key_state && last_frame_key_state)
@@ -763,58 +770,58 @@ NVInput_GetKeyState(const SDL_Scancode sc)
 }
 
 bool
-NVInput_IsKeySignalled(const SDL_Scancode sc)
+NV_input_IsKeySignalled(const SDL_Scancode sc)
 {
-  return NVInput_GetKeyState(sc) == NOVA_KEY_STATE_HELD;
+  return NV_input_get_key_state(sc) == NOVA_KEY_STATE_HELD;
 }
 
 bool
-NVInput_IsKeyUnsignalled(const SDL_Scancode sc)
+NV_input_IsKeyUnsignalled(const SDL_Scancode sc)
 {
-  return NVInput_GetKeyState(sc) == NOVA_KEY_STATE_NOT_HELD;
+  return NV_input_get_key_state(sc) == NOVA_KEY_STATE_NOT_HELD;
 }
 
 bool
-NVInput_IsKeyJustSignalled(const SDL_Scancode sc)
+NV_input_IsKeyJustSignalled(const SDL_Scancode sc)
 {
-  return NVInput_GetKeyState(sc) == NOVA_KEY_STATE_PRESSED;
+  return NV_input_get_key_state(sc) == NOVA_KEY_STATE_PRESSED;
 }
 
 bool
-NVInput_IsKeyJustUnsignalled(const SDL_Scancode sc)
+NV_input_IsKeyJustUnsignalled(const SDL_Scancode sc)
 {
-  return NVInput_GetKeyState(sc) == NOVA_KEY_STATE_RELEASED;
+  return NV_input_get_key_state(sc) == NOVA_KEY_STATE_RELEASED;
 }
 
 vec2
-NVInput_GetMousePosition(void)
+NV_input_get_mouse_position(void)
 {
-  return g_NVInput_MousePosition;
+  return g_NV_input_MousePosition;
 }
 
 vec2
-NVInput_GetLastFrameMousePosition(void)
+NV_input_GetLastFrameMousePosition(void)
 {
-  return g_NVInput_LastFrameMousePosition;
+  return g_NV_input_LastFrameMousePosition;
 }
 
 vec2
-NVInput_GetMouseDelta(void)
+NV_input_GetMouseDelta(void)
 {
-  return v2sub(NVInput_GetLastFrameMousePosition(), NVInput_GetMousePosition());
+  return v2sub(NV_input_GetLastFrameMousePosition(), NV_input_get_mouse_position());
 }
 
 // button is 1 for left mouse, 2 for middle, 3 for right
 bool
-NVInput_IsMouseJustSignalled(NVInput_MouseButton button)
+NV_input_is_mouse_just_signalled(NV_input_mouse_button button)
 {
-  return g_NVInput_MouseState & SDL_BUTTON(button) && !(g_NVInput_LastFrameMouseState & SDL_BUTTON(button));
+  return g_NV_input_MouseState & SDL_BUTTON(button) && !(g_NV_input_LastFrameMouseState & SDL_BUTTON(button));
 }
 
 bool
-NVInput_IsMouseSignalled(NVInput_MouseButton button)
+NV_input_is_mouse_signalled(NV_input_mouse_button button)
 {
-  return g_NVInput_MouseState & SDL_BUTTON((int)button);
+  return g_NV_input_MouseState & SDL_BUTTON((int)button);
 }
 
 bool
@@ -827,44 +834,44 @@ str_equal(const void* key1, const void* key2, unsigned long keysize)
 }
 
 void
-NVInput_Init()
+NV_input_init()
 {
-  g_NVInput_ActionMapping          = NV_hashmap_init(16, sizeof(const char*), sizeof(NVInput_Action), NULL, str_equal);
+  g_NV_input_action_mapping          = NV_hashmap_init(16, sizeof(const char*), sizeof(NV_input_action), NULL, str_equal);
 
-  g_NVInput_KBState                = NV_bitset_init(SDL_NUM_SCANCODES);
-  g_NVInput_LastFrameKBState       = NV_bitset_init(SDL_NUM_SCANCODES);
-  g_NVInput_MousePosition          = (vec2){};
-  g_NVInput_LastFrameMousePosition = (vec2){};
+  g_NV_input_kb_state                = NV_bitset_init(SDL_NUM_SCANCODES);
+  g_NV_input_last_frame_kb_state       = NV_bitset_init(SDL_NUM_SCANCODES);
+  g_NV_input_mouse_position          = (vec2){};
+  g_NV_input_last_frame_mouse_position = (vec2){};
 }
 
 void
-NVInput_Shutdown()
+NV_input_shutdown()
 {
-  NV_hashmap_destroy(g_NVInput_ActionMapping);
-  NV_bitset_destroy(&g_NVInput_KBState);
-  NV_bitset_destroy(&g_NVInput_LastFrameKBState);
+  NV_hashmap_destroy(g_NV_input_action_mapping);
+  NV_bitset_destroy(&g_NV_input_kb_state);
+  NV_bitset_destroy(&g_NV_input_last_frame_kb_state);
 }
 
 void
-NVInput_Update()
+NV_input_update()
 {
   int mx, my;
-  g_NVInput_LastFrameMouseState    = g_NVInput_MouseState;
-  g_NVInput_MouseState             = SDL_GetMouseState(&mx, &my);
+  g_NV_input_last_frame_mouse_state    = g_NV_input_mouse_state;
+  g_NV_input_mouse_state             = SDL_GetMouseState(&mx, &my);
 
-  const float width                  = NV_GetWindowSize().width;
-  const float height                 = NV_GetWindowSize().height;
+  const float width                = NV_get_window_size().width;
+  const float height               = NV_get_window_size().height;
 
-  g_NVInput_LastFrameMousePosition = g_NVInput_MousePosition;
-  g_NVInput_MousePosition.x        = ((float)mx / width) * 2.0f - 1.0f;
-  g_NVInput_MousePosition.y        = ((float)my / height) * 2.0f - 1.0f;
-  g_NVInput_MousePosition.y *= -1.0f;
+  g_NV_input_last_frame_mouse_position = g_NV_input_mouse_position;
+  g_NV_input_mouse_position.x        = ((float)mx / width) * 2.0f - 1.0f;
+  g_NV_input_mouse_position.y        = ((float)my / height) * 2.0f - 1.0f;
+  g_NV_input_mouse_position.y *= -1.0f;
 
   const u8* const sdl_kb_state = SDL_GetKeyboardState(NULL);
-  NV_bitset_copy_from(&g_NVInput_LastFrameKBState, &g_NVInput_KBState);
+  NV_bitset_copy_from(&g_NV_input_last_frame_kb_state, &g_NV_input_kb_state);
   for (u32 i = 0; i < SDL_NUM_SCANCODES; i++)
   {
-    NV_bitset_set_bit_to(&g_NVInput_KBState, i, sdl_kb_state[i]);
+    NV_bitset_set_bit_to(&g_NV_input_kb_state, i, sdl_kb_state[i]);
   }
 
   int        __i = 0;
@@ -872,11 +879,11 @@ NVInput_Update()
 
   int        mouse_state = SDL_GetMouseState(NULL, NULL);
 
-  while ((node = NV_hashmap_iterate(g_NVInput_ActionMapping, &__i)) != NULL)
+  while ((node = NV_hashmap_iterate(g_NV_input_action_mapping, &__i)) != NULL)
   {
-    NVInput_Action* ia = (NVInput_Action*)node->value;
+    NV_input_action* ia = (NV_input_action*)node->value;
 
-    ia->last_frame       = ia->this_frame;
+    ia->last_frame     = ia->this_frame;
 
     if (ia->key != 0)
     { // key2 is not checked, most ia's won't have one
@@ -887,7 +894,7 @@ NVInput_Update()
     // ia->mouse is checked independently
     if (ia->mouse != 255)
     {
-      // it's OR'd with ia->this_frame so that we can call the response multiple times, as expected.
+      // it's or'd with ia->this_frame so that we can call the response multiple times, as expected.
       ia->this_frame = ia->this_frame || (mouse_state & SDL_BUTTON(ia->mouse)) != 0;
       if (ia->response)
         ia->response((const char*)node->key, ia);
@@ -900,22 +907,22 @@ NVInput_Update()
 }
 
 void
-NVInput_BindFunctionToAction(const char* action, NVInput_ActionResponseFn response)
+NV_input_bind_function_to_action(const char* action, NV_input_action_response_fn response)
 {
-  NVInput_Action* ia = NV_hashmap_find(g_NVInput_ActionMapping, action);
+  NV_input_action* ia = NV_hashmap_find(g_NV_input_action_mapping, action);
   if (ia == NULL)
     return;
   ia->response = response;
 }
 
 void
-NVInput_BindKeyToAction(SDL_Scancode key, const char* action)
+NV_input_bind_key_to_action(SDL_Scancode key, const char* action)
 {
-  NVInput_Action* ia = NV_hashmap_find(g_NVInput_ActionMapping, action);
+  NV_input_action* ia = NV_hashmap_find(g_NV_input_action_mapping, action);
   if (!ia)
   {
-    NVInput_Action w = { .key = key };
-    NV_hashmap_insert(g_NVInput_ActionMapping, action, &w);
+    NV_input_action w = { .key = key };
+    NV_hashmap_insert(g_NV_input_action_mapping, action, &w);
   }
   else
   {
@@ -929,17 +936,17 @@ NVInput_BindKeyToAction(SDL_Scancode key, const char* action)
 }
 
 void
-NVInput_BindMouseToAction(int bton, const char* action)
+NV_input_bind_mouse_to_action(int bton, const char* action)
 {
-  NVInput_Action ia = {};
-  ia.mouse            = bton;
-  NV_hashmap_insert(g_NVInput_ActionMapping, action, &ia);
+  NV_input_action ia = {};
+  ia.mouse          = bton;
+  NV_hashmap_insert(g_NV_input_action_mapping, action, &ia);
 }
 
 void
-NVInput_UnbindAction(const char* action)
+NV_input_unbind_action(const char* action)
 {
-  NVInput_Action* ia = NV_hashmap_find(g_NVInput_ActionMapping, action);
+  NV_input_action* ia = NV_hashmap_find(g_NV_input_action_mapping, action);
   if (ia == NULL)
     return;
   ia->key      = SDL_SCANCODE_UNKNOWN;
@@ -949,36 +956,36 @@ NVInput_UnbindAction(const char* action)
 }
 
 bool
-NVInput_IsActionSignalled(const char* action)
+NV_input_is_action_signalled(const char* action)
 {
-  NVInput_Action* ia = NV_hashmap_find(g_NVInput_ActionMapping, action);
+  NV_input_action* ia = NV_hashmap_find(g_NV_input_action_mapping, action);
   if (ia == NULL)
     return false;
   return ia->this_frame && ia->last_frame;
 }
 
 bool
-NVInput_IsActionJustSignalled(const char* action)
+NV_input_is_action_just_signalled(const char* action)
 {
-  NVInput_Action* ia = NV_hashmap_find(g_NVInput_ActionMapping, action);
+  NV_input_action* ia = NV_hashmap_find(g_NV_input_action_mapping, action);
   if (ia == NULL)
     return false;
   return ia->this_frame && !ia->last_frame;
 }
 
 bool
-NVInput_IsActionUnsignalled(const char* action)
+NV_input_is_action_unsignalled(const char* action)
 {
-  NVInput_Action* ia = NV_hashmap_find(g_NVInput_ActionMapping, action);
+  NV_input_action* ia = NV_hashmap_find(g_NV_input_action_mapping, action);
   if (ia == NULL)
     return false;
   return !ia->this_frame && !ia->last_frame;
 }
 
 bool
-NVInput_IsActionJustUnsignalled(const char* action)
+NV_input_is_action_just_unsignalled(const char* action)
 {
-  NVInput_Action* ia = NV_hashmap_find(g_NVInput_ActionMapping, action);
+  NV_input_action* ia = NV_hashmap_find(g_NV_input_action_mapping, action);
   if (ia == NULL)
     return false;
   return !ia->this_frame && ia->last_frame;

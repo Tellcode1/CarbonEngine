@@ -8,8 +8,8 @@
 NOVA_HEADER_START;
 
 #define FONTC_MAGIC 2222022
-#define cmmax(a, b) ((a) > (b) ? (a) : (b))
-#define cmmin(a, b) ((a) < (b) ? (a) : (b))
+#define NVM_MAX(a, b) ((a) > (b) ? (a) : (b))
+#define NVM_MIN(a, b) ((a) < (b) ? (a) : (b))
 
 typedef struct fontc_atlas_t {
   int width, height, next_x, next_y, current_row_height;

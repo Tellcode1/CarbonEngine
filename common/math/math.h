@@ -4,35 +4,35 @@
 #include "vec2.h"
 #include <stdbool.h>
 
-static const double cmPI = 3.1415926535897932385;
-static const double cm2PI = 6.283185307179586;
+static const double NVM_PI = 3.1415926535897932385;
+static const double NVM_2PI = 6.283185307179586;
 
 // Multiply these to convert degrees to radians or vice versa
-static const double cmDEG2RAD_CONSTANT = 0.017453292519943295; // 2Pi / 360.0
-static const double cmRAD2DEG_CONSTANT = 57.29577951308232; // 1.0 / DEG2RAD_CONSTANT -> rad / DEG2RAD_CONSTANT
+static const double NVM_DEG2RAD_CONSTANT = 0.017453292519943295; // 2Pi / 360.0
+static const double NVM_RAD2DEG_CONSTANT = 57.29577951308232; // 1.0 / DEG2RAD_CONSTANT -> rad / DEG2RAD_CONSTANT
 
-#define cmlerp(a, b, t) (a + ((b - a) * t))
+#define NVM_LERP(a, b, t) (a + ((b - a) * t))
 
-#define cmmax(a, b) ((a) > (b) ? (a) : (b))
-#define cmmin(a, b) ((a) < (b) ? (a) : (b))
+#define NVM_MAX(a, b) ((a) > (b) ? (a) : (b))
+#define NVM_MIN(a, b) ((a) < (b) ? (a) : (b))
 
-#define cmclamp(x, min, max) (((x) < (min)) ? (min) : (((x) > (max)) ? (max) : (x)))
-#define cmclamp01(x) cmclamp((x), 0, 1)
+#define NVM_CLAMP(x, min, max) (((x) < (min)) ? (min) : (((x) > (max)) ? (max) : (x)))
+#define NVM_CLAMP01(x) NVM_CLAMP((x), 0, 1)
 
 // Round x to the nearest multiple of y
-#define cmround(x, y) (round((x) / (y)) * (y))
+#define NVM_ROUND(x, y) (round((x) / (y)) * (y))
 
 // The constants aren't used because for static const variables, they can cause minor issues like not compiling at all.
-#define cmdeg2rad(x) ((x) * 0.017453292519943295)
-#define cmrad2deg(x) ((x) * 57.29577951308232)
+#define NVM_DEG2RAD(x) ((x) * 0.017453292519943295)
+#define NVM_RAD2DEG(x) ((x) * 57.29577951308232)
 
-typedef struct cmrect2d {
+typedef struct NVM_rect2d {
     // The CENTER of the rect
     vec2 position;
     vec2 size;
-} cmrect2d;
+} NVM_rect2d;
 
-static inline bool cmAABB(const cmrect2d *r1, const cmrect2d *r2) {
+static inline bool NVM_AABB(const NVM_rect2d *r1, const NVM_rect2d *r2) {
     const vec2 r1_half_size = v2muls(r1->size, 0.5f);
     const vec2 r2_half_size = v2muls(r2->size, 0.5f);
 
@@ -49,7 +49,7 @@ static inline bool cmAABB(const cmrect2d *r1, const cmrect2d *r2) {
 }
 
 // Checks if a point is inside the rect
-static inline bool cmPointInsideRect(const vec2 *point, const cmrect2d *r) {
+static inline bool NVM_is_point_inside_rect(const vec2 *point, const NVM_rect2d *r) {
     const vec2 r_half_size = v2muls(r->size, 0.5f);
 
     const vec2 r_min = v2sub(r->position, r_half_size);

@@ -13,16 +13,18 @@ typedef struct NVImage {
   unsigned char *data;
 } NVImage;
 
-extern NVImage NVImage_Load(const char *path);
-extern NVImage NVImage_LoadPNG(const char *path);
-extern NVImage NVImage_LoadJPEG(const char *path);
+extern NVImage NV_img_load(const char *path);
+extern NVImage NV_img_load_png(const char *path);
 
-extern void NVImage_Write(const NVImage *tex, const char *path);
-extern void NVImage_WritePNG(const NVImage *tex, const char *path);
-extern void NVImage_WriteJPEG(const NVImage *tex, const char *path);
+// jpg and jpeg (they're the same thing by the way)
+extern NVImage NV_img_load_jpeg(const char *path);
+
+extern void NV_img_write_(const NVImage *tex, const char *path);
+extern void NV_img_write_png(const NVImage *tex, const char *path);
+extern void NV_img_write_jpeg(const NVImage *tex, const char *path);
 
 // dst_channels must be greater than src channels!
-unsigned char *NVImage_PadChannels(const NVImage *src, int dst_channels);
+unsigned char *NV_img_pad_channels(const NVImage *src, int dst_channels);
 
 NOVA_HEADER_END;
 

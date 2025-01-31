@@ -7,10 +7,10 @@
 
 NOVA_HEADER_START;
 
-typedef struct NVRenderer_t NVRenderer_t;
+typedef struct NV_renderer_t NV_renderer_t;
 
 typedef struct NV_SpriteRenderer {
-  NVSprite *spr;
+  NV_sprite *spr;
   bool flip_horizontal;
   bool flip_vertical;
   vec2 tex_coord_multiplier; // This is multiplied with the texture coordinates while rendering.
@@ -18,7 +18,7 @@ typedef struct NV_SpriteRenderer {
 } NV_SpriteRenderer;
 
 static inline NV_SpriteRenderer NV_SpriteRendererInit() {
-  return (NV_SpriteRenderer){NVSprite_Empty, 0, 0, (vec2){1.0f, 1.0f}, (vec4){1.0f, 1.0f, 1.0f, 1.0f}};
+  return (NV_SpriteRenderer){NV_sprite_empty, 0, 0, (vec2){1.0f, 1.0f}, (vec4){1.0f, 1.0f, 1.0f, 1.0f}};
 }
 
 NOVA_HEADER_END;

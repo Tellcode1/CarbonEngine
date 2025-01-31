@@ -5,37 +5,37 @@
 
 NOVA_HEADER_START;
 
-typedef struct NVCollider NVCollider;
-typedef struct NVScene NVScene;
+typedef struct NV_collider_t NV_collider_t;
+typedef struct NV_scene_t NV_scene_t;
 
-typedef enum NVCollider_Type { NOVA_COLLIDER_TYPE_STATIC = 0, NOVA_COLLIDER_TYPE_DYNAMIC = 1, NOVA_COLLIDER_TYPE_KINEMATIC = 2 } NVCollider_Type;
+typedef enum NV_collider_type { NOVA_COLLIDER_TYPE_STATIC = 0, NOVA_COLLIDER_TYPE_DYNAMIC = 1, NOVA_COLLIDER_TYPE_KINEMATIC = 2 } NV_collider_type;
 
-typedef enum NVCollider_Shape {
+typedef enum NV_collider_shape {
   NOVA_COLLIDER_SHAPE_RECT    = 0,
   NOVA_COLLIDER_SHAPE_CIRCLE  = 1, // only x of size is used
   NOVA_COLLIDER_SHAPE_CAPSULE = 2, // x of size is radius and y is height.
-} NVCollider_Shape;
+} NV_collider_shape;
 
-typedef struct NVCollider_RayHit {
-  const NVCollider *host;
-  NVCollider *other;
+typedef struct NV_collider_ray_hit {
+  const NV_collider_t *host;
+  NV_collider_t *other;
   vec2 point_of_contact;
   bool hit;
-} NVCollider_RayHit;
+} NV_collider_ray_hit;
 
 // mask defines the layers that the collider can collide with
 // both layer and mask must be bitmasks
-extern NVCollider *NVCollider_Init(NVScene *scene, vec2 position, vec2 size, NVCollider_Type type, NVCollider_Shape shape, uint64_t layer,
+extern NV_collider_t *NV_collider_Init(NV_scene_t *scene, vec2 position, vec2 size, NV_collider_type type, NV_collider_shape shape, uint64_t layer,
                                        uint64_t mask, bool start_enabled);
-extern void NVCollider_Destroy(NVCollider *col);
+extern void NV_collider_Destroy(NV_collider_t *col);
 
-extern vec2 NVCollider_GetPosition(const NVCollider *col);
-extern void NVCollider_SetPosition(NVCollider *col, vec2 to);
+extern vec2 NV_collider_GetPosition(const NV_collider_t *col);
+extern void NV_collider_SetPosition(NV_collider_t *col, vec2 to);
 
-vec2 NVCollider_GetSize(const NVCollider *col);
-void NVCollider_SetSize(NVCollider *col, vec2 to);
+vec2 NV_collider_GetSize(const NV_collider_t *col);
+void NV_collider_SetSize(NV_collider_t *col, vec2 to);
 
-extern NVCollider_RayHit NVCollider_RayCast(const NVCollider *col, vec2 orig, vec2 dir, uint32_t layer, uint32_t mask);
+extern NV_collider_ray_hit NV_collider_cast_ray(const NV_collider_t *col, vec2 orig, vec2 dir, uint32_t layer, uint32_t mask);
 
 // You need to update the colliders through luneScene_Update();
 

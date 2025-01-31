@@ -1,15 +1,14 @@
-#include "../common/printf.h"
 #include "../common/stdafx.h"
 #include "../common/timer.h"
 #include "../external/box2d/include/box2d/box2d.h"
 #include "../external/volk/volk.h"
-#include "../include/engine/engine.h"
-#include "../include/engine/ctext.h"
+#include "../include/engine/UI.h"
 #include "../include/engine/camera.h"
+#include "../include/engine/ctext.h"
+#include "../include/engine/engine.h"
 #include "../include/engine/input.h"
 #include "../include/engine/object.h"
 #include "../include/engine/scene.h"
-#include "../include/engine/UI.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -36,17 +35,19 @@ hoover(NVUI_Button* self)
 __attribute__((__used__, __noinline__)) void
 test_allocator(void)
 {
-  NVAllocatorHeap stack;
-  NVAllocatorHeapInit(&stack);
+  uchar            buf[1024];
+
+  NVAllocatorStack stack;
+  NVAllocatorStackInit(&stack, buf, 1024);
 
   NVAllocator ac;
-  NVAllocatorBindHeapAllocator(&ac, &stack);
+  NVAllocatorBindStackAllocator(&ac, &stack);
 
   size_t*         allocations[32];
   bool            pass                = 1;
 
-  volatile uchar* TestLargeAllocation = ac.alloc(&ac, 1, 10000);
-  for (int i = 0; i < 10000; i++)
+  volatile uchar* TestLargeAllocation = ac.alloc(&ac, 1, 100);
+  for (int i = 0; i < 100; i++)
   {
     TestLargeAllocation[i] = (uchar)rand();
   }
@@ -55,7 +56,7 @@ test_allocator(void)
     NV_LOG_ERROR("Large allocation failed");
     pass = 0;
   }
-  if (NV_memset((uchar*)TestLargeAllocation, 0, 10000) == NULL)
+  if (NV_memset((uchar*)TestLargeAllocation, 0, 100) == NULL)
   {
     NV_LOG_ERROR("Large allocation memset failed");
     pass = 0;
@@ -129,21 +130,18 @@ main(int argc, char* argv[])
   (void)argv;
   SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);
 
-  const NVExtent2D window_size = (NVExtent2D){ 1600 / 400, 1200 / 400 };
+  const NV_extent2d window_size = (NV_extent2d){ 400, 400 };
 
-  char               buffer[512];
-  NV_setprintbuf(buffer, 512);
+  NV_initialize_context("NOVA example", window_size.width, window_size.height);
 
-  NV_initialize_context("NV", window_size.width, window_size.height);
-
-  NVRenderer_Config rdconf  = NVRenderer_ConfigInit();
+  NV_renderer_config rdconf   = NV_renderer_configInit();
   rdconf.vsync_enabled        = 0;
   rdconf.buffer_mode          = NOVA_BUFFER_MODE_TRIPLE_BUFFERED;
   rdconf.window_resizable     = 0;
   rdconf.initial_window_size  = window_size;
   rdconf.multisampling_enable = 0;
   rdconf.samples              = NOVA_SAMPLE_COUNT_1_SAMPLES;
-  NVRenderer_t* rd          = NVRenderer_Init(&rdconf);
+  NV_renderer_t* rd            = NVRenderer_Init(&rdconf);
 
   // If you're wondering why every Action has a +,
   // I want to create a resource system with info about everything like bindings
@@ -151,11 +149,11 @@ main(int argc, char* argv[])
   // and etc. and every event will have a preceding +, booleans will have a 0 and integers will have an i
   // I'll drop the + (the user won't have to add it) when i get to it
 
-  NVInput_Init();
-  NVInput_BindKeyToAction(SDL_SCANCODE_SPACE, "+jump");
-  NVInput_BindKeyToAction(SDL_SCANCODE_RIGHT, "+right");
-  NVInput_BindKeyToAction(SDL_SCANCODE_LEFT, "+left");
-  NVInput_BindKeyToAction(SDL_SCANCODE_RETURN, "+Enter");
+  NV_input_init();
+  NV_input_bind_key_to_action(SDL_SCANCODE_SPACE, "+jump");
+  NV_input_bind_key_to_action(SDL_SCANCODE_RIGHT, "+right");
+  NV_input_bind_key_to_action(SDL_SCANCODE_LEFT, "+left");
+  NV_input_bind_key_to_action(SDL_SCANCODE_RETURN, "+Enter");
 
   const float updateTime = 3.0f; // seconds. 1.5f = 1.5 seconds
   float       totalTime  = 0.0f;
@@ -171,23 +169,23 @@ main(int argc, char* argv[])
 
   NVUI_Init();
 
-  NVUI_Button* bton    = NVUI_CreateButton(NVSprite_LoadFromDisk("../Assets/x.png"));
+  NVUI_Button* bton      = NVUI_CreateButton(NV_sprite_load_from_disk("../Assets/x.png"));
   bton->transform.size.x = 5.0f;
   bton->transform.size.y = 5.0f;
   bton->on_click         = leave_game;
   bton->on_hover         = hoover;
 
-  NVScene*  scn        = NVScene_Init();
+  NV_scene_t*   scn         = NV_scene_Init();
 
-  const vec2  r1pos      = (vec2){ 0.0f, 10.0f };
-  const vec2  r2pos      = (vec2){ 0.0f, 0.0f };
+  const vec2 r1pos       = (vec2){ 0.0f, 10.0f };
+  const vec2 r2pos       = (vec2){ 0.0f, 0.0f };
 
-  const vec2  r1siz      = (vec2){ 0.5f, 0.5f };
-  const vec2  r2siz      = v2muls(camera.ortho_size, 0.4);
+  const vec2 r1siz       = (vec2){ 0.5f, 0.5f };
+  const vec2 r2siz       = v2muls(camera.ortho_size, 0.4);
 
-  NVObject* r1         = NVObject_Create(scene_main, "Rect1", NOVA_COLLIDER_TYPE_DYNAMIC, B2_DEFAULT_CATEGORY_BITS, B2_DEFAULT_MASK_BITS, r1pos, v2muls(r1siz, 2.0f), 0);
+  NVObject*  r1          = NVObject_Create(scene_main, "Rect1", NOVA_COLLIDER_TYPE_DYNAMIC, B2_DEFAULT_CATEGORY_BITS, B2_DEFAULT_MASK_BITS, r1pos, v2muls(r1siz, 2.0f), 0);
 
-  NVObject* r2         = NVObject_Create(scene_main, "Rect2", NOVA_COLLIDER_TYPE_STATIC, B2_DEFAULT_CATEGORY_BITS, B2_DEFAULT_MASK_BITS, r2pos, v2muls(r2siz, 2.0f), 0);
+  NVObject*  r2          = NVObject_Create(scene_main, "Rect2", NOVA_COLLIDER_TYPE_STATIC, B2_DEFAULT_CATEGORY_BITS, B2_DEFAULT_MASK_BITS, r2pos, v2muls(r2siz, 2.0f), 0);
   NVObject_GetSpriteRenderer(r1)->color = (vec4){ 1.0f, 0.0f, 0.0f, 1.0f };
   NVObject_GetSpriteRenderer(r2)->color = (vec4){ 0.0f, 0.0f, 1.0f, 1.0f };
 
@@ -198,15 +196,15 @@ main(int argc, char* argv[])
     NV_update();
     const double dt = NV_get_delta_time();
 
-    if (NVInput_IsActionJustSignalled("+jump"))
+    if (NV_input_is_action_just_signalled("+jump"))
     {
       NVObject_Move(r1, (vec2){ 0.0f, 5.0f });
     }
-    if (NVInput_IsActionSignalled("+left"))
+    if (NV_input_is_action_signalled("+left"))
     {
       NVObject_Move(r1, (vec2){ 25.0f * -dt, 0.0f });
     }
-    if (NVInput_IsActionSignalled("+right"))
+    if (NV_input_is_action_signalled("+right"))
     {
       NVObject_Move(r1, (vec2){ 25.0f * dt, 0.0f });
     }
@@ -215,8 +213,7 @@ main(int argc, char* argv[])
     while (accumulator >= timeStep)
     {
       // fixed update
-
-      NVScene_Update();
+      NV_scene_update();
       accumulator -= timeStep;
     }
 
@@ -225,7 +222,7 @@ main(int argc, char* argv[])
     {
       NV_consume_event(&event);
     }
-    NVInput_Update();
+    NV_input_update();
 
     // Profiling code
     totalTime += dt;
@@ -238,7 +235,7 @@ main(int argc, char* argv[])
       totalTime = 0.0;
     }
 
-    NVCamera_Update(&camera, rd);
+    NV_camera_update(&camera, rd);
 
     NVUI_Update();
     if (!bton->was_hovered)
@@ -249,13 +246,13 @@ main(int argc, char* argv[])
     bton->transform.position = v2add((vec2){ camera.position.x, camera.position.y }, (vec2){ -9.0f, 9.0f });
     bton->transform.size     = (vec2){ 1.0f, 1.0f };
 
-    NVRenderer_SetClearColor(rd, (vec4){ .x = 0.2f, .y = 0.2f, .z = 0.2f, .w = 1.0f });
+    NV_renderer_set_clear_color(rd, (vec4){ .x = 0.2f, .y = 0.2f, .z = 0.2f, .w = 1.0f });
 
-    if (NVRenderer_BeginRender(rd))
+    if (NV_renderer_begin(rd))
     {
-      NVScene_Render(rd);
+      NV_scene_render(rd);
 
-      NVRenderer_EndRender(rd);
+      NV_renderer_end(rd);
     }
   }
 
@@ -263,7 +260,7 @@ main(int argc, char* argv[])
   // oh wait I was using a global stack allocator...
   timer finish_timer = timer_begin(0.1);
 
-  NVScene_Destroy(scn);
+  NV_scene_destroy(scn);
 
   NVUI_DestroyButton(bton);
 
@@ -272,9 +269,8 @@ main(int argc, char* argv[])
   NVUI_Shutdown();
   ctext_shutdown(rd);
   NVRenderer_Destroy(rd);
-  NVInput_Shutdown();
+  NV_input_shutdown();
   NV_LOG_INFO("done");
   NV_LOG_INFO("Took %f seconds to clean up", timer_time_since_start(&finish_timer));
-  NV_freelist_destroy(&pool.freelist);
   return 0;
 }

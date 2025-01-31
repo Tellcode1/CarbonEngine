@@ -13,7 +13,7 @@
 #if !(CSM_EXECUTABLE)
 
 struct NVSM_shader_t* shader_map = NULL;
-int                  nshaders   = 0;
+int                   nshaders   = 0;
 
 #endif
 
@@ -38,9 +38,9 @@ const char* list                 = "../compilelist.txt";
 #define CSM_HAS_FLAG(flag) (NV_strcmp(argv[i], flag) == 0)
 
 static inline void
-__CSM_NV_LOG_ERROR(const char* fn, const char* fmt, ...)
+_CSM_NV_LOG_ERROR(const char* fn, const char* fmt, ...)
 {
-  const char* preceder  = "csm error: ";
+  const char* preceder  = "csm error:";
   const char* succeeder = "\n";
   va_list     args;
   va_start(args, fmt);
@@ -48,7 +48,7 @@ __CSM_NV_LOG_ERROR(const char* fn, const char* fmt, ...)
   va_end(args);
 }
 
-#define CSM_NV_LOG_ERROR(err, ...) __CSM_NV_LOG_ERROR(__PRETTY_FUNCTION__, err, ##__VA_ARGS__)
+#define CSM_NV_LOG_ERROR(err, ...) _CSM_NV_LOG_ERROR(__PRETTY_FUNCTION__, err, ##__VA_ARGS__)
 
 #if defined(CSM)
 
@@ -74,7 +74,7 @@ main(int argc, char* argv[])
     if (CSM_HAS_FLAG("help") || CSM_HAS_FLAG("--h") || CSM_HAS_FLAG("-h") || CSM_HAS_FLAG("--help") || CSM_HAS_FLAG("-help"))
     {
       NV_printf("usage: %s <compile list path = \"../compilelist.txt\"> <cmd "
-                  "= compile>\n",
+                "= compile>\n",
           argv[0]);
       NV_printf("%s", CMD_HELP_MSG);
       return 0;
@@ -94,7 +94,7 @@ main(int argc, char* argv[])
   else
   {
     NV_printf("usage: %s <compile list path = \"../compilelist.txt\"> <cmd = "
-                "compile>\n",
+              "compile>\n",
         argv[0]);
     NV_printf("%s", CMD_HELP_MSG);
     return -1;
@@ -167,7 +167,7 @@ NVSM_load_shader(const char* name, struct NVSM_shader_t** out)
   NV_strncpy(shader.name, name, sizeof(shader.name) - 1);
   shader.name[sizeof(shader.name) - 1] = '\0';
 
-  struct NVSM_shader_t* shaderptr       = (struct NVSM_shader_t*)bsearch(&shader, shader_map, nshaders, sizeof(struct NVSM_shader_t), compare_shader_t);
+  struct NVSM_shader_t* shaderptr      = (struct NVSM_shader_t*)bsearch(&shader, shader_map, nshaders, sizeof(struct NVSM_shader_t), compare_shader_t);
 
   if (shaderptr)
   {
@@ -251,6 +251,7 @@ err:
 }
 
 #include "../external/volk/volk.h"
+#include "../include/GPU/pipeline.h"
 #include "../include/GPU/vk.h"
 #include "../include/GPU/vkstdafx.h"
 
@@ -269,7 +270,7 @@ __NVSM_create_shader(VkDevice vkdevice, const unsigned* bytes, int nbytes, struc
     .codeSize = nbytes,
     .pCode    = bytes,
   };
-  vkCreateShaderModule(vkdevice, &info, &vkallocator, (VkShaderModule*)&out->shader_module);
+  NVVK_ResultCheck(vkCreateShaderModule(vkdevice, &info, NOVA_VK_ALLOCATOR, (VkShaderModule*)&out->shader_module));
 }
 
 void
@@ -489,7 +490,7 @@ load_all_entries(const char* shader_list_file_path, int* count)
     return NULL;
   }
 
-  int               currallocsize = 16;
+  int                currallocsize = 16;
   NVSM_shader_entry* entries       = NV_malloc(currallocsize * sizeof(NVSM_shader_entry));
   NV_assert(entries != NULL);
 
@@ -511,7 +512,7 @@ load_all_entries(const char* shader_list_file_path, int* count)
       NV_assert(entries != NULL);
     }
 
-    entries[*count]         = (NVSM_shader_entry){};
+    entries[*count]          = (NVSM_shader_entry){};
     NVSM_shader_entry* entry = &entries[*count];
 
     NV_strncpy(entry->path, line, 256);
@@ -540,8 +541,8 @@ load_all_entries(const char* shader_list_file_path, int* count)
       NV_strcpy(entry->stage, "000");
       NV_strcpy(entry->output_path, "");
       CSM_NV_LOG_ERROR("Shader \"%s\": has invalid or no header.\nHeader Format "
-                    "-> // output: "
-                    "{output} stage: {stage} name: {name}",
+                       "-> // output: "
+                       "{output} stage: {stage} name: {name}",
           entry->path);
     }
 
@@ -626,13 +627,13 @@ NVSM_compile_without_cache(NVSM_shader_entry* entries, int nentries)
 void
 NVSM_compile_updated()
 {
-  NV_LOG_CUSTOM("csm: ", "Shader compilation begin");
-  timer                   stopwatch    = timer_begin(0.1);
+  NV_LOG_CUSTOM("csm:", "Shader compilation begin");
+  timer                    stopwatch    = timer_begin(0.1);
 
-  int                     nentries     = 0;
+  int                      nentries     = 0;
   NVSM_shader_entry*       entries      = load_all_entries(list, &nentries);
 
-  int                     cachecount   = 0;
+  int                      cachecount   = 0;
   NVSM_shader_cache_entry* cacheentries = load_cache(&cachecount);
 
   if (cacheentries == NULL)
@@ -664,16 +665,16 @@ NVSM_compile_updated()
   if (cacheentries)
     NV_free(cacheentries);
 
-  NV_LOG_CUSTOM("csm: ", "Shader compilation end (Task took %f seconds)", timer_time_since_start(&stopwatch));
+  NV_LOG_CUSTOM("csm:", "Shader compilation end (Task took %f seconds)", timer_time_since_start(&stopwatch));
 }
 
 void
 NVSM_compile_all()
 {
-  NV_LOG_CUSTOM("csm: ", "Shader compilation begin");
-  timer             stopwatch = timer_begin(0.1);
+  NV_LOG_CUSTOM("csm:", "Shader compilation begin");
+  timer              stopwatch = timer_begin(0.1);
 
-  int               count     = 0;
+  int                count     = 0;
   NVSM_shader_entry* entries   = load_all_entries(list, &count);
 
 #if CSM_EXECUTABLE != 1
@@ -689,7 +690,7 @@ NVSM_compile_all()
 
   NV_free(entries);
 
-  NV_LOG_CUSTOM("csm: ", "Shader compilation end (Task took %f seconds)", timer_time_since_start(&stopwatch));
+  NV_LOG_CUSTOM("csm:", "Shader compilation end (Task took %f seconds)", timer_time_since_start(&stopwatch));
 }
 
 void
@@ -699,7 +700,7 @@ NVSM_shutdown()
   for (int i = 0; i < nshaders; i++)
   {
     NVSM_shader_t* shader = &shader_map[i];
-    vkDestroyShaderModule(device, shader->shader_module, &vkallocator);
+    vkDestroyShaderModule(device, shader->shader_module, NOVA_VK_ALLOCATOR);
   }
 #endif
 }
@@ -793,7 +794,7 @@ fontc_atlas_add_image(fontc_atlas_t* __restrict__ atlas, int w, int h, const uns
 
   if (atlas->next_y + h + padding > atlas->height)
   {
-    atlas->height  = cmmax(atlas->height * 2, atlas->next_y + h + padding);
+    atlas->height  = NVM_MAX(atlas->height * 2, atlas->next_y + h + padding);
     realloc_needed = 1;
   }
 
@@ -812,7 +813,7 @@ fontc_atlas_add_image(fontc_atlas_t* __restrict__ atlas, int w, int h, const uns
   *y = atlas->next_y;
 
   atlas->next_x += w + padding;
-  atlas->current_row_height = cmmax(atlas->current_row_height, h + padding);
+  atlas->current_row_height = NVM_MAX(atlas->current_row_height, h + padding);
 
   return 0;
 }
@@ -847,6 +848,9 @@ fontc_read_font(const char* path, fontc_file* file)
   NV_assert(NV_bufdecompress(compressed_glyphs, file->header.glyphs_compressed_sz, file->glyphs, total_glyph_size) != -1);
   NV_assert(NV_bufdecompress(compressed_image, file->header.img_compressed_sz, file->bitmap, file->header.bmpwidth * file->header.bmpheight) != -1);
 
+  NV_free(compressed_glyphs);
+  NV_free(compressed_image);
+
   fclose(f);
 }
 
@@ -872,14 +876,14 @@ fontc_bake_font(const char* font_path, const char* out)
   }
   FT_Set_Pixel_Sizes(face, 0, 256);
 
-  fontc_file    file  = {};
-  fontc_atlas_t atlas = fontc_atlas_init(4096, 4096);
+  fontc_file    file      = {};
+  fontc_atlas_t atlas     = fontc_atlas_init(4096, 4096);
 
-  file.header.magic   = FONTC_MAGIC;
+  file.header.magic       = FONTC_MAGIC;
 
-  file.header.line_height = -face->size->metrics.height / (float)face->units_per_EM;
+  file.header.line_height = -face->size->metrics.height / (float)face->height;
 
-  fontc_glyph* glyphs = NV_malloc(sizeof(fontc_glyph) * 256);
+  fontc_glyph* glyphs     = NV_malloc(sizeof(fontc_glyph) * 256);
   if (!glyphs)
   {
     NV_LOG_ERROR("Failed to allocate memory for glyphs");

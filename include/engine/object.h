@@ -14,14 +14,14 @@ typedef struct NVTransform {
 } NVTransform;
 
 typedef void (*NVObjectUpdateFn)(float dt);
-typedef void (*NVObjectRenderFn)(NVRenderer_t *rd);
+typedef void (*NVObjectRenderFn)(NV_renderer_t *rd);
 typedef struct NVObject NVObject;
 
 typedef enum NVObject_Flags {
   NOVA_OBJECT_NO_COLLISION = 1,
 } NVObject_Flags;
 
-extern NVObject *NVObject_Create(NVScene *scene, const char *name, NVCollider_Type col_type, uint64_t layer, uint64_t mask, vec2 position,
+extern NVObject *NVObject_Create(NV_scene_t *scene, const char *name, NV_collider_type col_type, uint64_t layer, uint64_t mask, vec2 position,
                                      vec2 size, unsigned flags);
 extern void NVObject_Destroy(NVObject *obj);
 
@@ -40,7 +40,7 @@ extern const char *NVObject_GetName(NVObject *obj);
 extern void NVObject_SetName(NVObject *obj, const char *name);
 
 extern NVTransform *NVObject_GetTransform(NVObject *obj);
-extern NVCollider *NVObject_GetCollider(NVObject *obj);
+extern NV_collider_t *NVObject_GetCollider(NVObject *obj);
 extern NV_SpriteRenderer *NVObject_GetSpriteRenderer(NVObject *obj);
 
 NOVA_HEADER_END;

@@ -11,7 +11,7 @@
 #include "../../common/containers/atlas.h"
 #include "../../common/containers/hashmap.h"
 #include "../../common/containers/string.h"
-#include "../../common/containers/vector.h"
+#include "../../common/containers/dynarray.h"
 
 #include "../GPU/buffer.h"
 #include "../GPU/texture.h"
@@ -55,7 +55,7 @@ typedef struct ctext_text_render_info {
 
 typedef struct ctext_label ctext_label;
 
-extern ctext_label *ctext_create_label(NVScene *scene, cfont_t *fnt);
+extern ctext_label *ctext_create_label(NV_scene_t *scene, cfont_t *fnt);
 extern void ctext_destroy_label(ctext_label *label);
 
 extern NVObject *ctext_label_get_object(const ctext_label *label);
@@ -76,17 +76,17 @@ static inline ctext_text_render_info ctext_init_text_render_info() {
 }
 
 // Initializes the text renderer for ONLY that renderer
-extern void ctext_init(struct NVRenderer_t *rd);
-extern void ctext_shutdown(struct NVRenderer_t *rd);
+extern void ctext_init(struct NV_renderer_t *rd);
+extern void ctext_shutdown(struct NV_renderer_t *rd);
 
-extern void ctext_load_font(NVRenderer_t *rd, const char *font_path, int scale, cfont_t **dst);
+extern void ctext_load_font(NV_renderer_t *rd, const char *font_path, int scale, cfont_t **dst);
 
 extern void ctext_destroy_font(cfont_t *fnt);
 
 extern void ctext_render(cfont_t *fnt, const ctext_text_render_info *pInfo, const char *fmt, ...);
 
-extern void ctext_flush_renders(NVRenderer_t *rd);
-extern void __ctext_flush_font(NVRenderer_t *rd, cfont_t *fnt);
+extern void ctext_flush_renders(NV_renderer_t *rd);
+extern void __ctext_flush_font(NV_renderer_t *rd, cfont_t *fnt);
 
 // Get the scale needed to fit the string in a box
 // The scale is calculated as if both the string and the box were at (0,0)
@@ -122,10 +122,10 @@ struct cfont_t {
   bool rendered_this_frame;
 
   int chars_drawn;
-  NV_vector_t /* ctext_drawcall_t */ drawcalls;
+  NV_dynarray_t /* ctext_drawcall_t */ drawcalls;
   NV_hashmap_t * /* unicode, ctext_glyph ctext_hasher<unicode>> */ glyph_map;
 
-  struct NVRenderer_t *rd;
+  struct NV_renderer_t *rd;
 };
 
 NOVA_HEADER_END;

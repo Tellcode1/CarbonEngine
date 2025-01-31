@@ -30,10 +30,10 @@ typedef enum NV_GPU_TextureUsage {
 
 typedef struct NV_GPU_TextureCreateInfo {
   NVFormat format;
-  NVSampleCount samples;
+  NV_sample_count samples;
   uint32_t type;
   NV_GPU_TextureUsage usage;
-  NVExtent3D extent;
+  NV_extent3D extent;
   int arraylayers;
   int miplevels;
 } NV_GPU_TextureCreateInfo;
